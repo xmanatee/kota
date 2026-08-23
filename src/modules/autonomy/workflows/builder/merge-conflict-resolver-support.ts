@@ -22,12 +22,12 @@ export const MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS = [
 ] as const;
 const ALLOWED_TOOL_SET = new Set<string>(MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS);
 const TOOL_DENIAL =
-	"Merge-conflict resolver may only use file read/edit tools on listed textual conflict files.";
+	"Merge-conflict resolver may only use file read/edit tools on listed conflict paths.";
 type ToolInput = Parameters<AgentCanUseTool>[1];
 
 export const MERGE_CONFLICT_RESOLVER_SYSTEM_PROMPT = `You are KOTA's bounded merge-conflict resolver.
 
-Resolve only the textual Git conflict files listed by the merge gate. Preserve the intent of both sides when possible, remove conflict markers, and do not stage, commit, merge, rebase, delete worktrees, edit generated files, or touch unrelated paths. The merge gate will stage allowed paths and rerun validation; your self-report is not accepted as proof.`;
+Resolve only the Git conflict paths listed by the merge gate. Preserve the intent of both sides for textual conflicts and remove conflict markers. A blocked path identified as a canonical deletion or rename must remain absent; delete that exact path instead of restoring stale branch code. If the claimed task requires behavior from a deleted path, stop and report the ambiguity rather than editing a replacement or unrelated path. Do not stage, commit, merge, rebase, delete worktrees, or touch unrelated paths. The merge gate will enforce the write boundary, require canonical destructive paths to remain absent, stage allowed paths, and rerun validation; your self-report is not accepted as proof.`;
 
 function tail(value: string): string {
 	return value.length <= ARTIFACT_TAIL_LIMIT
@@ -90,13 +90,13 @@ export function createMergeConflictResolverToolGuard(
 		if (!ALLOWED_TOOL_SET.has(toolName)) return deny();
 		const targetPaths = toolTargetPaths(toolName, input);
 		if (targetPaths.length === 0) {
-			return deny(`Merge-conflict resolver tool "${toolName}" must target a listed textual conflict file.`);
+			return deny(`Merge-conflict resolver tool "${toolName}" must target a listed conflict path.`);
 		}
 		for (const targetPath of targetPaths) {
 			const normalizedPath = workspaceRelativePath(request.workspaceDir, targetPath);
 			if (!normalizedPath || !allowedConflictPaths.has(normalizedPath)) {
 				return deny(
-					`Merge-conflict resolver denied access to "${targetPath}"; only listed textual conflict files are allowed.`,
+					`Merge-conflict resolver denied access to "${targetPath}"; only listed conflict paths are allowed.`,
 				);
 			}
 		}
@@ -118,7 +118,7 @@ export function mergeConflictResolverPrompt(
 ): string {
 	return [
 		"## Task",
-		"Resolve the listed textual merge conflicts in the current worktree.",
+		"Resolve the listed bounded merge conflicts in the current worktree.",
 		"",
 		`Claimed task id: ${request.taskId}`,
 		`Immutable task contract revision: ${task.revision}`,
@@ -165,8 +165,10 @@ export function mergeConflictResolverPrompt(
 		),
 		"",
 		"## Rules",
-		"- Edit only the listed conflict files.",
+		"- Edit only the listed conflict paths.",
 		"- Remove all Git conflict markers.",
+		"- Remove any listed blocked-path whose reason says canonical deletion or rename; do not recreate it.",
+		"- If deleting such a path would violate the claimed task, leave the conflict unresolved and explain why.",
 		"- Do not run git commit, git merge, git rebase, git reset, or cleanup commands.",
 		"- Do not stage files; the merge gate stages the allowed paths after your attempt.",
 		"- If validation output is present, use it to correct the listed files.",

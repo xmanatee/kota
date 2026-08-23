@@ -208,7 +208,7 @@ describe("pending-merge canonical reconciliation", () => {
 			disposition: "needs-review",
 			checkpointCommit: branchHead,
 			canonicalHeadCommit: canonicalHead,
-			reason: "pending canonical merge contains binary, generated, deletion, rename, or high-risk conflicts",
+			reason: "pending canonical merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 			conflicts: [{
 				path: "src/current.ts",
 				kind: "blocked-path",

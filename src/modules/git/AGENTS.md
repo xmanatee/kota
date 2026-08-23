@@ -20,7 +20,10 @@ This directory owns the `git` capability pack — version control operations wit
 - Preserved builder recovery checkpoints visible work on the existing task
   branch, then reconciles canonical under the same lock and bounded conflict
   boundary as the final merge gate. Worktree metadata keeps the original base,
-  checkpoint, integrated head, conflicts, and disposition.
+  checkpoint, integrated head, conflicts, and disposition. Text conflicts and
+  canonical destructive paths may reach the bounded resolver; canonical
+  destructive paths must remain absent. Other structural and binary conflicts
+  stay review-only.
 
 ## Boundaries
 

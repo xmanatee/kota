@@ -6,6 +6,7 @@ import {
 	type CheckpointAndReconcileAutomationWorktreeInput,
 	canonicalDestructivePaths,
 	changedPaths,
+	hasUnresolvableBoundedConflict,
 	resolveReconciliationConflicts,
 	resurrectedDestructivePaths,
 	runReconciliationValidations,
@@ -108,11 +109,16 @@ export async function checkpointAndReconcileAutomationWorktree(
 					"pending merge has no classified conflict paths",
 				);
 			}
-			if (conflicts.some((conflict) => conflict.kind !== "text")) {
+			if (
+				hasUnresolvableBoundedConflict(
+					conflicts,
+					new Set(destructivePaths),
+				)
+			) {
 				return blockReconciliation(
 					input,
 					record,
-					"pending canonical merge contains binary, generated, deletion, rename, or high-risk conflicts",
+					"pending canonical merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 					conflicts,
 				);
 			}
@@ -148,11 +154,16 @@ export async function checkpointAndReconcileAutomationWorktree(
 						merge.stderr || merge.stdout || "canonical merge failed without classified conflicts",
 					);
 				}
-				if (conflicts.some((conflict) => conflict.kind !== "text")) {
+				if (
+					hasUnresolvableBoundedConflict(
+						conflicts,
+						new Set(destructivePaths),
+					)
+				) {
 					return blockReconciliation(
 						input,
 						record,
-						"canonical merge contains binary, generated, deletion, rename, or high-risk conflicts",
+						"canonical merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 						conflicts,
 					);
 				}

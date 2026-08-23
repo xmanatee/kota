@@ -1,3 +1,9 @@
+import {
+	boundedActualConflicts,
+	canonicalDestructivePaths,
+	hasUnresolvableBoundedConflict,
+	resurrectedDestructivePaths,
+} from "./worktree-canonical-reconciliation-support.js";
 import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
 import { readDirtyState } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
@@ -45,7 +51,7 @@ export type {
 	MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
 
-async function resolveTextConflicts(
+async function resolveBoundedConflicts(
 	selector: AutomationWorktreeSelector,
 	input: MergeAutomationWorktreeInput & {
 		branch: string;
@@ -53,6 +59,7 @@ async function resolveTextConflicts(
 		canonicalHeadCommit: string;
 		workspaceDir: string;
 		conflicts: MergeGateConflict[];
+		destructivePaths: string[];
 	},
 ): Promise<MergeGateResult> {
 	const maxAttempts = input.maxResolutionAttempts ?? DEFAULT_MAX_RESOLUTION_ATTEMPTS;
@@ -62,7 +69,7 @@ async function resolveTextConflicts(
 			baseCommit: input.baseCommit,
 			canonicalHeadCommit: input.canonicalHeadCommit,
 			headCommit: currentHead(input.workspaceDir),
-			reason: "text conflicts require a configured merge resolver",
+			reason: "bounded conflicts require a configured merge resolver",
 			conflicts: input.conflicts,
 			resolutionAttempts: 0,
 			validation: null,
@@ -119,6 +126,26 @@ async function resolveTextConflicts(
 				headCommit: currentHead(input.workspaceDir),
 				reason: boundaryViolation.reason,
 				conflicts: boundaryViolation.conflicts,
+				resolutionAttempts: attempt,
+				validation: null,
+			});
+		}
+		const resurrected = resurrectedDestructivePaths(
+			input.workspaceDir,
+			input.destructivePaths,
+		);
+		if (resurrected.length > 0) {
+			return pendingBlocked(selector, {
+				branch: input.branch,
+				baseCommit: input.baseCommit,
+				canonicalHeadCommit: input.canonicalHeadCommit,
+				headCommit: currentHead(input.workspaceDir),
+				reason: "resolved merge would resurrect paths deleted or renamed on canonical",
+				conflicts: resurrected.map((path) => ({
+					path,
+					kind: "blocked-path",
+					reason: "canonical deletion or rename must remain authoritative",
+				})),
 				resolutionAttempts: attempt,
 				validation: null,
 			});
@@ -220,18 +247,39 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 	if (!isAncestor(workspaceDir, canonicalHeadCommit, workspaceHeadCommit)) {
 		const merge = runGit(workspaceDir, ["merge", "--no-ff", "--no-commit", canonicalHeadCommit]);
 		if (!merge.ok) {
-			const conflicts = classifyConflicts(workspaceDir);
-			if (conflicts.some((conflict) => conflict.kind !== "text")) {
+			const destructivePaths = canonicalDestructivePaths(
+				workspaceDir,
+				baseCommit,
+				canonicalHeadCommit,
+			);
+			const conflicts = boundedActualConflicts(
+				classifyConflicts(workspaceDir),
+				new Set(destructivePaths),
+			);
+			if (
+				hasUnresolvableBoundedConflict(
+					conflicts,
+					new Set(destructivePaths),
+				)
+			) {
 				return pendingBlocked(selector, {
 					branch,
 					baseCommit,
 					canonicalHeadCommit,
 					headCommit: currentHead(workspaceDir),
-					reason: "merge contains binary, generated, deletion, rename, or high-risk conflicts",
+					reason: "merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 					conflicts,
 				});
 			}
-			return await resolveTextConflicts(selector, { ...input, branch, baseCommit, canonicalHeadCommit, workspaceDir, conflicts });
+			return await resolveBoundedConflicts(selector, {
+				...input,
+				branch,
+				baseCommit,
+				canonicalHeadCommit,
+				workspaceDir,
+				conflicts,
+				destructivePaths,
+			});
 		}
 		return finishCleanMerge(selector, {
 			branch,

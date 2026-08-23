@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -293,7 +293,7 @@ describe("automation worktree merge gate", () => {
 
 		expect(result.status).toBe("blocked");
 		expect(result.reason).toBe(
-			"merge contains binary, generated, deletion, rename, or high-risk conflicts",
+			"merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 		);
 		expect(result.conflicts).toEqual([
 			{ path: "asset.bin", kind: "binary", reason: "binary conflict requires manual merge" },
@@ -314,22 +314,13 @@ describe("automation worktree merge gate", () => {
 		expect(existsSync(result.artifactPath)).toBe(true);
 	});
 
-	it.each([
-		{ label: "branch-delete", branchDeletes: true },
-		{ label: "canonical-delete", branchDeletes: false },
-	])("keeps $label conflicts away from the textual resolver", async ({ label, branchDeletes }) => {
-		const repo = initRepo(label);
+	it("keeps a branch-side deletion away from the bounded resolver", async () => {
+		const repo = initRepo("branch-delete");
 		commitFile(repo, "settings.txt", "value=base\n", "add settings");
 		const created = createFixtureWorktree(repo);
-		if (branchDeletes) {
-			git(created.metadata.workspaceDir, ["rm", "settings.txt"]);
-			git(created.metadata.workspaceDir, ["commit", "--quiet", "-m", "branch deletes settings"]);
-			commitFile(repo, "settings.txt", "value=canonical\n", "canonical modifies settings");
-		} else {
-			commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch modifies settings");
-			git(repo, ["rm", "settings.txt"]);
-			git(repo, ["commit", "--quiet", "-m", "canonical deletes settings"]);
-		}
+		git(created.metadata.workspaceDir, ["rm", "settings.txt"]);
+		git(created.metadata.workspaceDir, ["commit", "--quiet", "-m", "branch deletes settings"]);
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical modifies settings");
 
 		const result = await mergeAutomationWorktree({
 			projectDir: repo,
@@ -337,13 +328,13 @@ describe("automation worktree merge gate", () => {
 			runId: created.metadata.runId,
 			validationCommand: ["node", "-e", "process.exit(0)"],
 			resolver: () => {
-				throw new Error("delete/modify conflict must not reach the textual resolver");
+				throw new Error("branch deletion must not reach the bounded resolver");
 			},
 		});
 
 		expect(result).toMatchObject({
 			status: "blocked",
-			reason: "merge contains binary, generated, deletion, rename, or high-risk conflicts",
+			reason: "merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 			conflicts: [{
 				path: "settings.txt",
 				kind: "blocked-path",
@@ -351,5 +342,61 @@ describe("automation worktree merge gate", () => {
 			}],
 			validation: null,
 		});
+	});
+
+	it("lets the bounded resolver accept a canonical deletion", async () => {
+		const repo = initRepo("canonical-delete");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch modifies settings");
+		git(repo, ["rm", "settings.txt"]);
+		git(repo, ["commit", "--quiet", "-m", "canonical deletes settings"]);
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+			resolver: ({ workspaceDir }) => {
+				rmSync(join(workspaceDir, "settings.txt"));
+				return { resolved: true, summary: "accepted canonical deletion" };
+			},
+		});
+
+		expect(result).toMatchObject({
+			status: "merged",
+			conflicts: [],
+			validation: { passed: true },
+		});
+		expect(existsSync(join(repo, "settings.txt"))).toBe(false);
+	});
+
+	it("blocks a resolver that leaves a canonical destructive path present", async () => {
+		const repo = initRepo("canonical-delete-resurrected");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch modifies settings");
+		git(repo, ["rm", "settings.txt"]);
+		git(repo, ["commit", "--quiet", "-m", "canonical deletes settings"]);
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+			resolver: () => ({ resolved: true, summary: "kept branch path" }),
+		});
+
+		expect(result).toMatchObject({
+			status: "blocked",
+			reason: "resolved merge would resurrect paths deleted or renamed on canonical",
+			conflicts: [{
+				path: "settings.txt",
+				kind: "blocked-path",
+				reason: "canonical deletion or rename must remain authoritative",
+			}],
+			validation: null,
+		});
+		expect(git(created.metadata.workspaceDir, ["ls-files", "-u", "--", "settings.txt"])).not.toBe("");
 	});
 });

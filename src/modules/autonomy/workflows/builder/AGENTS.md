@@ -7,6 +7,9 @@
 - Give preserved work one automatic continuation only after its complete visible work is checkpointed on the existing branch and the merge-gate-serialized canonical head is reconciled.
   Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
   a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
+- Bounded recovery may resolve text conflicts and accept canonical destructive
+  paths only by keeping those paths absent. Other structural and binary
+  conflicts remain preserved for review.
 - Recovery scanning decides whether to emit an automatic continuation. Once a
   recovery event is queued, its exact task/worktree target governs consumption;
   a redrive may follow persisted `retryOf` lineage to the current claim owner,

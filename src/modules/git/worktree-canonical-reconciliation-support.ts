@@ -1,3 +1,5 @@
+import { lstatSync } from "node:fs";
+import { join } from "node:path";
 import type {
 	AutomationWorktreeCanonicalConflict,
 	AutomationWorktreeCanonicalReconciliation,
@@ -139,12 +141,24 @@ export function boundedActualConflicts(
 	);
 }
 
+export function hasUnresolvableBoundedConflict(
+	conflicts: readonly AutomationWorktreeCanonicalConflict[],
+	destructivePaths: ReadonlySet<string>,
+): boolean {
+	return conflicts.some(
+		(conflict) =>
+			conflict.kind === "binary" ||
+			(conflict.kind === "blocked-path" && !destructivePaths.has(conflict.path)),
+	);
+}
+
 export function resurrectedDestructivePaths(
 	workspaceDir: string,
 	destructivePaths: readonly string[],
 ): string[] {
-	return destructivePaths.filter((path) =>
-		runGit(workspaceDir, ["ls-files", "--error-unmatch", "--", path]).ok,
+	return destructivePaths.filter(
+		(path) =>
+			lstatSync(join(workspaceDir, path), { throwIfNoEntry: false }) !== undefined,
 	);
 }
 
