@@ -1,0 +1,3 @@
+1. Internal merge-conflict resolver and reviewer harness launches cannot bootstrap project-configured MCP servers from the mutable builder worktree.
+2. Focused regression coverage proves the resolver/reviewer request the disabled MCP posture and a planted worktree-local .kota/mcp.json cannot execute under that posture.
+3. The task records the focused verification command and remains aligned with the implemented and validated outcome.

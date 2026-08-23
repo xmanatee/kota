@@ -34,8 +34,11 @@ function toMcpServerConfigMap(
 function resolveMcpConfig(
 	projectDir: string,
 	sessionServers: AgentHarnessRunOptions["mcpServers"],
+	projectConfigPolicy: AgentHarnessRunOptions["mcpProjectConfigPolicy"],
 ): { mcpServers: Record<string, McpServerConfig> } | null {
-	const projectConfig = McpManager.loadConfig(projectDir);
+	const projectConfig = projectConfigPolicy === "disabled"
+		? null
+		: McpManager.loadConfig(projectDir);
 	const sessionEntries = Object.entries(toMcpServerConfigMap(sessionServers));
 	if (!projectConfig && sessionEntries.length === 0) return null;
 
@@ -57,7 +60,11 @@ export async function initializeMcpManager(
 	options: AgentHarnessRunOptions,
 ): Promise<McpManager | undefined> {
 	const projectDir = resolveProjectDir(options);
-	const config = resolveMcpConfig(projectDir, options.mcpServers);
+	const config = resolveMcpConfig(
+		projectDir,
+		options.mcpServers,
+		options.mcpProjectConfigPolicy,
+	);
 	if (!config) return undefined;
 	const manager = new McpManager({ projectDir });
 	await manager.initialize(config);

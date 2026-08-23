@@ -47,6 +47,7 @@ describe("AgentHarnessRunOptions exposes only KOTA-native concepts", () => {
       allowedTools: ["t"],
       disallowedTools: ["d"],
       mcpServers: {},
+      mcpProjectConfigPolicy: "disabled",
       autonomyMode: "supervised",
       persistSession: false,
       resumeSessionId: "session-1",

@@ -143,6 +143,13 @@ export type AgentHarnessRunOptions = {
   disallowedTools?: string[];
   mcpServers?: AgentMcpServers;
   /**
+   * Controls automatic discovery of project-local MCP declarations. Adapters
+   * that do not discover project MCP config are unaffected. Internal agent
+   * launches against mutable worktrees set this to `"disabled"` so ignored
+   * config cannot create a subprocess before tool authorization runs.
+   */
+  mcpProjectConfigPolicy?: "enabled" | "disabled";
+  /**
    * KOTA-native session supervision posture. The adapter maps this onto its
    * provider's native permission or KOTA-owned tool-runner gate. Adapters
    * without a permission UX must still honor the mode or reject it loudly

@@ -32,7 +32,9 @@ Guardrails are applied inside the shared runner. Filtered tools are hidden and
 denied if called; `canUseTool` can update inputs, return a denial tool result,
 or interrupt the run. Non-empty `mcpServers` are hosted by a KOTA-owned
 `McpManager` for stdio/http transports; unsupported transports fail at the
-adapter boundary.
+adapter boundary. Project-local `.kota/mcp.json` discovery is skipped before
+manager initialization when `mcpProjectConfigPolicy` is `"disabled"`; this
+does not suppress caller-provided server declarations, which remain explicit.
 
 The adapter additionally rejects a bare `claude_code` preset `systemPrompt`
 without an `append` body because that shape is Claude-specific. Portable

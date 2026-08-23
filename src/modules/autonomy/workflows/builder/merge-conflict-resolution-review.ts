@@ -156,6 +156,7 @@ export async function reviewMergeConflictResolution(input: {
 		...resolved.options,
 		cwd: input.request.workspaceDir,
 		agentWriteScope: "deny-all",
+		mcpProjectConfigPolicy: "disabled",
 		systemPrompt: MERGE_CONFLICT_REVIEW_SYSTEM_PROMPT,
 		...(routedTools ? { allowedTools: REVIEW_ALLOWED_TOOLS } : {}),
 	};

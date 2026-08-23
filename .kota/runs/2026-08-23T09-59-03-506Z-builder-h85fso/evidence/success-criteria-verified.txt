@@ -1,0 +1,3 @@
+1. Verified: resolver and reviewer launches set mcpProjectConfigPolicy to disabled, and the OpenAI-tools adapter skips project-local MCP config discovery under that posture.
+2. Verified: the focused 50-test command passes; its planted .kota/mcp.json fixture cannot create the execution marker, and resolver tests cover both mutating and read-only phases.
+3. Verified: the task is in done with the exact focused test, typecheck, and lint commands recorded under Acceptance Evidence.

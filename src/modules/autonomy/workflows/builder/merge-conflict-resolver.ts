@@ -120,6 +120,7 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 				...resolved.options,
 				cwd: request.workspaceDir,
 				agentWriteScope: writeScope,
+				mcpProjectConfigPolicy: "disabled",
 				systemPrompt: MERGE_CONFLICT_RESOLVER_SYSTEM_PROMPT,
 			},
 			{

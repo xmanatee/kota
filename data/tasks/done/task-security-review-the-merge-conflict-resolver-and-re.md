@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-merge-conflict-resolver-and-re
 title: Security review: The merge-conflict resolver and reviewer launch an agent harness from the mutable builder worktree. When the openai-tools harness is selected, startup automatically loads the worktree's ignored .kota/mcp.json and connects every configured server before tool restrictions are applied. An untrusted builder can therefore plant an untracked stdio MCP configuration that spawns an arbitrary host process during later conflict resolution, outside the agent write scope and durable Git diff.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The merge-conflict resolver and reviewer launch an agent harness from the mutable builder worktree. When the openai-tools harness is selected, startup automatically loads the worktree's ignored .kota/mcp.json and connects every configured server before tool restrictions are applied. An untrusted builder can therefore plant an untracked stdio MCP configuration that spawns an arbitrary host process during later conflict resolution, outside the agent write scope and durable Git diff.
 created_at: 2026-08-23T08:53:17.241Z
-updated_at: 2026-08-23T08:53:17.241Z
+updated_at: 2026-08-23T10:56:15.141Z
 ---
 
 ## Problem
@@ -171,4 +171,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native-review.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native-recovery.test.ts src/modules/openai-tools-agent-harness/adapter.test.ts src/modules/openai-tools-agent-harness/adapter-shared-runner.test.ts src/modules/openai-tools-agent-harness/adapter-mcp-shared-runner.test.ts src/modules/openai-tools-agent-harness/adapter.integration.test.ts` — 8 files and 50 tests pass, including a planted worktree-local `.kota/mcp.json` execution-marker regression.
+- `pnpm typecheck` and `pnpm lint` pass.

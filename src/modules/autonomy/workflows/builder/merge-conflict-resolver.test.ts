@@ -48,6 +48,7 @@ describe("createMergeConflictResolver", () => {
 		});
 		expect(options.askOwner).toBeUndefined();
 		expect(options.agentWriteScope).toEqual(["src/conflict.ts"]);
+		expect(options.mcpProjectConfigPolicy).toBe("disabled");
 		expect(options.allowedTools).toEqual([...MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS]);
 		expect(options.allowedTools).not.toContain("Bash");
 		expect(options.allowedTools).not.toContain("shell");
@@ -57,6 +58,7 @@ describe("createMergeConflictResolver", () => {
 		expect(options.prompt).toContain("canonical change");
 		expect(run.mock.calls[1]?.[0]).toMatchObject({
 			agentWriteScope: "deny-all",
+			mcpProjectConfigPolicy: "disabled",
 			allowedTools: ["Read", "file_read", "scaffold_search_read"],
 			canUseTool: expect.any(Function),
 		});
@@ -99,10 +101,12 @@ describe("createMergeConflictResolver", () => {
 		expect(run.mock.calls[0]?.[0]).toMatchObject({
 			agentWriteScope: ["src/conflict.ts"],
 			autonomyMode: "autonomous",
+			mcpProjectConfigPolicy: "disabled",
 		});
 		expect(run.mock.calls[1]?.[0]).toMatchObject({
 			agentWriteScope: "deny-all",
 			autonomyMode: "autonomous",
+			mcpProjectConfigPolicy: "disabled",
 		});
 		expect(run.mock.calls[0]?.[0].allowedTools).toBeUndefined();
 		expect(run.mock.calls[0]?.[0].canUseTool).toBeUndefined();
