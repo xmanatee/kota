@@ -73,6 +73,53 @@ describe("pending-merge canonical reconciliation", () => {
 		).toBe("");
 	});
 
+	it("applies later canonical deletions after resolving an older pending merge", async () => {
+		const created = reconciliationFixture("pending-before-delete", {
+			"settings.txt": "value=base\n",
+			"src/legacy.ts": "export const legacy = true;\n",
+		});
+		write(created.workspaceDir, "settings.txt", "value=branch\n");
+		commit(created.workspaceDir, "branch setting");
+		write(created.projectDir, "settings.txt", "value=canonical\n");
+		const pendingCanonicalHead = commit(created.projectDir, "canonical setting");
+		expect(() =>
+			git(created.workspaceDir, [
+				"merge",
+				"--no-ff",
+				"--no-commit",
+				pendingCanonicalHead,
+			]),
+		).toThrow();
+		markAutomationWorktreePendingMerge(created, "pending before canonical deletion");
+		git(created.projectDir, ["rm", "src/legacy.ts"]);
+		const latestCanonicalHead = commit(created.projectDir, "delete legacy path");
+		const resolver = vi.fn((request) => {
+			write(request.workspaceDir, "settings.txt", "value=reconciled\n");
+			return { resolved: true, summary: "reconciled the pending text conflict" };
+		});
+		const { input } = reconciliationInput(created, { resolver });
+
+		const result = await checkpointAndReconcileAutomationWorktree(input);
+
+		expect(result).toMatchObject({
+			phase: "ready-to-resume",
+			disposition: "ready-to-resume",
+			canonicalHeadCommit: latestCanonicalHead,
+			integratedCanonicalHeadCommit: latestCanonicalHead,
+			canonicalDestructivePaths: ["src/legacy.ts"],
+			conflicts: [],
+		});
+		expect(resolver).toHaveBeenCalledOnce();
+		expect(resolver.mock.calls[0]?.[0]).toMatchObject({
+			canonicalHeadCommit: pendingCanonicalHead,
+			conflicts: [{ path: "settings.txt", kind: "text" }],
+		});
+		expect(readFileSync(join(created.workspaceDir, "settings.txt"), "utf8")).toBe(
+			"value=reconciled\n",
+		);
+		expect(() => readFileSync(join(created.workspaceDir, "src/legacy.ts"), "utf8")).toThrow();
+	});
+
 	it("uses semantic review feedback for the remaining preserved-recovery attempt", async () => {
 		const created = reconciliationFixture("pending-semantic-review", {
 			"settings.txt": "value=base\n",

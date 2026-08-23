@@ -182,6 +182,7 @@ export async function resolveReconciliationConflicts(
 	workspaceDir: string,
 	branch: string,
 	canonicalHeadCommit: string,
+	destructivePaths: readonly string[],
 	initialConflicts: AutomationWorktreeCanonicalConflict[],
 ): Promise<
 	| { ready: true; record: AutomationWorktreeCanonicalReconciliation }
@@ -279,7 +280,7 @@ export async function resolveReconciliationConflicts(
 		}
 		const resurrected = resurrectedDestructivePaths(
 			workspaceDir,
-			record.canonicalDestructivePaths,
+			destructivePaths,
 		);
 		if (resurrected.length > 0) {
 			return {
