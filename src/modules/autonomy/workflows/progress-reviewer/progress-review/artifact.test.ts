@@ -28,6 +28,7 @@ function makeArtifact(): ProgressReviewArtifact {
     ownerQuestions: 0,
     approvals: 0,
     deadLetters: 0,
+    state: 0,
     evidence: 0,
     taskClasses: [],
   };
@@ -35,6 +36,13 @@ function makeArtifact(): ProgressReviewArtifact {
     generatedAt: GENERATED_AT,
     evidence: {
       generatedAt: GENERATED_AT,
+      semanticInput: {
+        automatic: false,
+        boundary: "explicit-request",
+        inputRevision: null,
+        evidenceRefs: [],
+        reason: "test request",
+      },
       triggerKind: "manual",
       triggerEvent: "autonomy.progress-review.requested",
       scope,
@@ -50,6 +58,7 @@ function makeArtifact(): ProgressReviewArtifact {
       approvals: [],
       deadLetterCounts: [],
       deadLetters: [],
+      canonicalState: [],
       taskClassDistribution: [],
       operatorJourneyRisks: [],
       evidence: [],
@@ -57,6 +66,13 @@ function makeArtifact(): ProgressReviewArtifact {
     },
     reviewInput: {
       generatedAt: GENERATED_AT,
+      semanticInput: {
+        automatic: false,
+        boundary: "explicit-request",
+        inputRevision: null,
+        evidenceRefs: [],
+        reason: "test request",
+      },
       triggerKind: "manual",
       triggerEvent: "autonomy.progress-review.requested",
       scope,

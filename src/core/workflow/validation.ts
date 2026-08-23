@@ -51,8 +51,11 @@ export function validateWorkflowDefinitions(
         moduleRoot,
         defaultAutonomyMode,
         options,
-        true,
-        true,
+        {
+          allowWorkspaceDirUpdate: true,
+          allowRuntimeResourcesUpdate: true,
+          allowRerunOnRetry: true,
+        },
         `steps[${stepIndex}]`,
         name,
       ),

@@ -6,12 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	ApprovalQueue,
 	resetApprovalQueue,
-	setApprovalQueueInstance,
 } from "#core/daemon/approval-queue.js";
 import { McpManager } from "#core/mcp/manager.js";
 import { executeTool } from "#core/tools/index.js";
 import { MCP_MANAGED_OPERATION_TOOL_PREFIXES } from "#core/tools/tool-name-policy.js";
-import { approvalControlRoutes, handleApproveApproval } from "./routes.js";
+import { handleApproveApproval } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
 	executeTool: vi.fn(),

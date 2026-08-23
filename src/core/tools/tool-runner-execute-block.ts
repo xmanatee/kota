@@ -4,7 +4,7 @@ import type { McpExecuteToolOptions } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess } from "./guardrails.js";
-import { executeTool, type ToolResult } from "./index.js";
+import { executeTool } from "./index.js";
 import {
 	type ClientApprovalResult,
 	extractApprovalContext,
@@ -17,10 +17,12 @@ import {
 } from "./tool-approval-execution.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
+import { enforceAgentWriteScope } from "./tool-runner-agent-write-scope.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import { executeToolWithIdempotency } from "./tool-runner-idempotency.js";
 import { staleMcpDeclarationResult } from "./tool-runner-mcp.js";
 import { recordToolExecutionMetric } from "./tool-runner-metrics.js";
+import { toolErrorEntry, toolResultEntry } from "./tool-runner-result-entry.js";
 import { withToolCallExecutionOptions } from "./tool-runner-runtime.js";
 import { enforceToolScopePolicy } from "./tool-runner-scope-policy.js";
 import type {
@@ -28,20 +30,6 @@ import type {
 	ToolResultEntry,
 	ValidatedToolUseBlock,
 } from "./tool-runner-types.js";
-
-function resultEntry(block: ValidatedToolUseBlock, result: ToolResult): ToolResultEntry {
-	return {
-		tool_use_id: block.id,
-		content: result.content,
-		...(result.blocks ? { blocks: result.blocks } : {}),
-		...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
-		...(result._meta ? { _meta: result._meta } : {}),
-		...(result.is_error !== undefined ? { is_error: result.is_error } : {}),
-	};
-}
-function errorEntry(block: ValidatedToolUseBlock, content: string): ToolResultEntry {
-	return { tool_use_id: block.id, content, is_error: true };
-}
 export async function executeToolBlock(
 	block: ValidatedToolUseBlock,
 	options: ToolCallExecutionOptions,
@@ -58,6 +46,7 @@ export async function executeToolBlock(
 		guardrailsConfig,
 		clientApprovalResolver,
 		sessionId,
+		projectDir,
 		cwd,
 		env,
 		authorityConfigPath,
@@ -84,9 +73,8 @@ export async function executeToolBlock(
 	);
 	if (staleResult) {
 		recordToolExecutionMetric({ block, input, result: staleResult, resultLimit, transport });
-		return resultEntry(block, staleResult);
+		return toolResultEntry(block, staleResult);
 	}
-
 	const assessment = guardrailsConfig
 		? assess(block.name, input, guardrailsConfig)
 		: assess(block.name, input);
@@ -129,13 +117,12 @@ export async function executeToolBlock(
 			return { outcome: "allowed" };
 		}
 		if (decision.outcome === "cancelled") throw new ToolApprovalCancelledError(decision.message);
-		return { outcome: "blocked", result: errorEntry(block, `Blocked by client approval: ${decision.message}`) };
+		return { outcome: "blocked", result: toolErrorEntry(block, `Blocked by client approval: ${decision.message}`) };
 	};
-
-	// The accessor returns an atomic policy-and-revision pair. Never retain its
-	// policy across invocations: a later call must observe a restrictive commit.
 	const scopePolicySnapshot = options.getScopePolicySnapshot?.();
 	const scopePolicy = scopePolicySnapshot?.policy ?? options.scopePolicy;
+	const agentWriteScopeResult = enforceAgentWriteScope(block, options);
+	if (agentWriteScopeResult) return agentWriteScopeResult;
 	if (scopePolicy) {
 		const scopePolicyResult = await enforceToolScopePolicy({
 			block,
@@ -147,14 +134,13 @@ export async function executeToolBlock(
 		});
 		if (scopePolicyResult) return scopePolicyResult;
 	}
-
 	const effectiveAutonomyMode = scopePolicy
 		? capScopeAutonomyMode(autonomyMode, scopePolicy)
 		: autonomyMode;
 	const autonomyDecision = resolveAutonomyGate(effectiveAutonomyMode, assessment);
 	if (autonomyDecision.action === "deny") {
 		emitGuardrailAssessment("deny", autonomyDecision.message);
-		return errorEntry(block, autonomyDecision.message);
+		return toolErrorEntry(block, autonomyDecision.message);
 	}
 	let clientApprovedAutonomyGate = false;
 	if (autonomyDecision.action === "queue") {
@@ -175,7 +161,7 @@ export async function executeToolBlock(
 				mcpManager,
 				promptFingerprints: mcpPromptToolDeclarationFingerprints,
 			});
-			return errorEntry(
+			return toolErrorEntry(
 				block,
 				`Queued for approval [${queued.id}]: ${block.name} - ${autonomyDecision.reason}. ` +
 					"Operators can review and resolve it through the approval CLI or authenticated daemon client.",
@@ -183,10 +169,9 @@ export async function executeToolBlock(
 		}
 		clientApprovedAutonomyGate = true;
 	}
-
 	emitGuardrailAssessment(assessment.policy, assessment.reason);
 	if (assessment.policy === "deny") {
-		return errorEntry(
+		return toolErrorEntry(
 			block,
 			`Blocked by guardrails: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
 				"This operation requires approval. Use ask_user to request permission, or try a safer approach.",
@@ -209,7 +194,7 @@ export async function executeToolBlock(
 				mcpManager,
 				promptFingerprints: mcpPromptToolDeclarationFingerprints,
 			});
-			return errorEntry(
+			return toolErrorEntry(
 				block,
 				`Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
 					"Operators can review and resolve it through the approval CLI or authenticated daemon client.",
@@ -228,7 +213,7 @@ export async function executeToolBlock(
 			approved = await confirmAction(`Allow ${block.name}? (${assessment.reason})`);
 		}
 		if (!approved) {
-			return errorEntry(
+			return toolErrorEntry(
 				block,
 				`Blocked by guardrails: ${block.name} requires confirmation (${assessment.reason}). ` +
 					"Use ask_user to request explicit human approval, then retry.",
@@ -241,6 +226,7 @@ export async function executeToolBlock(
 		...(approvalQueue !== undefined ? { approvalQueue } : {}),
 		...(sessionId && { sessionId }),
 		toolUseId: block.id,
+		...(projectDir !== undefined ? { projectDir } : {}),
 		...(cwd !== undefined ? { cwd } : {}),
 		...(env !== undefined ? { env } : {}),
 		...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
@@ -309,5 +295,5 @@ export async function executeToolBlock(
 		resultContentProvenance,
 		startMs,
 	});
-	return resultEntry(block, result);
+	return toolResultEntry(block, result);
 }

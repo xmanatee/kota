@@ -7,7 +7,13 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import { readImportedSkillRecords } from "./imported-skills.js";
+import {
+  assertModuleEventBusAuthority,
+  bindModuleEventBus,
+  clearNewModuleEventSubscriptions,
+  resolveRuntimeModuleEventAuthority,
+  trackModuleEventSubscription,
+} from "./module-event-lifecycle.js";
 import { discardModuleLoadState, type LifecycleEnv, unloadAllModules, unloadModule } from "./module-lifecycle.js";
 import { type LoadAllEnv, loadAllModules, reloadModule } from "./module-loader-bootstrap.js";
 import { assembleDaemonClientHandlers as assembleDaemonClientHandlersImpl } from "./module-loader-clients.js";
@@ -20,6 +26,7 @@ import {
   registerModuleEvents,
   runModuleLoadPhases,
 } from "./module-loader-load-phases.js";
+import { refreshImportedSkills } from "./module-loader-skills.js";
 import { createLoaderState, type LoaderState } from "./module-loader-state.js";
 import {
   collectModuleSummaries,
@@ -85,8 +92,8 @@ export class ModuleLoader {
   getMode(): ModuleLoaderMode { return this.mode; }
   setSessionFactory(factory: (opts: CreateSessionOptions) => ModuleSession): void { this.sessionFactory = factory; }
   setCwd(cwd: string): void { this.cwd = cwd; }
-  setBus(bus: EventBus): void { this.bus = bus; }
-
+  setBus(bus: EventBus): void { this.bus = bindModuleEventBus(this.bus, bus, this.state.modules.length); }
+  assertEventBusAuthority(bus: EventBus): void { assertModuleEventBusAuthority(this.mode, this.bus, bus); }
   private get isCommandsMode(): boolean { return this.mode === "commands"; }
 
   private assertRuntime(getter: RuntimeOnlyGetter): void {
@@ -116,6 +123,7 @@ export class ModuleLoader {
         config: this.config,
         moduleStorages: this.state.moduleStorages,
         getBus: () => this.bus,
+        trackEventSubscription: (unsubscribe) => trackModuleEventSubscription(this.state, moduleName, unsubscribe),
         getRoutes: () => this.getRoutes(),
         getContributedControlRoutes: () => this.getContributedControlRoutes(),
         getContributedWorkflows: () => this.getContributedWorkflows(),
@@ -134,6 +142,7 @@ export class ModuleLoader {
   }
 
   async load(mod: KotaModule): Promise<void> {
+    this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const state = this.state;
     const policy: LoadPhasePolicy = { cwd: this.cwd, isCommandsMode: this.isCommandsMode };
 
@@ -152,7 +161,23 @@ export class ModuleLoader {
   }
 
   async loadAll(projectModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
-    await loadAllModules(this.state, this.loadAllEnv, (mod) => this.load(mod), () => this.getToolCount(), projectModules, installedModules);
+    this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
+    const eventOwnersBeforeLoad = new Set(this.state.moduleEventSubscriptions.keys());
+    try {
+      await loadAllModules(
+        this.state,
+        this.loadAllEnv,
+        (mod) => this.load(mod),
+        () => this.getToolCount(),
+        projectModules,
+        installedModules,
+      );
+    } catch (err) {
+      if (!this.isCommandsMode) {
+        clearNewModuleEventSubscriptions(this.state, eventOwnersBeforeLoad);
+      }
+      throw err;
+    }
   }
 
   async unload(moduleName: string): Promise<boolean> {
@@ -234,7 +259,7 @@ export class ModuleLoader {
   getSkillsPrompt(): string { return this.getSkillsPromptFor("all"); }
 
   getSkillsPromptFor(skillNames: string[] | "all", agentName?: string): string {
-    this.refreshImportedSkills();
+    refreshImportedSkills(this.state, this.cwd);
     return formatSkillsPrompt(
       this.state.skillContentsByName,
       this.state.skillDefsByName,
@@ -242,31 +267,6 @@ export class ModuleLoader {
       skillNames,
       agentName,
     );
-  }
-
-  private refreshImportedSkills(): void {
-    const records = readImportedSkillRecords(this.cwd);
-    const moduleSkillNames = new Set<string>();
-    for (const skills of this.state.moduleSkillDefs.values()) {
-      for (const skill of skills) moduleSkillNames.add(skill.name);
-    }
-
-    for (const name of this.state.importedSkillNames) {
-      if (!moduleSkillNames.has(name)) {
-        this.state.skillContentsByName.delete(name);
-        this.state.skillDefsByName.delete(name);
-      }
-      this.state.explicitOnlySkillNames.delete(name);
-    }
-    this.state.importedSkillNames.clear();
-
-    for (const record of records) {
-      if (moduleSkillNames.has(record.def.name)) continue;
-      this.state.skillContentsByName.set(record.def.name, record.content);
-      this.state.skillDefsByName.set(record.def.name, record.def);
-      this.state.importedSkillNames.add(record.def.name);
-      this.state.explicitOnlySkillNames.add(record.def.name);
-    }
   }
 
   getAgentDef(name: string): AgentDef | undefined {
@@ -283,7 +283,6 @@ export class ModuleLoader {
 
   getLoadedModules(): string[] { return this.state.modules.map((e) => e.name); }
   getModuleCount(): number { return this.state.modules.length; }
-
   getToolCount(): number {
     if (this.isCommandsMode) return 0;
     let total = 0;

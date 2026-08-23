@@ -9,7 +9,6 @@ import {
 import {
 	git,
 	metadataPath,
-	readDirtyState,
 } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
 import type {
@@ -51,6 +50,31 @@ export function runGit(cwd: string, args: string[]): { ok: boolean; stdout: stri
 	};
 }
 
+export function canonicalConflictDiff(
+	workspaceDir: string,
+	baseCommit: string,
+	canonicalHeadCommit: string,
+	conflicts: readonly MergeGateConflict[],
+): string {
+	const paths = conflicts.map((conflict) => conflict.path);
+	if (paths.length === 0) return "(no textual conflict paths)";
+	const result = runGit(workspaceDir, [
+		"diff",
+		"--no-ext-diff",
+		"--no-color",
+		baseCommit,
+		canonicalHeadCommit,
+		"--",
+		...paths,
+	]);
+	if (!result.ok) {
+		throw new Error(
+			result.stderr || result.stdout || "could not render canonical conflict diff",
+		);
+	}
+	return result.stdout || "(canonical side has no textual diff for the conflict paths)";
+}
+
 export function runValidation(workspaceDir: string, command: readonly string[] | undefined): MergeGateValidation | null {
 	if (!command || command.length === 0) return null;
 	const [executable, ...args] = command;
@@ -83,19 +107,52 @@ function hasInProgressMerge(repoDir: string): boolean {
 }
 
 export function abortMerge(repoDir: string): void {
-	if (hasInProgressMerge(repoDir)) runGit(repoDir, ["merge", "--abort"]);
+	if (!hasInProgressMerge(repoDir)) return;
+	const result = runGit(repoDir, ["merge", "--abort"]);
+	if (!result.ok) {
+		throw new Error(result.stderr || result.stdout || "could not abort merge");
+	}
 }
 
-function conflictPaths(workspaceDir: string): string[] {
-	const dirty = readDirtyState(workspaceDir);
-	const paths = new Set<string>();
-	for (const entry of dirty.entries) {
-		if (entry.length < 4) continue;
-		const code = entry.slice(0, 2);
-		if (!code.includes("U") && code !== "AA" && code !== "DD") continue;
-		paths.add(entry.slice(3).trim());
+type UnmergedIndexEntry = { path: string; stages: Set<number> };
+
+function unmergedIndexEntries(workspaceDir: string): UnmergedIndexEntry[] {
+	const result = runGit(workspaceDir, ["ls-files", "--unmerged", "-z"]);
+	if (!result.ok) throw new Error(result.stderr || "could not inspect unmerged index entries");
+	const entries = new Map<string, Set<number>>();
+	for (const record of result.stdout.split("\0").filter(Boolean)) {
+		const match = /^\d+ [0-9a-f]+ ([123])\t([\s\S]+)$/.exec(record);
+		if (!match?.[1] || !match[2]) throw new Error("malformed unmerged index entry");
+		const stages = entries.get(match[2]) ?? new Set<number>();
+		stages.add(Number(match[1]));
+		entries.set(match[2], stages);
 	}
-	return [...paths].sort();
+	return [...entries].map(([path, stages]) => ({ path, stages })).sort((a, b) =>
+		a.path.localeCompare(b.path)
+	);
+}
+
+function renameConflictPaths(workspaceDir: string): ReadonlySet<string> {
+	const mergeHead = runGit(workspaceDir, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+	if (!mergeHead.ok) return new Set();
+	const base = runGit(workspaceDir, ["merge-base", "HEAD", mergeHead.stdout]);
+	if (!base.ok) throw new Error(base.stderr || "could not establish merge conflict ancestry");
+	const paths = new Set<string>();
+	for (const side of ["HEAD", mergeHead.stdout]) {
+		const diff = runGit(workspaceDir, [
+			"diff", "--name-status", "--find-renames", "--diff-filter=R", "-z", `${base.stdout}..${side}`,
+		]);
+		if (!diff.ok) throw new Error(diff.stderr || "could not inspect merge-side renames");
+		const tokens = diff.stdout.split("\0").filter(Boolean);
+		for (let index = 0; index < tokens.length; index += 3) {
+			if (!tokens[index]?.startsWith("R") || !tokens[index + 1] || !tokens[index + 2]) {
+				throw new Error("malformed merge-side rename entry");
+			}
+			paths.add(tokens[index + 1]);
+			paths.add(tokens[index + 2]);
+		}
+	}
+	return paths;
 }
 
 function isGeneratedOrBlockedPath(path: string): boolean {
@@ -148,7 +205,16 @@ export function conflictMarkerConflicts(
 }
 
 export function classifyConflicts(workspaceDir: string): MergeGateConflict[] {
-	return conflictPaths(workspaceDir).map((path) => {
+	const renamedPaths = renameConflictPaths(workspaceDir);
+	return unmergedIndexEntries(workspaceDir).map(({ path, stages }) => {
+		if (renamedPaths.has(path)) {
+			return { path, kind: "blocked-path", reason: "rename conflict requires explicit disposition evidence" };
+		}
+		const isModifyModify = stages.has(1) && stages.has(2) && stages.has(3);
+		const isAddAdd = !stages.has(1) && stages.has(2) && stages.has(3);
+		if (!isModifyModify && !isAddAdd) {
+			return { path, kind: "blocked-path", reason: "delete/modify or structural conflict requires explicit disposition evidence" };
+		}
 		if (isGeneratedOrBlockedPath(path)) {
 			return { path, kind: "blocked-path", reason: "generated or high-risk path requires manual merge" };
 		}

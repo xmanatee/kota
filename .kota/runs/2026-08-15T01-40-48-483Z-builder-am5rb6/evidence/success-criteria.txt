@@ -1,0 +1,6 @@
+1. Preserved recovery cannot enter the builder until the checkpointed branch contains the recovery-time canonical head, or recovery is durably held for review.
+2. One checkpoint preserves all tracked and untracked changes and records the original base, checkpoint commit, canonical head, conflicts, and disposition in claim/worktree evidence.
+3. Non-overlapping divergence integrates automatically; overlapping paths alone reach the existing merge resolver, and task/source validation runs before continuation.
+4. Canonical deletions and renames cannot be silently resurrected by resumed preserved work.
+5. Concurrent canonical changes after continuation remain the final merge gate's responsibility without reprocessing pre-agent divergence.
+6. Recovery status projections distinguish checkpointing, canonical reconciliation, conflict blocking, and readiness to resume.

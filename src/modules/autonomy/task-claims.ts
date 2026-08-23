@@ -13,7 +13,9 @@ import {
   type ClaimTaskAttempt,
   type QueueTaskClaimResult,
 } from "./task-claim-types.js";
+import { compareAutonomyTasks } from "./task-ranking.js";
 
+export { updateTaskClaimCanonicalReconciliation } from "./task-claim-canonical-reconciliation.js";
 export {
   archiveClaim,
   archiveClaimIfUnchanged,
@@ -48,6 +50,7 @@ export {
   type QueueTaskClaimResult,
   skippedTaskClaimRecoveryPath,
   type TaskClaim,
+  type TaskClaimCanonicalReconciliationInput,
   type TaskClaimInspection,
   type TaskClaimMutationInput,
   type TaskClaimRecoveryPath,
@@ -57,26 +60,43 @@ export {
   type TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
 
-const PRIORITY_RANK = new Map([
-  ["p0", 0],
-  ["p1", 1],
-  ["p2", 2],
-  ["p3", 3],
-]);
-
-function priorityRank(priority: string): number {
-  return PRIORITY_RANK.get(priority) ?? 99;
-}
-
-function compareCandidateTasks(a: RepoTaskFullRecord, b: RepoTaskFullRecord): number {
+export function compareQueueTaskCandidates(
+  a: RepoTaskFullRecord,
+  b: RepoTaskFullRecord,
+): number {
   const stateRank = (task: RepoTaskFullRecord) => (task.state === "doing" ? 0 : 1);
   const byState = stateRank(a) - stateRank(b);
   if (byState !== 0) return byState;
-  const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
-  if (byPriority !== 0) return byPriority;
-  const byUpdated = a.updatedAt.localeCompare(b.updatedAt);
-  if (byUpdated !== 0) return byUpdated;
-  return a.id.localeCompare(b.id);
+  return compareAutonomyTasks(a, b);
+}
+
+export function listQueueTaskCandidates(
+  projectDir: string,
+  candidateStates = CLAIM_CANDIDATE_STATES,
+): VerifiedRepoTaskFullRecord[] {
+  const allTasks = listVerifiedFullRepoTasks(projectDir);
+  const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
+  return allTasks
+    .filter((task) => candidateStates.includes(task.state))
+    .filter((task) =>
+      task.dependsOn.every((dependency) => stateByTaskId.get(dependency) === "done"),
+    )
+    .sort(compareQueueTaskCandidates);
+}
+
+export function listClaimableQueueTaskCandidates(
+  projectDir: string,
+  now: Date = new Date(),
+  candidateStates = CLAIM_CANDIDATE_STATES,
+): VerifiedRepoTaskFullRecord[] {
+  const blockedTaskIds = new Set(
+    listTaskClaimInspections(projectDir, now)
+      .filter((inspection) => !inspection.safeToRetry)
+      .map((inspection) => inspection.claim.taskId),
+  );
+  return listQueueTaskCandidates(projectDir, candidateStates).filter(
+    (task) => !blockedTaskIds.has(task.id),
+  );
 }
 
 function assertTaskFileStillMatches(
@@ -102,22 +122,7 @@ function assertTaskFileStillMatches(
 export function claimNextQueueTask(input: ClaimNextQueueTaskInput): QueueTaskClaimResult {
   const now = input.now ?? new Date();
   const candidateStates = input.candidateStates ?? CLAIM_CANDIDATE_STATES;
-  const allTasks = listVerifiedFullRepoTasks(input.projectDir);
-  const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
-  const waitingIds = new Set(
-    allTasks
-      .filter((task) => candidateStates.includes(task.state))
-      .filter((task) =>
-        task.dependsOn.some(
-          (dependency) => stateByTaskId.get(dependency) !== "done",
-        ),
-      )
-      .map((task) => task.id),
-  );
-  const candidates = allTasks
-    .filter((task) => candidateStates.includes(task.state))
-    .filter((task) => !waitingIds.has(task.id))
-    .sort(compareCandidateTasks);
+  const candidates = listQueueTaskCandidates(input.projectDir, candidateStates);
   const skipped: ClaimTaskAttempt[] = [];
 
   for (const task of candidates) {

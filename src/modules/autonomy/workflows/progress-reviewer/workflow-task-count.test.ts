@@ -32,10 +32,13 @@ import progressReviewerWorkflow from "./workflow.js";
 
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-  getRepoWorktreeStatusAsync: vi.fn(),
-}));
+vi.mock("#core/util/repo-worktree.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
+      "#core/util/repo-worktree.js",
+    );
+  return { ...actual, getRepoWorktreeStatus: vi.fn() };
+});
 
 type TaskCountEvent = {
   runId: string;
@@ -197,10 +200,8 @@ describe("progress-reviewer task-count workflow", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
-    const { getRepoWorktreeStatus, getRepoWorktreeStatusAsync } = await import(
-      "#core/util/repo-worktree.js"
-    );
-    const status = {
+    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
       available: true,
       dirty: false,
       trackedDirty: false,
@@ -208,9 +209,7 @@ describe("progress-reviewer task-count workflow", () => {
       fingerprint: "",
       summary: "clean",
       headSha: "abc1234",
-    };
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue(status);
-    vi.mocked(getRepoWorktreeStatusAsync).mockResolvedValue(status);
+    });
   });
 
   afterEach(() => {

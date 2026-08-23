@@ -16,6 +16,7 @@ import type {
   ProgressReviewAppliedAction,
   ProgressReviewFollowUpTaskOutput,
   ProgressReviewOwnerQuestionOutput,
+  ProgressReviewResolutionOutput,
 } from "./types.js";
 
 function normalizeFrontMatterScalar(field: string, value: string): string {
@@ -231,4 +232,39 @@ export function enqueueOwnerQuestion(args: {
     question: args.question.question,
     reason: "stable generated-work owner question is current",
   }];
+}
+
+export function resolveGeneratedWork(args: {
+  projectDir: string;
+  resolution: ProgressReviewResolutionOutput;
+}): ProgressReviewAppliedAction[] {
+  const result = materializeGeneratedWorkProposal({
+    projectDir: args.projectDir,
+    proposal: {
+      kind: "none",
+      proposalKey: progressReviewProposalKey(args.resolution.topicKey),
+      reason: args.resolution.reason,
+      source: "progress-reviewer",
+    },
+  });
+  return result.actions.map((action): ProgressReviewAppliedAction => {
+    if (action.kind === "dropped-task") {
+      return {
+        kind: "dropped-task",
+        taskId: action.taskId,
+        fromState: action.fromState,
+      };
+    }
+    if (action.kind === "dismissed-owner-question") {
+      return {
+        kind: "dismissed-owner-question",
+        questionId: action.questionId,
+      };
+    }
+    return {
+      kind: "resolved-work",
+      topicKey: args.resolution.topicKey,
+      reason: args.resolution.reason,
+    };
+  });
 }

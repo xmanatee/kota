@@ -1,0 +1,3 @@
+1. Verified: Chromium now launches through an authenticated loopback proxy that applies the selected shared outbound profile and pins the revalidated address for HTTP requests and HTTPS CONNECT tunnels; public-untrusted is the default and configured-provider origins require explicit operator configuration.
+2. Verified: focused coverage rejects loopback, RFC1918, link-local, private DNS, redirect/subresource, and DNS-rebinding targets, while covering proxy authentication and explicitly selected private HTTP/HTTPS origins.
+3. Verified: the recorded focused suite passed 12 files and 111 tests, typecheck and full src lint passed, the docs-surface ratchet passed 5 tests after the repair, and the completed task records the acceptance commands and results.

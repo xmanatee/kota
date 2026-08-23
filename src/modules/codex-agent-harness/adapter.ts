@@ -234,6 +234,8 @@ export const codexAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       autonomyMode: options.autonomyMode,
       scopePolicy: options.scopePolicy,
+      agentWriteScope: options.agentWriteScope,
+      agentOutputDir: options.agentOutputDir,
     });
     const execution = collectTextFromCodexCli({
       prompt: buildCodexPrompt(options),

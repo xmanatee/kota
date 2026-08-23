@@ -4,10 +4,9 @@ import {
   supersedeTaskClaim,
 } from "#modules/autonomy/task-claims.js";
 import {
-  assessDecomposerFailureInWorker,
+  assertDecompositionOwnership,
   type DecomposerAssessment,
-  type DecomposerAssessmentInput,
-} from "./blocking-assessment.js";
+} from "./assessment.js";
 import {
   type AppliedDecomposition,
   applyDecompositionPlan,
@@ -16,7 +15,6 @@ import type { DecompositionPlan } from "./decomposition-plan.js";
 
 export type { AppliedDecomposition } from "./decomposition-actions.js";
 export type { DecomposerAssessment };
-export { assessDecomposerFailureInWorker };
 
 export type FinalizedSourceClaim = {
   changed: boolean;
@@ -25,8 +23,7 @@ export type FinalizedSourceClaim = {
 
 type ApplyDecompositionInput = {
   projectDir: string;
-  taskId: string;
-  failedRunId: string;
+  assessment: Extract<DecomposerAssessment, { shouldDecompose: true }>;
   plan: DecompositionPlan;
 };
 
@@ -41,7 +38,13 @@ type FinalizeSourceClaimInput = {
 export function applyDecompositionInWorker(
   input: ApplyDecompositionInput,
 ): AppliedDecomposition {
-  return applyDecompositionPlan(input);
+  assertDecompositionOwnership(input.projectDir, input.assessment);
+  return applyDecompositionPlan({
+    projectDir: input.projectDir,
+    taskId: input.assessment.taskId,
+    failedRunId: input.assessment.failedRunId,
+    plan: input.plan,
+  });
 }
 
 export function finalizeSourceClaimInWorker(
@@ -49,21 +52,23 @@ export function finalizeSourceClaimInWorker(
 ): FinalizedSourceClaim {
   const claim = readActiveTaskClaim(input.projectDir, input.taskId);
   if (
-    claim !== null &&
-    (claim.status !== "pending-decomposition" || claim.workflowId !== "builder")
+    claim === null ||
+    claim.status !== "pending-decomposition" ||
+    claim.workflowId !== "builder" ||
+    claim.runId !== input.failedRunId
   ) {
     throw new Error(
-      `Cannot finalize claim for ${input.taskId}: claim is ${claim.workflowId}/${claim.status}`,
+      `Cannot finalize claim for ${input.taskId}: expected builder/${input.failedRunId}/pending-decomposition ownership`,
     );
   }
   const result = supersedeTaskClaim({
     projectDir: input.projectDir,
     taskId: input.taskId,
-    runId: claim?.runId ?? input.failedRunId,
-    workflowId: claim?.workflowId ?? "builder",
+    runId: input.failedRunId,
+    workflowId: "builder",
     evidence: `decomposer ${input.workflowRunId} replaced the exhausted task with bounded subtasks`,
   });
-  if (!result.changed && result.claim !== null) {
+  if (!result.changed) {
     throw new Error(
       `Cannot finalize claim for ${input.taskId}: ${result.reason ?? "claim ownership changed"}`,
     );
@@ -73,12 +78,6 @@ export function finalizeSourceClaimInWorker(
     recoveryStatus: result.recoveryStatus,
   };
 }
-
-export const assessDecomposerFailureOperation =
-  defineWorkflowBlockingOperation<DecomposerAssessmentInput, DecomposerAssessment>(
-    import.meta.url,
-    "assessDecomposerFailureInWorker",
-  );
 
 export const applyDecompositionOperation = defineWorkflowBlockingOperation<
   ApplyDecompositionInput,

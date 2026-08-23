@@ -1,5 +1,6 @@
 /** `antigravity-cli` agent harness around AGY's headless event stream. */
 
+import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type {
   AgentHarness,
   AgentHarnessAuthProbe,
@@ -259,7 +260,14 @@ export const antigravityCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       autonomyMode: options.autonomyMode,
       scopePolicy: options.scopePolicy,
+      agentWriteScope: options.agentWriteScope,
+      agentOutputDir: options.agentOutputDir,
     });
+    const runtimeWritableRoots = resolveAgentFilesystemWriteRoots(
+      options.cwd ?? process.cwd(),
+      options.agentWriteScope,
+      options.agentOutputDir,
+    ) === undefined ? [] : scope.writableRoots;
     const execution = collectTextFromAntigravityCli({
       prompt: buildAntigravityPrompt(options),
       cwd: options.cwd ?? process.cwd(),
@@ -268,6 +276,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
       outputSchema: options.outputSchema,
       readOnly: scope.executionMode === "plan",
       writableRoots: scope.writableRoots,
+      runtimeWritableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       resumeSessionId: options.resumeSessionId,

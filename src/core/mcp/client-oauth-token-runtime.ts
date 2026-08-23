@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { outboundHttp } from "#core/outbound-http/index.js";
 import type {
   McpAuthorizationFlowError,
   McpAuthorizationServerMetadata,
@@ -19,7 +20,6 @@ import {
   MCP_ENTERPRISE_ID_JAG_TOKEN_TYPE,
   MCP_ENTERPRISE_JWT_BEARER_GRANT_TYPE,
   MCP_ENTERPRISE_TOKEN_EXCHANGE_GRANT_TYPE,
-  normalizeHttpUrl,
   scopeSetIncludesAll,
   scopesNotIncluded,
   splitScopeParam,
@@ -30,6 +30,10 @@ import {
   requireJsonObject,
   requireString,
 } from "./client-decode-utils.js";
+import {
+  normalizeAndValidateOAuthServerMetadataEndpoints,
+  resolveMcpOAuthEndpointProfile,
+} from "./client-oauth-endpoint-policy.js";
 import {
   createPrivateKeyJwtClientAssertion,
   MCP_PRIVATE_KEY_JWT_CLIENT_ASSERTION_TYPE,
@@ -86,9 +90,20 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
         );
         continue;
       }
-      const normalizedMetadata = this.normalizeAuthorizationServerMetadataEndpoints(
-        metadata,
-      );
+      let normalizedMetadata: McpAuthorizationServerMetadata;
+      try {
+        normalizedMetadata = await normalizeAndValidateOAuthServerMetadataEndpoints(
+          metadata,
+          config,
+        );
+      } catch (error) {
+        throw this.authorizationFlowError(
+          resource,
+          config.issuer,
+          scopes,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
 
       if (config.type === "oauth") {
         if (normalizedMetadata.authorizationEndpoint === undefined) {
@@ -173,8 +188,9 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
 
       let normalizedMetadata: McpAuthorizationServerMetadata;
       try {
-        normalizedMetadata = this.normalizeAuthorizationServerMetadataEndpoints(
+        normalizedMetadata = await normalizeAndValidateOAuthServerMetadataEndpoints(
           metadata,
+          config,
         );
       } catch (err) {
         errors.push(`${url}: ${err instanceof Error ? err.message : String(err)}`);
@@ -217,31 +233,6 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
       scopes,
       `enterprise-managed identity-provider metadata discovery failed: ${errors.join("; ")}`,
     );
-  }
-
-  protected normalizeAuthorizationServerMetadataEndpoints(
-    metadata: McpAuthorizationServerMetadata,
-  ): McpAuthorizationServerMetadata {
-    return {
-      ...metadata,
-      tokenEndpoint: normalizeHttpUrl(metadata.tokenEndpoint, "token_endpoint"),
-      ...(metadata.authorizationEndpoint !== undefined
-        ? {
-            authorizationEndpoint: normalizeHttpUrl(
-              metadata.authorizationEndpoint,
-              "authorization_endpoint",
-            ),
-          }
-        : {}),
-      ...(metadata.registrationEndpoint !== undefined
-        ? {
-            registrationEndpoint: normalizeHttpUrl(
-              metadata.registrationEndpoint,
-              "registration_endpoint",
-            ),
-          }
-        : {}),
-    };
   }
 
   protected async resolveOAuthClient(
@@ -852,14 +843,40 @@ export abstract class McpClientOAuthTokenRuntime extends McpClientProtectedResou
     scopes: readonly string[],
     label: string,
   ): Promise<JsonRpcResult> {
+    const method = init.method?.toUpperCase() ?? "GET";
+    if (method !== "GET" && method !== "POST") {
+      throw this.authorizationFlowError(
+        resource,
+        issuer,
+        scopes,
+        `${label} failed: unsupported outbound HTTP method ${method}`,
+      );
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT);
     try {
       let response: Response;
       try {
-        response = await fetch(url, { ...init, signal: controller.signal });
+        ({ response } = await outboundHttp.requestStream({
+          profile: resolveMcpOAuthEndpointProfile(
+            this.transport.type === "http"
+              ? this.transport.authorization
+              : undefined,
+            url,
+          ),
+          operation: "mcp.oauth",
+          url,
+          method,
+          headers: init.headers,
+          body: init.body,
+          signal: controller.signal,
+          limits: {
+            timeoutMs: CONNECT_TIMEOUT,
+            responseBytes: MCP_HTTP_RESPONSE_BODY_MAX_BYTES,
+          },
+        }));
       } catch (err) {
-        const message = err instanceof Error && err.name === "AbortError"
+        const message = controller.signal.aborted || (err instanceof Error && err.name === "AbortError")
           ? `request timed out after ${CONNECT_TIMEOUT}ms`
           : err instanceof Error ? err.message : String(err);
         throw this.authorizationFlowError(resource, issuer, scopes, `${label} failed: ${message}`);

@@ -111,6 +111,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     channelIdentity: undefined,
     autonomyMode: "autonomous",
     moduleLoader: {} as never,
+    ownsModuleRuntime: true,
     closed: false,
     activeAbortControllers: new Set(),
     sigintHandler: () => {},
@@ -175,6 +176,8 @@ describe("runSend MCP declaration refresh", () => {
     expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
     expect(mockExecuteToolCalls.mock.calls[0][1]).toMatchObject({
       sessionId: "session-test",
+      projectDir: process.cwd(),
+      cwd: process.cwd(),
       scopeId: "scope-test",
       projectId: "scope-test",
     });

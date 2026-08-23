@@ -51,6 +51,37 @@ describe("Codex agent harness scope policy boundary", () => {
     });
   });
 
+  it("intersects native sandbox roots with the agent-owned write scope", () => {
+    expect(projectNativeCliScope({
+      cwd: "/worktrees/run",
+      autonomyMode: "autonomous",
+      scopePolicy: policy({
+        scopeId: "project",
+        reason: "Project writes stay in task data; run output stays runtime-owned.",
+        writes: { mode: "paths", paths: ["data/tasks"] },
+      }),
+      agentWriteScope: ["data/tasks/"],
+      agentOutputDir: "/worktrees/run/.kota/runs/run-1/agent-output",
+    })).toEqual({
+      executionMode: "bounded-edits",
+      writableRoots: [
+        "/worktrees/run/data/tasks",
+        "/worktrees/run/.kota/runs/run-1/agent-output",
+      ],
+    });
+
+    expect(projectNativeCliScope({
+      cwd: "/worktrees/run",
+      autonomyMode: "autonomous",
+      scopePolicy: policy(),
+      agentWriteScope: "deny-all",
+      agentOutputDir: "/worktrees/run/.kota/runs/run-1/agent-output",
+    })).toEqual({
+      executionMode: "bounded-edits",
+      writableRoots: ["/worktrees/run/.kota/runs/run-1/agent-output"],
+    });
+  });
+
   it("denies native writes when either runtime or owner policy is read-only", () => {
     const writablePolicy = policy();
     expect(projectNativeCliScope({

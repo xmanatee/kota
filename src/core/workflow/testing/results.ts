@@ -65,6 +65,7 @@ export function makeStepResult(
 export function validateWorkflowStepOutput<T>(
   step: WorkflowCodeStepInput | WorkflowStepInput,
   rawOutput: T,
+  context: WorkflowStepContext,
 ) {
   if (
     (step.type !== "code" && step.type !== "agent") ||
@@ -73,7 +74,12 @@ export function validateWorkflowStepOutput<T>(
     return rawOutput;
   }
   try {
-    return step.validate(rawOutput);
+    return step.type === "agent"
+      ? step.validate(rawOutput, {
+          projectDir: context.projectDir,
+          stepOutputs: context.stepOutputs,
+        })
+      : step.validate(rawOutput);
   } catch (error) {
     const cause = error instanceof Error ? error : new Error(String(error));
     throw new WorkflowStepOutputValidationError(step.id, "run", cause);

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
-} from "./repair-checks.js";
+} from "./success-criteria-repair-checks.js";
 
 function makeTmpDir(prefix = "kota-criteria"): string {
   const dir = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`);

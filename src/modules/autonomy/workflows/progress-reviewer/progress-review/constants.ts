@@ -15,7 +15,6 @@ export const PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT = 12;
 export const PROGRESS_REVIEW_MAX_APPROVALS = 20;
 export const PROGRESS_REVIEW_MAX_DEAD_LETTERS = 20;
 export const PROGRESS_REVIEW_AGENT_MAX_EVIDENCE = 120;
-export const PROGRESS_REVIEW_SCHEDULE_EVENT = "autonomy.progress-review.scheduled";
 
 export const PROGRESS_REVIEW_AGENT_KIND_LIMITS = {
   run: 20,
@@ -26,4 +25,5 @@ export const PROGRESS_REVIEW_AGENT_KIND_LIMITS = {
   "owner-question": 10,
   approval: 10,
   "dead-letter": 5,
+  state: 10,
 } satisfies Record<ProgressReviewEvidenceRef["kind"], number>;

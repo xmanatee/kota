@@ -41,6 +41,7 @@ export type ClaimFilesystemResponse = {
   acquired?: boolean;
   available?: boolean;
   lockIdentity?: ClaimFileIdentity;
+  writeConflict?: boolean;
 };
 
 function fail(reason: string): never {
@@ -91,6 +92,9 @@ function decodeResponse(stdout: string): ClaimFilesystemResponse {
   }
   if (typeof value.acquired === "boolean") response.acquired = value.acquired;
   if (typeof value.available === "boolean") response.available = value.available;
+  if (typeof value.writeConflict === "boolean") {
+    response.writeConflict = value.writeConflict;
+  }
   if (isFileIdentity(value.lockIdentity)) response.lockIdentity = value.lockIdentity;
   return response;
 }

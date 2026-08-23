@@ -55,7 +55,15 @@ export type PlaywrightPage = {
 
 export type PlaywrightModule = {
   chromium: {
-    launch(options?: { headless?: boolean }): Promise<PlaywrightBrowser>;
+    launch(options?: {
+      headless?: boolean;
+      args?: string[];
+      proxy?: {
+        server: string;
+        username?: string;
+        password?: string;
+      };
+    }): Promise<PlaywrightBrowser>;
   };
 };
 

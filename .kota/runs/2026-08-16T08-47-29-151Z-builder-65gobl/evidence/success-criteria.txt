@@ -1,0 +1,5 @@
+1. A Codex-native resolver receives the claimed task, canonical conflict diff, and exact textual conflict files through an OS-enforced write scope, and resolves a real divergent worktree fixture.
+2. Pending recovery remains fail-closed for unrelated edits, conflict markers or unmerged entries, absent acceptance evidence, non-text ambiguity, and failed validation before canonical integration.
+3. KOTA-routable harnesses continue through the same resolver and merge-gate contract with their file-tool allowlist and per-path authorization intact.
+4. The preserved daemon-control lineage can retain its original claim, resolve its existing runtime-owned merge, and reconcile every later canonical commit before the builder resumes.
+5. Successful recovery continues through the normal final merge gate, claim release, worktree cleanup, and state-recovery terminal projection without a parallel recovery mechanism.

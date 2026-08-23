@@ -13,6 +13,7 @@ import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks
 import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
+import { clearModuleEventSubscriptions } from "./module-event-lifecycle.js";
 import type { LoaderState } from "./module-loader-state.js";
 import {
   clearModuleCapabilityManifestProjections,
@@ -52,6 +53,7 @@ export function discardModuleLoadState(
   moduleName: string,
   state: LoaderState,
 ): void {
+  clearModuleEventSubscriptions(state, moduleName);
   deregisterModuleTools(moduleName);
   unregisterModuleCapabilityManifestProjection(moduleName);
   getToolMiddleware().removeByOwner(moduleName);
@@ -164,6 +166,7 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
   // AgentSession.close() is synchronous, so this cleanup must happen before
   // any async onUnload hook can yield and race the next session's module load.
   for (const mod of loadedModules) deregisterModuleTools(mod.name);
+  clearModuleEventSubscriptions(state);
   state.modules.splice(0);
   state.moduleRegistry.clear();
   state.moduleStorages.clear();

@@ -1,65 +1,73 @@
 ---
 id: task-activate-continuous-improvement-for-newly-onboarde
-title: Activate continuous improvement for newly onboarded scopes
+title: Complete continuous-improvement onboarding postures for new scopes
 status: backlog
 priority: p1
 area: autonomy
 task_class: Product
 depends_on: [task-add-one-transactional-external-scope-onboarding-se]
-summary: Attach existing scope-improver and normal task workflows to a newly registered scope according to its resolved policy and onboarding mode.
+summary: Gate the existing live-registration review on setup readiness and expose the selected proposal and builder posture to clients.
 created_at: 2026-07-31T16:12:57.060Z
-updated_at: 2026-07-31T16:12:57.060Z
+updated_at: 2026-08-15T22:55:00.000Z
 ---
 
 ## Problem
 
-`scope-improver` already provides the requested continuous observation and
-improvement loop, with per-scope throttling, task/owner-question output, and
-bounded edits. However, runtime schedules and workflow subscriptions are built
-at daemon startup, and no onboarding lifecycle proves that a newly added live
-scope receives them or gets an initial evidence-based run.
+`scope-improver` already provides scope-local improvement review with
+task/owner-question output. It consumes semantic requests rather than a
+schedule or broad rolling evidence scan, delegates source changes to builder,
+and a successful live `scope.lifecycle.changed: registered` boundary now emits
+one initial fingerprinted request through the registered scope's resolved
+policy authority. The remaining product gap is selecting and explaining the
+onboarding posture, setup readiness, and downstream builder authority.
 
-Without explicit activation, Add Scope could report success while doing no
-work until restart or while applying unsafe defaults copied from KOTA itself.
+Without the remaining posture/readiness contract, Add Scope can emit its first
+review while still leaving clients unable to explain whether setup permits
+proposals or whether downstream builder execution is intentionally disabled.
 
 ## Desired Outcome
 
-Make successful onboarding activate the existing automation stack for the new
-runtime. Resolve one onboarding mode into existing scope policy and
-`scope-improvement` configuration, register the normal contributed workflows,
-and emit one initial `autonomy.scope-improvement.requested` event when readiness
-allows it.
+Complete successful onboarding around the existing automation stack for the
+new runtime. Resolve one onboarding mode into existing scope policy and
+`scope-improvement` configuration, gate activation on setup readiness, and make
+the resulting review/builder authority explainable to clients. Preserve the
+existing initial `autonomy.scope-improvement.requested` contract: it carries
+`automatic: true`, boundary `initial-onboarding`, the stable scope
+guidance/policy fingerprint, and its canonical evidence refs, with a pending
+fingerprint and pre-queue admission preventing replay.
 
 Expose three understandable postures without introducing project types:
-observe/ask, create proposed tasks, and autonomous execution within explicit
-write policy. The resolved policy and existing guardrails remain authoritative.
+observe/ask, create proposed tasks, and autonomous builder execution within
+explicit write policy. Scope review itself remains proposal-only; the resolved
+builder policy and existing guardrails remain authoritative.
 
 ## Constraints
 
 - Reuse `scope-improver`, dispatcher, builder, task/owner-question queues,
-  schedules, workflow definitions, and recovery. Do not create an onboarding
+  workflow definitions, and recovery. Do not create an onboarding
   workflow engine or a second continuous-improvement agent.
-- Default to observe/ask with autonomous edits disabled and no write paths.
+- Default to observe/ask with autonomous builder execution disabled.
 - Activation occurs only after registry, runtime, trust/policy, project state,
   and required setup are committed. A blocked scope remains registered with an
   explainable readiness state but does not dispatch impossible work.
-- Each scope has isolated runs, claims, worktrees, events, tasks, schedules,
-  backoff, and recovery state.
-- Repeated activation or daemon restart must not duplicate schedules, pending
-  runs, tasks, or initial improvement requests.
+- Each scope has isolated runs, claims, worktrees, events, tasks, fingerprint
+  consumption, and recovery state.
+- Repeated activation or daemon restart must not duplicate pending runs, tasks,
+  or the initial improvement request. Use the consumed/pending fingerprint
+  contract and latest-only request coalescing.
 
 ## Done When
 
-- A newly onboarded scope receives the existing workflow definitions and
-  schedules without daemon restart.
+- A newly onboarded scope's existing semantic initial request is gated by its
+  selected posture and setup readiness without daemon restart.
 - Its selected onboarding posture resolves through scope policy and existing
   improvement config, and clients can explain what automation may do.
-- The first eligible improvement request produces evidence and then a task,
-  owner question, safe edit, or explicit no-action result inside that scope.
+- The first eligible improvement request records its fingerprint and produces
+  a task, owner question, or explicit no-action result inside that scope.
 - Missing provider/setup, untrusted config, policy denial, and no actionable
   evidence park cleanly without global daemon pause or cross-scope backoff.
-- Restart restores exactly one automation registration and preserves throttle
-  and dedupe state.
+- Restart restores exactly one automation registration and preserves
+  fingerprint consumption and generated-work dedupe state.
 
 ## Source / Intent
 
@@ -75,8 +83,9 @@ Self-service external scope onboarding.
 
 ## Acceptance Evidence
 
-- Runtime artifacts for observe/ask and bounded-write modes show resolved
-  policy, one initial trigger, recommendation/action, and isolated scope paths.
-- A restart fixture proves schedules and the initial trigger are not duplicated.
+- Runtime artifacts for observe/ask and autonomous-builder modes show resolved
+  policy, one initial fingerprinted trigger, recommendation/action, and
+  isolated scope paths.
+- A restart fixture proves the initial fingerprinted trigger is not duplicated.
 - A blocked-setup fixture proves one scope parks without pausing or backing off
   healthy sibling scopes.

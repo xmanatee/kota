@@ -1,13 +1,13 @@
 # Workflows
 
-This directory contains the autonomy workflows and their co-located prompts.
+Autonomy workflows and their co-located prompts live here.
 
 - Each workflow should live in its own subdirectory with code plus markdown prompt assets.
-- Keep workflows cohesive, typed, and role-focused; keep long-lived guidance in markdown.
+- Keep workflows cohesive, typed, and role-focused; keep durable guidance in markdown.
 - Keep prompts short. Durable policy belongs here or nearby docs, not repeated
   in every `prompt.md`; operator-facing digest bodies stay out of agent prompts.
 - `workflow.ts` is the source of truth; default-export the definition and any named agent.
-- These workflows are discovered from this directory by the autonomy module. Do not add a separate registry for them.
+- The autonomy module discovers this directory; do not add another registry.
 
 ## Finish Protocol
 
@@ -16,6 +16,9 @@ When a workflow agent finishes its work:
 - Write a short message to `<run-directory>/commit-message.txt`. Do not run
   `git add` or `git commit`; the workflow stages after each agent response and
   commits after validation.
+- The agent-facing run directory is isolated `agent-output/` (or a runtime
+  resource override such as builder evidence), separate from metadata and step
+  state. Consumers resolve the same path.
 
 Prompts should not repeat these instructions. Workflow-specific finish guidance
 (e.g. validation before stopping) stays in the prompt.
@@ -128,7 +131,6 @@ share the workspace-policy concurrency group. A workflow must not bypass
 either contract with direct task writes or a private staging helper.
 
 ## Recovery Contract
-
 Every autonomy workflow whose steps can mutate tracked files opts into
 recovery by:
 
@@ -149,4 +151,4 @@ A workflow without file mutations but with a recovery role (e.g. attention-
 digest notifications) may set `recoveryCapable: true` with `runtime.recovered`
 and skip reset, but must stay idempotent and network-free before reset. A
 workflow with neither role leaves it unset with a short comment (today:
-`dispatcher`, `pr-reviewer`). Decide deliberately.
+`dispatcher`, `pr-reviewer`).

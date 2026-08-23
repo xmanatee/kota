@@ -5,6 +5,7 @@ import {
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import { ToolTelemetry } from "#core/tools/tool-telemetry.js";
+import { resolveAgentOutputWriteScopes } from "../agent-run-dir.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
@@ -110,6 +111,14 @@ export async function executeAgentStep(
   const scopedAgent = agentDef && step.agentName
     ? { agentName: step.agentName, writeScope: agentDef.writeScope }
     : undefined;
+  const agentOutputWriteScopes = scopedAgent === undefined
+    ? []
+    : resolveAgentOutputWriteScopes(
+        workspaceDir,
+        agentConfig.projectDir,
+        metadata,
+        agentConfig.runtimeResources,
+      );
   const agentPrompt = buildAgentPrompt(
     definition,
     step,
@@ -165,6 +174,10 @@ export async function executeAgentStep(
       },
       onJsonOutputFeedback: (feedback) => {
         lastJsonOutputFeedback = feedback;
+      },
+      outputValidationContext: {
+        projectDir: agentConfig.projectDir,
+        stepOutputs: priorStepOutputs,
       },
     });
 
@@ -228,6 +241,7 @@ export async function executeAgentStep(
       const violations = findWriteScopeViolations(
         stepMutatedPaths,
         scopedAgent.writeScope,
+        agentOutputWriteScopes,
       );
       if (violations.length > 0) {
         const violationCtx = {

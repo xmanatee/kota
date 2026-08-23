@@ -12,6 +12,7 @@ import { buildIsolatedNativeCliEnvironment } from "./native-cli-environment.js";
 import { prepareNativeCliPackageManagerRuntime } from "./native-cli-package-manager.js";
 import { nativeCliRuntimeWriteBoundary } from "./native-cli-runtime-write-boundary.js";
 import {
+  nativeCliGitMetadataRoots,
   nativeCliReadableRoots,
   resolveNativeCliExecutable,
 } from "./native-cli-sandbox-roots.js";
@@ -23,12 +24,12 @@ export type NativeCliSandboxProcess = {
 };
 
 export type NativeCliMachineAuthorityOwner = "kota" | "native-cli";
-
 type NativeCliSandboxOptions = {
   cwd: string;
   machineAuthorityOwner: NativeCliMachineAuthorityOwner;
   authorityConfigPath?: string;
   writableRoots: readonly string[];
+  runtimeWritableRoots?: readonly string[];
   env: NodeJS.ProcessEnv;
   readOnlyHostRoots?: readonly string[];
   readProtectedRoots?: readonly string[];
@@ -38,7 +39,6 @@ type NativeCliSandboxOptions = {
     env: NodeJS.ProcessEnv,
   ) => NodeJS.ProcessEnv;
 };
-
 export type NativeCliRuntimeContext = {
   invocationRoot: string;
   toolRuntimeRoot: string;
@@ -223,13 +223,15 @@ export async function withNativeCliSandbox<T>(
         : existingProtectedProjectPaths(process.cwd())),
     ])];
     const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
-    const writeProtectedPaths = [
+    const writeProtectedPaths = [...new Set([
       join(options.cwd, ".git"),
+      ...nativeCliGitMetadataRoots(options.cwd),
       readProtectedRootMask,
       protectedRuntimeRoot,
-    ];
+    ])];
     const runtimeWriteBoundary = options.machineAuthorityOwner === "kota"
-      ? nativeCliRuntimeWriteBoundary(options.cwd, options.env) : undefined;
+      ? nativeCliRuntimeWriteBoundary(options.cwd, options.env, options.runtimeWritableRoots)
+      : undefined;
     const launch = options.machineAuthorityOwner === "native-cli"
       ? {
           ok: true as const,

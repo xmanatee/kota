@@ -14,6 +14,7 @@ import {
   CALIBRATION_REPAIR_TASK_ID,
   type CalibrationRepairContext,
 } from "#modules/autonomy/calibration-repair.js";
+import { seedArtifact } from "#modules/autonomy/calibration-repair-freshness-test-support.js";
 import {
   applyCalibrationRepairOperation,
   proposeCalibrationRepairOperation,
@@ -142,28 +143,7 @@ describe("progress and calibration blocking operations", () => {
         cwd: projectDir,
         encoding: "utf8",
       }).trim();
-      const runDir = join(projectDir, ".kota", "runs", "post-fix");
-      mkdirSync(runDir, { recursive: true });
-      writeFileSync(
-        join(runDir, "evaluator-calibration.json"),
-        `${JSON.stringify({
-          runId: "post-fix",
-          workflow: "builder",
-          completedAt: "2099-01-01T00:00:00.000Z",
-          verdict: "pass",
-          warningCount: 0,
-          criticalIssueCount: 0,
-          repairIterations: 0,
-          finalIterationFailures: [],
-          criticFailureCount: 0,
-          terminalRunStatus: "success",
-          taskId: "task-post-fix",
-          taskFinalState: "done",
-          sourceRevision,
-          sourceFilesChanged: ["post-fix.ts"],
-          criticPromptHash: "worker-boundary",
-        })}\n`,
-      );
+      seedArtifact(projectDir, "post-fix", sourceRevision, "task-post-fix");
       const context: CalibrationRepairContext = {
         projectDir,
         decisionReason: "Real-worker boundary fixture",

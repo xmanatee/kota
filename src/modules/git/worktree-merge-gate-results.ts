@@ -73,6 +73,7 @@ export function finishCleanMerge(
 		baseCommit: input.baseCommit,
 		canonicalHeadCommit: input.canonicalHeadCommit,
 		validationCommand: input.validationCommand,
+		validation,
 		resolutionAttempts: 0,
 	});
 }

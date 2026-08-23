@@ -3,6 +3,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
+  EVALUATOR_CALIBRATION_STEP_ID,
   type EvaluatorCalibrationArtifact,
   writeCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
@@ -43,6 +44,10 @@ import {
   createPrepareBuilderWorktreeStep,
 } from "./prepare-worktree-step.js";
 import {
+  createPreservedCanonicalReconciliationStep,
+  preservedCanonicalReconciliationReady,
+} from "./preserved-canonical-reconciliation-step.js";
+import {
   builderHarnessPreflightStep,
   inspectReadyQueue,
   reconcileWorktreesForRecoveryStep,
@@ -77,6 +82,8 @@ export const agent: AgentDef = {
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
+const preservedCanonicalReconciliationStep =
+  createPreservedCanonicalReconciliationStep();
 const claimedTaskConsistencyStep = createClaimedTaskConsistencyStep(claimTaskStep);
 const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
@@ -138,6 +145,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     builderHarnessPreflightStep,
     claimTaskStep,
     prepareWorktreeStep,
+    preservedCanonicalReconciliationStep,
     {
       id: "build",
       type: "agent",
@@ -156,7 +164,11 @@ const builderWorkflow: WorkflowDefinitionInput = {
         const claim = claimTaskStep.output(ctx);
         const workspace = prepareWorktreeStep.output(ctx);
         if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) {
-          return claim?.claimed === true && workspace !== undefined;
+          return (
+            claim?.claimed === true &&
+            workspace !== undefined &&
+            preservedCanonicalReconciliationReady(ctx)
+          );
         }
         return !dirty && actionableCount > 0 && claim?.claimed === true && workspace !== undefined;
       },
@@ -217,7 +229,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     mergeGateStep,
     createReleaseTaskClaimStep(claimTaskStep),
     typedCodeStep<EvaluatorCalibrationArtifact>({
-      id: "write-calibration-artifact",
+      id: EVALUATOR_CALIBRATION_STEP_ID,
       type: "code",
       when: (ctx) => claimedTaskConsistencySucceeded(ctx) && stepCommitted("commit")(ctx),
       validate: (raw) =>

@@ -1,0 +1,6 @@
+1. Every production runtime-module host binds its exact EventBus before lifecycle execution and reuses it across daemon, middleware, journal, workflow, and module contexts.
+2. Production daemon startup installs module onLoad listeners before event-producing workflow execution and exposes observable listener and routed-event evidence.
+3. Failure, trajectory/review, owner-question, dead-letter, and builder-interruption sources reach scoped autonomy issue handling and deduplicated decision processing.
+4. Interleaved events from two hosted scopes touch only their own runtime stores and invalid selectors fail without default-scope fallback.
+5. Explicit unsubscribe, failed load, unload, reload, unloadAll, and daemon restart remove owned listeners exactly once without leaks or duplicate issue emissions.
+6. Missing runtime EventBus authority fails initialization and every module event proxy operation fails loudly instead of silently swallowing work.

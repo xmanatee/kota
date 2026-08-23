@@ -23,6 +23,9 @@ the protocol and registry.
   and tool lists). KOTA-routable loops must honor them; other adapters declare
   them in `unsupportedRunOptions`, so `runAgentHarness` rejects them before
   hooks or launch.
+- Harnesses enforce `AgentDef.writeScope` before project mutation; Git checks
+  backstop it. Workflow agents receive one separately propagated per-run output
+  directory, never the canonical run directory containing runtime state.
 - Nested handoffs and delegates are authorization boundaries: carry both
   policy options; inherited tool lists and `canUseTool` are insufficient.
 - `sessionContext` is tool-runtime identity, not workflow trace/span metadata.
@@ -40,6 +43,7 @@ the protocol and registry.
   Native tools lack direct host, loopback, metadata-service, or internet routes.
   KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
   `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable.
+- Runtime Probes and production proofs use the fail-closed contained-workspace sandbox; never add an unsandboxed launcher.
 
 ## Owner-questions capability
 
@@ -75,9 +79,8 @@ Owner questions are a protocol capability, not a provider field.
 - `routeKotaToolControlOptions` preserves effective scope policy for fail-closed
   native preflight. Hosted loops refresh policy per call; launched native loops
   abort on stricter revisions.
-- `capability-snapshot.ts` centralizes capability/readiness artifacts from
-  resolved declarations, not harness-name catalogs. Adapter docs may explain
-  rationale, but capability facts stay in code.
+- `capability-snapshot.ts` derives capability/readiness artifacts from
+  declarations, never harness-name catalogs.
 
 ## Registry and selection
 
@@ -113,11 +116,10 @@ them to their native shape at their own seam. Nothing in core imports
 `@anthropic-ai/claude-agent-sdk`. Harness-specific in-process MCP hosting
 stays inside the owning adapter.
 
-Provider SDK-specific knobs do not appear on `AgentHarnessRunOptions`. The
-neutral surface carries only KOTA concepts, KOTA's own ModelClient provider
-selection (`modelProvider`), and harness-agnostic transport fields. Per-step
-adapter-private options travel through `harnessOverrides`, validated by the
-resolved adapter and threaded through as opaque `AgentHarnessStepOverrides`.
+Provider SDK knobs stay off `AgentHarnessRunOptions`. The neutral surface
+carries KOTA concepts, ModelClient selection, and portable transport fields.
+Adapter-private options travel through validated `harnessOverrides` as opaque
+`AgentHarnessStepOverrides`.
 `no-sdk-shaped-neutral-fields.test.ts` keeps provider-shaped IDs off
 the neutral protocol surface.
 

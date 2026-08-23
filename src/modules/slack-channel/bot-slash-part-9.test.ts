@@ -58,7 +58,8 @@ describe("SlackBot", () => {
         type: "events_api",
         envelope_id: "env-ff1",
         payload: {
-          event: { type: "message", text: "hello bot", user: "U-FREE", channel: "D-FREE" },
+          team_id: "T-TEST",
+          event: { type: "message", text: "hello bot", user: "U-FREE", channel: "D-FREE", channel_type: "im" },
         },
       });
 

@@ -1,16 +1,23 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type ClaimTaskAttempt,
+  compareQueueTaskCandidates,
   continueTaskClaim,
   DEFAULT_TASK_CLAIM_LEASE_MS,
+  listClaimableQueueTaskCandidates,
   listTaskClaimInspections,
   type QueueTaskClaimResult,
   type TaskClaim,
 } from "#modules/autonomy/task-claims.js";
 import { listRecoveryClaims } from "#modules/autonomy/workflow-state-recovery-claims.js";
+import {
+  listFullRepoTasks,
+  type RepoTaskFullRecord,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
 
 export const BUILDER_RECOVERY_EVENT = "autonomy.builder.recovery.requested";
@@ -32,6 +39,10 @@ export type BuilderRecoveryDispatchResult = {
 function preservedBuilderWorkspaceDir(
   candidate: WorkflowStateRecoveryClaim,
 ): string | null {
+  const recoverableOwnerRun =
+    candidate.claim.status === "pending-merge" ||
+    candidate.ownerRunStatus === "failed" ||
+    candidate.ownerRunStatus === "interrupted";
   if (
     candidate.claim.workflowId === "builder" &&
     candidate.recommendedAction.kind === "needs-review" &&
@@ -39,8 +50,7 @@ function preservedBuilderWorkspaceDir(
     (candidate.worktree.dirtyState === "dirty" ||
       candidate.worktree.dirtyState === "conflicted") &&
     candidate.worktree.workspaceDir !== null &&
-    (candidate.ownerRunStatus === "failed" ||
-      candidate.ownerRunStatus === "interrupted")
+    recoverableOwnerRun
   ) {
     return candidate.worktree.workspaceDir;
   }
@@ -52,7 +62,13 @@ function needsRuntimeRecoveryRequest(
   candidate: WorkflowStateRecoveryClaim,
 ): boolean {
   if (preservedBuilderWorkspaceDir(candidate) === null) return false;
+  if (
+    candidate.worktree.canonicalReconciliation?.disposition === "needs-review"
+  ) {
+    return false;
+  }
   if (candidate.claim.runId === candidate.claim.worktreeRunId) return true;
+  if (candidate.claim.status === "pending-merge") return true;
   const finalizer = readOptionalJsonFile<{ recoveryRequested?: boolean }>(
     join(
       projectDir,
@@ -104,29 +120,33 @@ export function emitBuilderRecoveryRequest(
   emit(BUILDER_RECOVERY_EVENT, request);
 }
 
-export function requestPendingBuilderRecoveries(
-  ctx: Pick<WorkflowStepContext, "projectDir" | "emit">,
-): BuilderRecoveryDispatchResult {
-  const candidates = listPendingBuilderRecoveries(ctx.projectDir);
-  const requested = candidates
-    .slice(0, 1)
-    .map((candidate) => builderRecoveryRequestForCandidate(candidate));
-  for (const request of requested) {
-    emitBuilderRecoveryRequest(ctx.emit, request);
-  }
-  return { candidateCount: candidates.length, requested };
-}
-
 export function inspectPendingBuilderRecoveriesInWorker(input: {
   projectDir: string;
 }): BuilderRecoveryDispatchResult {
   const candidates = listPendingBuilderRecoveries(input.projectDir);
-  return {
-    candidateCount: candidates.length,
-    requested: candidates
-      .slice(0, 1)
-      .map((candidate) => builderRecoveryRequestForCandidate(candidate)),
-  };
+  const taskById = new Map<string, RepoTaskFullRecord>(
+    listFullRepoTasks(input.projectDir, ["ready", "doing"]).map((task) => [
+      task.id,
+      task,
+    ]),
+  );
+  const rankedCandidates = candidates
+    .map((candidate) => ({ candidate, task: taskById.get(candidate.claim.taskId) }))
+    .filter(
+      (entry): entry is { candidate: WorkflowStateRecoveryClaim; task: RepoTaskFullRecord } =>
+        entry.task !== undefined,
+    )
+    .sort((a, b) => compareQueueTaskCandidates(a.task, b.task));
+  const recoveryTaskIds = new Set(candidates.map((candidate) => candidate.claim.taskId));
+  const queueFrontier = listClaimableQueueTaskCandidates(input.projectDir).find(
+    (task) => !recoveryTaskIds.has(task.id),
+  );
+  const selected = rankedCandidates[0];
+  const requested = selected &&
+      (!queueFrontier || compareQueueTaskCandidates(selected.task, queueFrontier) <= 0)
+    ? [builderRecoveryRequestForCandidate(selected.candidate)]
+    : [];
+  return { candidateCount: candidates.length, requested };
 }
 
 export const inspectPendingBuilderRecoveriesOperation =
@@ -148,12 +168,59 @@ function requestedBuilderRecovery(
   ) {
     return [];
   }
+  const retryOf = ctx.trigger.payload.retryOf;
   return listRecoveryClaims(ctx.projectDir).filter((candidate) =>
     candidate.claim.taskId === taskId &&
-    candidate.claim.runId === sourceRunId &&
     candidate.claim.worktreeRunId === worktreeRunId &&
-    preservedBuilderWorkspaceDir(candidate) === workspaceDir
+    preservedBuilderWorkspaceDir(candidate) === workspaceDir &&
+    (
+      candidate.claim.runId === sourceRunId ||
+      retryLineageContainsClaimOwner(
+        ctx.projectDir,
+        typeof retryOf === "string" ? retryOf : null,
+        candidate.claim.runId,
+      )
+    )
   );
+}
+
+function retryLineageContainsClaimOwner(
+  projectDir: string,
+  retryOf: string | null,
+  claimRunId: string,
+): boolean {
+  let currentRunId = retryOf;
+  const visited = new Set<string>();
+  while (currentRunId !== null) {
+    validateWorkflowRunId(currentRunId, "Builder recovery retry lineage");
+    if (currentRunId === claimRunId) return true;
+    if (visited.has(currentRunId)) {
+      throw new Error(
+        `Builder recovery retry lineage contains a cycle at ${currentRunId}`,
+      );
+    }
+    visited.add(currentRunId);
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      join(projectDir, ".kota", "runs", currentRunId, "metadata.json"),
+    );
+    if (metadata === null) {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} is unavailable`,
+      );
+    }
+    if (metadata.id !== currentRunId || metadata.workflow !== "builder") {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} is not valid builder metadata`,
+      );
+    }
+    if (metadata.retryOf !== undefined && typeof metadata.retryOf !== "string") {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} has an invalid retryOf`,
+      );
+    }
+    currentRunId = metadata.retryOf ?? null;
+  }
+  return false;
 }
 
 function continuedClaimResult(

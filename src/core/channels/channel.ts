@@ -28,6 +28,7 @@
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
+import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
 
 /**
@@ -107,6 +108,8 @@ export type ChannelOperatorIdentity = {
  * Context provided to a channel factory when the daemon starts it.
  */
 export type ChannelStartContext = {
+  /** Host module runtime that channel-created AgentSessions must borrow. */
+  moduleLoader?: ModuleLoader;
   /** Resolve the current default runtime; default changes are visible immediately. */
   getDefaultProjectRuntime: () => ProjectRuntime;
   /**

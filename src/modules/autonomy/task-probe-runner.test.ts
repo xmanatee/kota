@@ -2,17 +2,17 @@ import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskProbeSandbox } from "#core/agent-harness/task-probe-sandbox.js";
 import {
   extractTaskProbe,
   runTaskProbe,
   type TaskProbe,
 } from "./task-probe.js";
-import type { TaskProbeSandbox } from "./task-probe-sandbox.js";
 
 const resolveTaskProbeSandbox = vi.hoisted(() => vi.fn());
 
-vi.mock("./task-probe-sandbox.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./task-probe-sandbox.js")>()),
+vi.mock("#core/agent-harness/task-probe-sandbox.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#core/agent-harness/task-probe-sandbox.js")>()),
   resolveTaskProbeSandbox,
 }));
 

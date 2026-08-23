@@ -14,7 +14,12 @@ import {
 	runGit,
 	runValidation,
 } from "./worktree-merge-gate-support.js";
-import type { MergeGateConflict, MergeGateResult } from "./worktree-merge-gate-types.js";
+import type {
+	MergeGateConflict,
+	MergeGateResolutionReview,
+	MergeGateResolverResult,
+	MergeGateResult,
+} from "./worktree-merge-gate-types.js";
 
 export type MergeIndexSnapshot = {
 	entriesByPath: readonly (readonly [string, readonly string[]])[];
@@ -95,11 +100,14 @@ export function validateAndFastForwardCanonical(
 		baseCommit: string;
 		canonicalHeadCommit: string;
 		validationCommand: readonly string[] | undefined;
+		validation?: MergeGateResult["validation"];
 		resolutionAttempts: number;
 	},
 ): MergeGateResult {
 	const workspaceDir = readMetadata(selector).workspaceDir;
-	const validation = runValidation(workspaceDir, input.validationCommand);
+	const validation = input.validation === undefined
+		? runValidation(workspaceDir, input.validationCommand)
+		: input.validation;
 	const headCommit = currentHead(workspaceDir);
 	if (validation && !validation.passed) {
 		return pending(selector, {
@@ -243,6 +251,29 @@ export function validateResolvedMergeBoundary(
 	}
 
 	return null;
+}
+
+export function boundedSemanticReviewRetry(input: {
+	workspaceDir: string;
+	beforeResolver: MergeIndexSnapshot;
+	allowedConflictPaths: readonly string[];
+	resolution: MergeGateResolverResult;
+	attempt: number;
+	maxAttempts: number;
+}):
+	| { kind: "stop" }
+	| { kind: "retry"; review: MergeGateResolutionReview }
+	| { kind: "blocked"; violation: MergeResolutionBoundaryViolation } {
+	if (input.resolution.reviewFeedback === undefined || input.attempt >= input.maxAttempts) {
+		return { kind: "stop" };
+	}
+	const violation = validateResolvedMergeBoundary(input.workspaceDir, {
+		beforeResolver: input.beforeResolver,
+		allowedConflictPaths: input.allowedConflictPaths,
+	});
+	return violation
+		? { kind: "blocked", violation }
+		: { kind: "retry", review: input.resolution.reviewFeedback };
 }
 
 export function stageConflictPaths(workspaceDir: string, conflicts: MergeGateConflict[]): MergeGateConflict[] {

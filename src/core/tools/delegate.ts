@@ -51,7 +51,6 @@ export type { DelegateConfig, DelegateMode } from "./delegate-config.js";
 export { setDelegateConfig } from "./delegate-config.js";
 export type { CompletionReason, DelegateMetadata } from "./delegate-format.js";
 export { buildDelegateResult, buildSourcesSection, collectImageBlocks, extractModifiedFiles, formatMetadata } from "./delegate-format.js";
-
 export const delegateTool: KotaTool = {
   name: "delegate",
   description:
@@ -96,7 +95,6 @@ function budgetFailureResult(failure: DelegateBudgetFailure): ToolResult {
     },
   };
 }
-
 function omitRecursiveDelegateTool(toolSet: ResolvedToolSet): ResolvedToolSet {
   const tools = toolSet.tools.filter((tool) => tool.name !== delegateTool.name);
   const runners: ResolvedToolSet["runners"] = {};
@@ -105,12 +103,10 @@ function omitRecursiveDelegateTool(toolSet: ResolvedToolSet): ResolvedToolSet {
   }
   return { tools, runners };
 }
-
 function formatBudgetStatus(lease: DelegateBudgetLease): string {
   return formatDelegateBudgetSnapshot(lease.snapshot());
 }
 type DelegateInput = Record<string, unknown>;
-
 const VALID_MODES: Set<DelegateMode> = new Set(["explore", "execute", "research"]);
 
 export async function runDelegate(
@@ -185,6 +181,7 @@ async function runDelegateWithBudget(
     });
     return runDelegateHarness(task, mode, {
       cwd,
+      projectDir: context?.projectDir ?? toolExecutionOptions?.projectDir ?? cwd,
       projectContext: delegateConfig.projectContext,
       instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,

@@ -13,9 +13,14 @@ import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
 import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
-import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import {
+  type EventBus,
+  initEventBus,
+  resetEventBus,
+} from "#core/events/event-bus.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
-import type { Transport } from "#core/loop/transport.js";
+import { NullTransport, type Transport } from "#core/loop/transport.js";
+import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
@@ -53,6 +58,10 @@ export type ServerListeningInfo = {
 };
 
 export type ServerOptions = {
+  /** Event authority already bound to runtime module lifecycle hooks. */
+  eventBus?: EventBus;
+  /** Host-owned runtime loader borrowed by every server-created session. */
+  moduleLoader?: ModuleLoader;
   port?: number;
   model?: string;
   verbose?: boolean;
@@ -111,7 +120,7 @@ export function startServer(options: ServerOptions): Server {
   });
   const daemonRunning = daemonLink.current() !== null;
 
-  const bus = initEventBus();
+  const bus = options.eventBus ?? initEventBus();
   // When the daemon is running, it owns the scheduler. Use an in-memory-only
   // scheduler here so the server does not start a second disk-backed instance.
   if (daemonRunning) {
@@ -146,9 +155,25 @@ export function startServer(options: ServerOptions): Server {
       verbose: options.verbose ?? config.verbose,
       transport,
       config,
+      moduleLoader: options.moduleLoader,
     };
     return new AgentSession(loopOpts);
   }
+
+  options.moduleLoader?.setSessionFactory((sessionOptions) =>
+    new AgentSession({
+      autonomyMode: sessionOptions.autonomyMode ?? options.resolveDefaultAutonomyMode(),
+      model: sessionOptions.model ?? options.model ?? config.model,
+      verbose: options.verbose ?? config.verbose,
+      transport: sessionOptions.transport ?? new NullTransport(),
+      config,
+      label: sessionOptions.label,
+      noHistory: sessionOptions.noHistory,
+      historySource: sessionOptions.historySource,
+      reflectionEnabled: sessionOptions.reflectionEnabled,
+      moduleLoader: options.moduleLoader,
+    })
+  );
 
   const handleRequest = buildRequestHandler({
     port,

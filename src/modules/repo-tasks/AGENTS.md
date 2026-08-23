@@ -39,6 +39,29 @@ served at `/api/tasks`.
   destination paths together. Keep a real linked-worktree regression around
   repeated moves so a staged deletion plus untracked destination cannot pass
   as a completed transition.
+- Cross-cutting runtime replacements opt into the production-adoption gate
+  with `production_replacement: true` and a `## Production Replacement Proof`
+  section. Its `key: value` fields are `oldBoundary`, `replacementOwner`,
+  `liveIngresses`, `restartIngresses`, `observableEffect`,
+  `productionEntrypoints`, `productionTests`, `retiredPathCheck`, and
+  `evidenceArtifact`; separate list values with ` | `. Entrypoints are non-test
+  production source files. The JSON artifact binds every ingress effect and the
+  negative retired-path result to exact assertions plus the entrypoints each
+  assertion exercises. The domain names the declared Vitest files directly
+  inside the contained-workspace sandbox, reruns every bound assertion in
+  isolation, and starts V8 precise coverage only after test-file
+  collection so the assertion lifecycle must execute its declared production
+  entrypoints. It rejects `done/` when a package script
+  bypasses the declared files, an optimistic artifact names an assertion that
+  did not pass, or a synthetic assertion never reaches production code. The
+  artifact path is the screened, tracked projection under
+  `.kota/runs/<run-id>/evidence/artifacts/`, never the ignored
+  `.kota/builder-evidence/` source; staging the projection before the task move
+  makes the clean-checkout guarantee part of the transition. Declared Vitest
+  files run only through the shared contained-workspace sandbox with a minimal
+  environment, offline namespaces, a disposable repository overlay, and hard
+  resource limits. Hosts that cannot establish that boundary fail the move
+  without loading repository code.
 - The core daemon no longer proxies task status. `/api/tasks` is computed
   directly from disk in this module.
 - Owns the default `RepoTasksProvider` registration. Substring/grep ranking

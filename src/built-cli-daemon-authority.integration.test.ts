@@ -59,7 +59,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
     writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
     writeFileSync(
       join(stateDir, "config.json"),
-      JSON.stringify({ defaultAgentHarness: "claude-agent-sdk" }),
+      JSON.stringify({ defaultAgentHarness: "codex" }),
     );
     writeProjectAuthorityRouteModule(stateDir);
 

@@ -48,6 +48,7 @@ export interface LoaderState {
   moduleRouteErrors: Map<string, string>;
   moduleCommandErrors: Map<string, string>;
   moduleControlRouteErrors: Map<string, string>;
+  moduleEventSubscriptions: Map<string, Set<() => void>>;
   registeredConfigKeys: Map<string, string>;
   moduleSources: Map<string, ModuleSource>;
   skillContentsByName: Map<string, string>;
@@ -82,6 +83,7 @@ export function createLoaderState(): LoaderState {
     moduleRouteErrors: new Map(),
     moduleCommandErrors: new Map(),
     moduleControlRouteErrors: new Map(),
+    moduleEventSubscriptions: new Map(),
     registeredConfigKeys: new Map(),
     moduleSources: new Map(),
     skillContentsByName: new Map(),

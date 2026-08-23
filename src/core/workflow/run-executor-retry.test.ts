@@ -9,6 +9,10 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import {
+  registerWorkflowDefinition,
+  validateWorkflowDefinitions,
+} from "./validation.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -261,6 +265,83 @@ describe("retry execution", () => {
     expect(retried.metadata.status).toBe("success");
     expect(executed).toEqual(["claim", "prepare", "build"]);
     expect(retried.metadata.steps.every((step) => step.reused !== true)).toBe(true);
+  });
+
+  it("reexecutes current-run ownership without replaying prior pure work", async () => {
+    const executed: string[] = [];
+    let failAfterClaim = true;
+    const [definition] = validateWorkflowDefinitions(
+      [
+        registerWorkflowDefinition("test/retry-run-ownership.ts", {
+          name: "retry-run-ownership",
+          triggers: [{ event: "runtime.idle" }],
+          steps: [
+            {
+              id: "inspect",
+              type: "code",
+              run: () => {
+                executed.push("inspect");
+                return { taskId: "task-one" };
+              },
+            },
+            {
+              id: "claim",
+              type: "code",
+              rerunOnRetry: true,
+              run: (ctx) => {
+                executed.push(`claim:${ctx.workflow.runId}`);
+                return { ownerRunId: ctx.workflow.runId };
+              },
+            },
+            {
+              id: "prepare",
+              type: "code",
+              run: (ctx) => {
+                executed.push(`prepare:${ctx.workflow.runId}`);
+                const claim = ctx.stepOutputs.claim as
+                  | { ownerRunId?: string }
+                  | undefined;
+                if (claim?.ownerRunId !== ctx.workflow.runId) {
+                  throw new Error(
+                    `claim belongs to ${String(claim?.ownerRunId)}`,
+                  );
+                }
+                if (failAfterClaim) throw new Error("transient prepare failure");
+                return { prepared: true };
+              },
+            },
+          ],
+        }),
+      ],
+      projectDir,
+    );
+    if (!definition) throw new Error("validated workflow definition is missing");
+
+    const original = await runDefinition(definition);
+    expect(original.metadata.status).toBe("failed");
+    executed.length = 0;
+    failAfterClaim = false;
+
+    const retried = await runDefinition(definition, {
+      event: "runtime.idle",
+      schemaRef: null,
+      payload: { retryOf: original.metadata.id },
+    });
+
+    expect(retried.metadata.status).toBe("success");
+    expect(executed).toEqual([
+      `claim:${retried.metadata.id}`,
+      `prepare:${retried.metadata.id}`,
+    ]);
+    expect(retried.metadata.steps[0]).toMatchObject({
+      id: "inspect",
+      reused: true,
+    });
+    expect(retried.metadata.steps[1]).toMatchObject({
+      id: "claim",
+      output: { ownerRunId: retried.metadata.id },
+    });
+    expect(retried.metadata.steps[1]?.reused).not.toBe(true);
   });
 
   it("retries from the first step when the first step failed", async () => {

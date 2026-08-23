@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  type PendingApprovalMessage,
   type PendingMessage,
   startCallbackPoll,
 } from "./callback-poll.js";
 import { callTelegramApi } from "./client.js";
 import {
-  acquireTelegramPollingOwner,
   resetTelegramPollingOwnersForTests,
 } from "./polling-ownership.js";
 

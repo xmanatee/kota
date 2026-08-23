@@ -20,6 +20,7 @@ export function agentHarnessToolExecutionOptions(
 ): ToolCallExecutionOptions {
 	const toolRunnerContext = agentHarnessToolRunnerContext(options);
 	const cwd = overrides.cwd !== undefined ? overrides.cwd : options.cwd;
+	const projectDir = options.projectDir ?? options.cwd ?? cwd;
 	const signal = overrides.signal ?? options.abortController?.signal;
 	return {
 		resultLimit: overrides.resultLimit,
@@ -46,7 +47,16 @@ export function agentHarnessToolExecutionOptions(
 		...(toolRunnerContext.sessionId !== undefined
 			? { sessionId: toolRunnerContext.sessionId }
 			: {}),
+		...(projectDir !== undefined
+			? { projectDir }
+			: {}),
 		...(cwd !== undefined ? { cwd } : {}),
+		...(options.agentWriteScope !== undefined
+			? { agentWriteScope: options.agentWriteScope }
+			: {}),
+		...(options.agentOutputDir !== undefined
+			? { agentOutputDir: options.agentOutputDir }
+			: {}),
 		...(options.env !== undefined ? { env: options.env } : {}),
 		authorityConfigPath: options.authorityConfigPath ?? getGlobalConfigPath(),
 		...(toolRunnerContext.workflow !== undefined

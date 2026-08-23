@@ -1,4 +1,5 @@
 import { loadConfig } from "#core/config/config.js";
+import { initEventBus } from "#core/events/event-bus.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
@@ -74,5 +75,6 @@ export async function ensureCliProvidersFor(
     false,
   );
   loader.setCwd(cwd);
+  loader.setBus(initEventBus());
   await loader.loadAll(selected);
 }

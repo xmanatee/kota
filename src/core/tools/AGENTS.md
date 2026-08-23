@@ -24,7 +24,7 @@ conveniences. New capabilities should prefer module-owned tools.
 
 ## Runtime infrastructure
 
-- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — tool execution pipeline.
+- `tool-groups`, `tool-middleware`, `tool-runner`, `tool-telemetry`, `tool-result`, `tool-adapters`, `tool-adapter-types`, `tool-adapters-zod` — hosted tool pipeline; enforces agent write scope and isolated output roots before local writes, failing closed on opaque targets. Confirmation and destructive-action policy still apply.
 - `session-environment` — live session- and scope-keyed credential overlays for execution tools; registrations own teardown and stale approvals cannot recreate an ended session's overlay.
 - `guardrails`, `guardrails-classify`, `audit-store`, `protected-project-paths` — risk assessment, audit storage, approval-review redaction, and the canonical project credential boundary shared by filesystem tools and native CLI sandboxes.
 - Local executable approvals snapshot generation plus declaration/effect;

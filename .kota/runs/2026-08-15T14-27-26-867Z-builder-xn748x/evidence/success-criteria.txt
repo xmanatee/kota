@@ -1,0 +1,7 @@
+1. Progress and scope workflows invoke agents only for their accepted semantic boundaries, with all periodic, count-based, recovery, failure, and DLQ discovery triggers removed.
+2. Automatic progress and scope inputs are revisioned and consumed once per scope, with superseded pending work coalesced before agent execution.
+3. Historical normal-delivery replay produces no reviewer AI calls without a named semantic boundary.
+4. Progress review references the complete canonical queue, anchors, dependencies, durable issues, recovery state, and owner decisions without persisting a duplicate worldview.
+5. A parked-queue transition produces at most one steering review, and subsequent successful builds do not retrigger it.
+6. External-scope onboarding produces exactly one initial scope review, while only a material content or policy fingerprint change can retrigger it.
+7. Scope review is proposal-only, onboarding guidance reflects the semantic event contract, and stale generated recovery work is reconciled through the shared lifecycle when recovery has no stale worktrees.

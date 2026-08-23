@@ -1,127 +1,134 @@
 import {
-	runWorkflowBlockingOperation,
-	type WorkflowBlockingOperationRunner,
+  runWorkflowBlockingOperation,
+  type WorkflowBlockingOperationRunner,
 } from "#core/workflow/blocking-operation.js";
 import {
-	acquireMergeGateLock,
-	releaseMergeGateLock,
+  acquireMergeGateLock,
+  releaseMergeGateLock,
 } from "./worktree-merge-gate-lock.js";
 import type {
-	MergeGatePhaseInput,
-	MergeGatePhaseResult,
-	MergeGateResolutionState,
-	} from "./worktree-merge-gate-operation-types.js";
+  MergeGatePhaseInput,
+  MergeGatePhaseResult,
+  MergeGateResolutionState,
+} from "./worktree-merge-gate-operation-types.js";
 import {
-	mergeGateLockFailureOperation,
-	writeMergeGateMetricsOperation,
+  mergeGateLockFailureOperation,
+  writeMergeGateMetricsOperation,
 } from "./worktree-merge-gate-operations.js";
 import { prepareMergeAutomationWorktreeOperation } from "./worktree-merge-gate-prepare-operation.js";
 import { continueMergeAutomationWorktreeOperation } from "./worktree-merge-gate-resolution-operation.js";
-import { DEFAULT_MAX_RESOLUTION_ATTEMPTS } from "./worktree-merge-gate-support.js";
+import {
+  DEFAULT_MAX_RESOLUTION_ATTEMPTS,
+} from "./worktree-merge-gate-support.js";
 import type {
-	MergeAutomationWorktreeInput,
-	MergeGateResolverResult,
-	MergeGateResult,
+  MergeAutomationWorktreeInput,
+  MergeGateResolverResult,
+  MergeGateResult,
 } from "./worktree-merge-gate-types.js";
 
 export type {
-	MergeAutomationWorktreeInput,
-	MergeConflictKind,
-	MergeGateConflict,
-	MergeGateResolver,
-	MergeGateResolverRequest,
-	MergeGateResolverResult,
-	MergeGateResult,
-	MergeGateStatus,
-	MergeGateValidation,
+  MergeAutomationWorktreeInput,
+  MergeConflictKind,
+  MergeGateConflict,
+  MergeGateResolver,
+  MergeGateResolverRequest,
+  MergeGateResolverResult,
+  MergeGateResult,
+  MergeGateStatus,
+  MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
 
 type MergeGatePhaseRunner = {
-	prepare: (input: MergeGatePhaseInput) => Promise<MergeGatePhaseResult>;
-	continueResolution: (input: {
-		state: MergeGateResolutionState;
-		resolution: MergeGateResolverResult;
-	}) => Promise<MergeGatePhaseResult>;
-	lockFailure: (input: {
-		selector: Pick<MergeAutomationWorktreeInput, "projectDir" | "taskId" | "runId">;
-		reason: string;
-		waitMs: number;
-	}) => Promise<MergeGateResult>;
-	writeMetrics: (input: {
-		result: MergeGateResult;
-		waitMs: number;
-		mergeDurationMs: number;
-	}) => Promise<MergeGateResult>;
+  prepare: (input: MergeGatePhaseInput) => Promise<MergeGatePhaseResult>;
+  continueResolution: (input: {
+    state: MergeGateResolutionState;
+    resolution: MergeGateResolverResult;
+  }) => Promise<MergeGatePhaseResult>;
+  lockFailure: (input: {
+    selector: Pick<MergeAutomationWorktreeInput, "projectDir" | "taskId" | "runId">;
+    reason: string;
+    waitMs: number;
+  }) => Promise<MergeGateResult>;
+  writeMetrics: (input: {
+    result: MergeGateResult;
+    waitMs: number;
+    mergeDurationMs: number;
+  }) => Promise<MergeGateResult>;
 };
 
 const defaultBlockingOperationRunner: WorkflowBlockingOperationRunner = {
-	runBlocking: (operation, input) => runWorkflowBlockingOperation(operation, input),
+  runBlocking: (operation, input) =>
+    runWorkflowBlockingOperation(operation, input),
 };
 
-function workerPhaseRunner(runner: WorkflowBlockingOperationRunner): MergeGatePhaseRunner {
-	return {
-		prepare: (input) => runner.runBlocking(prepareMergeAutomationWorktreeOperation, input),
-		continueResolution: (input) => runner.runBlocking(continueMergeAutomationWorktreeOperation, input),
-		lockFailure: (input) => runner.runBlocking(mergeGateLockFailureOperation, input),
-		writeMetrics: (input) => runner.runBlocking(writeMergeGateMetricsOperation, input),
-	};
+function workerPhaseRunner(
+  runner: WorkflowBlockingOperationRunner,
+): MergeGatePhaseRunner {
+  return {
+    prepare: (input) =>
+      runner.runBlocking(prepareMergeAutomationWorktreeOperation, input),
+    continueResolution: (input) =>
+      runner.runBlocking(continueMergeAutomationWorktreeOperation, input),
+    lockFailure: (input) =>
+      runner.runBlocking(mergeGateLockFailureOperation, input),
+    writeMetrics: (input) =>
+      runner.runBlocking(writeMergeGateMetricsOperation, input),
+  };
 }
 
 async function coordinateMergeAutomationWorktree(
-	input: MergeAutomationWorktreeInput,
-	runner: MergeGatePhaseRunner,
+  input: MergeAutomationWorktreeInput,
+  runner: MergeGatePhaseRunner,
 ): Promise<MergeGateResult> {
-	const selector = {
-		projectDir: input.projectDir,
-		taskId: input.taskId,
-		runId: input.runId,
-	};
-	const lock = await acquireMergeGateLock({
-		...selector,
-		timeoutMs: input.lockTimeoutMs,
-	});
-	if (!lock.acquired) {
-		return await runner.lockFailure({
-			selector,
-			reason: lock.reason,
-			waitMs: lock.waitMs,
-		});
-	}
+  const selector = {
+    projectDir: input.projectDir,
+    taskId: input.taskId,
+    runId: input.runId,
+  };
+  const lock = await acquireMergeGateLock({
+    ...selector,
+    timeoutMs: input.lockTimeoutMs,
+  });
+  if (!lock.acquired) {
+    return runner.lockFailure({
+      selector,
+      reason: lock.reason,
+      waitMs: lock.waitMs,
+    });
+  }
 
-	const mergeStartedAt = Date.now();
-	try {
-		let phase = await runner.prepare({
-			...selector,
-			validationCommand: input.validationCommand,
-			resolverConfigured: input.resolver !== undefined,
-			maxResolutionAttempts: input.maxResolutionAttempts ?? DEFAULT_MAX_RESOLUTION_ATTEMPTS,
-		});
-		while (phase.kind === "resolve") {
-			if (!input.resolver) {
-				throw new Error("Merge gate requested conflict resolution without a configured resolver");
-			}
-			const state = phase.state;
-			const resolution = await input.resolver({
-				workspaceDir: state.workspaceDir,
-				attempt: state.attempt,
-				conflicts: state.conflicts,
-				previousValidation: state.validation,
-			});
-			phase = await runner.continueResolution({ state, resolution });
-		}
-		return await runner.writeMetrics({
-			result: phase.result,
-			waitMs: lock.waitMs,
-			mergeDurationMs: Date.now() - mergeStartedAt,
-		});
-	} finally {
-		await releaseMergeGateLock(input.projectDir);
-	}
+  const mergeStartedAt = Date.now();
+  try {
+    let phase = await runner.prepare({
+      ...selector,
+      validationCommand: input.validationCommand,
+      resolverConfigured: input.resolver !== undefined,
+      maxResolutionAttempts:
+        input.maxResolutionAttempts ?? DEFAULT_MAX_RESOLUTION_ATTEMPTS,
+    });
+    while (phase.kind === "resolve") {
+      if (!input.resolver) {
+        throw new Error(
+          "Merge gate requested conflict resolution without a configured resolver",
+        );
+      }
+      const state = phase.state;
+      const resolution = await input.resolver(phase.request);
+      phase = await runner.continueResolution({ state, resolution });
+    }
+    return runner.writeMetrics({
+      result: phase.result,
+      waitMs: lock.waitMs,
+      mergeDurationMs: Date.now() - mergeStartedAt,
+    });
+  } finally {
+    await releaseMergeGateLock(input.projectDir);
+  }
 }
 
 export function mergeAutomationWorktree(
-	input: MergeAutomationWorktreeInput,
-	runner: WorkflowBlockingOperationRunner = defaultBlockingOperationRunner,
+  input: MergeAutomationWorktreeInput,
+  runner: WorkflowBlockingOperationRunner = defaultBlockingOperationRunner,
 ): Promise<MergeGateResult> {
-	return coordinateMergeAutomationWorktree(input, workerPhaseRunner(runner));
+  return coordinateMergeAutomationWorktree(input, workerPhaseRunner(runner));
 }

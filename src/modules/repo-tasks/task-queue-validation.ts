@@ -13,6 +13,13 @@ import {
   readOwnerAskMarkers,
 } from "./blocked-precondition.js";
 import {
+  verifyProductionReplacementCompletion,
+} from "./production-replacement-completion.js";
+import {
+  PRODUCTION_REPLACEMENT_SECTION,
+  parseProductionReplacementDeclaration,
+} from "./production-replacement-proof.js";
+import {
   getRepoTaskStateDir,
   getRepoTaskStateTransitionBlocker,
   hasConcreteTaskAcceptanceEvidence,
@@ -798,6 +805,48 @@ export function validateTaskQueue(
         message: `${entry.path} has invalid task_class "${taskClass}"; must be one of ${TASK_CLASSES.join(", ")}`,
         paths: [entry.path],
       });
+    }
+
+    const productionReplacement = attrs.production_replacement;
+    if (
+      productionReplacement !== undefined &&
+      productionReplacement !== "true"
+    ) {
+      findings.push({
+        code: "task-production-replacement-invalid-flag",
+        severity: "error",
+        message: `${entry.path} has invalid production_replacement=${JSON.stringify(productionReplacement)}; ` +
+          "omit the field for ordinary work or set the literal true for a cross-cutting runtime replacement.",
+        paths: [entry.path],
+      });
+    }
+    if (productionReplacement === "true") {
+      const declaration = parseProductionReplacementDeclaration(body);
+      if (declaration.kind !== "valid") {
+        const reason = declaration.kind === "absent"
+          ? `missing ## ${PRODUCTION_REPLACEMENT_SECTION}`
+          : declaration.error;
+        findings.push({
+          code: "task-production-replacement-contract-invalid",
+          severity: "error",
+          message: `${entry.path} declares production_replacement=true but its behavioral completion contract is invalid: ${reason}`,
+          paths: [entry.path],
+        });
+      } else if (entry.state === "done") {
+        const completion = verifyProductionReplacementCompletion({
+          raw: body,
+          taskId: entry.taskId,
+          projectDir,
+        });
+        if (!completion.ok) {
+          findings.push({
+            code: "done-production-replacement-proof-incomplete",
+            severity: "error",
+            message: `${entry.path} cannot complete its production replacement contract: ${completion.error}`,
+            paths: [entry.path],
+          });
+        }
+      }
     }
 
     const REQUIRED_SECTIONS = ["## Problem", "## Desired Outcome", "## Constraints", "## Done When"] as const;

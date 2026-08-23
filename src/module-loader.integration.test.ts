@@ -8,7 +8,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleLoader } from "#core/modules/module-loader.js";
+import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import {
@@ -34,7 +34,7 @@ describe("scheduler module integration", () => {
 
   it("registers the schedule tool via module protocol", async () => {
     const { default: schedulerModule } = await import("#modules/scheduler/index.js");
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
 
     await loader.load(schedulerModule);
     expect(loader.getLoadedModules()).toEqual(["scheduler"]);
@@ -50,7 +50,7 @@ describe("scheduler module integration", () => {
 
   it("schedule tool is hidden until management group is enabled", async () => {
     const { default: schedulerModule } = await import("#modules/scheduler/index.js");
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     await loader.load(schedulerModule);
 
     const before = filterTools(getAllTools());
@@ -80,7 +80,7 @@ describe("memory module integration", () => {
   it("registers the memory tool via module protocol", async () => {
     const { default: renderingModule } = await import("#modules/rendering/index.js");
     const { default: memoryModule } = await import("#modules/memory/index.js");
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
 
     await loader.load(renderingModule);
     await loader.load(memoryModule);
@@ -98,7 +98,7 @@ describe("memory module integration", () => {
   it("memory tool is hidden until management group is enabled", async () => {
     const { default: renderingModule } = await import("#modules/rendering/index.js");
     const { default: memoryModule } = await import("#modules/memory/index.js");
-    const loader = new ModuleLoader({});
+    const loader = createRuntimeModuleLoader({});
     await loader.load(renderingModule);
     await loader.load(memoryModule);
 

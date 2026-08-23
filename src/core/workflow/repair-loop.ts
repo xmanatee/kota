@@ -1,6 +1,9 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
-import { resolveAgentRunDir } from "./agent-run-dir.js";
+import {
+  agentRunDirWriteScopes,
+  resolveAgentRunDir,
+} from "./agent-run-dir.js";
 import {
   executeRepairAgentIteration,
   RepairAgentIterationError,
@@ -25,17 +28,13 @@ import {
   RepairLoopError,
   type RepairLoopFailureOutput,
 } from "./repair-loop-types.js";
+import { enforceRepairAgentWriteScope } from "./repair-loop-write-scope.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepContext,
 } from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
-import {
-  AgentWriteScopeViolationError,
-  findWriteScopeViolations,
-  requiresWriteScopeSnapshot,
-  writeWriteScopeViolationArtifact,
-} from "./steps/agent-write-scope.js";
+import { requiresWriteScopeSnapshot } from "./steps/agent-write-scope.js";
 import { captureWorkflowMutationSnapshot } from "./steps/agent-write-scope-snapshot.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
@@ -82,6 +81,10 @@ export async function runAgentRepairLoop(
     projectDir: context.projectDir,
     runtimeResources: context.runtimeResources,
   });
+  const agentOutputWriteScopes = agentRunDirWriteScopes(
+    workspaceDir,
+    agentRunDir,
+  );
   const failureOutput = (): RepairLoopFailureOutput => ({
     content: lastContent,
     turns: totalTurns,
@@ -194,32 +197,15 @@ export async function runAgentRepairLoop(
     }
 
     if (scopedAgent && repairPreSnapshot) {
-      const violations = findWriteScopeViolations(
-        repairPreSnapshot.changedPathsSince(
-          captureWorkflowMutationSnapshot(workspaceDir),
-        ),
-        scopedAgent.writeScope,
-      );
-      if (violations.length > 0) {
-        const violationCtx = {
-          stepId: step.id,
-          agentName: scopedAgent.agentName,
-          scope: scopedAgent.writeScope,
-          violations,
-        };
-        writeWriteScopeViolationArtifact({
-          ...violationCtx,
-          metadata,
-          projectDir: context.projectDir,
-        });
-        if (scopedAgent.writeScope === "deny-all") {
-          repairPreSnapshot.restoreDenyAllMutations(
-            workspaceDir,
-            violations,
-          );
-        }
-        throw new AgentWriteScopeViolationError(violationCtx);
-      }
+      enforceRepairAgentWriteScope({
+        preSnapshot: repairPreSnapshot,
+        workspaceDir,
+        runtimeWriteScopes: agentOutputWriteScopes,
+        scopedAgent,
+        stepId: step.id,
+        metadata,
+        projectDir: context.projectDir,
+      });
     }
     if (!repairAttempt.ok) {
       const failedIteration = repairAttempt.error instanceof RepairAgentIterationError

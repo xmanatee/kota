@@ -1,11 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { TrajectoryDiagnosticsArtifact } from "#core/agent-harness/index.js";
-import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { subscribeBuilderInterruptions } from "./autonomy-issue-builder-interruption-source.js";
 import { subscribeDeadLetterChanges } from "./autonomy-issue-dead-letter-source.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
+import {
+  type AutonomyIssueRuntimeScope,
+  resolveAutonomyIssueRuntimeScope,
+} from "./autonomy-issue-runtime-scope.js";
 import {
   emitHealth,
   stableIssueHash,
@@ -23,7 +27,7 @@ import {
 type JsonObject = AutonomyHealthJsonObject;
 export type AutonomyIssueSourceContext = Pick<
   ModuleRuntimeContext,
-  "cwd" | "events"
+  "events" | "getProvider"
 >;
 
 function projectPath(projectDir: string, candidate: string): string | null {
@@ -52,7 +56,8 @@ function readJson(path: string): AutonomyHealthJsonValue {
 
 function subscribeWorkflowFailures(ctx: AutonomyIssueSourceContext): void {
   ctx.events.subscribe("workflow.failure.alert", (payload) => {
-    emitHealth(ctx, payload.projectId, {
+    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
+    emitHealth(ctx, runtime.scopeId, {
       observation: "present",
       source: workflowFailureHealthSource(payload.workflow),
       severity: "critical",
@@ -91,6 +96,7 @@ function trajectoryArtifact(
 
 function emitTrajectoryObservations(
   ctx: AutonomyIssueSourceContext,
+  runtime: AutonomyIssueRuntimeScope,
   payload: BusEvents["workflow.step.completed"],
 ): void {
   const diagnostics = payload.trajectoryDiagnostics;
@@ -106,13 +112,13 @@ function emitTrajectoryObservations(
   ) {
     return;
   }
-  const path = projectPath(ctx.cwd, diagnostics.artifactPath);
+  const path = projectPath(runtime.projectDir, diagnostics.artifactPath);
   if (!path) return;
   const artifact = trajectoryArtifact(readJson(path));
   if (!artifact) return;
   for (const diagnostic of artifact.diagnostics) {
     if (diagnostic.code === "unsupported_trajectory") continue;
-    emitHealth(ctx, payload.projectId, {
+    emitHealth(ctx, runtime.scopeId, {
       observation: "present",
       source: {
         kind: "workflow-step",
@@ -126,7 +132,7 @@ function emitTrajectoryObservations(
       evidenceRefs: [
         {
           kind: "artifact",
-          ref: relative(ctx.cwd, path),
+          ref: relative(runtime.projectDir, path),
         },
       ],
       actionability: "local-code",
@@ -141,6 +147,7 @@ function emitTrajectoryObservations(
 
 function emitReviewScrutinyObservation(
   ctx: AutonomyIssueSourceContext,
+  runtime: AutonomyIssueRuntimeScope,
   payload: JsonObject,
   seen: Set<string>,
 ): void {
@@ -150,7 +157,10 @@ function emitReviewScrutinyObservation(
   ) {
     return;
   }
-  const path = projectPath(ctx.cwd, `${payload.runDir}/review-scrutiny.json`);
+  const path = projectPath(
+    runtime.projectDir,
+    `${payload.runDir}/review-scrutiny.json`,
+  );
   if (!path) return;
   const record = readJson(path);
   if (
@@ -164,6 +174,7 @@ function emitReviewScrutinyObservation(
     return;
   }
   const observationId = [
+    runtime.scopeId,
     record.runId,
     record.surface,
     record.generatedAt,
@@ -171,7 +182,7 @@ function emitReviewScrutinyObservation(
   if (seen.has(observationId)) return;
   seen.add(observationId);
   const taskKey = typeof record.taskId === "string" ? record.taskId : "unscoped";
-  emitHealth(ctx, payload.projectId, {
+  emitHealth(ctx, runtime.scopeId, {
     observation: "present",
     source: {
       kind: "review",
@@ -181,7 +192,10 @@ function emitReviewScrutinyObservation(
     severity: "warning",
     labels: ["quality", "review-scrutiny", stableToken(record.surface)],
     summary: `${record.surface} recorded a thin acceptance for ${taskKey}.`,
-    evidenceRefs: [{ kind: "artifact", ref: relative(ctx.cwd, path) }],
+    evidenceRefs: [{
+      kind: "artifact",
+      ref: relative(runtime.projectDir, path),
+    }],
     actionability: "local-code",
     dedupeKey:
       `review-scrutiny:${stableToken(record.surface)}:` +
@@ -194,24 +208,23 @@ function emitReviewScrutinyObservation(
 function subscribeStepObservations(ctx: AutonomyIssueSourceContext): void {
   const seenReviewRecords = new Set<string>();
   ctx.events.subscribe("workflow.step.completed", (payload) => {
+    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
     const objectPayload = payload as JsonObject;
-    emitTrajectoryObservations(ctx, payload);
-    emitReviewScrutinyObservation(ctx, objectPayload, seenReviewRecords);
+    emitTrajectoryObservations(ctx, runtime, payload);
+    emitReviewScrutinyObservation(ctx, runtime, objectPayload, seenReviewRecords);
   });
 }
 
 function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
-  const queue = new OwnerQuestionQueue(
-    resolve(ctx.cwd, ".kota", "owner-questions"),
-  );
   ctx.events.subscribe("owner.question.changed", (payload) => {
-    const question = queue.get(payload.id);
+    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
+    const question = runtime.ownerQuestionQueue.get(payload.id);
     if (!question || question.status === "pending") return;
-    const linkedIssue = readAutonomyIssueProjection(ctx.cwd).issues.find(
+    const linkedIssue = readAutonomyIssueProjection(runtime.projectDir).issues.find(
       (issue) => issue.links.ownerQuestionIds.includes(question.id),
     );
     if (linkedIssue) {
-      emitHealth(ctx, payload.projectId, {
+      emitHealth(ctx, runtime.scopeId, {
         observation: "changed",
         source: linkedIssue.source,
         severity: linkedIssue.severity,
@@ -234,7 +247,7 @@ function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
     }
     const topic = question.dedupeKey ??
       `${stableToken(question.source)}:${stableIssueHash(question.question.toLowerCase())}`;
-    emitHealth(ctx, payload.projectId, {
+    emitHealth(ctx, runtime.scopeId, {
       observation: "present",
       source: { kind: "owner-question", id: stableToken(question.source) },
       severity: "warning",
@@ -260,4 +273,5 @@ export function subscribeAutonomyIssueSources(ctx: AutonomyIssueSourceContext): 
   subscribeStepObservations(ctx);
   subscribeOwnerInterventions(ctx);
   subscribeDeadLetterChanges(ctx);
+  subscribeBuilderInterruptions(ctx);
 }

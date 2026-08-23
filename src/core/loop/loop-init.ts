@@ -3,7 +3,6 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
-import { getEventBus } from "#core/events/event-bus.js";
 import { listManifestModules } from "#core/manifest/index.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/mcp/manager.js";
@@ -87,6 +86,7 @@ export interface AgentLoopState {
   autonomyMode: AutonomyMode;
   scopePolicyAuthority?: ScopePolicyAuthority;
   moduleLoader: ModuleLoader;
+  ownsModuleRuntime: boolean;
   closed: boolean;
   activeAbortControllers: Set<AbortController>;
   sigintHandler: () => void;
@@ -138,14 +138,12 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     }
   }
 
-  const projectModules = await discoverProjectModules();
-  const modules = await discoverModules(state.projectDir, state.verbose);
-  for (const { name } of listManifestModules(state.projectDir)) addLoadedModule(name);
-  try {
+  if (state.ownsModuleRuntime) {
+    const projectModules = await discoverProjectModules();
+    const modules = await discoverModules(state.projectDir, state.verbose);
+    if (state.closed) return;
+    for (const { name } of listManifestModules(state.projectDir)) addLoadedModule(name);
     await state.moduleLoader.loadAll(projectModules, modules);
-  } catch (err) {
-    await state.moduleLoader.unloadAll().catch(() => {});
-    throw err;
   }
 
   bindRenderingTransport(state);
@@ -162,9 +160,6 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   if (customToolCount > 0 && state.verbose) {
     state.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
   }
-
-  const bus = getEventBus();
-  if (bus) state.moduleLoader.setBus(bus);
 
   state.initialized = true;
   if (state.stateMachine.canTransition("ready")) {

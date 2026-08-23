@@ -11,10 +11,7 @@ import {
 } from "./approval-execution-test-tools.integration.js";
 import {
 	handleApproveAllApprovals,
-	handleApproveApproval,
-	handleListApprovals,
 	handleRejectAllApprovals,
-	handleRejectApproval,
 } from "./routes.js";
 
 const executeTool = vi.fn<ToolRunner>();
@@ -71,7 +68,7 @@ function reviewDigest(queue: ApprovalQueue, id: string): string {
 	return review.digest;
 }
 
-function approvalDecisionBody(
+function _approvalDecisionBody(
 	queue: ApprovalQueue,
 	id: string,
 	note?: string,
@@ -91,7 +88,7 @@ function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown
 	};
 }
 
-function approvePending(queue: ApprovalQueue, id: string): void {
+function _approvePending(queue: ApprovalQueue, id: string): void {
 	const selection = queue.getExecutionSnapshot(id);
 	if (!selection.ok) throw new Error("expected execution snapshot");
 	const result = queue.approveForExecution(selection.snapshot.descriptor);

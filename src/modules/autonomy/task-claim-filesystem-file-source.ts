@@ -70,7 +70,7 @@ function inspectExpectedDestination(fileName, expectedIdentity) {
   }
 }
 
-function writePrivateFile(identities, fileName, content, flag) {
+function writePrivateFile(identities, fileName, content, flag, allowCreateConflict = false) {
   if (Buffer.byteLength(content, "utf8") > MAX_CLAIM_BYTES) {
     refuse("task claim entry exceeds the storage limit");
   }
@@ -79,6 +79,7 @@ function writePrivateFile(identities, fileName, content, flag) {
     refuse("task claim entries must be private regular files");
   }
   if (flag === "wx" && existing !== undefined) {
+    if (allowCreateConflict) return false;
     refuse("task claim entry already exists");
   }
   const expectedIdentity = existing === undefined ? null : identity(existing);
@@ -107,12 +108,22 @@ function writePrivateFile(identities, fileName, content, flag) {
     fsyncSync(temporaryFd);
 
     inspectChain(identities);
-    inspectExpectedDestination(fileName, expectedIdentity);
-    if (flag === "wx") {
-      linkSync(temporaryName, fileName);
+    if (flag === "wx" && allowCreateConflict) {
+      try {
+        linkSync(temporaryName, fileName);
+      } catch (error) {
+        if (error && error.code === "EEXIST") return false;
+        throw error;
+      }
       unlinkSync(temporaryName);
     } else {
-      renameSync(temporaryName, fileName);
+      inspectExpectedDestination(fileName, expectedIdentity);
+      if (flag === "wx") {
+        linkSync(temporaryName, fileName);
+        unlinkSync(temporaryName);
+      } else {
+        renameSync(temporaryName, fileName);
+      }
     }
     installed = true;
 
@@ -125,6 +136,7 @@ function writePrivateFile(identities, fileName, content, flag) {
       refuse("task claim entry changed while it was installed");
     }
     fsyncSync(directoryFd);
+    return true;
   } finally {
     if (temporaryFd !== undefined) closeSync(temporaryFd);
     if (!installed) cleanupTemporaryFile(temporaryName, temporaryIdentity);

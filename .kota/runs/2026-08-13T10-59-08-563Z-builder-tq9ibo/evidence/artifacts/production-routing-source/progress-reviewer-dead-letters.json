@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "production-dead-letter-source",
+  "capturedAt": "2026-08-15T10:39:46.455Z",
+  "source": ".kota/dead-letter-queue/items.json",
+  "verification": {
+    "recordCount": 4,
+    "allTerminal": true,
+    "repairCommit": "532ab1ae",
+    "successfulProductionRuns": [
+      "2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb",
+      "2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5"
+    ]
+  },
+  "dispositions": [
+    {
+      "id": "dlq-dd7679c2-5aca-49a1-a811-68172308fa7d",
+      "failedRunId": "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul",
+      "before": {
+        "status": "open",
+        "at": "2026-08-06T18:44:35.663Z"
+      },
+      "after": {
+        "status": "dismissed",
+        "at": "2026-08-06T21:55:13.358Z",
+        "reason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+      }
+    },
+    {
+      "id": "dlq-18b1d1bd-7cc8-4cd8-9ddd-19d57696fcc8",
+      "failedRunId": "2026-08-06T13-58-27-896Z-progress-reviewer-v0ge1r",
+      "before": {
+        "status": "open",
+        "at": "2026-08-06T18:49:59.096Z"
+      },
+      "after": {
+        "status": "dismissed",
+        "at": "2026-08-06T21:55:09.950Z",
+        "reason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+      }
+    },
+    {
+      "id": "dlq-5648215b-5aea-446c-aa59-5d69ae8ab836",
+      "failedRunId": "2026-08-06T14-25-33-083Z-progress-reviewer-w67c27",
+      "before": {
+        "status": "open",
+        "at": "2026-08-06T18:50:02.881Z"
+      },
+      "after": {
+        "status": "dismissed",
+        "at": "2026-08-06T21:55:06.588Z",
+        "reason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+      }
+    },
+    {
+      "id": "dlq-a0763b52-0eb3-4359-bbf0-28d75b681d51",
+      "failedRunId": "2026-08-06T18-44-27-907Z-progress-reviewer-2hdefe",
+      "before": {
+        "status": "open",
+        "at": "2026-08-06T19:03:44.837Z"
+      },
+      "after": {
+        "status": "dismissed",
+        "at": "2026-08-06T21:55:03.172Z",
+        "reason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+      }
+    }
+  ],
+  "records": [
+    {
+      "id": "dlq-dd7679c2-5aca-49a1-a811-68172308fa7d",
+      "type": "workflow-dispatch",
+      "status": "dismissed",
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m",
+      "owningModule": "workflow-runtime",
+      "sourceEventIds": [],
+      "affectedWorkflowNames": [
+        "progress-reviewer"
+      ],
+      "failure": {
+        "reason": "Agent harness \"codex\" cannot honor requested run option(s): autonomyMode=\"passive\". autonomyMode=\"passive\": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.",
+        "retryCount": 2,
+        "lastErrorClass": "execution",
+        "firstFailedAt": "2026-08-06T18:44:35.663Z",
+        "lastFailedAt": "2026-08-06T18:44:35.663Z"
+      },
+      "source": {
+        "kind": "workflow-dispatch",
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "autonomy.progress-review.scheduled",
+        "triggerSchemaRef": null,
+        "failedRunId": "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul",
+        "runDir": ".kota/runs/2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul"
+      },
+      "redrive": {
+        "kind": "workflow",
+        "workflowName": "progress-reviewer",
+        "source": {
+          "kind": "run-trigger",
+          "runId": "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul"
+        }
+      },
+      "redactedProjection": {
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "autonomy.progress-review.scheduled",
+        "triggerSchemaRef": null,
+        "triggerPayload": {
+          "scopeId": "global",
+          "scheduledAt": "2026-08-06T18:00:00.001Z"
+        }
+      },
+      "createdAt": "2026-08-06T18:44:35.663Z",
+      "updatedAt": "2026-08-06T21:55:13.358Z",
+      "redriveAttempts": [],
+      "retention": {
+        "kind": "expire-after-ms",
+        "durationMs": 1209600000,
+        "expiresAt": "2026-08-20T21:55:13.358Z"
+      },
+      "dismissedAt": "2026-08-06T21:55:13.358Z",
+      "dismissalReason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+    },
+    {
+      "id": "dlq-18b1d1bd-7cc8-4cd8-9ddd-19d57696fcc8",
+      "type": "workflow-dispatch",
+      "status": "dismissed",
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m",
+      "owningModule": "workflow-runtime",
+      "sourceEventIds": [
+        "evtj-000000221329",
+        "evtj-000000221404",
+        "evtj-000000221501",
+        "evtj-000000221510",
+        "evtj-000000221559"
+      ],
+      "affectedWorkflowNames": [
+        "progress-reviewer"
+      ],
+      "failure": {
+        "reason": "Agent harness \"codex\" cannot honor requested run option(s): autonomyMode=\"passive\". autonomyMode=\"passive\": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.",
+        "retryCount": 2,
+        "lastErrorClass": "execution",
+        "firstFailedAt": "2026-08-06T18:49:59.096Z",
+        "lastFailedAt": "2026-08-06T18:49:59.096Z"
+      },
+      "source": {
+        "kind": "workflow-dispatch",
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "failedRunId": "2026-08-06T13-58-27-896Z-progress-reviewer-v0ge1r",
+        "runDir": ".kota/runs/2026-08-06T13-58-27-896Z-progress-reviewer-v0ge1r"
+      },
+      "redrive": {
+        "kind": "workflow",
+        "workflowName": "progress-reviewer",
+        "source": {
+          "kind": "run-trigger",
+          "runId": "2026-08-06T13-58-27-896Z-progress-reviewer-v0ge1r"
+        }
+      },
+      "redactedProjection": {
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "triggerPayload": {
+          "scopeId": "8nrg1m",
+          "projectId": "8nrg1m",
+          "sourceEventName": "workflow.completed",
+          "groupingKey": "projectId=8nrg1m",
+          "reason": "count",
+          "count": 5,
+          "window": {
+            "firstEventAt": "2026-08-06T13:39:54.313Z",
+            "lastEventAt": "2026-08-06T13:58:27.895Z",
+            "flushedAt": "2026-08-06T13:58:27.896Z"
+          },
+          "inputEvents": [
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221329",
+              "receivedAt": "2026-08-06T13:39:54.313Z",
+              "payload": {
+                "workflow": "fan-out-consolidator",
+                "runId": "2026-08-06T13-35-28-089Z-fan-out-consolidator-keybww",
+                "status": "success",
+                "triggerEvent": "workflow.build.committed",
+                "durationMs": 3384,
+                "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-35-28-089Z-fan-out-consolidator-keybww",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221404",
+              "receivedAt": "2026-08-06T13:40:02.784Z",
+              "payload": {
+                "workflow": "blocked-promoter",
+                "runId": "2026-08-06T13-35-35-088Z-blocked-promoter-5pgeg2",
+                "status": "success",
+                "triggerEvent": "autonomy.queue.available",
+                "durationMs": 4104,
+                "definitionPath": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-35-35-088Z-blocked-promoter-5pgeg2",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221501",
+              "receivedAt": "2026-08-06T13:54:58.397Z",
+              "payload": {
+                "workflow": "builder",
+                "runId": "2026-08-06T13-35-35-090Z-builder-ysgp16",
+                "status": "success",
+                "triggerEvent": "autonomy.queue.available",
+                "durationMs": 907481,
+                "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-35-35-090Z-builder-ysgp16",
+                "tags": [
+                  "monitored"
+                ],
+                "autonomyMode": "autonomous",
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221510",
+              "receivedAt": "2026-08-06T13:54:59.654Z",
+              "payload": {
+                "workflow": "evaluator-calibration-monitor",
+                "runId": "2026-08-06T13-54-57-422Z-evaluator-calibration-monitor-yeosk9",
+                "status": "success",
+                "triggerEvent": "workflow.build.committed",
+                "durationMs": 1702,
+                "definitionPath": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-54-57-422Z-evaluator-calibration-monitor-yeosk9",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221559",
+              "receivedAt": "2026-08-06T13:58:27.895Z",
+              "payload": {
+                "workflow": "fan-out-consolidator",
+                "runId": "2026-08-06T13-54-57-422Z-fan-out-consolidator-63dtro",
+                "status": "success",
+                "triggerEvent": "workflow.build.committed",
+                "durationMs": 3806,
+                "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-54-57-422Z-fan-out-consolidator-63dtro",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            }
+          ],
+          "batch": {
+            "workflow": "progress-reviewer",
+            "triggerIndex": 2,
+            "maxBufferSize": 20,
+            "overflow": "flush-oldest",
+            "droppedInputCount": 0
+          }
+        }
+      },
+      "createdAt": "2026-08-06T18:49:59.096Z",
+      "updatedAt": "2026-08-06T21:55:09.950Z",
+      "redriveAttempts": [],
+      "retention": {
+        "kind": "expire-after-ms",
+        "durationMs": 1209600000,
+        "expiresAt": "2026-08-20T21:55:09.950Z"
+      },
+      "dismissedAt": "2026-08-06T21:55:09.950Z",
+      "dismissalReason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+    },
+    {
+      "id": "dlq-5648215b-5aea-446c-aa59-5d69ae8ab836",
+      "type": "workflow-dispatch",
+      "status": "dismissed",
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m",
+      "owningModule": "workflow-runtime",
+      "sourceEventIds": [
+        "evtj-000000221216",
+        "evtj-000000221486",
+        "evtj-000000221723"
+      ],
+      "affectedWorkflowNames": [
+        "progress-reviewer"
+      ],
+      "failure": {
+        "reason": "Agent harness \"codex\" cannot honor requested run option(s): autonomyMode=\"passive\". autonomyMode=\"passive\": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.",
+        "retryCount": 2,
+        "lastErrorClass": "execution",
+        "firstFailedAt": "2026-08-06T18:50:02.881Z",
+        "lastFailedAt": "2026-08-06T18:50:02.881Z"
+      },
+      "source": {
+        "kind": "workflow-dispatch",
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "failedRunId": "2026-08-06T14-25-33-083Z-progress-reviewer-w67c27",
+        "runDir": ".kota/runs/2026-08-06T14-25-33-083Z-progress-reviewer-w67c27"
+      },
+      "redrive": {
+        "kind": "workflow",
+        "workflowName": "progress-reviewer",
+        "source": {
+          "kind": "run-trigger",
+          "runId": "2026-08-06T14-25-33-083Z-progress-reviewer-w67c27"
+        }
+      },
+      "redactedProjection": {
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "triggerPayload": {
+          "scopeId": "8nrg1m",
+          "projectId": "8nrg1m",
+          "sourceEventName": "workflow.build.committed",
+          "groupingKey": "projectId=8nrg1m",
+          "reason": "count",
+          "count": 3,
+          "window": {
+            "firstEventAt": "2026-08-06T13:35:28.087Z",
+            "lastEventAt": "2026-08-06T14:25:33.081Z",
+            "flushedAt": "2026-08-06T14:25:33.083Z"
+          },
+          "inputEvents": [
+            {
+              "event": "workflow.build.committed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221216",
+              "receivedAt": "2026-08-06T13:35:28.087Z",
+              "payload": {
+                "runId": "2026-08-06T12-09-55-166Z-builder-csm3ew",
+                "taskId": "task-security-review-task-claim-storage-follows-project",
+                "commitMessage": "Harden task claim storage against symlink escapes",
+                "costUsd": 0,
+                "durationMs": 2348409,
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.build.committed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221486",
+              "receivedAt": "2026-08-06T13:54:57.420Z",
+              "payload": {
+                "runId": "2026-08-06T13-35-35-090Z-builder-ysgp16",
+                "taskId": "task-health-control-coverage-trajectory-diagnostics-unsupported-trajectory-diagnostics",
+                "commitMessage": "test(autonomy): pin unsupported trajectory health routing",
+                "costUsd": 0,
+                "durationMs": 878909,
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.build.committed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221723",
+              "receivedAt": "2026-08-06T14:25:33.081Z",
+              "payload": {
+                "runId": "2026-08-06T13-35-35-090Z-builder-4omzi3",
+                "taskId": "task-security-review-codex-passive-mode-does-not-enforc",
+                "commitMessage": "Reject unenforceable Codex passive mode before native launch",
+                "costUsd": 0,
+                "durationMs": 1592244,
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            }
+          ],
+          "batch": {
+            "workflow": "progress-reviewer",
+            "triggerIndex": 3,
+            "maxBufferSize": 12,
+            "overflow": "flush-oldest",
+            "droppedInputCount": 0
+          }
+        }
+      },
+      "createdAt": "2026-08-06T18:50:02.881Z",
+      "updatedAt": "2026-08-06T21:55:06.588Z",
+      "redriveAttempts": [],
+      "retention": {
+        "kind": "expire-after-ms",
+        "durationMs": 1209600000,
+        "expiresAt": "2026-08-20T21:55:06.588Z"
+      },
+      "dismissedAt": "2026-08-06T21:55:06.588Z",
+      "dismissalReason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+    },
+    {
+      "id": "dlq-a0763b52-0eb3-4359-bbf0-28d75b681d51",
+      "type": "workflow-dispatch",
+      "status": "dismissed",
+      "scopeId": "8nrg1m",
+      "projectId": "8nrg1m",
+      "owningModule": "workflow-runtime",
+      "sourceEventIds": [
+        "evtj-000000221643",
+        "evtj-000000221739",
+        "evtj-000000221748",
+        "evtj-000000221786",
+        "evtj-000000221906"
+      ],
+      "affectedWorkflowNames": [
+        "progress-reviewer"
+      ],
+      "failure": {
+        "reason": "Agent harness \"codex\" cannot honor requested run option(s): autonomyMode=\"passive\". autonomyMode=\"passive\": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract.",
+        "retryCount": 2,
+        "lastErrorClass": "execution",
+        "firstFailedAt": "2026-08-06T19:03:44.837Z",
+        "lastFailedAt": "2026-08-06T19:03:44.837Z"
+      },
+      "source": {
+        "kind": "workflow-dispatch",
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "failedRunId": "2026-08-06T18-44-27-907Z-progress-reviewer-2hdefe",
+        "runDir": ".kota/runs/2026-08-06T18-44-27-907Z-progress-reviewer-2hdefe"
+      },
+      "redrive": {
+        "kind": "workflow",
+        "workflowName": "progress-reviewer",
+        "source": {
+          "kind": "run-trigger",
+          "runId": "2026-08-06T18-44-27-907Z-progress-reviewer-2hdefe"
+        }
+      },
+      "redactedProjection": {
+        "workflowName": "progress-reviewer",
+        "triggerEvent": "workflow.batch.flushed",
+        "triggerSchemaRef": null,
+        "triggerPayload": {
+          "scopeId": "8nrg1m",
+          "projectId": "8nrg1m",
+          "sourceEventName": "workflow.completed",
+          "groupingKey": "projectId=8nrg1m",
+          "reason": "count",
+          "count": 5,
+          "window": {
+            "firstEventAt": "2026-08-06T13:58:39.260Z",
+            "lastEventAt": "2026-08-06T18:44:27.906Z",
+            "flushedAt": "2026-08-06T18:44:27.907Z"
+          },
+          "inputEvents": [
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221643",
+              "receivedAt": "2026-08-06T13:58:39.260Z",
+              "payload": {
+                "workflow": "blocked-promoter",
+                "runId": "2026-08-06T13-58-24-654Z-blocked-promoter-hpp3z0",
+                "status": "success",
+                "triggerEvent": "autonomy.queue.available",
+                "durationMs": 6769,
+                "definitionPath": "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-58-24-654Z-blocked-promoter-hpp3z0",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221739",
+              "receivedAt": "2026-08-06T14:25:34.081Z",
+              "payload": {
+                "workflow": "builder",
+                "runId": "2026-08-06T13-35-35-090Z-builder-4omzi3",
+                "status": "success",
+                "triggerEvent": "autonomy.queue.available",
+                "durationMs": 1630238,
+                "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-35-35-090Z-builder-4omzi3",
+                "tags": [
+                  "monitored"
+                ],
+                "autonomyMode": "autonomous",
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221748",
+              "receivedAt": "2026-08-06T14:25:34.595Z",
+              "payload": {
+                "workflow": "evaluator-calibration-monitor",
+                "runId": "2026-08-06T14-25-33-086Z-evaluator-calibration-monitor-tz6znh",
+                "status": "success",
+                "triggerEvent": "workflow.build.committed",
+                "durationMs": 992,
+                "definitionPath": "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T14-25-33-086Z-evaluator-calibration-monitor-tz6znh",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221786",
+              "receivedAt": "2026-08-06T14:25:42.509Z",
+              "payload": {
+                "workflow": "fan-out-consolidator",
+                "runId": "2026-08-06T14-25-33-087Z-fan-out-consolidator-rq19n7",
+                "status": "success",
+                "triggerEvent": "workflow.build.committed",
+                "durationMs": 2621,
+                "definitionPath": "src/modules/autonomy/workflows/fan-out-consolidator/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T14-25-33-087Z-fan-out-consolidator-rq19n7",
+                "tags": [
+                  "monitored"
+                ],
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            },
+            {
+              "event": "workflow.completed",
+              "schemaRef": null,
+              "eventId": "evtj-000000221906",
+              "receivedAt": "2026-08-06T18:44:27.906Z",
+              "payload": {
+                "workflow": "builder",
+                "runId": "2026-08-06T13-58-24-655Z-builder-x0a10k",
+                "status": "success",
+                "triggerEvent": "autonomy.queue.available",
+                "durationMs": 15528196,
+                "definitionPath": "src/modules/autonomy/workflows/builder/workflow.ts",
+                "runDir": ".kota/runs/2026-08-06T13-58-24-655Z-builder-x0a10k",
+                "tags": [
+                  "monitored"
+                ],
+                "autonomyMode": "autonomous",
+                "scopeId": "8nrg1m",
+                "projectId": "8nrg1m"
+              }
+            }
+          ],
+          "batch": {
+            "workflow": "progress-reviewer",
+            "triggerIndex": 2,
+            "maxBufferSize": 20,
+            "overflow": "flush-oldest",
+            "droppedInputCount": 0
+          }
+        }
+      },
+      "createdAt": "2026-08-06T19:03:44.837Z",
+      "updatedAt": "2026-08-06T21:55:03.172Z",
+      "redriveAttempts": [],
+      "retention": {
+        "kind": "expire-after-ms",
+        "durationMs": 1209600000,
+        "expiresAt": "2026-08-20T21:55:03.172Z"
+      },
+      "dismissedAt": "2026-08-06T21:55:03.172Z",
+      "dismissalReason": "Superseded by commit 532ab1ae; autonomous progress-reviewer runs 2026-08-06T19-42-04-043Z-progress-reviewer-mbp1xb and 2026-08-06T20-20-46-461Z-progress-reviewer-plkmh5 succeeded after the harness-mode repair"
+    }
+  ]
+}

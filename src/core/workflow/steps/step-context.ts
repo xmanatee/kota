@@ -31,59 +31,12 @@ import type {
   WorkflowStepResult,
 } from "../run-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
-
-function buildToolContext(
-  metadata: WorkflowRunMetadata,
-  pbus: ProjectScopedEventBus,
-  stepId: string,
-  workspaceDir: string,
-  runtimeResources: WorkflowRuntimeResources | undefined,
-  approvalQueue: ApprovalQueue | undefined,
-  authorityConfigPath: string,
-): {
-  approvalQueue?: ApprovalQueue;
-  authorityConfigPath: string;
-  cwd: string;
-  env?: Record<string, string>;
-  stepId: string;
-  scopeId: string;
-  projectId: string;
-  workflow: {
-    workflowName: string;
-    runId: string;
-    stepId: string;
-    spanId: string;
-    scopeId: string;
-    projectId: string;
-  };
-} {
-  const scopeId = pbus.getScopeId();
-  const projectId = pbus.getProjectId();
-  return {
-    ...(approvalQueue !== undefined ? { approvalQueue } : {}),
-    authorityConfigPath,
-    cwd: workspaceDir,
-    ...(runtimeResources !== undefined
-      ? { env: runtimeResources.env }
-      : {}),
-    stepId,
-    scopeId,
-    projectId,
-    workflow: {
-      workflowName: metadata.workflow,
-      runId: metadata.id,
-      stepId,
-      spanId: `${metadata.id}:${stepId}`,
-      scopeId,
-      projectId,
-    },
-  };
-}
+import { buildWorkflowToolContext } from "./step-tool-context.js";
 
 async function enforceWorkflowToolScopePolicy(args: {
   name: string;
   input: Parameters<WorkflowRunToolRunner>[1];
-  context: ReturnType<typeof buildToolContext>;
+  context: ReturnType<typeof buildWorkflowToolContext>;
   policy: ResolvedScopePolicy;
   options: ToolCallExecutionOptions;
 }): Promise<void> {
@@ -107,13 +60,8 @@ async function enforceWorkflowToolScopePolicy(args: {
   if (denied) throw new Error(denied.content);
 }
 
-/**
- * Per-run append-only log of events a step emitted via `ctx.emit`. The
- * harness eval layer's `run-emits-event` / `run-omits-event` predicates
- * inspect this file; emit-only workflows whose failure mode is a wrong bus
- * event need an observable artifact that does not depend on the step
- * choosing to include the emission in its output.
- */
+// Per-run append-only event trace for evals and emit-only workflows whose
+// failure mode cannot be reconstructed from the step's returned output.
 export const EMITTED_EVENTS_LOG_FILENAME = "emitted-events.jsonl";
 
 function recordEmittedEvent(
@@ -169,16 +117,21 @@ export function createStepContext(
   const stateDir = deps.eventJournal
     ? dirname(dirname(deps.eventJournal.getPath()))
     : deps.store.rootDir;
+  const scopePolicySnapshot = deps.scopePolicyAuthority?.getSnapshot(
+    deps.pbus.getScopeId(),
+  );
   const runAgentHarness: WorkflowAgentHarnessRunner = (
     harness,
     options,
     execution,
   ) => {
-    const context = buildToolContext(
+    const context = buildWorkflowToolContext(
       metadata,
       deps.pbus,
       deps.currentStepId ?? "unknown",
+      deps.projectDir,
       options.cwd ?? workspaceDir,
+      options.sessionContext?.sessionId,
       deps.runtimeResources,
       deps.approvalQueue,
       deps.authorityConfigPath ?? getGlobalConfigPath(),
@@ -189,6 +142,7 @@ export function createStepContext(
         harness,
         {
           ...options,
+          projectDir: context.projectDir,
           authorityConfigPath: context.authorityConfigPath,
           workflowContext: context.workflow,
         },
@@ -201,6 +155,7 @@ export function createStepContext(
       harness,
       {
         ...options,
+        projectDir: context.projectDir,
         authorityConfigPath: context.authorityConfigPath,
         workflowContext: context.workflow,
         ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
@@ -229,6 +184,7 @@ export function createStepContext(
     ...(deps.eventJournal !== undefined
       ? { eventJournal: deps.eventJournal }
       : {}),
+    ...(scopePolicySnapshot !== undefined ? { scopePolicySnapshot } : {}),
     workflow: {
       name: metadata.workflow,
       definitionPath: metadata.definitionPath,
@@ -243,11 +199,13 @@ export function createStepContext(
     stepOutputList,
     runTool: async (name, input, toolContext) => {
       const stepId = toolContext?.stepId ?? deps.currentStepId ?? "unknown";
-      const context = buildToolContext(
+      const context = buildWorkflowToolContext(
         metadata,
         deps.pbus,
         stepId,
+        deps.projectDir,
         workspaceDir,
+        toolContext?.sessionId,
         deps.runtimeResources,
         deps.approvalQueue,
         deps.authorityConfigPath ?? getGlobalConfigPath(),
@@ -267,6 +225,8 @@ export function createStepContext(
         ...(scopePolicy !== undefined ? { scopePolicy } : {}),
         ...(authority !== undefined ? { scopePolicyAuthority: authority } : {}),
         ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
+        ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
+        projectDir: context.projectDir,
         cwd: context.cwd,
         ...(context.env !== undefined ? { env: context.env } : {}),
         authorityConfigPath: context.authorityConfigPath,

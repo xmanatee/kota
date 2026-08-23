@@ -219,10 +219,14 @@ export function requiresWriteScopeSnapshot(scope: AgentWriteScope): boolean {
 export function findWriteScopeViolations(
   mutated: readonly string[],
   scope: AgentWriteScope,
+  runtimeWriteScopes: readonly string[] = [],
 ): string[] {
-  if (scope === "deny-all") return [...mutated].sort();
+  const projectMutations = runtimeWriteScopes.length === 0
+    ? [...mutated]
+    : mutated.filter((path) => !pathInScope(path, runtimeWriteScopes));
+  if (scope === "deny-all") return projectMutations.sort();
   if (scope.length === 0) return [];
-  return mutated.filter((path) => !pathInScope(path, scope)).sort();
+  return projectMutations.filter((path) => !pathInScope(path, scope)).sort();
 }
 
 /**

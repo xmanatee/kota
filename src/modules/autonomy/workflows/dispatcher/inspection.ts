@@ -1,8 +1,13 @@
+import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   type ClaimAwareRepoTaskQueueSnapshot,
   getClaimAwareRepoTaskQueueSnapshot,
 } from "#modules/autonomy/queue-availability.js";
+import {
+  buildPromotionRationale,
+  type PromotionRationale,
+} from "../backlog-promoter/promotion.js";
 import {
   type BuilderRecoveryDispatchResult,
   inspectPendingBuilderRecoveriesInWorker,
@@ -12,59 +17,61 @@ import {
   type ResearchRetryAvailability,
 } from "../research-retry/precondition.js";
 import {
-  inspectScopeImprovementEvidenceGate,
-  recordScopeImprovementEvidenceReady,
-  type ScopeImprovementEvidenceGateResult,
-} from "../scope-improver/evidence-gate.js";
-import {
   inspectSecurityReviewDue,
   type SecurityReviewDueDecision,
 } from "../security-review/due-check.js";
+import {
+  inspectProgressSemanticBoundary,
+  inspectScopeSemanticBoundary,
+  type ProgressBoundaryInspection,
+  type ScopeBoundaryInspection,
+} from "./semantic-reflection.js";
 
 export type DispatcherInspection = {
   queue: ClaimAwareRepoTaskQueueSnapshot;
+  promotionRationale: PromotionRationale;
   researchRetryAvailability: ResearchRetryAvailability;
   securityReviewDue: SecurityReviewDueDecision;
-  scopeImprovementEvidence: ScopeImprovementEvidenceGateResult;
+  progressBoundary: ProgressBoundaryInspection;
+  scopeBoundary: ScopeBoundaryInspection;
   builderRecovery: BuilderRecoveryDispatchResult;
 };
 
 export function inspectDispatcherStateInWorker(input: {
   projectDir: string;
   nowIso: string;
+  scopePolicySnapshot: ScopePolicySnapshot | null;
 }): DispatcherInspection {
   const now = new Date(input.nowIso);
-  const queue = getClaimAwareRepoTaskQueueSnapshot(input.projectDir, now);
-  const researchRetryAvailability = inspectResearchRetryAvailability(
-    input.projectDir,
-  );
-  const securityReviewDue = inspectSecurityReviewDue(input.projectDir, { now });
-  const scopeImprovementEvidence = inspectScopeImprovementEvidenceGate({
-    projectDir: input.projectDir,
-    now,
-  });
-  if (
-    scopeImprovementEvidence.shouldEmit &&
-    scopeImprovementEvidence.payload !== null
-  ) {
-    recordScopeImprovementEvidenceReady({
-      projectDir: input.projectDir,
-      payload: scopeImprovementEvidence.payload,
-    });
-  }
-  const builderRecovery = inspectPendingBuilderRecoveriesInWorker({
-    projectDir: input.projectDir,
-  });
   return {
-    queue,
-    researchRetryAvailability,
-    securityReviewDue,
-    scopeImprovementEvidence,
-    builderRecovery,
+    queue: getClaimAwareRepoTaskQueueSnapshot(input.projectDir, now),
+    promotionRationale: buildPromotionRationale(input.projectDir),
+    researchRetryAvailability: inspectResearchRetryAvailability(input.projectDir),
+    securityReviewDue: inspectSecurityReviewDue(input.projectDir, { now }),
+    progressBoundary: inspectProgressSemanticBoundary({
+      projectDir: input.projectDir,
+    }),
+    scopeBoundary: input.scopePolicySnapshot
+      ? inspectScopeSemanticBoundary({
+          projectDir: input.projectDir,
+          scopePolicySnapshot: input.scopePolicySnapshot,
+        })
+      : {
+          shouldEmit: false,
+          reason: "authoritative resolved scope policy is unavailable",
+          payload: null,
+        },
+    builderRecovery: inspectPendingBuilderRecoveriesInWorker({
+      projectDir: input.projectDir,
+    }),
   };
 }
 
 export const dispatcherInspectionOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; nowIso: string },
+  {
+    projectDir: string;
+    nowIso: string;
+    scopePolicySnapshot: ScopePolicySnapshot | null;
+  },
   DispatcherInspection
 >(import.meta.url, "inspectDispatcherStateInWorker");

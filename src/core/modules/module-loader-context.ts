@@ -25,6 +25,7 @@ export interface LoaderContextDeps {
   config: KotaConfig;
   moduleStorages: Map<string, ModuleStorage>;
   getBus: () => EventBus | null;
+  trackEventSubscription: (unsubscribe: () => void) => () => void;
   getRoutes: () => RouteRegistration[];
   getContributedControlRoutes: () => ControlRouteRegistration[];
   getContributedWorkflows: () => RegisteredWorkflowDefinitionInput[];
@@ -60,6 +61,7 @@ export function createLoaderModuleContext(
     config: deps.config,
     moduleStorages: deps.moduleStorages,
     getBus: deps.getBus,
+    trackEventSubscription: deps.trackEventSubscription,
     getRoutes: deps.getRoutes,
     getContributedControlRoutes: deps.getContributedControlRoutes,
     getContributedWorkflows: deps.getContributedWorkflows,
@@ -68,7 +70,7 @@ export function createLoaderModuleContext(
     getModuleSummaries: deps.getModuleSummaries,
     resolveAgentDef: deps.resolveAgentDef,
     resolveSkillsPrompt: deps.resolveSkillsPrompt,
-    sessionFactory: deps.getSessionFactory(),
+    getSessionFactory: deps.getSessionFactory,
     probeHealthChecks: deps.probeHealthChecks,
     getRegisteredConfigKeys: deps.getRegisteredConfigKeys,
     callTool: async (name, input) => {

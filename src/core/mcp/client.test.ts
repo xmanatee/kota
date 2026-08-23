@@ -6964,6 +6964,57 @@ describe("McpClient Streamable HTTP transport", () => {
     });
   });
 
+  it("keeps HTTP subscriptions/listen open past the configured-provider cumulative response limit", async () => {
+    const subscription = {
+      controller: null as ReadableStreamDefaultController<Uint8Array> | null,
+    };
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "long-lived-http-list-changed-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            subscription.controller = controller;
+          },
+        }), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "long-lived-http-list-changed-client",
+    );
+    let notifications = 0;
+    client.onToolListChanged(() => {
+      notifications += 1;
+    });
+
+    await client.connect();
+    await waitForAssertion(() => {
+      expect(subscription.controller).not.toBeNull();
+    });
+    const keepalive = new TextEncoder().encode(`: ${"x".repeat(499_997)}\n`);
+    for (let index = 0; index < 21; index++) {
+      subscription.controller?.enqueue(keepalive);
+    }
+    subscription.controller?.enqueue(new TextEncoder().encode(sseMessage({
+      jsonrpc: "2.0",
+      method: "notifications/tools/list_changed",
+    })));
+
+    await waitForAssertion(() => {
+      expect(notifications).toBe(1);
+    });
+  });
+
   it("rejects server-to-client requests that collide with HTTP subscriptions/listen ids", async () => {
     const stderr = captureTerminalStderr();
     mockClientHttpFetch((request) => {
@@ -7039,6 +7090,40 @@ describe("McpClient Streamable HTTP transport", () => {
 
       await waitForAssertion(() => {
         expect(stderr.output()).toMatch(/MCP HTTP SSE event data exceeded/);
+      });
+    } finally {
+      stderr.restore();
+    }
+  });
+
+  it("rejects oversized HTTP subscriptions/listen SSE comment lines", async () => {
+    const stderr = captureTerminalStderr();
+    mockClientHttpFetch((request) => {
+      if (request.body.method === "server/discover") {
+        return jsonRpcHttpResponse(request.body.id, {
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
+          capabilities: { tools: { listChanged: true } },
+          serverInfo: { name: "http-list-changed-oversized-comment-fixture" },
+        });
+      }
+      if (request.body.method === "subscriptions/listen") {
+        return new Response(`: ${"x".repeat(MCP_HTTP_SSE_MESSAGE_MAX_BYTES)}\n`, {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return jsonRpcHttpResponse(request.body.id, {});
+    });
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "http-list-changed-oversized-comment-client",
+    );
+
+    try {
+      await client.connect();
+
+      await waitForAssertion(() => {
+        expect(stderr.output()).toMatch(/MCP HTTP SSE line buffer exceeded/);
       });
     } finally {
       stderr.restore();

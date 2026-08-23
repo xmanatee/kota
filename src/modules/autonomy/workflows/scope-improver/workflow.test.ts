@@ -1,654 +1,200 @@
-import { execFileSync } from "node:child_process";
 import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
   readdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import {
-  type HarnessRunResult,
-  WorkflowTestHarness,
-} from "#core/workflow/testing/index.js";
-import {
-  WORKFLOW_BATCH_FLUSH_EVENT,
-  type WorkflowBatchFlushPayload,
-} from "#core/workflow/trigger-types.js";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
-import { scopeImprovementEvidenceReady } from "./events.js";
+import { inspectScopeSemanticBoundary } from "../dispatcher/semantic-reflection.js";
+import { computeScopeContentFingerprint } from "./scope-fingerprint.js";
 import {
-  applyScopeImprovementRecommendations,
   collectScopeImprovementInputs,
-  discoverScopeImprovementCandidates,
-  gatherScopeImprovementEvidence,
-  recommendScopeImprovements,
-  SCOPE_IMPROVEMENT_ARTIFACT,
-  SCOPE_IMPROVEMENT_SCHEDULE_EVENT,
-  type ScopeImprovementArtifact,
-  type ScopeImprovementState,
+  prepareInitialScopeImprovementRequest,
 } from "./scope-improvement.js";
+import { readScopeImprovementState } from "./scope-improvement-state.js";
+import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
 import scopeImproverWorkflow from "./workflow.js";
+import {
+  makeScopeFixture,
+  runScopeFixtureGit,
+  SCOPE_TEST_NOW,
+} from "./workflow.test-helpers.js";
 
-vi.mock("#core/util/repo-worktree.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
-      "#core/util/repo-worktree.js",
-    );
-  return {
-    ...actual,
-    getRepoWorktreeStatus: vi.fn(),
-  };
-});
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["src/scope-change.ts"],
-      daemonRestartRequired: true,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
-
-const NOW = new Date("2026-06-04T12:00:00.000Z");
-const FIVE_MINUTES_LATER = new Date("2026-06-04T12:05:00.000Z");
-const AFTER_COOLDOWN = new Date("2026-06-04T12:31:00.000Z");
-const ATTENTION_EVENT = "workflow.attention.digest";
-
-function makeScope(label: string): string {
-  const dir = mkdtempSync(join(tmpdir(), `kota-scope-improver-${label}-`));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
-  mkdirSync(join(dir, "data", "inbox"), { recursive: true });
-  writeFileSync(join(dir, "data", "tasks", "AGENTS.md"), "# Tasks\n");
-  execFileSync("git", ["init", "--quiet"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
-  return dir;
-}
-
-function writeConfig(projectDir: string, config: object): void {
-  mkdirSync(join(projectDir, ".kota", "scope-improvement"), { recursive: true });
-  writeFileSync(
-    join(projectDir, ".kota", "scope-improvement", "config.json"),
-    `${JSON.stringify(config, null, 2)}\n`,
-  );
-}
-
-function writeRootAgents(projectDir: string): void {
-  writeFileSync(
-    join(projectDir, "AGENTS.md"),
-    "# Scope\n\n- Keep improvements evidence-backed.\n",
-  );
-}
-
-function writeFailedRun(projectDir: string, runId: string): void {
-  mkdirSync(join(projectDir, ".kota", "runs", runId), { recursive: true });
-  writeFileSync(
-    join(projectDir, ".kota", "runs", runId, "metadata.json"),
-    `${JSON.stringify({ workflow: "builder", status: "failed" }, null, 2)}\n`,
-  );
-}
-
-function trigger(files: string[]) {
-  return {
-    event: "files.changed",
-    schemaRef: null, payload: { files, triggeredAt: NOW.toISOString() },
-  };
-}
-
-function runCycle(projectDir: string, files: string[]) {
-  const inputs = collectScopeImprovementInputs({
-    projectDir,
-    trigger: trigger(files),
-    now: NOW,
-  });
-  const candidates = discoverScopeImprovementCandidates(inputs);
-  const evidence = gatherScopeImprovementEvidence({ inputs, candidates });
-  const recommendations = recommendScopeImprovements({ inputs, evidence });
-  const actions = applyScopeImprovementRecommendations({
-    projectDir,
-    runId: "test-run",
-    inputs,
-    recommendations,
-  });
-  return { inputs, candidates, evidence, recommendations, actions };
-}
-
-async function runWorkflowAt(
-  projectDir: string,
-  files: string[],
-  now: Date,
-): Promise<HarnessRunResult> {
-  vi.useFakeTimers();
-  vi.setSystemTime(now);
-  try {
-    return await new WorkflowTestHarness(scopeImproverWorkflow, {
-      projectDir,
-      trigger: trigger(files),
-    }).run();
-  } finally {
-    vi.useRealTimers();
-  }
-}
-
-function attentionEvents(result: HarnessRunResult): HarnessRunResult["emitted"] {
-  return result.emitted.filter((event) => event.event === ATTENTION_EVENT);
-}
-
-function readScopeImprovementArtifact(projectDir: string): ScopeImprovementArtifact {
-  return JSON.parse(
-    readFileSync(
-      join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
-      "utf-8",
-    ),
-  ) as ScopeImprovementArtifact;
-}
-
-function readScopeImprovementStateFile(projectDir: string): ScopeImprovementState {
-  return JSON.parse(
-    readFileSync(
-      join(projectDir, ".kota", "scope-improvement", "state.json"),
-      "utf-8",
-    ),
-  ) as ScopeImprovementState;
-}
-
-describe("scope-improver workflow", () => {
+describe("scope-improver semantic boundaries", () => {
   const projectDirs: string[] = [];
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: false,
-      trackedDirty: false,
-      entries: [],
-      fingerprint: "",
-      summary: "clean",
-      headSha: "abc1234",
-    });
-  });
-
   afterEach(() => {
-    vi.useRealTimers();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
   });
 
   function track(label: string): string {
-    const dir = makeScope(label);
-    projectDirs.push(dir);
-    return dir;
+    const projectDir = makeScopeFixture(label);
+    projectDirs.push(projectDir);
+    return projectDir;
   }
 
-  it("declares semantic evidence-ready triggers without raw churn triggers", () => {
+  it("registers only explicit semantic requests plus non-agent recovery", () => {
     const registered = validateWorkflowDefinitions([
       registerWorkflowDefinition(
         "src/modules/autonomy/workflows/scope-improver/workflow.ts",
         scopeImproverWorkflow,
       ),
     ])[0]!;
-
-    expect(registered.triggers.map((item) => item.event)).toEqual([
-      "autonomy.scope-improvement.requested",
-      SCOPE_IMPROVEMENT_SCHEDULE_EVENT,
-      scopeImprovementEvidenceReady.name,
-      "runtime.recovered",
+    expect(registered.triggers).toEqual([
+      expect.objectContaining({
+        event: "autonomy.scope-improvement.requested",
+        queueMode: "all",
+        cooldownMs: 0,
+      }),
+      expect.objectContaining({
+        event: "autonomy.scope-improvement.changed",
+        queueMode: "latest",
+        cooldownMs: 0,
+      }),
+      expect.objectContaining({ event: "runtime.recovered" }),
     ]);
-    expect(registered.triggers.some((item) => item.event === "files.changed")).toBe(
-      false,
-    );
-    expect(registered.triggers.some((item) => item.event === "task.changed")).toBe(
-      false,
-    );
-    expect(
-      registered.triggers.some((item) => item.event === "workflow.build.committed"),
-    ).toBe(false);
+    expect(registered.triggers.some((trigger) => trigger.schedule || trigger.batch))
+      .toBe(false);
   });
 
-  it("skips recent file-change evidence without a concrete scope gap", async () => {
-    const projectDir = track("workflow");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
-    mkdirSync(join(projectDir, "notes"), { recursive: true });
-    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-
-    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+  it("consumes initial onboarding once and makes unchanged restart a no-op", async () => {
+    const projectDir = track("onboarding");
+    const initial = prepareInitialScopeImprovementRequest({
       projectDir,
-      trigger: trigger(["notes/plan.md"]),
-    }).run();
-
-    expect(result.status).toBe("success");
-    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
-    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
-      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
-    expect(readyFiles).toHaveLength(0);
-    const artifact = JSON.parse(
-      readFileSync(
-        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
-        "utf-8",
-      ),
-    );
-    expect(artifact.recommendations).toContainEqual(
-      expect.objectContaining({
-        kind: "skipped",
-        evidenceIds: ["file:0:notes/plan.md"],
-        reason: expect.stringContaining("recent file-change"),
-      }),
-    );
-    expect(artifact.actions.applied).toContainEqual(
-      expect.objectContaining({
-        kind: "skipped",
-        reason: expect.stringContaining("recent file-change"),
-      }),
-    );
-    expect(
-      existsSync(join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT)),
-    ).toBe(true);
-  });
-
-  it("creates a concrete task from failed run evidence", async () => {
-    const projectDir = track("failed-run");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
-    writeFailedRun(projectDir, "2026-06-04T11-00-00-000Z-builder-failed");
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-
-    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      requestedBy: "scope-onboarding",
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    });
+    expect(initial).toMatchObject({
+      automatic: true,
+      boundary: "initial-onboarding",
+      fingerprint: expect.stringMatching(/^scope-content:/),
+    });
+    expect(prepareInitialScopeImprovementRequest({
       projectDir,
-      trigger: trigger(["notes/plan.md"]),
+      requestedBy: "scope-onboarding-restart",
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    })).toBeNull();
+    const trigger = {
+      event: "autonomy.scope-improvement.requested",
+      schemaRef: null,
+      payload: initial!,
+    };
+    const first = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
     }).run();
+    expect(first.status).toBe("success");
+    expect(readdirSync(join(projectDir, ".kota", "owner-questions"))).toHaveLength(1);
 
-    expect(result.status).toBe("success");
-    expect(vi.mocked(commitWorkflowChanges)).toHaveBeenCalledTimes(1);
-    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
-      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
-    expect(readyFiles).toHaveLength(1);
-    const taskText = readFileSync(
-      join(projectDir, "data", "tasks", "ready", readyFiles[0]!),
-      "utf-8",
-    );
-    expect(taskText).toContain(
-      "Failed workflow run builder (2026-06-04T11-00-00-000Z-builder-failed)",
-    );
-    expect(taskText).toContain("repair the concrete failure");
-    expect(taskText).not.toContain("Review recent scoped changes");
-    expect(taskText).not.toContain("Assess notes/plan.md");
+    const secondInputs = collectScopeImprovementInputs({
+      projectDir,
+      trigger,
+      now: SCOPE_TEST_NOW,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    });
+    expect(secondInputs.alreadyConsumed).toBe(true);
+    expect(prepareInitialScopeImprovementRequest({
+      projectDir,
+      requestedBy: "scope-onboarding-restart",
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    })).toBeNull();
+    const second = await new WorkflowTestHarness(scopeImproverWorkflow, {
+      projectDir,
+      trigger,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    }).run();
+    expect(second.status).toBe("success");
+    expect(readdirSync(join(projectDir, ".kota", "owner-questions"))).toHaveLength(1);
   });
 
-  it("skips task-file-only change evidence with an artifact reason", async () => {
-    const projectDir = track("task-file-only");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
-    const taskPath =
-      "data/tasks/ready/task-security-review-the-progress-review-evidence-colle.md";
+  it("coalesces changed guidance into a pending onboarding review", async () => {
+    const projectDir = track("onboarding-coalescing");
+    const initial = prepareInitialScopeImprovementRequest({
+      projectDir,
+      requestedBy: "scope-onboarding",
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    });
+    expect(initial?.fingerprint).toBeTruthy();
+
     writeFileSync(
-      join(projectDir, taskPath),
-      [
-        "---",
-        "id: task-security-review-the-progress-review-evidence-colle",
-        "title: Security review progress-review evidence collection",
-        "status: ready",
-        "priority: p2",
-        "area: autonomy",
-        "summary: Review a security finding.",
-        "created_at: 2026-06-04T12:00:00.000Z",
-        "updated_at: 2026-06-04T12:00:00.000Z",
-        "---",
-        "",
-        "## Problem",
-        "",
-        "A security-review task was created.",
-      ].join("\n"),
+      join(projectDir, "AGENTS.md"),
+      "# Scope\n\n- Preserve the latest owner policy.\n",
     );
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
+    runScopeFixtureGit(projectDir, ["add", "AGENTS.md"]);
+    runScopeFixtureGit(projectDir, [
+      "-c",
+      "user.email=kota@example.test",
+      "-c",
+      "user.name=KOTA Test",
+      "commit",
+      "--quiet",
+      "--no-gpg-sign",
+      "-m",
+      "change guidance before onboarding consumption",
+    ]);
+    const current = computeScopeContentFingerprint(
+      projectDir,
+      scopePolicySnapshotForTest(projectDir).policy,
+    );
+    expect(current.fingerprint).not.toBe(initial?.fingerprint);
+
+    const replacement = inspectScopeSemanticBoundary({
+      projectDir,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    });
+    expect(replacement).toMatchObject({
+      shouldEmit: false,
+      reason: "initial onboarding request is already queued and will read current inputs",
+    });
+    expect(inspectScopeSemanticBoundary({
+      projectDir,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    })).toMatchObject({
+      shouldEmit: false,
+      reason: "initial onboarding request is already queued and will read current inputs",
+    });
+
+    const staleTrigger = {
+      event: "autonomy.scope-improvement.requested",
+      schemaRef: null,
+      payload: initial!,
+    };
+    const refreshedInputs = collectScopeImprovementInputs({
+      projectDir,
+      trigger: staleTrigger,
+      now: SCOPE_TEST_NOW,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    });
+    expect(refreshedInputs.semanticInput).toMatchObject({
+      automatic: true,
+      fingerprint: current.fingerprint,
+      evidenceRefs: expect.arrayContaining(["AGENTS.md"]),
+    });
 
     const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
       projectDir,
-      trigger: trigger([taskPath]),
+      trigger: staleTrigger,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
     }).run();
-
     expect(result.status).toBe("success");
-    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
-    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
-      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
-    expect(readyFiles).toEqual([
-      "task-security-review-the-progress-review-evidence-colle.md",
-    ]);
-    const artifact = JSON.parse(
-      readFileSync(
-        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
-        "utf-8",
-      ),
-    );
-    expect(artifact.recommendations).toContainEqual(
-      expect.objectContaining({
-        kind: "skipped",
-        evidenceIds: [`file:0:${taskPath}`],
-        reason: expect.stringContaining("task-file-only"),
-      }),
-    );
-    expect(artifact.actions.applied).toContainEqual(
-      expect.objectContaining({
-        kind: "skipped",
-        reason: expect.stringContaining("task-file-only"),
-      }),
-    );
-  });
-
-  it("does not apply or commit recommendations when pre-existing untracked files are present", async () => {
-    const projectDir = track("untracked");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
-    mkdirSync(join(projectDir, "notes"), { recursive: true });
-    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
-    writeFileSync(join(projectDir, "owner-note.md"), "owner draft\n");
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: false,
-      entries: ["?? owner-note.md"],
-      fingerprint: "?? owner-note.md",
-      summary: "owner-note.md",
-      headSha: "abc1234",
+    expect(
+      readScopeImprovementState(projectDir, deriveDirectoryScopeId(projectDir)),
+    ).toMatchObject({
+      consumedFingerprint: current.fingerprint,
+      pendingFingerprint: null,
     });
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-
-    const result = await new WorkflowTestHarness(scopeImproverWorkflow, {
+    expect(inspectScopeSemanticBoundary({
       projectDir,
-      trigger: trigger(["notes/plan.md"]),
-    }).run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["apply-recommendations"].status).toBe("skipped");
-    expect(result.steps["write-commit-message"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-    expect(vi.mocked(commitWorkflowChanges)).not.toHaveBeenCalled();
-    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
-      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
-    expect(readyFiles).toHaveLength(0);
-    const staged = execFileSync("git", ["diff", "--cached", "--name-only"], {
-      cwd: projectDir,
-      encoding: "utf-8",
-    }).trim();
-    expect(staged).toBe("");
-    expect(readFileSync(join(projectDir, "owner-note.md"), "utf-8")).toBe(
-      "owner draft\n",
-    );
-    const artifact = JSON.parse(
-      readFileSync(
-        join(projectDir, ".kota", "runs", "harness", SCOPE_IMPROVEMENT_ARTIFACT),
-        "utf-8",
-      ),
-    );
-    expect(artifact.preflight.worktree).toMatchObject({
-      dirty: true,
-      entries: ["?? owner-note.md"],
-      summary: "owner-note.md",
-    });
-    expect(artifact.cooldown).toMatchObject({
-      recorded: true,
-      reason: expect.stringContaining("dirty"),
-    });
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    }).shouldEmit).toBe(false);
   });
-
-  it("records cooldown and suppresses attention for dirty files.changed zero-action bursts", async () => {
-    const projectDir = track("dirty-burst");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 30 });
-    mkdirSync(join(projectDir, "notes"), { recursive: true });
-    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: false,
-      entries: ["M notes/plan.md"],
-      fingerprint: "M notes/plan.md",
-      summary: "notes/plan.md",
-      headSha: "abc1234",
-    });
-
-    const first = await runWorkflowAt(projectDir, ["notes/plan.md"], NOW);
-
-    expect(first.status).toBe("success");
-    expect(first.steps["apply-recommendations"].status).toBe("skipped");
-    expect(first.steps["record-zero-action-cooldown"].output).toMatchObject({
-      recorded: true,
-      reason: expect.stringContaining("dirty"),
-    });
-    expect(attentionEvents(first)).toHaveLength(0);
-    const firstArtifact = readScopeImprovementArtifact(projectDir);
-    expect(firstArtifact.cooldown).toMatchObject({
-      recorded: true,
-      reason: expect.stringContaining("dirty"),
-    });
-    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
-      NOW.toISOString(),
-    );
-
-    const second = await runWorkflowAt(
-      projectDir,
-      ["notes/plan.md"],
-      FIVE_MINUTES_LATER,
-    );
-
-    expect(second.status).toBe("success");
-    expect(second.steps["apply-recommendations"].status).toBe("skipped");
-    expect(attentionEvents(second)).toHaveLength(0);
-    const secondArtifact = readScopeImprovementArtifact(projectDir);
-    expect(secondArtifact.inputs.throttle?.reason).toContain(
-      "last scope improvement ran",
-    );
-    expect(secondArtifact.cooldown).toEqual({ recorded: false, reason: null });
-    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
-      NOW.toISOString(),
-    );
-  });
-
-  it("throttles skip-only bursts without attention and still runs later actionable candidates", async () => {
-    const projectDir = track("skip-burst");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 30 });
-    mkdirSync(join(projectDir, "notes"), { recursive: true });
-    writeFileSync(join(projectDir, "notes", "plan.md"), "changed plan\n");
-
-    const first = await runWorkflowAt(projectDir, ["notes/plan.md"], NOW);
-
-    expect(first.status).toBe("success");
-    expect(first.steps["apply-recommendations"].status).toBe("success");
-    expect(first.steps["emit-applied"].status).toBe("skipped");
-    expect(attentionEvents(first)).toHaveLength(0);
-    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
-      NOW.toISOString(),
-    );
-
-    const second = await runWorkflowAt(
-      projectDir,
-      ["notes/plan.md"],
-      FIVE_MINUTES_LATER,
-    );
-
-    expect(second.status).toBe("success");
-    expect(second.steps["apply-recommendations"].status).toBe("skipped");
-    expect(second.steps["emit-applied"].status).toBe("skipped");
-    expect(attentionEvents(second)).toHaveLength(0);
-    const secondArtifact = readScopeImprovementArtifact(projectDir);
-    expect(secondArtifact.inputs.throttle?.reason).toContain(
-      "last scope improvement ran",
-    );
-    expect(readScopeImprovementStateFile(projectDir).lastRunAt).toBe(
-      NOW.toISOString(),
-    );
-
-    writeFailedRun(projectDir, "2026-06-04T12-30-00-000Z-builder-failed");
-    const third = await runWorkflowAt(
-      projectDir,
-      ["notes/plan.md"],
-      AFTER_COOLDOWN,
-    );
-
-    expect(third.status).toBe("success");
-    expect(third.steps["apply-recommendations"].status).toBe("success");
-    expect(attentionEvents(third)).toHaveLength(1);
-    const readyFiles = readdirSync(join(projectDir, "data", "tasks", "ready"))
-      .filter((file) => file.endsWith(".md") && file !== "AGENTS.md");
-    expect(readyFiles).toHaveLength(1);
-  });
-
-  it("keeps scope state isolated and dedupes repeated recommendations", () => {
-    const codeScope = track("code");
-    const notesScope = track("notes");
-    writeRootAgents(codeScope);
-    writeConfig(codeScope, { minMinutesBetweenRuns: 0 });
-    writeFailedRun(codeScope, "2026-06-04T11-00-00-000Z-builder-failed");
-    writeConfig(notesScope, {
-      minMinutesBetweenRuns: 0,
-      allowAutonomousEdits: true,
-      writePaths: ["AGENTS.md"],
-    });
-
-    const first = runCycle(codeScope, []);
-    const second = runCycle(codeScope, []);
-    const other = runCycle(notesScope, ["plans/birthday.txt"]);
-
-    expect(first.actions.createdTaskIds).toHaveLength(1);
-    expect(second.recommendations[0]?.kind).toBe("skipped");
-    expect(other.actions.safeEditPaths).toEqual(["AGENTS.md"]);
-    const codeState = JSON.parse(
-      readFileSync(join(codeScope, ".kota", "scope-improvement", "state.json"), "utf-8"),
-    );
-    const notesState = JSON.parse(
-      readFileSync(join(notesScope, ".kota", "scope-improvement", "state.json"), "utf-8"),
-    );
-    expect(codeState.scopeId).toBe(deriveDirectoryScopeId(codeScope));
-    expect(notesState.scopeId).toBe(deriveDirectoryScopeId(notesScope));
-    expect(codeState.scopeId).not.toBe(notesState.scopeId);
-  });
-
-  it("throttles noisy file events before candidate discovery", () => {
-    const projectDir = track("noisy");
-    writeRootAgents(projectDir);
-    const files = Array.from({ length: 31 }, (_, index) => `docs/${index}.md`);
-    const inputs = collectScopeImprovementInputs({
-      projectDir,
-      trigger: trigger(files),
-      now: NOW,
-    });
-
-    expect(inputs.throttle?.eventCount).toBe(31);
-    expect(discoverScopeImprovementCandidates(inputs)).toEqual([]);
-  });
-
-  it("discovers root and nested AGENTS.md context for changed files", () => {
-    const projectDir = track("context");
-    writeRootAgents(projectDir);
-    mkdirSync(join(projectDir, "docs"), { recursive: true });
-    writeFileSync(join(projectDir, "docs", "AGENTS.md"), "# Docs\n");
-
-    const inputs = collectScopeImprovementInputs({
-      projectDir,
-      trigger: trigger(["docs/plan.md"]),
-      now: NOW,
-    });
-
-    expect(inputs.instructions.map((item) => item.path)).toEqual([
-      "AGENTS.md",
-      "docs/AGENTS.md",
-    ]);
-  });
-
-  it("skips queue-only task.changed batch flushes without concrete scope evidence", () => {
-    const projectDir = track("task-batch");
-    writeRootAgents(projectDir);
-    writeConfig(projectDir, { minMinutesBetweenRuns: 0 });
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    const batchPayload = {
-      scopeId,
-      projectId: scopeId,
-      sourceEventName: "task.changed",
-      groupingKey: `projectId=${scopeId}`,
-      reason: "count",
-      count: 1,
-      window: {
-        firstEventAt: NOW.toISOString(),
-        lastEventAt: NOW.toISOString(),
-        flushedAt: NOW.toISOString(),
-      },
-      inputEvents: [
-        {
-          event: "task.changed",
-          schemaRef: null,
-          receivedAt: NOW.toISOString(),
-          payload: {
-            scopeId,
-            projectId: scopeId,
-            counts: { pending: 1, in_progress: 0, done: 0 },
-          },
-        },
-      ],
-      batch: {
-        workflow: "scope-improver",
-        triggerIndex: 3,
-        maxBufferSize: 20,
-        overflow: "flush-oldest",
-        droppedInputCount: 0,
-      },
-    } satisfies WorkflowBatchFlushPayload;
-
-    const inputs = collectScopeImprovementInputs({
-      projectDir,
-      trigger: {
-        event: WORKFLOW_BATCH_FLUSH_EVENT,
-        schemaRef: null, payload: batchPayload,
-      },
-      now: NOW,
-    });
-    const candidates = discoverScopeImprovementCandidates(inputs);
-
-    expect(inputs.triggerKind).toBe("task");
-    expect(candidates).toContainEqual(
-      expect.objectContaining({
-        id: "task-queue-event-without-actionable-evidence",
-        preferredAction: "skip",
-        skipReason: expect.stringContaining("queue counts"),
-      }),
-    );
-  });
-
 });

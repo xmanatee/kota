@@ -52,24 +52,27 @@ describe("preserved builder evidence", () => {
       repo,
     );
 
-    expect(findPreservedBuilderEvidenceRunId(repo)).toBe("builder-original");
+    expect(findPreservedBuilderEvidenceRunId(repo, "builder-original")).toBe(
+      "builder-original",
+    );
   });
 
-  it("rejects ambiguous staged evidence lineages", () => {
+  it("ignores canonical evidence staged by reconciliation", () => {
     const repo = initRepo();
-    writeEvidence(repo, "builder-one");
-    writeEvidence(repo, "builder-two");
+    writeEvidence(repo, "builder-original");
+    writeEvidence(repo, "canonical-builder-one");
+    writeEvidence(repo, "canonical-builder-two");
     projectAgentRunArtifactsForValidation(
-      join(repo, ".kota", "builder-evidence", "builder-one"),
+      join(repo, ".kota", "builder-evidence", "canonical-builder-one"),
       repo,
     );
     projectAgentRunArtifactsForValidation(
-      join(repo, ".kota", "builder-evidence", "builder-two"),
+      join(repo, ".kota", "builder-evidence", "canonical-builder-two"),
       repo,
     );
 
-    expect(() => findPreservedBuilderEvidenceRunId(repo)).toThrow(
-      "Preserved builder work contains multiple evidence lineages: builder-one, builder-two",
+    expect(findPreservedBuilderEvidenceRunId(repo, "builder-original")).toBe(
+      "builder-original",
     );
   });
 });

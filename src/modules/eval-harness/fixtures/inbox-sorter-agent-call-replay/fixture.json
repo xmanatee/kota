@@ -40,7 +40,7 @@
     },
     {
       "kind": "file-exists",
-      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/commit-message.txt"
+      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/agent-output/commit-message.txt"
     },
     {
       "kind": "file-exists",

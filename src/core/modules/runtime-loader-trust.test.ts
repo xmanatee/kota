@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "./runtime-loader.js";
 
 describe("runtime module trust", () => {
@@ -40,6 +41,7 @@ describe("runtime module trust", () => {
       config: { trustedProjects: [projectDir] },
       cwd: projectDir,
       globalConfigPath,
+      eventBus: new EventBus(),
     });
     try {
       expect(existsSync(markerPath)).toBe(false);

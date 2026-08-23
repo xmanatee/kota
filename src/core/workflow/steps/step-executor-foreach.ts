@@ -1,14 +1,12 @@
-import type { EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
-import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
-import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
+import { buildStepCompletedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import type { WorkflowStepContext, WorkflowStepResult, WorkflowStepSkipReason } from "../run-types.js";
-import type { WorkflowAgentStep, WorkflowCodeStep, WorkflowForeachStep } from "../step-types.js";
-import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "../trigger-types.js";
-import type { WorkflowDefinition } from "../types.js";
-import { evaluateStepRunDecision, resolveValue } from "./step-executor.js";
-import type { AgentStepConfig } from "./step-executor-agent.js";
+import type { WorkflowForeachStep } from "../step-types.js";
+import type { WorkflowAgentBackoffSignal } from "../trigger-types.js";
+import { resolveValue } from "./step-executor.js";
+import {
+  executeForeachInnerStep,
+  type ForeachExecutionDeps,
+} from "./step-executor-foreach-item.js";
 
 export type ForeachItemResult = {
   index: number;
@@ -25,87 +23,15 @@ export type ForeachGroupResult = {
   thrownError?: Error;
 };
 
-type ForeachAgentDeps = {
-  definition: WorkflowDefinition;
-  run: Pick<ActiveWorkflowRunHandle, "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs">;
-  trigger: WorkflowRunTrigger;
-  runAbortController: AbortController;
-  agentConfig: AgentStepConfig;
-};
-
-type ForeachRunDeps = ForeachAgentDeps & {
-  acc: StepAccumulators;
-  bus: EventBus;
-  pbus: ProjectScopedEventBus;
-  log: (message: string) => void;
+type ForeachRunDeps = ForeachExecutionDeps & {
   /** Preserved item results from a prior run, used by retryFailedItems partial-resume. */
   priorItemResults?: ForeachItemResult[];
-};
-
-type InnerStepExecution = {
-  result: WorkflowStepResult;
-  agentBackoff?: WorkflowAgentBackoffSignal;
-  thrownError?: Error;
 };
 
 type ItemExecution = {
   itemResult: ForeachItemResult;
   thrownError?: Error;
 };
-
-async function executeInnerStep(
-  innerStep: WorkflowCodeStep | WorkflowAgentStep,
-  context: WorkflowStepContext,
-  itemIndex: number,
-  deps: ForeachRunDeps,
-): Promise<InnerStepExecution> {
-  const stepStartedAt = Date.now();
-  const innerContext: WorkflowStepContext = {
-    ...context,
-    runTool: (name, input, toolContext) =>
-      context.runTool(name, input, {
-        stepId: toolContext?.stepId ?? innerStep.id,
-      }),
-  };
-
-  const runDecision = await evaluateStepRunDecision(innerStep, innerContext);
-  if (!runDecision.run) {
-    return {
-      result: buildSkippedResult(
-        innerStep,
-        stepStartedAt,
-        deps.acc,
-        (result) => deps.run.recordStep(result),
-        deps.pbus,
-        deps.run.metadata,
-        deps.definition.defaultAutonomyMode,
-        runDecision.skipReason,
-      ),
-    };
-  }
-
-  deps.pbus.emit(
-    "workflow.step.started",
-    buildStepStartedPayload(deps.run.metadata, innerStep, deps.definition.defaultAutonomyMode),
-  );
-  deps.log(
-    `Starting foreach item[${itemIndex}] step "${innerStep.id}" (${innerStep.type}) in workflow "${deps.definition.name}"`,
-  );
-
-  const { completed, agentBackoff, thrownError } = await executeWorkflowStep(
-    deps.definition,
-    innerStep,
-    deps.run,
-    deps.trigger,
-    innerContext,
-    deps.runAbortController,
-    deps.agentConfig,
-    deps.acc,
-    { bus: deps.bus, pbus: deps.pbus, log: deps.log },
-    stepStartedAt,
-  );
-  return { result: completed, agentBackoff, thrownError };
-}
 
 export async function executeForeachStepGroup(
   step: WorkflowForeachStep,
@@ -210,7 +136,7 @@ export async function executeForeachStepGroup(
     let iterationThrownError: Error | undefined;
 
     for (const innerStep of step.steps) {
-      const execution = await executeInnerStep(innerStep, itemContext, i, deps);
+      const execution = await executeForeachInnerStep(innerStep, itemContext, i, deps);
       const result = execution.result;
       if (execution.agentBackoff !== undefined && agentBackoff === undefined) {
         agentBackoff = execution.agentBackoff;

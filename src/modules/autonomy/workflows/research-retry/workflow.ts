@@ -1,4 +1,5 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -141,29 +142,32 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
             id: "no-scratch-artifacts",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "scratch-artifacts",
-                projectDir: ctx.projectDir,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                { kind: "scratch-artifacts", projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "commit-message",
-                projectDir: ctx.projectDir,
-                runDirPath: ctx.workflow.runDirPath,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                {
+                  kind: "commit-message",
+                  projectDir: ctx.projectDir,
+                  runDirPath: resolveAgentRunDirFromContext(ctx),
+                },
+              ),
           },
           {
             id: "commit-stageable",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "commit-stageable",
-                projectDir: ctx.projectDir,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                { kind: "commit-stageable", projectDir: ctx.projectDir },
+              ),
           },
         ],
       },
@@ -177,7 +181,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       run: (ctx) =>
         ctx.runBlocking(workflowCommitOperation, {
           projectDir: ctx.projectDir,
-          runDirPath: ctx.workflow.runDirPath,
+          runDirPath: resolveAgentRunDirFromContext(ctx),
         }),
     },
   ],

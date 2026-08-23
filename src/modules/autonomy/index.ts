@@ -10,7 +10,7 @@ import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from 
 import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
 import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
-import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
+import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
@@ -23,11 +23,15 @@ import { attentionRoutes } from "./workflows/attention-digest/attention-route.js
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
 import { digestRoutes } from "./workflows/daily-digest/digest-route.js";
 import { dailyDigestUiSurfaceSource } from "./workflows/daily-digest/ui-surface.js";
-import { progressReviewRequested } from "./workflows/progress-reviewer/events.js";
 import {
-  scopeImprovementEvidenceReady,
+  automaticProgressReviewRequested,
+  progressReviewRequested,
+} from "./workflows/progress-reviewer/events.js";
+import {
+  scopeImprovementChanged,
   scopeImprovementRequested,
 } from "./workflows/scope-improver/events.js";
+import { subscribeScopeImprovementOnboarding } from "./workflows/scope-improver/semantic-request.js";
 
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
@@ -108,7 +112,7 @@ async function discoverAutonomyAgents(): Promise<AgentDef[]> {
 }
 
 function reconcileBuilderWorktreesFromRuntime(
-  ctx: ModuleRuntimeContext,
+  ctx: Pick<ModuleRuntimeContext, "cwd" | "log">,
   source: string,
 ): void {
   try {
@@ -145,8 +149,9 @@ const autonomyModule: KotaModule = {
   ],
   events: [
     progressReviewRequested,
+    automaticProgressReviewRequested,
     scopeImprovementRequested,
-    scopeImprovementEvidenceReady,
+    scopeImprovementChanged,
     autonomyHealthSignal,
     autonomyIssueDecisionRequested,
   ],
@@ -154,8 +159,8 @@ const autonomyModule: KotaModule = {
   agents: async () => await discoverAutonomyAgents(),
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
-    initializeAutonomyIssueProjection(ctx.cwd);
     subscribeAutonomyIssueSources(ctx);
+    subscribeScopeImprovementOnboarding(ctx);
     ctx.registerProvider(
       SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
       autonomyScopeDrainInspection,
@@ -166,7 +171,11 @@ const autonomyModule: KotaModule = {
     );
     ctx.events.subscribe("workflow.interrupted.alert", (payload) => {
       if (payload.workflow !== "builder") return;
-      reconcileBuilderWorktreesFromRuntime(ctx, `workflow.interrupted.alert ${payload.runId}`);
+      const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
+      reconcileBuilderWorktreesFromRuntime(
+        { cwd: runtime.projectDir, log: ctx.log },
+        `workflow.interrupted.alert ${payload.runId}`,
+      );
     });
   },
   commands: () => [

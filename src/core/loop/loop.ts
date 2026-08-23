@@ -72,6 +72,8 @@ export type LoopOptions = {
    * constructing new singleton-backed stores from `projectDir`.
    */
   projectRuntime?: ProjectRuntime;
+  /** Host-owned module runtime borrowed by daemon/server sessions. */
+  moduleLoader?: ModuleLoader;
   /** Optional existing operator surface bridge for remote MCP input_required retries. */
   mcpInputResolver?: McpInputResolver;
   mcpAuthorizationResolver?: McpAuthorizationResolver;
@@ -110,6 +112,7 @@ export class AgentSession implements AgentLoopState {
   mcpServers: Record<string, McpServerConfig> | undefined;
   clientApprovalResolver: ToolApprovalResolver | undefined;
   moduleLoader!: ModuleLoader;
+  ownsModuleRuntime!: boolean;
   transport!: Transport;
   defaultTransportProxy: ProxyTransport | undefined;
   showCost!: boolean;
@@ -144,20 +147,26 @@ export class AgentSession implements AgentLoopState {
 
   constructor(options: LoopOptions) {
     initAgentSession(this, options, (opts) => {
+      if (opts.projectId !== undefined && opts.projectId !== this.scopeId) {
+        throw new Error(
+          `Child session scope ${opts.projectId} does not match parent scope ${this.scopeId}`,
+        );
+      }
       const config: KotaConfig = options.config
         ? { ...options.config, guardrails: this.guardrailsConfig }
         : { guardrails: this.guardrailsConfig };
       const session = new AgentSession({
-        autonomyMode: this.autonomyMode,
+        autonomyMode: opts.autonomyMode ?? this.autonomyMode,
         model: opts.model || this.model,
         config,
-        transport: new BufferTransport(),
+        transport: opts.transport ?? new BufferTransport(),
         label: opts.label,
         noHistory: opts.noHistory ?? true,
-        historySource: "action",
-        reflectionEnabled: false,
+        historySource: opts.historySource ?? "action",
+        reflectionEnabled: opts.reflectionEnabled ?? false,
         projectDir: this.projectDir,
         projectRuntime: options.projectRuntime,
+        moduleLoader: options.moduleLoader,
         mcpInputResolver: this.mcpInputResolver,
         mcpAuthorizationResolver: this.mcpAuthorizationResolver,
         tokenBudget: getAgentLoopTokenBudget(this),

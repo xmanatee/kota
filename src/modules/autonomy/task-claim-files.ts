@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
+import { isAutomationWorktreeCanonicalReconciliation } from "#modules/git/worktree-canonical-reconciliation-record.js";
 import {
   type AutomationWorktreeOperatorStatus,
   listAutomationWorktreeStatuses,
@@ -157,6 +158,9 @@ function parseClaimFile(
     typeof parsed.workspaceDir !== "string" ||
     typeof parsed.branch !== "string" ||
     typeof parsed.baseCommit !== "string" ||
+    (parsed.canonicalReconciliation !== undefined &&
+      (!isAutomationWorktreeCanonicalReconciliation(parsed.canonicalReconciliation) ||
+        parsed.canonicalReconciliation.originalBaseCommit !== parsed.baseCommit)) ||
     typeof parsed.leaseMs !== "number" ||
     typeof parsed.leaseAcquiredAt !== "string" ||
     typeof parsed.leaseExpiresAt !== "string" ||
@@ -220,6 +224,9 @@ function parseClaimFile(
     workspaceDir: parsed.workspaceDir,
     branch: parsed.branch,
     baseCommit: parsed.baseCommit,
+    ...(parsed.canonicalReconciliation !== undefined
+      ? { canonicalReconciliation: parsed.canonicalReconciliation }
+      : {}),
     leaseMs: parsed.leaseMs,
     leaseAcquiredAt: parsed.leaseAcquiredAt,
     leaseExpiresAt: parsed.leaseExpiresAt,
@@ -235,13 +242,18 @@ export function writeClaim(
   claim: TaskClaim,
   flag: "w" | "wx",
 ): void {
-  runClaimFilesystemOperation(projectDir, {
+  const response = runClaimFilesystemOperation(projectDir, {
     operation: "write-active",
     taskId: claim.taskId,
     fileName: claimFileName(claim.taskId),
     content: `${JSON.stringify(claim, null, 2)}\n`,
     flag,
   });
+  if (response.writeConflict) {
+    const error = new Error("Task claim already exists") as NodeJS.ErrnoException;
+    error.code = "EEXIST";
+    throw error;
+  }
 }
 
 function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
@@ -263,6 +275,8 @@ function sameClaim(left: TaskClaim, right: TaskClaim): boolean {
     left.workspaceDir === right.workspaceDir &&
     left.branch === right.branch &&
     left.baseCommit === right.baseCommit &&
+    JSON.stringify(left.canonicalReconciliation) ===
+      JSON.stringify(right.canonicalReconciliation) &&
     left.leaseMs === right.leaseMs &&
     left.leaseAcquiredAt === right.leaseAcquiredAt &&
     left.leaseExpiresAt === right.leaseExpiresAt &&

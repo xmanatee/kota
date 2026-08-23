@@ -1,7 +1,12 @@
 import type { OutboundHttpProfile, OutboundHttpProfileName } from "#core/outbound-http/types.js";
 
 type OutboundHttpPolicy = {
-  readonly targetRule: "public-network-only" | "configured-origins-only" | "loopback-only" | "exact-callback-url-only";
+  readonly targetRule:
+    | "public-network-only"
+    | "configured-origins-only"
+    | "https-public-origins-only"
+    | "loopback-only"
+    | "exact-callback-url-only";
   readonly credentials: "allowed-on-selected-target";
   readonly redirects: {
     readonly maximum: number;
@@ -40,6 +45,17 @@ export const OUTBOUND_HTTP_POLICY_MATRIX = {
   },
   "oauth-protected-resource": {
     targetRule: "configured-origins-only",
+    credentials: "allowed-on-selected-target",
+    redirects: {
+      maximum: 5,
+      crossOrigin: "strip-to-safe-headers-and-reject-body-replay",
+    },
+    timeoutMs: { default: 30_000, maximum: 120_000 },
+    responseBytes: { default: 1_000_000, maximum: 10_000_000 },
+    retry: "idempotent-method-or-idempotency-key-on-transient-failure",
+  },
+  "oauth-metadata-endpoint": {
+    targetRule: "https-public-origins-only",
     credentials: "allowed-on-selected-target",
     redirects: {
       maximum: 5,
@@ -95,6 +111,22 @@ function configuredOrigins(rawOrigins: readonly string[], purpose: string): read
   return Object.freeze(origins);
 }
 
+function publicHttpsOrigins(rawOrigins: readonly string[], purpose: string): readonly string[] {
+  const origins = [
+    ...new Set(
+      rawOrigins.map((raw) => {
+        const url = normalizeHttpUrl(raw, purpose);
+        if (url.protocol !== "https:") {
+          throw new TypeError(`${purpose} must use https://`);
+        }
+        return url.origin;
+      }),
+    ),
+  ];
+  if (origins.length === 0) throw new TypeError(`${purpose} requires at least one origin`);
+  return Object.freeze(origins);
+}
+
 function callbackUrls(rawUrls: readonly string[]): readonly string[] {
   const urls = [
     ...new Set(
@@ -120,6 +152,11 @@ export const OUTBOUND_HTTP_PROFILES = {
     Object.freeze({
       name: "oauth-protected-resource" as const,
       allowedOrigins: configuredOrigins(origins, "OAuth protected resource origin"),
+    }),
+  oauthMetadataEndpoint: (origins: readonly string[]): OutboundHttpProfile =>
+    Object.freeze({
+      name: "oauth-metadata-endpoint" as const,
+      allowedOrigins: publicHttpsOrigins(origins, "OAuth metadata endpoint origin"),
     }),
   daemonLoopback: Object.freeze({ name: "daemon-loopback" } as const),
   explicitCallback: (urls: readonly string[]): OutboundHttpProfile =>

@@ -1,67 +1,23 @@
+// biome-ignore-all assist/source/organizeImports: mock support must load before the tested module
 import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
-import type { AutonomyMode } from "./autonomy-mode.js";
-import { executeToolCalls, type ToolCallExecutionOptions } from "./tool-runner.js";
+import {
+	permissionTestMocks,
+	runOptions,
+	toolBlock,
+} from "./tool-runner-permission-test-support.js";
+import { executeToolCalls } from "./tool-runner.js";
 
-const confirmActionMock = vi.hoisted(() =>
-	vi.fn<(message: string) => Promise<boolean>>(),
-);
-
-vi.mock("./index.js", () => ({
-	executeTool: vi.fn(),
-	getAllTools: vi.fn(() => ["file_read", "file_write", "shell"].map((name) => ({
-		name,
-		description: "test",
-		input_schema: { type: "object", properties: {} },
-	}))),
-	getToolEffect: vi.fn(() => ({
-		kind: "read",
-		scope: "local-fs",
-		idempotent: true,
-		openWorld: false,
-	})),
-}));
-vi.mock("#core/loop/context.js", () => ({
-	truncateToolResult: vi.fn((text: string) => text),
-}));
-vi.mock("#core/config/secrets.js", () => ({
-	maskKnownSecretValues: (text: string) => text,
-}));
-vi.mock("#core/util/confirm.js", () => ({
-	confirmAction: (message: string) => confirmActionMock(message),
-}));
-
-import { executeTool, getToolEffect } from "./index.js";
-
-const mockExecuteTool = vi.mocked(executeTool);
-const mockGetToolEffect = vi.mocked(getToolEffect);
+const { confirmActionMock, mockExecuteTool, mockGetToolEffect } =
+	permissionTestMocks();
 const tempDirs: string[] = [];
 
 afterEach(() => {
 	for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
-
-function toolBlock(
-	name: string,
-	input: Record<string, unknown> = {},
-	id = "t1",
-) {
-	return { type: "tool_use" as const, id, name, input };
-}
-
-function runOptions(
-	overrides: Partial<ToolCallExecutionOptions> = {},
-): ToolCallExecutionOptions {
-	return {
-		resultLimit: 50000,
-		verbose: false,
-		autonomyMode: "autonomous" as AutonomyMode,
-		...overrides,
-	};
-}
 
 describe("executeToolCalls permission gate", () => {
 	beforeEach(() => {

@@ -52,6 +52,7 @@ export type RunArtifactListing = {
   files: string[];
   hitFileLimit: boolean;
   hitDepthLimit: boolean;
+  unreadableDirectories: string[];
 };
 
 export type ExistingWorkItem = {

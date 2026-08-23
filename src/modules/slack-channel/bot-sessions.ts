@@ -27,6 +27,7 @@ export function createSlackChannelSession(
     channelIdentity: identity,
     projectDir: runtime.project.projectDir,
     projectRuntime: runtime,
+    moduleLoader: options.moduleLoader,
   };
   return {
     agent: new AgentSession(loopOptions),

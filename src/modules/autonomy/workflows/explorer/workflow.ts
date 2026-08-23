@@ -1,4 +1,5 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -26,9 +27,6 @@ import {
   explorerAssessmentOperation,
 } from "./assessment.js";
 import { explorationRationaleCheckOperation } from "./exploration-rationale-operation.js";
-
-export { EXPLORATION_REFRESH_MS } from "./assessment.js";
-
 import { writeLastExplorationAt } from "./explorer-state.js";
 import { readWatchlist, type WatchlistEntry } from "./watchlist.js";
 import {
@@ -44,6 +42,8 @@ export const agent: AgentDef = {
   ...AUTONOMY_AGENT_DEFAULTS,
   writeScope: ["data/tasks/", "data/watchlist.yaml"],
 };
+
+export { EXPLORATION_REFRESH_MS } from "./assessment.js";
 
 const inspectQueue = typedCodeStep<ExplorerAssessment>({
   id: "inspect-queue",
@@ -193,19 +193,21 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "architecture-ready-coverage",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => withWorkflowBlockingOperation(ctx).runBlocking(
-              architectureReadyCoverageOperation,
-              { projectDir: ctx.projectDir },
-            ),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                architectureReadyCoverageOperation,
+                { projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "strategic-ready-coverage",
             type: "code" as const,
             phase: 1,
-            run: (ctx) => withWorkflowBlockingOperation(ctx).runBlocking(
-              claimAwareStrategicReadyCoverageOperation,
-              { projectDir: ctx.projectDir },
-            ),
+            run: (ctx) =>
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                claimAwareStrategicReadyCoverageOperation,
+                { projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "exploration-rationale",
@@ -216,9 +218,9 @@ const explorerWorkflow: WorkflowDefinitionInput = {
                 ctx,
               ).runBlocking(explorationRationaleCheckOperation, {
                 projectDir: ctx.projectDir,
-                runDirPath: ctx.workflow.runDirPath,
-                actionableCount: queue.actionableCount,
-                strategicReadyCoverageGap: queue.strategicReadyCoverageGap,
+                runDirPath: resolveAgentRunDirFromContext(ctx),
+                  actionableCount: queue.actionableCount,
+                  strategicReadyCoverageGap: queue.strategicReadyCoverageGap,
               });
               return `exploration-rationale-ok: decision=${rationale.decision}`;
             },
@@ -227,34 +229,40 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             id: "no-scratch-artifacts",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "scratch-artifacts",
-                projectDir: ctx.projectDir,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                { kind: "scratch-artifacts", projectDir: ctx.projectDir },
+              ),
           },
           {
             id: "watchlist-update-commit-message",
             type: "code" as const,
-            run: (ctx) => checkWatchlistUpdatesCommitMessage(ctx.workflow.runDirPath),
+            run: (ctx) =>
+              checkWatchlistUpdatesCommitMessage(
+                resolveAgentRunDirFromContext(ctx),
+              ),
           },
           {
             id: "commit-message-exists",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "commit-message",
-                projectDir: ctx.projectDir,
-                runDirPath: ctx.workflow.runDirPath,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                {
+                  kind: "commit-message",
+                  projectDir: ctx.projectDir,
+                  runDirPath: resolveAgentRunDirFromContext(ctx),
+                },
+              ),
           },
           {
             id: "commit-stageable",
             type: "code" as const,
             run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-                kind: "commit-stageable",
-                projectDir: ctx.projectDir,
-              }),
+              withWorkflowBlockingOperation(ctx).runBlocking(
+                workflowCommitCheckOperation,
+                { kind: "commit-stageable", projectDir: ctx.projectDir },
+              ),
           },
         ],
       },
@@ -271,10 +279,12 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       id: "apply-watchlist-updates",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ projectDir, workflow }) => {
-        const payload = readWatchlistUpdatesFromRun(workflow.runDirPath);
+      run: (ctx) => {
+        const payload = readWatchlistUpdatesFromRun(
+          resolveAgentRunDirFromContext(ctx),
+        );
         if (!payload) return { applied: [] };
-        const applied = applyWatchlistUpdates(projectDir, payload);
+        const applied = applyWatchlistUpdates(ctx.projectDir, payload);
         return { applied };
       },
     },
@@ -285,7 +295,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       run: (ctx) =>
         ctx.runBlocking(workflowCommitOperation, {
           projectDir: ctx.projectDir,
-          runDirPath: ctx.workflow.runDirPath,
+          runDirPath: resolveAgentRunDirFromContext(ctx),
         }),
     },
   ],

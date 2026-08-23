@@ -8,8 +8,6 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   expectStructuredOutput,
   typedCodeStep,
@@ -24,14 +22,6 @@ import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
-import { getCriticPromptHash } from "#modules/autonomy/critic.js";
-import {
-  aggregateCalibration,
-  type CalibrationDriftKind,
-  type EvaluatorCalibrationAggregate,
-  evaluateCalibrationGate,
-  resolveCalibrationGateConfig,
-} from "#modules/autonomy/evaluator-calibration.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import { buildEvaluatorCalibrationDriftHealthSignal } from "#modules/autonomy/health-signal-emitters.js";
 import {
@@ -48,48 +38,15 @@ import {
   workflowCommitValidationOperation,
 } from "#modules/autonomy/workflow-commit-operations.js";
 import {
+  type EvaluatorCalibrationInspection,
+  inspectEvaluatorCalibrationOperation,
+} from "./inspection.js";
+import {
   applyCalibrationRepairOperation,
   proposeCalibrationRepairOperation,
 } from "./repair-operations.js";
 
-type GateInspection = {
-  dirty: boolean;
-  status: "insufficient-sample" | "under-threshold" | "gated";
-  reason: string;
-  driftKinds: CalibrationDriftKind[];
-  thresholdRate: number;
-  minSample: number;
-  passWithWarningsThresholdRate: number;
-  passWithWarningsMinSample: number;
-  aggregate: EvaluatorCalibrationAggregate;
-};
-
-export function inspectEvaluatorCalibrationInWorker(input: {
-  projectDir: string;
-}): GateInspection {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
-  const config = resolveCalibrationGateConfig();
-  const aggregate = aggregateCalibration(join(input.projectDir, ".kota", "runs"), {
-    criticPromptHash: getCriticPromptHash(),
-  });
-  const decision = evaluateCalibrationGate(aggregate, config);
-  return {
-    dirty: worktree.available && worktree.dirty,
-    status: decision.status,
-    reason: decision.reason,
-    driftKinds: decision.status === "gated" ? decision.kinds : [],
-    thresholdRate: config.thresholdRate,
-    minSample: config.minSample,
-    passWithWarningsThresholdRate: config.passWithWarningsThresholdRate,
-    passWithWarningsMinSample: config.passWithWarningsMinSample,
-    aggregate,
-  };
-}
-
-const inspectEvaluatorCalibrationOperation = defineWorkflowBlockingOperation<
-  { projectDir: string },
-  GateInspection
->(import.meta.url, "inspectEvaluatorCalibrationInWorker");
+type GateInspection = EvaluatorCalibrationInspection;
 
 const inspectGate = typedCodeStep<GateInspection>({
   id: "evaluate-calibration",
@@ -101,6 +58,7 @@ const inspectGate = typedCodeStep<GateInspection>({
       "status",
       "reason",
       "driftKinds",
+      "criticPromptHash",
       "thresholdRate",
       "minSample",
       "passWithWarningsThresholdRate",
@@ -180,7 +138,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       workflow: ctx.workflow.name,
       triggerEvent: ctx.trigger.event,
       sourceRunId: typeof sourceRunId === "string" ? sourceRunId : null,
-      criticPromptHash: getCriticPromptHash(),
+      criticPromptHash: inspection.criticPromptHash,
       gateStatus: inspection.status,
       decisionReason: inspection.reason,
       driftKinds: inspection.driftKinds,

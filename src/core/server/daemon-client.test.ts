@@ -56,6 +56,19 @@ describe("assembleDaemonClientHandlers", () => {
     expect(result.shadowComparisons).toEqual([]);
   });
 
+  it("shared migrated stubs expose observable AGY no-candidate failure metadata", async () => {
+    const runAgyModels = buildMigratedNamespaceTestStubs().evalHarness
+      ?.runAgyModels;
+    if (!runAgyModels) throw new Error("eval-harness test stub must be present");
+
+    await expect(runAgyModels({} as never)).resolves.toEqual({
+      ok: false,
+      reason: "no_candidates",
+      message: "stub",
+      artifactDir: null,
+    });
+  });
+
   it("module-contributed handlers land verbatim on the assembled map", () => {
     const customWorkflow = buildMigratedNamespaceTestStubs().workflow;
     if (!customWorkflow) throw new Error("test stub builder must include workflow");

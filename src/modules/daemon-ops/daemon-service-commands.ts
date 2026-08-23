@@ -1,0 +1,139 @@
+import { spawnSync } from "node:child_process";
+import type { Command } from "commander";
+import { line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { print } from "#modules/rendering/transport.js";
+import {
+  DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
+  printDaemonError,
+  resolveDaemonCommandProjectDir,
+  writeRawBlock,
+} from "./daemon-cli-options.js";
+import {
+  buildLaunchdPlist,
+  buildSystemdUnit,
+  getLaunchdPlistPath,
+  getSystemdServicePath,
+  removeServiceFile,
+  SERVICE_LABEL_LAUNCHD,
+  SERVICE_NAME_SYSTEMD,
+  writeServiceFile,
+} from "./service-install.js";
+
+export function addDaemonServiceCommands(command: Command): void {
+  command
+    .command("install")
+    .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
+    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--dry-run", "Print the service unit without installing")
+    .action((opts: { dryRun?: boolean; projectDir?: string }, child: Command) => {
+      const projectDir = resolveDaemonCommandProjectDir(opts, child);
+      if (process.platform === "darwin") {
+        installLaunchdService(projectDir, opts.dryRun === true);
+      } else if (process.platform === "linux") {
+        installSystemdService(projectDir, opts.dryRun === true);
+      } else {
+        printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+        process.exitCode = 1;
+      }
+    });
+
+  command
+    .command("uninstall")
+    .description("Remove the KOTA daemon OS service installed by 'daemon install'")
+    .action(() => {
+      if (process.platform === "darwin") {
+        const plistPath = getLaunchdPlistPath();
+        spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
+        finishServiceRemoval(plistPath, removeServiceFile(plistPath));
+      } else if (process.platform === "linux") {
+        const servicePath = getSystemdServicePath();
+        spawnSync("systemctl", ["--user", "disable", "--now", SERVICE_NAME_SYSTEMD], {
+          encoding: "utf8",
+        });
+        const removeError = removeServiceFile(servicePath);
+        if (!removeError) {
+          spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+        }
+        finishServiceRemoval(servicePath, removeError);
+      } else {
+        printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
+        process.exitCode = 1;
+      }
+    });
+}
+
+function installLaunchdService(projectDir: string, dryRun: boolean): void {
+  const plistPath = getLaunchdPlistPath();
+  const content = buildLaunchdPlist(projectDir);
+  if (dryRun) {
+    print(line(plain("# Would write: "), span(plistPath, "accent")));
+    writeRawBlock(content);
+    return;
+  }
+  const writeError = writeServiceFile(plistPath, content);
+  if (writeError) {
+    fail(String(writeError));
+    return;
+  }
+  const result = spawnSync("launchctl", ["load", plistPath], { encoding: "utf8" });
+  if (result.status !== 0) {
+    fail(`launchctl load failed:\n${result.stderr || result.stdout}`);
+    return;
+  }
+  print(stack(
+    line(span("Daemon service installed and started.", "success")),
+    line(plain("  plist: "), span(plistPath, "accent")),
+    line(plain("  label: "), span(SERVICE_LABEL_LAUNCHD, "muted")),
+    line(plain("To stop: "), span(`launchctl unload ${plistPath}`, "muted")),
+  ));
+}
+
+function installSystemdService(projectDir: string, dryRun: boolean): void {
+  const servicePath = getSystemdServicePath();
+  const content = buildSystemdUnit(projectDir);
+  if (dryRun) {
+    print(line(plain("# Would write: "), span(servicePath, "accent")));
+    writeRawBlock(content);
+    return;
+  }
+  const writeError = writeServiceFile(servicePath, content);
+  if (writeError) {
+    fail(String(writeError));
+    return;
+  }
+  const daemonReload = spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+  if (daemonReload.status !== 0) {
+    fail(`systemctl daemon-reload failed:\n${daemonReload.stderr || daemonReload.stdout}`);
+    return;
+  }
+  const enable = spawnSync(
+    "systemctl",
+    ["--user", "enable", "--now", SERVICE_NAME_SYSTEMD],
+    { encoding: "utf8" },
+  );
+  if (enable.status !== 0) {
+    fail(`systemctl enable failed:\n${enable.stderr || enable.stdout}`);
+    return;
+  }
+  print(stack(
+    line(span("Daemon service installed and started.", "success")),
+    line(plain("  service: "), span(servicePath, "accent")),
+    line(plain("To stop: "), span(`systemctl --user stop ${SERVICE_NAME_SYSTEMD}`, "muted")),
+  ));
+}
+
+function finishServiceRemoval(path: string, error: string | null): void {
+  if (error) {
+    fail(String(error));
+    return;
+  }
+  print(stack(
+    line(span("Daemon service removed.", "success")),
+    line(plain("  removed: "), span(path, "accent")),
+  ));
+}
+
+function fail(message: string): void {
+  printDaemonError(message);
+  process.exitCode = 1;
+}

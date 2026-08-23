@@ -130,6 +130,7 @@ export async function runDaemonStartup(
 
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {
+    moduleLoader: ctx.config.runtimeModuleHost?.moduleLoader,
     getDefaultProjectRuntime: () =>
       ctx.scopeLifecycle.getChannelRuntime(ctx.projectRuntimes.getDefaultProjectId()),
     getProjectRuntime: (projectId: string) =>

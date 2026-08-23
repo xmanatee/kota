@@ -62,6 +62,7 @@ type CollectTextFromGeminiCliArgs = {
   model: string;
   approvalMode: GeminiCliApprovalMode;
   writableRoots: readonly string[];
+  runtimeWritableRoots?: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
@@ -230,6 +231,9 @@ export async function collectTextFromGeminiCli(
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
+      ...(args.runtimeWritableRoots === undefined
+        ? {}
+        : { runtimeWritableRoots: args.runtimeWritableRoots }),
       env: buildNativeCliEnvironment({
         projectedEnvKeys: [
           ...GEMINI_CLI_AUTH_ENV_KEYS,

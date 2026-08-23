@@ -1,4 +1,9 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import {
+  boundedActualConflicts,
+  canonicalDestructivePaths,
+  hasUnresolvableBoundedConflict,
+} from "./worktree-canonical-reconciliation-support.js";
 import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
 import { readDirtyState } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
@@ -36,7 +41,7 @@ function pendingWithoutResolver(
 			baseCommit: input.baseCommit,
 			canonicalHeadCommit: input.canonicalHeadCommit,
 			headCommit: currentHead(input.workspaceDir),
-			reason: "text conflicts require a configured merge resolver",
+      reason: "bounded conflicts require a configured merge resolver",
 			conflicts: input.conflicts,
 			resolutionAttempts: 0,
 			validation: null,
@@ -58,20 +63,19 @@ export function prepareMergeAutomationWorktreeInWorker(
 	const baseCommit = metadata.baseCommit;
 	const workspaceDir = metadata.workspaceDir;
 	const canonicalHeadCommit = currentHead(selector.projectDir);
-	const workspaceHeadCommit = currentHead(workspaceDir);
-	const canonicalDirty = readDirtyState(selector.projectDir);
-
-	if (!inspection.exists) {
+  if (!inspection.exists) {
 		return completeMergeGatePhase(
 			pendingBlocked(selector, {
 				branch,
 				baseCommit,
 				canonicalHeadCommit,
-				headCommit: workspaceHeadCommit,
+        headCommit: inspection.headCommit,
 				reason: "worktree path is missing",
 			}),
 		);
-	}
+  }
+  const workspaceHeadCommit = currentHead(workspaceDir);
+  const canonicalDirty = readDirtyState(selector.projectDir);
 	if (canonicalDirty.trackedDirty || canonicalDirty.untracked) {
 		return completeMergeGatePhase(
 			pendingBlocked(selector, {
@@ -106,17 +110,25 @@ export function prepareMergeAutomationWorktreeInWorker(
 		);
 	}
 	if (!isAncestor(workspaceDir, canonicalHeadCommit, workspaceHeadCommit)) {
-		const merge = runGit(workspaceDir, ["merge", "--no-ff", "--no-commit", canonicalHeadCommit]);
-		if (!merge.ok) {
-			const conflicts = classifyConflicts(workspaceDir);
-			if (conflicts.some((conflict) => conflict.kind !== "text")) {
-				return completeMergeGatePhase(
+    const merge = runGit(workspaceDir, ["merge", "--no-ff", "--no-commit", canonicalHeadCommit]);
+    if (!merge.ok) {
+      const destructivePaths = canonicalDestructivePaths(
+        workspaceDir,
+        baseCommit,
+        canonicalHeadCommit,
+      );
+      const conflicts = boundedActualConflicts(
+        classifyConflicts(workspaceDir),
+        new Set(destructivePaths),
+      );
+      if (hasUnresolvableBoundedConflict(conflicts, new Set(destructivePaths))) {
+        return completeMergeGatePhase(
 					pendingBlocked(selector, {
 						branch,
 						baseCommit,
 						canonicalHeadCommit,
 						headCommit: currentHead(workspaceDir),
-						reason: "merge contains binary, generated, or high-risk conflicts",
+            reason: "merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
 						conflicts,
 					}),
 				);
@@ -136,8 +148,9 @@ export function prepareMergeAutomationWorktreeInWorker(
 				baseCommit,
 				canonicalHeadCommit,
 				workspaceDir,
-				conflicts,
-				validation: null,
+        conflicts,
+        destructivePaths,
+        validation: null,
 				attempt: 1,
 				maxResolutionAttempts: input.maxResolutionAttempts,
 				validationCommand: input.validationCommand,

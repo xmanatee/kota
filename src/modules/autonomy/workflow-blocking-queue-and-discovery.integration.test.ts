@@ -10,9 +10,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import {
+  claimTask,
+  markTaskClaimPendingDecomposition,
+} from "#modules/autonomy/task-claims.js";
 import { applyBacklogPromotionOperation } from "#modules/autonomy/workflows/backlog-promoter/blocking-operations.js";
 import { applyDecompositionOperation } from "#modules/autonomy/workflows/decomposer/blocking-operations.js";
 import { discoverRepoAiChecksOperation } from "#modules/autonomy/workflows/repo-ai-checks/blocking-operations.js";
+import { readVerifiedRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 const TASK_STATES = [
   "backlog",
@@ -110,6 +115,58 @@ describe("queue and discovery blocking operations", () => {
         ),
       );
       commitFixture(decomposerProject);
+      const decompositionTaskId = "task-worker-decomposition";
+      const decompositionTask = readVerifiedRepoTaskFile(
+        decomposerProject,
+        "doing",
+        decompositionTaskId,
+      );
+      if (decompositionTask === null) {
+        throw new Error("decomposition task fixture is missing");
+      }
+      const failedRunId = "failed-builder-worker-boundary";
+      const failedRunDir = `.kota/runs/${failedRunId}`;
+      const claimResult = claimTask({
+        projectDir: decomposerProject,
+        taskId: decompositionTaskId,
+        taskState: "doing",
+        taskFile: {
+          path: decompositionTask.path,
+          snapshot: decompositionTask.snapshot,
+        },
+        runId: failedRunId,
+        workflowId: "builder",
+        owner: "workflow:builder",
+        workspaceDir: decomposerProject,
+        branch: "main",
+        baseCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+          cwd: decomposerProject,
+          encoding: "utf8",
+        }).trim(),
+        leaseMs: 60_000,
+      });
+      if (claimResult.claim === null) {
+        throw new Error("decomposition claim fixture was not created");
+      }
+      mkdirSync(join(decomposerProject, failedRunDir), { recursive: true });
+      writeFileSync(
+        join(decomposerProject, failedRunDir, "task-claim.json"),
+        `${JSON.stringify({
+          claimed: true,
+          taskId: decompositionTaskId,
+          claim: claimResult.claim,
+        }, null, 2)}\n`,
+      );
+      const pendingClaim = markTaskClaimPendingDecomposition({
+        projectDir: decomposerProject,
+        taskId: decompositionTaskId,
+        runId: failedRunId,
+        workflowId: "builder",
+        evidence: "worker-boundary fixture",
+      });
+      if (!pendingClaim.changed) {
+        throw new Error("decomposition claim fixture could not become pending");
+      }
 
       const checksDir = join(discoveryProject, ".agents", "checks");
       mkdirSync(checksDir, { recursive: true });
@@ -131,8 +188,16 @@ describe("queue and discovery blocking operations", () => {
         }),
         runWorkflowBlockingOperation(applyDecompositionOperation, {
           projectDir: decomposerProject,
-          taskId: "task-worker-decomposition",
-          failedRunId: "failed-builder-worker-boundary",
+          assessment: {
+            shouldDecompose: true,
+            reason: "builder exhausted repair on worker-boundary fixture",
+            failedRunId,
+            failedRunDir,
+            failureKind: "repair-exhausted",
+            taskId: decompositionTaskId,
+            taskPath: decompositionTask.path,
+            taskMarkdown: decompositionTask.content,
+          },
           plan: {
             rationale: "Create one independently verifiable worker-boundary slice.",
             subtasks: [

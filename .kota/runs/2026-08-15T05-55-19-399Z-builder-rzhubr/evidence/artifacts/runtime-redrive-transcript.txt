@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="38" failures="0" errors="0" time="0.567263334">
+    <testsuite name="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" timestamp="2026-08-15T07:45:32.419Z" hostname="Mac.mynet" tests="38" failures="0" errors="0" skipped="37" time="0.567263334">
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; keeps native capable-tier execution and fenced JSON extraction aligned" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; skips review-evidence while tracked worktree changes are present" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; declares schedule, manual, run-count, and task-count triggers without direct inbound-signal triggers" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; writes an explicit no-op artifact for an autonomous coding scope review" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; cleans native harness scratch artifacts before write-scope enforcement" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; classifies the runtime schedule trigger in the review artifact" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; writes a global review artifact for the default-scope scheduled trigger" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; creates one follow-up transition and suppresses unchanged record rewrites and attention" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; uses one semantic proposal identity when a topic changes from task to owner question" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; classifies batch triggers by their source event" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; keeps workflow batch run ids citeable when recent runs are truncated" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; builds a bounded review-agent packet and validates only exposed ids" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; keeps high-signal run artifacts in the bounded review-agent packet" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; normalizes compacted child evidence ids to exposed parent ids" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; reports task_class distribution and Product operator-journey risks" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; classifies workflow-generated follow-up tasks in evidence and frontmatter" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; normalizes untrusted follow-up task fields before writing task files" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; preserves bracket-wrapped follow-up task frontmatter fields as scalars" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; normalizes review-evidence output that cites compacted-away child ids" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; keeps directory scope evidence isolated to the selected project directory" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects approval outcomes as citeable review evidence" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects nested step artifacts as citeable run evidence" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; rejects unsafe or mismatched run metadata ids before path lookup" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects pending workflow runs as citeable run evidence" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects open dead-letter queue counts and citeable item evidence" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; keeps tasks referenced by dead-letter reasons citeable" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; bounds dead-letter ids in the compact agent packet" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; stops artifact traversal at the max artifact count" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; does not traverse artifact directories at the max artifact depth" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; redrives an unreadable artifact failure through the runtime without a successor dead letter" time="0.56653375">
+            <properties>
+                <property name="application/json" value="{
+  &quot;initialDispatch&quot;: {
+    &quot;runId&quot;: &quot;2026-08-15T07-45-31-880Z-progress-reviewer-t6a9js&quot;,
+    &quot;status&quot;: &quot;failed&quot;
+  },
+  &quot;initialDeadLetter&quot;: {
+    &quot;id&quot;: &quot;dlq-c9efe6e4-101c-4157-9c0e-c9dddde38e8a&quot;,
+    &quot;status&quot;: &quot;open&quot;,
+    &quot;errorClass&quot;: &quot;execution&quot;,
+    &quot;errorCode&quot;: &quot;EACCES&quot;
+  },
+  &quot;redrive&quot;: {
+    &quot;runId&quot;: &quot;2026-08-15T07-45-31-904Z-progress-reviewer-ov2f2t&quot;,
+    &quot;status&quot;: &quot;success&quot;,
+    &quot;originalDeadLetterStatus&quot;: &quot;redriven&quot;
+  },
+  &quot;evidence&quot;: {
+    &quot;accessibleArtifacts&quot;: [
+      &quot;steps/inspect-worktree.json&quot;,
+      &quot;steps/reset-for-recovery.json&quot;,
+      &quot;control-monitor-coverage.json&quot;,
+      &quot;error.txt&quot;,
+      &quot;steps/collect-evidence.json&quot;,
+      &quot;steps/inspect-worktree.json&quot;,
+      &quot;steps/reset-for-recovery.json&quot;,
+      &quot;a-before.txt&quot;,
+      &quot;run-summary.json&quot;,
+      &quot;z-after.txt&quot;
+    ],
+    &quot;exclusions&quot;: [
+      &quot;artifacts for builder-success: skipped unreadable directory m-unreadable (EACCES)&quot;
+    ]
+  },
+  &quot;deadLetterQueue&quot;: {
+    &quot;open&quot;: 0,
+    &quot;total&quot;: 1
+  }
+}">
+                </property>
+            </properties>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects recent committed file changes when the coding worktree is clean" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; collects global scope evidence from every configured directory scope" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; bounds global evidence independently for each configured directory scope" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; does not use a related inbox title as generated-work identity" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; uses scope-local proposal identity instead of cross-scope title matching" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; rejects malformed structured review output before actions are applied" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts" name="progress-reviewer workflow &gt; rejects review evidence ids outside the collected packet" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+</testsuites>

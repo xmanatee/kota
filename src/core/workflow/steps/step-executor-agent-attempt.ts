@@ -9,6 +9,7 @@ import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import type { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import { AgentStepIdleTimeoutError } from "../step-idle-timeout.js";
+import type { WorkflowAgentStepOutputValidationContext } from "../step-input-base.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import type { AgentStepConfig, WorkflowStepOutput } from "./step-executor-agent.js";
 import {
@@ -50,6 +51,7 @@ export async function runAgentAttempt(input: {
   tokenBudget?: AgentTokenBudgetLedger;
   onSuccessfulAttemptMessages: (messages: KotaAgentMessage[]) => void;
   onJsonOutputFeedback: (feedback: string) => void;
+  outputValidationContext: WorkflowAgentStepOutputValidationContext;
 }): Promise<WorkflowStepOutput> {
   const {
     step,
@@ -113,6 +115,7 @@ export async function runAgentAttempt(input: {
     const harnessRun = agentConfig.delegateBudget
       ? withHandoffAgentRuntime(
           {
+            projectDir: agentConfig.projectDir,
             cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
             harness: resolvedHarness.name,
             resolveAgentDef: agentConfig.resolveAgentDef ?? (() => undefined),
@@ -201,7 +204,11 @@ export async function runAgentAttempt(input: {
     if (step.outputFormat === "json") {
       try {
         const output = parseJsonAgentStepOutput(step, result.text);
-        const validated = validateAgentStepOutput(step, output);
+        const validated = validateAgentStepOutput(
+          step,
+          output,
+          input.outputValidationContext,
+        );
         input.onSuccessfulAttemptMessages(attemptMessages);
         return validated;
       } catch (err) {
@@ -211,7 +218,11 @@ export async function runAgentAttempt(input: {
       }
     }
     const output = workflowOutputFromHarnessResult(result);
-    const validated = validateAgentStepOutput(step, output);
+    const validated = validateAgentStepOutput(
+      step,
+      output,
+      input.outputValidationContext,
+    );
     input.onSuccessfulAttemptMessages(attemptMessages);
     return validated;
   } catch (error) {

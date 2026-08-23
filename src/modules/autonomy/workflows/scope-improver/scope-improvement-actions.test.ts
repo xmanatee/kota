@@ -18,6 +18,7 @@ import {
   gatherScopeImprovementEvidence,
   recommendScopeImprovements,
 } from "./scope-improvement.js";
+import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
 
 const NOW = new Date("2026-06-04T12:00:00.000Z");
 
@@ -37,9 +38,9 @@ function makeScope(label: string): string {
 
 function trigger(files: string[]) {
   return {
-    event: "files.changed",
+    event: "autonomy.scope-improvement.requested",
     schemaRef: null,
-    payload: { files, triggeredAt: NOW.toISOString() },
+    payload: { evidenceRefs: files, reason: "test request" },
   };
 }
 
@@ -48,6 +49,7 @@ function runCycle(projectDir: string, files: string[]) {
     projectDir,
     trigger: trigger(files),
     now: NOW,
+    scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
   });
   const candidates = discoverScopeImprovementCandidates(inputs);
   const evidence = gatherScopeImprovementEvidence({ inputs, candidates });
@@ -94,6 +96,7 @@ describe("scope improvement actions", () => {
       projectDir,
       trigger: trigger(["src/feature.ts"]),
       now: NOW,
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
     });
     const signature = "scope-guidance-choice";
     const created = applyScopeImprovementRecommendations({
@@ -140,26 +143,4 @@ describe("scope improvement actions", () => {
     ).toBe(true);
   });
 
-  it("blocks safe edits outside the configured write paths", () => {
-    const projectDir = track("guarded");
-    mkdirSync(join(projectDir, ".kota", "scope-improvement"), { recursive: true });
-    writeFileSync(
-      join(projectDir, ".kota", "scope-improvement", "config.json"),
-      `${JSON.stringify({
-        minMinutesBetweenRuns: 0,
-        allowAutonomousEdits: true,
-        writePaths: ["docs/"],
-      }, null, 2)}\n`,
-    );
-
-    const result = runCycle(projectDir, ["notes/reflection.txt"]);
-
-    expect(result.recommendations[0]?.kind).toBe("safe-edit");
-    expect(result.actions.safeEditPaths).toEqual([]);
-    expect(result.actions.applied[0]).toMatchObject({
-      kind: "skipped",
-      reason: "policy does not allow autonomous edit of AGENTS.md",
-    });
-    expect(existsSync(join(projectDir, "AGENTS.md"))).toBe(false);
-  });
 });

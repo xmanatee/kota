@@ -11,7 +11,6 @@
  */
 
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import { AgentSession } from "#core/loop/loop.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { CORS_HEADERS, jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
 import { AUTONOMY_MODES, type AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -86,12 +85,11 @@ const vercelAdapterModule: KotaModule = {
         res.writeHead(200, { ...DATA_STREAM_HEADERS, ...CORS_HEADERS });
 
         const stream = new DataStreamTransport(res);
-        const agent = new AgentSession({
+        const agent = ctx.createSession({
           autonomyMode,
           model: (body.model as string) || ctx.config.model,
-          verbose: ctx.verbose,
           transport: stream,
-          config: ctx.config,
+          noHistory: true,
         });
 
         try {
@@ -100,6 +98,8 @@ const vercelAdapterModule: KotaModule = {
         } catch (err) {
           stream.emit({ type: "error", message: (err as Error).message });
           stream.finish();
+        } finally {
+          agent.close();
         }
       },
     },

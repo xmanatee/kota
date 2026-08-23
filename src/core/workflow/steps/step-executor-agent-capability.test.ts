@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AgentHarnessReadiness,
@@ -196,10 +197,22 @@ describe("workflow agent-step harness capability artifacts", () => {
   it("passes restricted agent write scope into the runtime prompt", async () => {
     execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
     let receivedPrompt = "";
+    let receivedWriteScope: AgentHarnessRunOptions["agentWriteScope"];
+    let receivedOutputDir: AgentHarnessRunOptions["agentOutputDir"];
     const harnessName = "capability-write-scope-prompt";
     registerAgentHarness(
       makeHarness(harnessName, async (options: AgentHarnessRunOptions) => {
         receivedPrompt = options.prompt;
+        receivedWriteScope = options.agentWriteScope;
+        receivedOutputDir = options.agentOutputDir;
+        if (options.agentOutputDir === undefined) {
+          throw new Error("missing isolated agent output directory");
+        }
+        writeFileSync(
+          `${options.agentOutputDir}/commit-message.txt`,
+          "test: isolated agent output\n",
+          "utf-8",
+        );
         return AGENT_OK_RESULT;
       }),
     );
@@ -222,7 +235,12 @@ describe("workflow agent-step harness capability artifacts", () => {
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
+    expect(receivedWriteScope).toEqual(RESTRICTED_AGENT.writeScope);
+    expect(receivedOutputDir).toBe(
+      `${projectDir}/${result.metadata.runDir}/agent-output`,
+    );
     expect(receivedPrompt).toContain("Agent write scope: .kota/runs/");
+    expect(receivedPrompt).toContain(`Run directory: ${receivedOutputDir}`);
     expect(receivedPrompt).toContain("out-of-scope writes fail this step");
   });
 });

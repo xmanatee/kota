@@ -1,5 +1,9 @@
 import {
-  extractTaskSections,
+  compareAutonomyTasks,
+  describeAutonomyTaskRank,
+  isStrategicAutonomyTask,
+} from "#modules/autonomy/task-ranking.js";
+import {
   getRepoTaskStateTransitionBlocker,
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
@@ -14,98 +18,11 @@ import {
  */
 export const PROMOTION_BATCH_LIMIT = 2;
 
-/**
- * Areas considered strategic when ranking backlog candidates. Used as a
- * tie-breaker after priority and task class so architecture/autonomy/core work
- * surfaces above narrower fan-out at the same priority/class and age.
- */
-const STRATEGIC_AREAS: ReadonlySet<string> = new Set([
-  "architecture",
-  "autonomy",
-  "core",
-  "modules",
-]);
-
-const PRIORITY_RANK: Record<string, number> = {
-  p0: 0,
-  p1: 1,
-  p2: 2,
-  p3: 3,
-};
-
-const TASK_CLASS_RANK: Record<RepoTaskClass, number> = {
-  Safety: 0,
-  Product: 1,
-  Platform: 2,
-  Unclassified: 3,
-  Meta: 4,
-};
-
-const WORKFLOW_FAILURE_REPAIR_TASK_ID_PREFIX =
-  "task-repair-workflow-failure-pattern-";
-
-function priorityScore(priority: string): number {
-  const rank = PRIORITY_RANK[priority];
-  return rank ?? 99;
-}
-
-function taskClassScore(taskClass: RepoTaskClass): number {
-  return TASK_CLASS_RANK[taskClass];
-}
-
-function isStrategic(record: RepoTaskFullRecord): boolean {
-  return STRATEGIC_AREAS.has(record.area);
-}
-
-function isRuntimePostureRepair(record: RepoTaskFullRecord): boolean {
-  if (record.taskClass !== "Meta") return false;
-  if (!record.id.startsWith(WORKFLOW_FAILURE_REPAIR_TASK_ID_PREFIX)) return false;
-  if (!record.body.includes("workflow-failure-pattern-fingerprint")) return false;
-  const link = extractTaskSections(record.body, ["Product / Safety Link"])[
-    "Product / Safety Link"
-  ];
-  return /\bruntime posture blocker\b/i.test(link ?? "") &&
-    /\bProduct\/Safety\b/i.test(link ?? "");
-}
-
-function timestamp(record: RepoTaskFullRecord): number {
-  const ms = Date.parse(record.updatedAt);
-  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
-}
-
-/**
- * Compare two backlog candidates. Lower comes first (higher priority for
- * promotion).
- *
- * Order:
- *   1. priority (p0 < p1 < p2 < p3)
- *   2. generated runtime-posture repair before ordinary work
- *   3. task class (Safety, Product, Platform, Unclassified, Meta)
- *   4. strategic area before fan-out at the same priority/class
- *   5. older `updated_at` before newer (oldest waits longest, gets promoted)
- *   6. id for deterministic ordering at exact ties
- */
 export function compareBacklogCandidates(
   a: RepoTaskFullRecord,
   b: RepoTaskFullRecord,
 ): number {
-  const priorityDelta = priorityScore(a.priority) - priorityScore(b.priority);
-  if (priorityDelta !== 0) return priorityDelta;
-
-  const runtimeRepairDelta =
-    Number(isRuntimePostureRepair(b)) - Number(isRuntimePostureRepair(a));
-  if (runtimeRepairDelta !== 0) return runtimeRepairDelta;
-
-  const classDelta = taskClassScore(a.taskClass) - taskClassScore(b.taskClass);
-  if (classDelta !== 0) return classDelta;
-
-  const strategicDelta = Number(isStrategic(b)) - Number(isStrategic(a));
-  if (strategicDelta !== 0) return strategicDelta;
-
-  const ageDelta = timestamp(a) - timestamp(b);
-  if (ageDelta !== 0) return ageDelta;
-
-  return a.id.localeCompare(b.id);
+  return compareAutonomyTasks(a, b);
 }
 
 export type PromotionCandidateSummary = {
@@ -114,7 +31,7 @@ export type PromotionCandidateSummary = {
   priority: string;
   area: string;
   taskClass: RepoTaskClass;
-  state: "backlog" | "blocked";
+  state: "backlog" | "blocked" | "ready" | "doing";
   strategic: boolean;
   updatedAt: string;
 };
@@ -144,6 +61,11 @@ export type PromotionRationale = {
   selected: PromotionSelection[];
   rejected: PromotionRejection[];
   candidates: PromotionCandidateSummary[];
+  frontier: {
+    incumbentTaskId: string | null;
+    improved: boolean;
+    reason: string;
+  };
   /**
    * Human-readable summary used in the commit message and operator-facing
    * artifacts. Names how many tasks were promoted, why they beat the
@@ -160,22 +82,10 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
     priority: record.priority,
     area: record.area,
     taskClass: record.taskClass,
-    state: record.state === "backlog" ? "backlog" : "blocked",
-    strategic: isStrategic(record),
+    state: record.state as PromotionCandidateSummary["state"],
+    strategic: isStrategicAutonomyTask(record),
     updatedAt: record.updatedAt,
   };
-}
-
-function describeReason(record: RepoTaskFullRecord, rank: number): string {
-  const parts: string[] = [];
-  parts.push(`rank ${rank + 1}`);
-  parts.push(`priority ${record.priority || "unset"}`);
-  if (isRuntimePostureRepair(record)) parts.push("runtime posture repair");
-  parts.push(`task_class ${record.taskClass}`);
-  if (record.area) parts.push(`area ${record.area}`);
-  if (isStrategic(record)) parts.push("strategic area");
-  parts.push(`updated_at ${record.updatedAt}`);
-  return parts.join("; ");
 }
 
 /**
@@ -189,6 +99,9 @@ export function buildPromotionRationale(
 ): PromotionRationale {
   const batchLimit = options.batchLimit ?? PROMOTION_BATCH_LIMIT;
   const records = listFullRepoTasks(projectDir, ["backlog", "blocked"]);
+  const actionable = listFullRepoTasks(projectDir, ["ready", "doing"])
+    .sort(compareAutonomyTasks);
+  const incumbent = actionable.find((record) => record.state === "ready") ?? null;
   const waitingById = new Map(
     listRepoTaskDependencyWaits(projectDir, ["backlog", "blocked"]).map((wait) => [
       wait.id,
@@ -221,22 +134,32 @@ export function buildPromotionRationale(
     .filter((record) => record.state === "blocked")
     .sort(compareBacklogCandidates);
 
-  const selected = promotableBacklog.slice(0, batchLimit).map((record, index) => ({
+  const frontierImprovements = incumbent === null
+    ? promotableBacklog
+    : promotableBacklog.filter(
+      (record) => compareAutonomyTasks(record, incumbent) < 0,
+    );
+  const selected = frontierImprovements.slice(0, batchLimit).map((record, index) => ({
     id: record.id,
     title: record.title,
     priority: record.priority,
     area: record.area,
     taskClass: record.taskClass,
-    reason: describeReason(record, index),
+    reason: describeAutonomyTaskRank(record, index),
   }));
-  const rejectedBacklog = promotableBacklog.slice(batchLimit).map((record) => ({
-    id: record.id,
-    title: record.title,
-    priority: record.priority,
-    taskClass: record.taskClass,
-    state: "backlog" as const,
-    reason: "lower-ranked backlog candidate",
-  }));
+  const selectedIds = new Set(selected.map((record) => record.id));
+  const rejectedBacklog = promotableBacklog
+    .filter((record) => !selectedIds.has(record.id))
+    .map((record) => ({
+      id: record.id,
+      title: record.title,
+      priority: record.priority,
+      taskClass: record.taskClass,
+      state: "backlog" as const,
+      reason: incumbent && compareAutonomyTasks(record, incumbent) >= 0
+        ? `does not outrank ready frontier ${incumbent.id}`
+        : "lower-ranked backlog candidate",
+    }));
   const rejectedAnchors = anchorBacklog.map((record) => ({
     id: record.id,
     title: record.title,
@@ -273,24 +196,26 @@ export function buildPromotionRationale(
   }));
 
   const candidates = [
+    ...actionable.map(describeCandidate),
     ...allBacklog.map(describeCandidate),
     ...blocked.map(describeCandidate),
   ];
 
   const summaryLines: string[] = [];
   if (selected.length === 0) {
-    summaryLines.push(
-      "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, dependency-waiting, or ready-invalid work remains).",
+    summaryLines.push(incumbent
+      ? `No backlog task outranks the current ready frontier ${incumbent.id}.`
+      : "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, dependency-waiting, or ready-invalid work remains).",
     );
   } else {
     const ids = selected
       .map((s) => `${s.id} (${s.priority || "no-priority"}, ${s.taskClass})`)
       .join(", ");
     summaryLines.push(
-      `Promoted ${selected.length} of ${promotableBacklog.length} promotable backlog task(s): ${ids}.`,
+      `Promoted ${selected.length} of ${frontierImprovements.length} frontier-improving backlog task(s): ${ids}.`,
     );
     summaryLines.push(
-      "Ranked by priority, runtime-posture repair exception, task_class, strategic area, then oldest updated_at; this batch beat the remaining backlog and the higher-priority alternatives are honestly blocked.",
+      "Ranked by the shared autonomy queue policy: proven runtime repair first, P1 Product/Safety ahead of Meta, then priority, task class, strategic area, and age.",
     );
   }
   if (rejectedAnchors.length > 0) {
@@ -332,6 +257,15 @@ export function buildPromotionRationale(
       ...rejectedBlocked,
     ],
     candidates,
+    frontier: {
+      incumbentTaskId: incumbent?.id ?? null,
+      improved: selected.length > 0,
+      reason: selected.length > 0
+        ? `${selected[0]!.id} outranks ${incumbent?.id ?? "an empty ready frontier"}`
+        : incumbent
+          ? `no promotable backlog task outranks ${incumbent.id}`
+          : "no promotable backlog task exists",
+    },
     summary: summaryLines.join("\n"),
   };
 }

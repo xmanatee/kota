@@ -1,0 +1,44 @@
+Validation record for task-integrate-canonical-changes-before-preserved-build
+
+PASS pnpm run typecheck
+TypeScript completed with no errors.
+
+PASS focused reconciliation and regression suite
+Command: pnpm test src/modules/git src/modules/autonomy/workflows/builder src/modules/autonomy/task-claim-canonical-reconciliation.test.ts src/modules/autonomy/task-claim-recovery.test.ts src/modules/autonomy/workflow-state-recovery-observability.test.ts src/modules/autonomy/workflow-state-recovery-canonical-reconciliation.test.ts src/strict-types-policy.integration.test.ts
+Result: 54 test files passed; 347 tests passed; 0 failed, including failed-validation rejection and all four state-recovery reconciliation phases.
+
+PASS pnpm run lint
+Result: 3483 source files checked; no fixes or diagnostics.
+
+PASS pnpm run build
+Result: distribution TypeScript build completed.
+
+PASS pnpm test src/docs-surface.test.ts
+Result: 1 test file passed; 5 tests passed; the scoped builder AGENTS.md remains at its 100-line ratchet.
+
+PASS pnpm dev workflow validate
+Result: all 25 workflow definitions are valid, including builder.
+
+PASS module dependency and root layout guards
+Command: pnpm test src/core/modules/module-deps.test.ts src/root-layout.test.ts
+Result: 2 test files passed; 4 tests passed; 0 failed.
+
+PASS git diff --check
+Result: no whitespace errors.
+
+PASS pnpm run validate-tasks
+Result: task queue validation completed with no errors after the workflow host staged the exact ready/ to done/ transition.
+
+PASS post-critic reconciliation regressions
+Command: pnpm exec vitest run --configLoader runner src/modules/git/worktree-canonical-reconciliation.test.ts src/modules/autonomy/workflow-state-recovery-canonical-reconciliation.test.ts
+Result: 2 test files passed; 6 tests passed; failed validation is fail-closed and every reconciliation phase is visible in state recovery.
+
+ENVIRONMENT-LIMITED pnpm test
+The full suite reached 1288 passing files and 12557 passing tests. Remaining failures were caused by the managed sandbox denying its own temp-root traversal, loopback listen calls, and the protected deploy/telegram-assistant/.env.example, plus the host-owned unstaged task move. The one actionable docs ratchet failure was fixed and its focused test passes above. The task-owned 54-file focused suite remains fully green.
+
+PASS post-check source-size repair
+Extracted worktree metadata paths, JSON parsing, persistence, and validation from worktree-lifecycle-support.ts into worktree-lifecycle-metadata.ts. The touched support file is now 234 lines and the new module is 131 lines. Evaluating the complete current source diff, including untracked additions, reports 3 advisory oversized files, below the blocking severe-batch threshold of 4, with no substantial-growth reason.
+
+PASS post-check repair validation
+Commands: pnpm exec biome check src/modules/git/worktree-lifecycle-support.ts src/modules/git/worktree-lifecycle-metadata.ts; pnpm typecheck; the original 54-file focused reconciliation/regression suite; focused worktree lifecycle/status/canonical-reconciliation/state-recovery tests; git diff --check HEAD -- src/modules/git.
+Result: formatting and typecheck passed; 54 test files / 347 tests passed; the second focused pass completed 4 test files / 23 tests; no whitespace errors.

@@ -6,11 +6,17 @@ import {
   BUILDER_RECOVERY_EVENT,
   emitBuilderRecoveryRequest,
 } from "../builder/recovery-continuation.js";
-import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
+import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import {
-  SECURITY_REVIEW_DUE_EVENT,
-} from "../security-review/due-check.js";
+  scopeImprovementChanged,
+  scopeImprovementRequested,
+} from "../scope-improver/events.js";
+import { SECURITY_REVIEW_DUE_EVENT } from "../security-review/due-check.js";
 import { dispatcherInspectionOperation } from "./inspection.js";
+import {
+  recordProgressSemanticBoundaryQueued,
+  recordScopeSemanticBoundaryQueued,
+} from "./semantic-reflection.js";
 
 // Not recovery-capable: dispatcher only reads repo state and emits events — it
 // never mutates tracked files, so it cannot leave dirt to heal and cannot help
@@ -30,17 +36,25 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
     {
       id: "assess-and-dispatch",
       type: "code",
-      run: async ({ projectDir, emit, runBlocking }) => {
+      run: async ({ projectDir, emit, runBlocking, scopePolicySnapshot }) => {
         const {
           queue,
+          promotionRationale,
           researchRetryAvailability,
           securityReviewDue,
-          scopeImprovementEvidence,
+          progressBoundary,
+          scopeBoundary,
           builderRecovery,
         } = await runBlocking(dispatcherInspectionOperation, {
           projectDir,
           nowIso: new Date().toISOString(),
+          scopePolicySnapshot: scopePolicySnapshot ?? null,
         });
+        const scopeBoundaryEvent = !scopeBoundary.shouldEmit || !scopeBoundary.payload
+          ? null
+          : scopeBoundary.payload.boundary === "initial-onboarding"
+            ? scopeImprovementRequested.name
+            : scopeImprovementChanged.name;
         for (const request of builderRecovery.requested) {
           emitBuilderRecoveryRequest(emit, request);
         }
@@ -54,12 +68,15 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         // task snapshot says at least one backlog task can actually be promoted.
         // Strategic anchors, blocked tails, and Meta tasks missing a
         // Product/Safety link are open records, not dispatchable work.
-        const queueActionable = queue.actionableCount > 0;
+        const recoveryRequested = builderRecovery.requested.length > 0;
         const queueNeedsPromotion =
-          queue.actionableCount === 0 && queue.promotableBacklogCount > 0;
+          !recoveryRequested && promotionRationale.selected.length > 0;
+        const queueActionable =
+          !recoveryRequested && !queueNeedsPromotion && queue.actionableCount > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
-        const queueThin = isThinClaimAwareDispatchableQueue(queue);
+        const queueThin =
+          !recoveryRequested && isThinClaimAwareDispatchableQueue(queue);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -101,14 +118,19 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         if (securityReviewDue.due) {
           emit(SECURITY_REVIEW_DUE_EVENT, securityReviewDue);
         }
-        if (
-          scopeImprovementEvidence.shouldEmit &&
-          scopeImprovementEvidence.payload
-        ) {
-          emit(
-            scopeImprovementEvidenceReady.name,
-            scopeImprovementEvidence.payload,
-          );
+        if (progressBoundary.shouldEmit && progressBoundary.payload) {
+          recordProgressSemanticBoundaryQueued({
+            projectDir,
+            payload: progressBoundary.payload,
+          });
+          emit(automaticProgressReviewRequested.name, progressBoundary.payload);
+        }
+        if (scopeBoundary.shouldEmit && scopeBoundary.payload) {
+          recordScopeSemanticBoundaryQueued({
+            projectDir,
+            payload: scopeBoundary.payload,
+          });
+          emit(scopeBoundaryEvent!, scopeBoundary.payload);
         }
         if (queueThin) {
           emit("autonomy.queue.thin", {
@@ -127,8 +149,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           queueEmpty && "autonomy.queue.empty",
           blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
           securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
-          scopeImprovementEvidence.shouldEmit &&
-            scopeImprovementEvidenceReady.name,
+          progressBoundary.shouldEmit && automaticProgressReviewRequested.name,
+          scopeBoundaryEvent,
           builderRecovery.requested.length > 0 && BUILDER_RECOVERY_EVENT,
           queueThin && "autonomy.queue.thin",
         ].filter((event): event is string => Boolean(event));
@@ -142,18 +164,22 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
           claimBlockedTasks: queue.claimBlockedTasks,
           promotableBacklogCount: queue.promotableBacklogCount,
+          promotionFrontier: promotionRationale.frontier,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           builderRecoveryCandidateCount: builderRecovery.candidateCount,
           builderRecoveryRequested: builderRecovery.requested,
           securityReviewDue,
-          scopeImprovementEvidence: {
-            shouldEmit: scopeImprovementEvidence.shouldEmit,
-            reason: scopeImprovementEvidence.reason,
-            dedupeSignature:
-              scopeImprovementEvidence.payload?.dedupeSignature ?? null,
-            totalWeight: scopeImprovementEvidence.payload?.totalWeight ?? 0,
-            evidenceIds: scopeImprovementEvidence.payload?.evidenceIds ?? [],
+          progressBoundary: {
+            shouldEmit: progressBoundary.shouldEmit,
+            reason: progressBoundary.reason,
+            boundary: progressBoundary.payload?.boundary ?? null,
+            inputRevision: progressBoundary.payload?.inputRevision ?? null,
+          },
+          scopeBoundary: {
+            shouldEmit: scopeBoundary.shouldEmit,
+            reason: scopeBoundary.reason,
+            fingerprint: scopeBoundary.payload?.fingerprint ?? null,
           },
           emitted,
           quiescent,

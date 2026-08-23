@@ -26,6 +26,7 @@ function assertedRuntimeDescendant(
 export function nativeCliRuntimeWriteBoundary(
   cwd: string,
   env: NodeJS.ProcessEnv,
+  writableRoots: readonly string[] = [],
 ): MachineAuthorityWriteBoundary | undefined {
   const runtimeRoot = join(resolve(cwd), ".kota");
   if (!existsSync(runtimeRoot)) return undefined;
@@ -50,7 +51,20 @@ export function nativeCliRuntimeWriteBoundary(
   }
   return {
     root: runtimeRoot,
-    writableDescendants: [agentRunDir, tempRoot].filter(
+    writableDescendants: [
+      agentRunDir,
+      tempRoot,
+      ...writableRoots
+        .map((path) => resolve(cwd, path))
+        .filter((path) => {
+          const child = relative(runtimeRoot, path);
+          return child === "" || (
+            child !== ".." &&
+            !child.startsWith(`..${sep}`) &&
+            !isAbsolute(child)
+          );
+        }),
+    ].filter(
       (path): path is string => path !== undefined,
     ),
   };

@@ -286,6 +286,7 @@ function projectExecutionContext(
 	return {
 		scopeId: runtime.project.projectId,
 		projectId: runtime.project.projectId,
+		projectDir: runtime.project.projectDir,
 		cwd: runtime.project.projectDir,
 	};
 }

@@ -1,4 +1,5 @@
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import { McpClientAuthorizationRuntime } from "./client-authorization-runtime.js";
 import {
   formatJsonRpcId,
@@ -82,11 +83,15 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         controller.abort();
       }, timeout);
       try {
-        const response = await fetch(transport.url, {
+        const { response } = await outboundHttp.requestStream({
+          profile: OUTBOUND_HTTP_PROFILES.configuredProvider([transport.url]),
+          operation: `mcp.json-rpc.${method}`,
+          url: transport.url,
           method: "POST",
           headers: this.httpHeadersForRequest(method, requestParams),
           body: JSON.stringify(msg),
           signal: controller.signal,
+          limits: { timeoutMs: timeout },
         });
         return {
           id,
@@ -96,7 +101,7 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
         };
       } catch (err) {
         clearTimeout(timer);
-        const message = err instanceof Error && err.name === "AbortError"
+        const message = timedOut || (err instanceof Error && err.name === "AbortError")
           ? `request timed out after ${timeout}ms`
           : err instanceof Error ? err.message : String(err);
         throw this.requestErrorForMethod(method, message);
@@ -447,12 +452,18 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
     await this.refreshExpiredOAuthTokenIfNeeded();
     let response: Response;
     try {
-      response = await fetch(this.transport.url, {
-        method: "POST",
-        headers: this.httpHeadersForRequest("subscriptions/listen", params),
-        body: JSON.stringify(msg),
-        signal: controller.signal,
-      });
+      ({ response } = await outboundHttp.requestStream(
+        {
+          profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.transport.url]),
+          operation: "mcp.subscriptions.listen",
+          url: this.transport.url,
+          method: "POST",
+          headers: this.httpHeadersForRequest("subscriptions/listen", params),
+          body: JSON.stringify(msg),
+          signal: controller.signal,
+        },
+        { responseBodyLimit: "caller-managed" },
+      ));
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       throw err instanceof Error ? err : new Error(String(err));
@@ -590,7 +601,13 @@ export abstract class McpClientHttpRuntime extends McpClientAuthorizationRuntime
       }
       if (line.startsWith("data:")) {
         appendDataLine(line.slice(5).trimStart());
+        return;
       }
+      assertMcpTextWithinByteLimit(
+        line,
+        MCP_HTTP_SSE_MESSAGE_MAX_BYTES,
+        "MCP HTTP SSE line buffer",
+      );
     };
     try {
       while (true) {

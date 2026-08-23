@@ -29,7 +29,7 @@
     },
     {
       "kind": "file-exists",
-      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/commit-message.txt"
+      "path": ".kota/runs/fixture-explorer-agent-call-replay-2026-04-24/agent-output/commit-message.txt"
     },
     {
       "kind": "file-exists",

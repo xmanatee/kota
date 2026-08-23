@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   expectStructuredOutput,
   typedCodeStep,
@@ -21,26 +20,21 @@ import {
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
-  readActiveTaskClaim,
-  supersedeTaskClaim,
-} from "#modules/autonomy/task-claims.js";
-import {
   workflowCommitOperation,
   workflowCommitValidationOperation,
 } from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  assertDecompositionOwnership,
   assessFailure,
-  type DecomposerAssessment,
   decompositionTargetTaskId,
   shouldRunDecompose,
 } from "./assessment.js";
 import {
   type AppliedDecomposition,
-  applyDecompositionPlan,
-} from "./decomposition-actions.js";
+  applyDecompositionOperation,
+  type FinalizedSourceClaim,
+  finalizeSourceClaimOperation,
+} from "./blocking-operations.js";
 import {
-  type DecompositionPlan,
   decodeDecompositionPlan,
   decodeDecompositionReview,
   decompositionPlanOutputSchema,
@@ -93,29 +87,6 @@ const writeCommitMessage = typedCodeStep<{ written: true }>({
   },
 });
 
-type ApplyDecompositionInput = {
-  projectDir: string;
-  assessment: Extract<DecomposerAssessment, { shouldDecompose: true }>;
-  plan: DecompositionPlan;
-};
-
-export function applyOwnedDecompositionInWorker(
-  input: ApplyDecompositionInput,
-): AppliedDecomposition {
-  assertDecompositionOwnership(input.projectDir, input.assessment);
-  return applyDecompositionPlan({
-    projectDir: input.projectDir,
-    taskId: input.assessment.taskId,
-    failedRunId: input.assessment.failedRunId,
-    plan: input.plan,
-  });
-}
-
-const applyOwnedDecompositionOperation = defineWorkflowBlockingOperation<
-  ApplyDecompositionInput,
-  AppliedDecomposition
->(import.meta.url, "applyOwnedDecompositionInWorker");
-
 const applyDecomposition = typedCodeStep<AppliedDecomposition>({
   id: "apply-decomposition",
   type: "code",
@@ -127,7 +98,7 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
     if (!assessment.shouldDecompose) {
       throw new Error("Cannot apply decomposition without an active target");
     }
-    return ctx.runBlocking(applyOwnedDecompositionOperation, {
+    return ctx.runBlocking(applyDecompositionOperation, {
       projectDir: ctx.projectDir,
       assessment,
       plan: decodeDecompositionPlan(ctx.stepOutputs.decompose),
@@ -189,56 +160,6 @@ const validateDecomposition = typedCodeStep<{
   },
 });
 
-type FinalizedSourceClaim = {
-  changed: boolean;
-  recoveryStatus: string;
-};
-
-type FinalizeSourceClaimInput = {
-  projectDir: string;
-  taskId: string;
-  failedRunId: string;
-  workflowRunId: string;
-};
-
-export function finalizeOwnedSourceClaimInWorker(
-  input: FinalizeSourceClaimInput,
-): FinalizedSourceClaim {
-  const claim = readActiveTaskClaim(input.projectDir, input.taskId);
-  if (
-    claim === null ||
-    claim.status !== "pending-decomposition" ||
-    claim.workflowId !== "builder" ||
-    claim.runId !== input.failedRunId
-  ) {
-    throw new Error(
-      `Cannot finalize claim for ${input.taskId}: expected builder/${input.failedRunId}/pending-decomposition ownership`,
-    );
-  }
-  const result = supersedeTaskClaim({
-    projectDir: input.projectDir,
-    taskId: input.taskId,
-    runId: input.failedRunId,
-    workflowId: "builder",
-    evidence:
-      `decomposer ${input.workflowRunId} replaced the exhausted task with bounded subtasks`,
-  });
-  if (!result.changed) {
-    throw new Error(
-      `Cannot finalize claim for ${input.taskId}: ${result.reason ?? "claim ownership changed"}`,
-    );
-  }
-  return {
-    changed: result.changed,
-    recoveryStatus: result.recoveryStatus,
-  };
-}
-
-const finalizeOwnedSourceClaimOperation = defineWorkflowBlockingOperation<
-  FinalizeSourceClaimInput,
-  FinalizedSourceClaim
->(import.meta.url, "finalizeOwnedSourceClaimInWorker");
-
 const finalizeSourceClaim = typedCodeStep<FinalizedSourceClaim>({
   id: "finalize-source-claim",
   type: "code",
@@ -255,7 +176,7 @@ const finalizeSourceClaim = typedCodeStep<FinalizedSourceClaim>({
         "Cannot finalize a source claim without a decomposition target",
       );
     }
-    return ctx.runBlocking(finalizeOwnedSourceClaimOperation, {
+    return ctx.runBlocking(finalizeSourceClaimOperation, {
       projectDir: ctx.projectDir,
       taskId: assessment.taskId,
       failedRunId: assessment.failedRunId,

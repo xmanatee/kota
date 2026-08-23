@@ -152,4 +152,44 @@ describe("WorkflowTestHarness — result evidence", () => {
       model: runtime.tiers.fast,
     });
   });
+
+  it("validates mocked agent output against prior decoded step output", async () => {
+    const workflow: WorkflowDefinitionInput = {
+      name: "test",
+      triggers: [],
+      defaultAutonomyMode: "autonomous",
+      steps: [
+        {
+          id: "evidence",
+          type: "code",
+          run: () => ({ ids: ["evidence:exact"] }),
+          validate: (raw) => raw as { ids: string[] },
+        },
+        {
+          id: "agent",
+          type: "agent",
+          promptPath: "test.md",
+          tier: "fast",
+          effort: "high",
+          validate: (raw, context) => {
+            const evidence = context.stepOutputs.evidence as { ids: string[] };
+            const output = raw as { evidenceIds: string[] };
+            if (!output.evidenceIds.every((id) => evidence.ids.includes(id))) {
+              throw new Error("agent cited evidence outside the decoded packet");
+            }
+            return output;
+          },
+        },
+      ],
+    };
+
+    const result = await new WorkflowTestHarness(workflow, {
+      stepMocks: { agent: { evidenceIds: ["evidence:exact"] } },
+    }).run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps.agent.output).toEqual({
+      evidenceIds: ["evidence:exact"],
+    });
+  });
 });

@@ -1,0 +1,3 @@
+1. Calibration freshness accepts only a non-symlinked, terminal builder run whose directory name, metadata id, artifact run id, and runtime-authored calibration step are strictly bound.
+2. Focused regression tests reject metadata-less, mismatched, non-builder, non-terminal, wrong-step, malformed, and symlinked candidate evidence while accepting a valid bound builder artifact.
+3. The completed task records the focused verification command and its passing result.

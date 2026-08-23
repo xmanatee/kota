@@ -1,6 +1,8 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { EventBus } from "#core/events/event-bus.js";
+import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type {
   ControlRouteRegistration,
   HealthCheckResult,
@@ -11,7 +13,16 @@ import type { LogFormat } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { ConfiguredProjectInput } from "./scope-registry.js";
 
+export type DaemonRuntimeModuleHost = {
+  /** Event authority already bound to the runtime module lifecycle. */
+  eventBus: EventBus;
+  /** Host-owned runtime loader borrowed by every daemon-created session. */
+  moduleLoader: ModuleLoader;
+};
+
 export type DaemonConfig = {
+  /** Atomic module-runtime authority; the loader must already be bound to this bus. */
+  runtimeModuleHost?: DaemonRuntimeModuleHost;
   /**
    * Single-project bootstrap shorthand. When `projects` is set, that array
    * supplies the initial seed and `projectDir` is ignored. When neither is

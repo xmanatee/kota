@@ -26,7 +26,6 @@ export function recommendScopeImprovements(args: {
         evidenceIds: candidate.evidenceIds,
       };
     }
-    if (candidate.preferredAction === "safe-edit") return safeEdit(candidate);
     if (candidate.preferredAction === "owner-question") {
       return ownerQuestion(args.inputs, candidate);
     }
@@ -50,19 +49,6 @@ function hasSeenSignature(
   signature: string,
 ): boolean {
   return inputs.state.recentSignatures.some((entry) => entry.signature === signature);
-}
-
-function safeEdit(
-  candidate: ScopeImprovementCandidate,
-): ScopeImprovementRecommendation {
-  return {
-    kind: "safe-edit",
-    signature: candidate.signature,
-    path: "AGENTS.md",
-    title: candidate.title,
-    summary: candidate.summary,
-    evidenceIds: candidate.evidenceIds,
-  };
 }
 
 function ownerQuestion(

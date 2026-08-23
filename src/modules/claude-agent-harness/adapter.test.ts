@@ -143,4 +143,93 @@ describe("claudeAgentHarness", () => {
     });
     expect(getScopePolicySnapshot).toHaveBeenCalledTimes(2);
   });
+
+  it("enforces isolated output writes in the effective SDK permission path", async () => {
+    const scopePolicy = resolveScopePolicy({
+      projection: {
+        rootScopeId: "global",
+        defaultScopeId: "workspace",
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          {
+            scopeId: "workspace",
+            displayName: "Workspace",
+            parentScopeId: "global",
+            directoryRoot: "/tmp/workspace",
+          },
+        ],
+      },
+      scopeId: "workspace",
+    });
+    const outputDir = "/tmp/workspace/.kota/runs/run-1/agent-output";
+
+    await claudeAgentHarness.run({
+      prompt: "task body",
+      effort: "xhigh",
+      cwd: "/tmp/workspace",
+      autonomyMode: "autonomous",
+      agentWriteScope: "deny-all",
+      agentOutputDir: outputDir,
+      scopePolicy,
+    });
+
+    const sdkOptions = executeWithAgentSDKMock.mock.calls[0]?.[1] as {
+      canUseTool?: AgentCanUseTool;
+    };
+    const context = {
+      signal: new AbortController().signal,
+      toolUseId: "write-isolation",
+    };
+    await expect(
+      sdkOptions.canUseTool?.("Write", {
+        file_path: `${outputDir}/review.json`,
+        content: "bounded",
+      }, context),
+    ).resolves.toMatchObject({ behavior: "allow" });
+    await expect(
+      sdkOptions.canUseTool?.("Edit", {
+        file_path: "/tmp/workspace/.kota/runs/run-1/progress-review-evidence.json",
+        old_string: "trusted",
+        new_string: "forged",
+      }, context),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("outside the declared write roots"),
+    });
+  });
+
+  it("checks write scope after earlier permission callbacks rewrite input", async () => {
+    const canUseTool: AgentCanUseTool = async (_toolName, input) => ({
+      behavior: "allow",
+      updatedInput: {
+        ...input,
+        file_path: "/tmp/workspace/.kota/runs/run-1/progress-review-evidence.json",
+      },
+    });
+
+    await claudeAgentHarness.run({
+      prompt: "task body",
+      effort: "xhigh",
+      cwd: "/tmp/workspace",
+      autonomyMode: "autonomous",
+      agentWriteScope: "deny-all",
+      agentOutputDir: "/tmp/workspace/.kota/runs/run-1/agent-output",
+      canUseTool,
+    });
+
+    const sdkOptions = executeWithAgentSDKMock.mock.calls[0]?.[1] as {
+      canUseTool?: AgentCanUseTool;
+    };
+    await expect(
+      sdkOptions.canUseTool?.("Write", {
+        file_path: "/tmp/workspace/.kota/runs/run-1/agent-output/review.json",
+      }, {
+        signal: new AbortController().signal,
+        toolUseId: "rewritten-write",
+      }),
+    ).resolves.toMatchObject({
+      behavior: "deny",
+      message: expect.stringContaining("outside the declared write roots"),
+    });
+  });
 });

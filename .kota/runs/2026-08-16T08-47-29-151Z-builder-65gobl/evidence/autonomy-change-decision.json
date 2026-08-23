@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "autonomy-change-decision",
+  "runId": "2026-08-16T08-47-29-151Z-builder-65gobl",
+  "createdAt": "2026-08-16T10:25:00.000Z",
+  "taskIds": [
+    "task-recover-the-two-stale-builder-claims-blocking-high"
+  ],
+  "affectedSurfaces": [
+    "builder preserved-work continuation",
+    "builder merge-conflict resolver",
+    "Git worktree merge gate",
+    "native CLI Git-metadata write boundary"
+  ],
+  "changeClasses": [
+    "workflow",
+    "harness",
+    "reviewer",
+    "critic-gate"
+  ],
+  "hypothesis": "Projecting exact conflict files into the native CLI sandbox and retaining runtime-owned pending merges will recover Codex builder work without weakening the shared merge gate.",
+  "sourceRefs": [
+    "task:task-recover-the-two-stale-builder-claims-blocking-high",
+    "claim:task-keep-daemon-control-api-responsive-during-workflow/2026-08-14T04-31-59-044Z-builder-18pact"
+  ],
+  "baselineRefs": [
+    "git:47c68d6cf18fbc04022082e59b7cb392c593f816",
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts:unsupported-tool-control"
+  ],
+  "candidateRefs": [
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts",
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver-native.test.ts",
+    "src/modules/autonomy/workflows/builder/merge-conflict-resolver-native-recovery.test.ts",
+    "src/core/agent-harness/native-cli-sandbox.test.ts",
+    "src/modules/git/worktree-canonical-pending-merge-reconciliation.test.ts",
+    "src/modules/git/worktree-canonical-reconciliation.test.ts",
+    "artifacts/recovery-readiness.json"
+  ],
+  "metricsCompared": [
+    {
+      "name": "native textual conflict terminal result",
+      "baseline": "pending-conflict without native dispatch",
+      "candidate": "merged through exact conflict-file scope",
+      "unit": "fixture outcome",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "pending-merge continuation eligibility",
+      "baseline": "successful owner run excluded and claim continuation rejected",
+      "candidate": "retained lineage accepted by dispatcher and claim continuation",
+      "unit": "recovery path",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "ambiguous in-scope native resolution",
+      "baseline": "accepted after a non-error edit session and mechanical path checks",
+      "candidate": "needs-review after deny-all resolved-diff and task-scope judgment, with claim and merge retained",
+      "unit": "fixture outcome",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "validation ordering",
+      "baseline": "resolver output staged and merge committed before canonical reconciliation validation",
+      "candidate": "changed-path and marker checks, validation on the unmerged working tree, then runtime staging and commit",
+      "unit": "merge safety gate",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "destructive conflict dispatch",
+      "baseline": "delete/modify and branch-side rename conflicts could be classified as textual",
+      "candidate": "unmerged index stages and both-side rename ancestry keep destructive conflicts in needs-review",
+      "unit": "fixture outcome",
+      "direction": "improved",
+      "qualitySignal": true
+    },
+    {
+      "name": "focused regression suite",
+      "baseline": "269 builder and Git tests in the superseded fallback decision",
+      "candidate": "133 affected tests across 20 files plus a trusted-host focused run of 85 tests across 15 changed behavioral suites; the synthetic lifecycle and shipped Codex OS-boundary case both pass",
+      "unit": "passing tests",
+      "direction": "improved",
+      "qualitySignal": true
+    }
+  ],
+  "rolloutMode": "fixture-only",
+  "decision": "needs-more-data",
+  "rationale": "A production-shaped native-contract fixture starts from a continued pending-merge claim whose prior terminal finalizer recorded recoveryRequested:false, resolves and reviews the conflict, validates before resolver staging or merge commit, reconciles canonical, merges through the normal gate, releases the claim, removes the worktree, and leaves no recovery projection. Adversarial fixtures keep failed validation, ambiguous intent, out-of-scope edits, delete/modify states, and branch-side renames fail-closed. The shipped Codex fixture no longer accepts a chmod fallback and passed on the trusted host with live denial across both physical Git metadata roots. Promotion remains held only until the committed mechanism is reloaded to complete the live 44f5972e merge, claim transition, and cleanup.",
+  "ownerSafetyExceptions": [],
+  "followUpTaskIds": [
+    "task-terminally-disposition-the-four-residual-workflow"
+  ]
+}

@@ -1,45 +1,15 @@
 import { join } from "node:path";
+import { renderUntrustedContent } from "#core/util/untrusted-content.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 
-const MIN_MARKDOWN_FENCE_LENGTH = 3;
-
-function maxBacktickRun(value: string): number {
-  let longest = 0;
-  let current = 0;
-  for (const char of value) {
-    if (char === "`") {
-      current += 1;
-      longest = Math.max(longest, current);
-    } else {
-      current = 0;
-    }
-  }
-  return longest;
-}
-
-function markdownFenceForContent(value: string): string {
-  return "`".repeat(Math.max(MIN_MARKDOWN_FENCE_LENGTH, maxBacktickRun(value) + 1));
-}
-
-function escapeUntrustedBlockText(value: string): string {
-  return value.replace(/[<>&]/g, (char) => {
-    if (char === "<") return "\\u003c";
-    if (char === ">") return "\\u003e";
-    return "\\u0026";
-  });
-}
-
 function renderFailureOutput(failure: RepairCheckResult): string[] {
-  const output = escapeUntrustedBlockText(failure.output.trim());
-  const fence = markdownFenceForContent(output);
   return [
     `## ${failure.id}`,
-    '<untrusted-content source="repair-check.output">',
-    fence,
-    output,
-    fence,
-    "</untrusted-content>",
+    ...renderUntrustedContent({
+      source: "repair-check.output",
+      content: failure.output.trim(),
+    }).lines,
     "",
   ];
 }

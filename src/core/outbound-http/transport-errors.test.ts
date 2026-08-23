@@ -33,6 +33,35 @@ describe("OutboundHttpTransport errors and telemetry", () => {
     });
   });
 
+  it("keeps streaming responses bounded after response headers arrive", async () => {
+    const transport = publicTransport(async () => new Response("12345"));
+    const result = await transport.requestStream({
+      profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+      operation: "stream-body-limit-fixture",
+      url: "https://api.example/large-stream",
+      limits: { responseBytes: 4 },
+    });
+
+    await expect(result.response.text()).rejects.toMatchObject({
+      failure: { code: "response-too-large", retry: { eligible: false } },
+    });
+  });
+
+  it("allows long-lived streams to delegate their cumulative limit to a bounded consumer", async () => {
+    const body = "x".repeat(1_048_577);
+    const transport = publicTransport(async () => new Response(body));
+    const result = await transport.requestStream(
+      {
+        profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+        operation: "caller-managed-stream-fixture",
+        url: "https://api.example/long-lived-stream",
+      },
+      { responseBodyLimit: "caller-managed" },
+    );
+
+    await expect(result.response.text()).resolves.toBe(body);
+  });
+
   it("redacts telemetry URLs and headers without changing the adapter result", async () => {
     const events: OutboundHttpTelemetryEvent[] = [];
     const transport = new OutboundHttpTransport({

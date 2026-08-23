@@ -8,6 +8,7 @@
  * sandbox.
  */
 
+import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type {
   AgentHarness,
   AgentHarnessReadiness,
@@ -228,13 +229,21 @@ export const geminiCliAgentHarness: AgentHarness = {
       cwd: options.cwd ?? process.cwd(),
       autonomyMode: options.autonomyMode,
       scopePolicy: options.scopePolicy,
+      agentWriteScope: options.agentWriteScope,
+      agentOutputDir: options.agentOutputDir,
     });
+    const runtimeWritableRoots = resolveAgentFilesystemWriteRoots(
+      options.cwd ?? process.cwd(),
+      options.agentWriteScope,
+      options.agentOutputDir,
+    ) === undefined ? undefined : scope.writableRoots;
     const execution = collectTextFromGeminiCli({
       prompt: buildGeminiCliPrompt(options),
       cwd: options.cwd ?? process.cwd(),
       model: options.model,
       approvalMode: geminiApprovalMode(scope.executionMode),
       writableRoots: scope.writableRoots,
+      ...(runtimeWritableRoots === undefined ? {} : { runtimeWritableRoots }),
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

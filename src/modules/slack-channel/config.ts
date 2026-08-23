@@ -6,6 +6,8 @@ import type { SlackChannelInboundSignalConfig } from "./inbound-signal.js";
 export type SlackChannelConfig = {
 	botToken: string;
 	appToken: string;
+	workspaceId?: string;
+	allowedUserIds?: readonly string[];
 	notifyChannel?: string;
 	defaultAutonomyMode?: AutonomyMode;
 	inboundSignals?: SlackChannelInboundSignalConfig;

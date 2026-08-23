@@ -1,70 +1,46 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
 	cleanupAutomationWorktree,
-	createAutomationWorktree,
 	inspectAutomationWorktree,
 	lockAutomationWorktree,
 } from "./worktree-lifecycle.js";
 import { mergeAutomationWorktree } from "./worktree-merge-gate.js";
+import {
+	cleanupMergeGateFixtures,
+	commitFile,
+	createFixtureWorktree,
+	git,
+	initRepo,
+	semanticReviewFeedback,
+} from "./worktree-merge-gate-test-support.js";
 
-const repos: string[] = [];
-
-function git(cwd: string, args: string[]): string {
-	return execFileSync("git", args, {
-		cwd,
-		env: {
-			...withProtectedGitBareRepositoryEnv(),
-			GIT_AUTHOR_NAME: "Test",
-			GIT_AUTHOR_EMAIL: "test@example.com",
-			GIT_COMMITTER_NAME: "Test",
-			GIT_COMMITTER_EMAIL: "test@example.com",
-		},
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "pipe"],
-	}).trim();
-}
-
-function initRepo(label: string): string {
-	const dir = mkdtempSync(join(tmpdir(), `kota-worktree-merge-${label}-`));
-	repos.push(dir);
-	git(dir, ["init", "--quiet", "--initial-branch=main"]);
-	git(dir, ["config", "user.email", "test@example.com"]);
-	git(dir, ["config", "user.name", "Test"]);
-	writeFileSync(join(dir, ".gitignore"), ".kota/\n.worktrees/\n", "utf8");
-	writeFileSync(join(dir, "README.md"), "# Fixture\n", "utf8");
-	git(dir, ["add", ".gitignore", "README.md"]);
-	git(dir, ["commit", "--quiet", "-m", "initial"]);
-	return dir;
-}
-
-function createFixtureWorktree(repo: string, runId = "run-1") {
-	return createAutomationWorktree({
-		projectDir: repo,
-		taskId: "task-merge-gate",
-		runId,
-		workflowId: "builder",
-		owner: "test-owner",
-	});
-}
-
-function commitFile(repo: string, path: string, content: string, message: string): void {
-	writeFileSync(join(repo, path), content, "utf8");
-	git(repo, ["add", path]);
-	git(repo, ["commit", "--quiet", "-m", message]);
-}
-
-afterEach(() => {
-	for (const repo of repos.splice(0)) {
-		rmSync(repo, { recursive: true, force: true });
-	}
-});
+afterEach(cleanupMergeGateFixtures);
 
 describe("automation worktree merge gate", () => {
+	it("records a blocked disposition when registered worktree storage is missing", async () => {
+		const repo = initRepo("missing");
+		const created = createFixtureWorktree(repo);
+		git(repo, ["worktree", "remove", "--force", created.metadata.workspaceDir]);
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+		});
+
+		expect(result).toMatchObject({
+			status: "blocked",
+			headCommit: "",
+			reason: "worktree path is missing",
+		});
+		expect(JSON.parse(readFileSync(result.artifactPath, "utf8"))).toMatchObject({
+			status: "blocked",
+			reason: "worktree path is missing",
+		});
+	});
+
 	it("fast-forwards a clean task branch into the canonical checkout and then cleans up the worktree", async () => {
 		const repo = initRepo("clean");
 		const created = createFixtureWorktree(repo);
@@ -82,7 +58,7 @@ describe("automation worktree merge gate", () => {
 			validationCommand: ["node", "-e", "process.exit(0)"],
 		});
 
-		expect(result.status).toBe("merged");
+		expect(result).toMatchObject({ status: "merged", reason: null });
 		expect(result.validation?.passed).toBe(true);
 		expect(readFileSync(join(repo, "feature.txt"), "utf8")).toBe("ready\n");
 
@@ -157,7 +133,11 @@ describe("automation worktree merge gate", () => {
 			validationCommand: [
 				"node",
 				"-e",
-				"process.exit(require('fs').readFileSync('settings.txt','utf8') === 'value=resolved\\n' ? 0 : 1)",
+				[
+					"const resolved = require('fs').readFileSync('settings.txt','utf8') === 'value=resolved\\n'",
+					"const unmerged = require('child_process').execFileSync('git',['ls-files','-u','--','settings.txt'],{encoding:'utf8'}).trim().length > 0",
+					"process.exit(resolved && unmerged ? 0 : 1)",
+				].join("; "),
 			],
 			resolver: ({ workspaceDir, conflicts, previousValidation }) => {
 				attempts += 1;
@@ -171,11 +151,81 @@ describe("automation worktree merge gate", () => {
 			maxResolutionAttempts: 2,
 		});
 
-		expect(result.status).toBe("merged");
+		expect(result).toMatchObject({ status: "merged", reason: null });
 		expect(attempts).toBe(1);
 		expect(result.resolutionAttempts).toBe(1);
 		expect(result.validation?.passed).toBe(true);
 		expect(readFileSync(join(repo, "settings.txt"), "utf8")).toBe("value=resolved\n");
+	});
+
+	it("feeds structured semantic review back into the remaining bounded attempt", async () => {
+		const repo = initRepo("semantic-review-retry");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch setting");
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical setting");
+		let attempts = 0;
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(require('fs').readFileSync('settings.txt','utf8') === 'value=canonical\\n' ? 0 : 1)"],
+			resolver: (request) => {
+				attempts += 1;
+				if (attempts === 1) {
+					writeFileSync(join(request.workspaceDir, "settings.txt"), "value=unscoped\n", "utf8");
+					return {
+						resolved: false,
+						summary: "branch rewrite is unrelated to the task",
+						reviewFeedback: semanticReviewFeedback("settings.txt"),
+					};
+				}
+				expect(request.previousReview?.pathJudgments).toEqual([
+					expect.objectContaining({ path: "settings.txt", decision: "accept-canonical" }),
+				]);
+				writeFileSync(join(request.workspaceDir, "settings.txt"), "value=canonical\n", "utf8");
+				return { resolved: true, summary: "accepted canonical text" };
+			},
+			maxResolutionAttempts: 2,
+		});
+
+		expect(result).toMatchObject({ status: "merged", resolutionAttempts: 2 });
+		expect(attempts).toBe(2);
+		expect(readFileSync(join(repo, "settings.txt"), "utf8")).toBe("value=canonical\n");
+	});
+
+	it("blocks semantic-review retry when the rejected attempt crossed its path boundary", async () => {
+		const repo = initRepo("semantic-review-boundary");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch setting");
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical setting");
+		let attempts = 0;
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			resolver: (request) => {
+				attempts += 1;
+				writeFileSync(join(request.workspaceDir, "settings.txt"), "value=unscoped\n", "utf8");
+				writeFileSync(join(request.workspaceDir, "outside.txt"), "outside\n", "utf8");
+				return {
+					resolved: false,
+					summary: "needs a scoped correction",
+					reviewFeedback: semanticReviewFeedback("settings.txt"),
+				};
+			},
+			maxResolutionAttempts: 2,
+		});
+
+		expect(attempts).toBe(1);
+		expect(result).toMatchObject({
+			status: "blocked",
+			reason: "merge resolver left untracked paths outside allowed textual conflicts",
+			conflicts: [{ path: "outside.txt", kind: "blocked-path" }],
+		});
 	});
 
 	it("blocks resolver-staged paths outside the allowed textual conflicts before validation or commit", async () => {
@@ -313,7 +363,9 @@ describe("automation worktree merge gate", () => {
 		});
 
 		expect(result.status).toBe("blocked");
-		expect(result.reason).toBe("merge contains binary, generated, or high-risk conflicts");
+		expect(result.reason).toBe(
+			"merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
+		);
 		expect(result.conflicts).toEqual([
 			{ path: "asset.bin", kind: "binary", reason: "binary conflict requires manual merge" },
 		]);
@@ -331,5 +383,91 @@ describe("automation worktree merge gate", () => {
 			]),
 		);
 		expect(existsSync(result.artifactPath)).toBe(true);
+	});
+
+	it("keeps a branch-side deletion away from the bounded resolver", async () => {
+		const repo = initRepo("branch-delete");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		git(created.metadata.workspaceDir, ["rm", "settings.txt"]);
+		git(created.metadata.workspaceDir, ["commit", "--quiet", "-m", "branch deletes settings"]);
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical modifies settings");
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+			resolver: () => {
+				throw new Error("branch deletion must not reach the bounded resolver");
+			},
+		});
+
+		expect(result).toMatchObject({
+			status: "blocked",
+			reason: "merge contains binary, generated, rename, or structural conflicts outside canonical destructive paths",
+			conflicts: [{
+				path: "settings.txt",
+				kind: "blocked-path",
+				reason: "delete/modify or structural conflict requires explicit disposition evidence",
+			}],
+			validation: null,
+		});
+	});
+
+	it("lets the bounded resolver accept a canonical deletion", async () => {
+		const repo = initRepo("canonical-delete");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch modifies settings");
+		git(repo, ["rm", "settings.txt"]);
+		git(repo, ["commit", "--quiet", "-m", "canonical deletes settings"]);
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+			resolver: ({ workspaceDir }) => {
+				rmSync(join(workspaceDir, "settings.txt"));
+				return { resolved: true, summary: "accepted canonical deletion" };
+			},
+		});
+
+		expect(result).toMatchObject({
+			status: "merged",
+			conflicts: [],
+			validation: { passed: true },
+		});
+		expect(existsSync(join(repo, "settings.txt"))).toBe(false);
+	});
+
+	it("blocks a resolver that leaves a canonical destructive path present", async () => {
+		const repo = initRepo("canonical-delete-resurrected");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch modifies settings");
+		git(repo, ["rm", "settings.txt"]);
+		git(repo, ["commit", "--quiet", "-m", "canonical deletes settings"]);
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(0)"],
+			resolver: () => ({ resolved: true, summary: "kept branch path" }),
+		});
+
+		expect(result).toMatchObject({
+			status: "blocked",
+			reason: "resolved merge would resurrect paths deleted or renamed on canonical",
+			conflicts: [{
+				path: "settings.txt",
+				kind: "blocked-path",
+				reason: "canonical deletion or rename must remain authoritative",
+			}],
+			validation: null,
+		});
+		expect(git(created.metadata.workspaceDir, ["ls-files", "-u", "--", "settings.txt"])).not.toBe("");
 	});
 });

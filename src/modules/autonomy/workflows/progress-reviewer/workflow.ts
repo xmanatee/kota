@@ -1,4 +1,3 @@
-import { GLOBAL_SCOPE_ID } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   onRecoveryTrigger,
@@ -9,18 +8,24 @@ import {
   stepCommitRequiresDaemonRestart,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { progressReviewRequested } from "./events.js";
+import {
+  automaticProgressReviewRequested,
+  progressReviewRequested,
+} from "./events.js";
 import {
   decodeProgressReviewAgentOutput,
-  PROGRESS_REVIEW_SCHEDULE_EVENT,
+  validateProgressReviewAgentStepOutput,
 } from "./progress-review.js";
+import { admitProgressReviewTrigger } from "./semantic-input.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
 import {
   agent,
   applyActions,
   collectEvidence,
   commitChanges,
+  deferSemanticInput,
   emptyActions,
+  inspectSemanticInput,
   inspectWorktree,
   needsAttention,
   prepareReviewInput,
@@ -33,44 +38,24 @@ import {
 const progressReviewerWorkflow: WorkflowDefinitionInput = {
   name: "progress-reviewer",
   description:
-    "Review bounded scoped activity evidence and create normal follow-up tasks or owner questions when steering is needed.",
+    "Review revisioned strategic boundaries against canonical scope state and reconcile normal steering work.",
   tags: ["progress-reviewer"],
   recoveryCapable: true,
   // Capable-tier presets may resolve to a native CLI harness. The reviewer is
-  // still bounded by its AgentDef writeScope and the whole-step mutation check.
+  // bounded by its projected AgentDef writeScope plus the post-step mutation
+  // check.
   defaultAutonomyMode: "autonomous",
+  triggerAdmission: admitProgressReviewTrigger,
   triggers: [
     {
       event: progressReviewRequested.name,
-      cooldownMs: 60_000,
+      cooldownMs: 0,
+      queueMode: "all",
     },
     {
-      event: PROGRESS_REVIEW_SCHEDULE_EVENT,
-      schedule: "0 */6 * * *",
-      runOn: "default-scope",
-      payload: { scopeId: GLOBAL_SCOPE_ID },
-      cooldownMs: 60 * 60 * 1000,
-    },
-    {
-      event: "workflow.completed",
-      filter: { tags: ["monitored"] },
-      batch: {
-        maxCount: 5,
-        maxAgeMs: 6 * 60 * 60 * 1000,
-        groupBy: "projectId",
-        maxBufferSize: 20,
-        overflow: "flush-oldest",
-      },
-    },
-    {
-      event: "workflow.build.committed",
-      batch: {
-        maxCount: 3,
-        maxAgeMs: 6 * 60 * 60 * 1000,
-        groupBy: "projectId",
-        maxBufferSize: 12,
-        overflow: "flush-oldest",
-      },
+      event: automaticProgressReviewRequested.name,
+      cooldownMs: 0,
+      queueMode: "latest",
     },
     {
       event: "runtime.recovered",
@@ -87,7 +72,9 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
           workflowName: "progress-reviewer",
         }),
     },
+    inspectSemanticInput,
     inspectWorktree,
+    deferSemanticInput,
     collectEvidence,
     prepareReviewInput,
     {
@@ -101,9 +88,10 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       maxTurns: 8,
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
-      validate: decodeProgressReviewAgentOutput,
+      validate: validateProgressReviewAgentStepOutput,
       when: (ctx) =>
         stepSucceeded("prepare-review-input")(ctx) &&
+        inspectSemanticInput.output(ctx)?.shouldReview === true &&
         inspectWorktree.output(ctx)?.dirty === false,
     },
     applyActions,

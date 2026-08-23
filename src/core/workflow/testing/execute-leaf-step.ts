@@ -41,7 +41,7 @@ export async function executeLeafStep(
   try {
     if (step.type === "code") {
       const rawOutput = await step.run(context);
-      output = validateWorkflowStepOutput(step, rawOutput);
+      output = validateWorkflowStepOutput(step, rawOutput, context);
     } else if (step.type === "agent") {
       if (!(step.id in state.stepMocks)) {
         throw new Error(
@@ -51,6 +51,7 @@ export async function executeLeafStep(
       output = validateWorkflowStepOutput(
         step,
         await resolveStepMock(state.stepMocks[step.id], context),
+        context,
       );
     } else if (step.type === "tool") {
       if (step.id in state.stepMocks) {

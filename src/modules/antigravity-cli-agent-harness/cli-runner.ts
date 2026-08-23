@@ -70,6 +70,7 @@ type CollectTextFromAntigravityCliArgs = {
   outputSchema?: AgentOutputSchema;
   readOnly: boolean;
   writableRoots: readonly string[];
+  runtimeWritableRoots?: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   resumeSessionId?: string;
@@ -274,6 +275,7 @@ export async function collectTextFromAntigravityCli(
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
+      runtimeWritableRoots: args.runtimeWritableRoots,
       env: buildAntigravityCliEnvironment({
         inheritedEnv: process.env,
         overrides: args.env,

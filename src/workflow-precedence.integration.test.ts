@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
-import { ModuleLoader } from "#core/modules/module-loader.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -98,7 +98,7 @@ export default {
 `,
       );
 
-      const loader = new ModuleLoader({}, false, { globalConfigPath });
+      const loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
       loader.setCwd(projectDir);
       const installed = await discoverModules(projectDir, false, {
         globalConfigPath,
@@ -180,7 +180,7 @@ export default {
         ],
       };
 
-      const loader = new ModuleLoader({}, false, { globalConfigPath });
+      const loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
       loader.setCwd(projectDir);
       const installed = await discoverModules(projectDir, false, {
         globalConfigPath,

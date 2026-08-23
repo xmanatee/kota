@@ -10,7 +10,7 @@ import { initScheduler, setSchedulerInstance } from "#core/daemon/scheduler.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
-import { tryEmit } from "#core/events/event-bus.js";
+import { initEventBus, tryEmit } from "#core/events/event-bus.js";
 import { remoteMcpToolDescriptionQualityReportsFromManager } from "#core/mcp/tool-description-quality.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
@@ -148,8 +148,11 @@ export function initAgentSession(
     state.idempotencyStore = idempotencyStore;
   }
   initChangeTracker();
-  initProviderRegistry();
-  registerDefaultProviders();
+  state.ownsModuleRuntime = options.moduleLoader === undefined;
+  if (state.ownsModuleRuntime) {
+    initProviderRegistry();
+    registerDefaultProviders();
+  }
 
   state.projectContext = loadProjectContext(projectDir, projectDir);
   const projectContext = state.projectContext;
@@ -202,8 +205,14 @@ export function initAgentSession(
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands(projectDir));
 
-  state.moduleLoader = new ModuleLoader(options.config || {}, state.verbose);
-  state.moduleLoader.setCwd(projectDir);
+  state.moduleLoader = options.moduleLoader
+    ?? new ModuleLoader(options.config || {}, state.verbose);
+  if (state.ownsModuleRuntime) {
+    state.moduleLoader.setCwd(projectDir);
+    state.moduleLoader.setBus(
+      options.projectRuntime?.pbus.getUnderlying() ?? initEventBus(),
+    );
+  }
   const configuredModelProvider = options.config?.modelProvider;
   const delegateModelProvider = configuredModelProvider
     ? {
@@ -260,7 +269,7 @@ export function initAgentSession(
       };
     });
   }
-  state.moduleLoader.setSessionFactory(sessionFactory);
+  if (state.ownsModuleRuntime) state.moduleLoader.setSessionFactory(sessionFactory);
 
   state.stateMachine = new SessionStateMachine();
   state.stateMachine.onChange((from, to, meta) => {

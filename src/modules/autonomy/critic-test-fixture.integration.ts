@@ -39,8 +39,8 @@ const mockRunBlocking = vi.fn(
   },
 );
 
-vi.mock("./task-probe-sandbox.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./task-probe-sandbox.js")>()),
+vi.mock("#core/agent-harness/task-probe-sandbox.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#core/agent-harness/task-probe-sandbox.js")>()),
   resolveTaskProbeSandbox: vi.fn(() => ({
     status: "available",
     kind: "linux-bubblewrap",

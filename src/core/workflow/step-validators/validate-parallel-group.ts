@@ -75,6 +75,7 @@ export function validateParallelGroup(
       {
         allowWorkspaceDirUpdate: false,
         allowRuntimeResourcesUpdate: false,
+        allowRerunOnRetry: false,
       },
       options,
       workflowName,

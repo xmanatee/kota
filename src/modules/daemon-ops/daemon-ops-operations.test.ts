@@ -81,7 +81,9 @@ describe("localDaemonStop", () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(init.headers).toMatchObject({ Authorization: "Bearer expected-token" });
+    expect(new Headers(init.headers).get("Authorization")).toBe(
+      "Bearer expected-token",
+    );
     expect(killSpy).not.toHaveBeenCalledWith(pid, "SIGTERM");
   });
 

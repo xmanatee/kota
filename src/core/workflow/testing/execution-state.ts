@@ -1,3 +1,6 @@
+import type {
+  ScopePolicySnapshot,
+} from "#core/daemon/scope-policy.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowBlockingOperation,
@@ -80,6 +83,7 @@ export class HarnessExecutionState {
 
   workspaceDir: string;
   runtimeResources: WorkflowRuntimeResources | undefined;
+  scopePolicySnapshot: ScopePolicySnapshot | undefined;
   restartRequested: string | undefined;
   runFailed = false;
   runError: string | undefined;
@@ -94,6 +98,7 @@ export class HarnessExecutionState {
     this.projectDir = input.projectDir;
     this.workspaceDir = input.workspaceDir;
     this.runtimeResources = input.runtimeResources;
+    this.scopePolicySnapshot = options.scopePolicySnapshot;
     this.trigger = input.trigger;
     this.stepMocks = options.stepMocks ?? {};
     this.runParallel = options.parallel ?? false;
@@ -116,6 +121,9 @@ export class HarnessExecutionState {
       workspaceDir: this.workspaceDir,
       ...(this.runtimeResources !== undefined
         ? { runtimeResources: this.runtimeResources }
+        : {}),
+      ...(this.scopePolicySnapshot !== undefined
+        ? { scopePolicySnapshot: this.scopePolicySnapshot }
         : {}),
       workflow: {
         name: this.workflow.name,

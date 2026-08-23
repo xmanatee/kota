@@ -7,7 +7,7 @@ export const TASK_INITIATIVE_PLACEHOLDER =
 export const TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER =
   "- Describe the command, artifact, transcript, screenshot, fixture, or demo that will prove the task is actually done.";
 
-function extractRepoTaskSection(raw: string, heading: string): string | null {
+export function extractRepoTaskSection(raw: string, heading: string): string | null {
   const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = raw.match(
     new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m"),

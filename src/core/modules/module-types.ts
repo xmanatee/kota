@@ -10,11 +10,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
+import type { ProjectId } from "#core/daemon/scope-registry.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import type {
   ModuleEventDef,
   ModuleEventPayload,
 } from "#core/events/module-event.js";
+import type { Transport } from "#core/loop/transport.js";
+import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolEffect } from "#core/tools/effect.js";
 import type { ToolRunner } from "#core/tools/index.js";
 import type { ToolEffectResolver } from "#core/tools/tool-effect-registry.js";
@@ -125,8 +128,8 @@ export type ModuleEventProxy = {
     handler: (payload: Record<string, unknown>) => void,
   ): () => void;
   /**
-   * Number of subscribers for the given event name (or all events if
-   * omitted). Returns 0 if the bus is not available.
+   * Number of subscribers for the given event name (or all events if omitted).
+   * Throws when no runtime EventBus is bound.
    */
   listenerCount(event?: string): number;
 };
@@ -145,6 +148,14 @@ export type CreateSessionOptions = {
   label?: string;
   /** If true, conversation won't be saved to history. Default: true for module sessions. */
   noHistory?: boolean;
+  /** Explicit posture for host-created sessions; child sessions otherwise inherit their parent. */
+  autonomyMode?: AutonomyMode;
+  /** Host scope for a session created outside an existing parent session. */
+  projectId?: ProjectId;
+  /** Optional module-owned response transport. */
+  transport?: Transport;
+  historySource?: "user" | "action";
+  reflectionEnabled?: boolean;
 };
 
 /** A tool definition contributed by a module. */

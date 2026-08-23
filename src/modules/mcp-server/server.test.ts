@@ -117,6 +117,7 @@ function mockDefaultProviders(): void {
 
 beforeAll(async () => {
 	const loader = new ModuleLoader({});
+	loader.setBus(new EventBus());
 	await loader.loadAll([renderingModule, filesystemModule, executionModule]);
 
 	// Register stubs for tools whose owning modules need real credentials at

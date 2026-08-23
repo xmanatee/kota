@@ -1,0 +1,5 @@
+1. A task can opt into a typed production replacement declaration naming its retired boundary, replacement owner, live ingresses, restart ingresses, observable effect, non-test production entrypoints, production tests, retired-path check, and durable projected evidence artifact.
+2. The canonical task completion path executes the declared production tests and rejects missing, malformed, inactive, bypassed, or failing replacement proof before moving the task to done.
+3. Production-shaped regressions cover the unattached EventBus failure and persisted-run restore-admission bypass through the real daemon/module and workflow runtime lifecycle roots.
+4. Registered completion evidence binds positive owner-bound effects for every ingress and negative retired-path assertions to isolated passing tests with runtime provenance from the declared production entrypoints.
+5. Architecture, task-authoring, and repo-task ownership guidance require the production adoption proof for future cross-cutting runtime replacements.

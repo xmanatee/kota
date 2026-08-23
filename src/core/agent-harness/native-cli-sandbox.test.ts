@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,6 +50,46 @@ async function runNativeProcess(
 }
 
 describe("native CLI live sandbox", () => {
+  it("projects linked-worktree Git directories into the write-protected boundary", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-native-git-boundary-"));
+    roots.push(root);
+    const projectDir = join(root, "project");
+    const worktreeDir = join(root, "linked");
+    mkdirSync(projectDir);
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    writeFileSync(join(projectDir, "tracked.txt"), "tracked\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: projectDir });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    execFileSync("git", ["worktree", "add", "-q", "-b", "linked", worktreeDir], {
+      cwd: projectDir,
+    });
+    let protectedPaths: readonly string[] = [];
+
+    await withNativeCliSandbox(
+      "/bin/sh",
+      ["-c", "true"],
+      {
+        cwd: worktreeDir,
+        machineAuthorityOwner: "native-cli",
+        writableRoots: [join(worktreeDir, "tracked.txt")],
+        env: buildNativeCliEnvironment(),
+        prepareEnvironment: (context, env) => {
+          protectedPaths = context.writeProtectedPaths;
+          return env;
+        },
+      },
+      async () => undefined,
+    );
+
+    expect(protectedPaths).toEqual(expect.arrayContaining([
+      join(worktreeDir, ".git"),
+      realpathSync.native(join(projectDir, ".git", "worktrees", "linked")),
+      realpathSync.native(join(projectDir, ".git")),
+    ]));
+  });
+
   it.runIf(process.platform === "darwin")(
     "denies host-file reads outside declared roots",
     async () => {

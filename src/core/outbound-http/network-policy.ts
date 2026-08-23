@@ -38,6 +38,19 @@ export async function validateOutboundHttpTarget(
         throw new OutboundHttpTargetPolicyError(`target origin ${url.origin} is not selected by the ${profile.name} profile`);
       }
       return;
+    case "oauth-metadata-endpoint":
+      if (!profile.allowedOrigins.includes(url.origin)) {
+        throw new OutboundHttpTargetPolicyError(`target origin ${url.origin} is not selected by the ${profile.name} profile`);
+      }
+      if (url.protocol !== "https:") {
+        throw new OutboundHttpTargetPolicyError("oauth-metadata-endpoint requests require HTTPS");
+      }
+      await resolvePublicOutboundAddresses(
+        url.hostname,
+        resolveAddresses,
+        "oauth-metadata-endpoint",
+      );
+      return;
     case "daemon-loopback":
       if (!isLoopbackHost(normalizeHostname(url.hostname))) {
         throw new OutboundHttpTargetPolicyError("daemon-loopback requests require a literal loopback target");
@@ -54,18 +67,57 @@ export async function validateOutboundHttpTarget(
   }
 }
 
+/**
+ * Revalidates a previously selected target at the socket boundary and returns
+ * the exact address the caller must connect to. Public profiles deliberately
+ * resolve once during target validation and again here so a DNS answer cannot
+ * change to a private address between policy selection and connection.
+ */
+export async function resolveOutboundHttpConnectionAddress(
+  url: URL,
+  profile: OutboundHttpProfile,
+  resolveAddresses: OutboundHttpAddressResolver,
+): Promise<ResolvedOutboundAddress> {
+  await validateOutboundHttpTarget(url, profile, resolveAddresses);
+
+  const addresses =
+    profile.name === "public-untrusted" || profile.name === "oauth-metadata-endpoint"
+      ? await resolvePublicOutboundAddresses(url.hostname, resolveAddresses, profile.name)
+      : await resolveConnectionAddresses(url.hostname, resolveAddresses);
+
+  if (profile.name === "daemon-loopback") {
+    const nonLoopback = addresses.find(
+      (address) => !isLoopbackHost(normalizeHostname(address.address)),
+    );
+    if (nonLoopback) {
+      throw new OutboundHttpTargetPolicyError(
+        `daemon-loopback target resolved outside loopback: ${nonLoopback.address}`,
+      );
+    }
+  }
+
+  const selected = addresses[0];
+  if (!selected) {
+    throw new OutboundHttpTargetPolicyError(
+      `unable to resolve outbound connection target ${normalizeHostname(url.hostname)}: no addresses returned`,
+    );
+  }
+  return selected;
+}
+
 export async function resolvePublicOutboundAddresses(
   hostname: string,
   resolveAddresses: OutboundHttpAddressResolver,
+  policyLabel = "public-untrusted",
 ): Promise<readonly ResolvedOutboundAddress[]> {
   const normalized = normalizeHostname(hostname);
   if (normalized === "localhost" || normalized.endsWith(".localhost")) {
-    throw blockedPublicTarget(normalized);
+    throw blockedPublicTarget(normalized, policyLabel);
   }
 
   const version = isIP(normalized);
   if (version === 4 || version === 6) {
-    if (isNonPublicAddress(normalized)) throw blockedPublicTarget(normalized);
+    if (isNonPublicAddress(normalized)) throw blockedPublicTarget(normalized, policyLabel);
     return [{ address: normalized, family: version }];
   }
 
@@ -80,13 +132,37 @@ export async function resolvePublicOutboundAddresses(
     throw new OutboundHttpTargetPolicyError(`unable to resolve public outbound target ${normalized}: no addresses returned`);
   }
   const blocked = addresses.find((address) => isNonPublicAddress(normalizeHostname(address.address)));
-  if (blocked) throw blockedPublicTarget(normalized, blocked.address);
+  if (blocked) throw blockedPublicTarget(normalized, policyLabel, blocked.address);
   return addresses;
 }
 
-function blockedPublicTarget(hostname: string, resolvedAddress?: string): OutboundHttpTargetPolicyError {
+async function resolveConnectionAddresses(
+  hostname: string,
+  resolveAddresses: OutboundHttpAddressResolver,
+): Promise<readonly ResolvedOutboundAddress[]> {
+  const normalized = normalizeHostname(hostname);
+  const version = isIP(normalized);
+  if (version === 4 || version === 6) {
+    return [{ address: normalized, family: version }];
+  }
+
+  try {
+    return await resolveAddresses(normalized);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new OutboundHttpTargetPolicyError(
+      `unable to resolve outbound connection target ${normalized}: ${message}`,
+    );
+  }
+}
+
+function blockedPublicTarget(
+  hostname: string,
+  policyLabel: string,
+  resolvedAddress?: string,
+): OutboundHttpTargetPolicyError {
   const target = resolvedAddress ? `${hostname} -> ${resolvedAddress}` : hostname;
-  return new OutboundHttpTargetPolicyError(`public-untrusted access to loopback/private-network targets is blocked: ${target}`);
+  return new OutboundHttpTargetPolicyError(`${policyLabel} access to loopback/private-network targets is blocked: ${target}`);
 }
 
 function normalizeHostname(hostname: string): string {

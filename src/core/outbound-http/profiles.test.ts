@@ -36,6 +36,12 @@ const PROFILE_CASES: ProfileCase[] = [
     deniedUrl: "https://issuer.example/me",
   },
   {
+    name: "oauth-metadata-endpoint",
+    profile: OUTBOUND_HTTP_PROFILES.oauthMetadataEndpoint(["https://tokens.example"]),
+    allowedUrl: "https://tokens.example/token",
+    deniedUrl: "https://issuer.example/token",
+  },
+  {
     name: "daemon-loopback",
     profile: OUTBOUND_HTTP_PROFILES.daemonLoopback,
     allowedUrl: "http://127.0.0.1:43100/health",
@@ -50,7 +56,7 @@ const PROFILE_CASES: ProfileCase[] = [
 ];
 
 describe("outbound HTTP profiles", () => {
-  it("exposes only the five closed profile names and complete policies", () => {
+  it("exposes only the six closed profile names and complete policies", () => {
     expect(Object.keys(OUTBOUND_HTTP_POLICY_MATRIX)).toEqual(OUTBOUND_HTTP_PROFILE_NAMES);
     for (const name of OUTBOUND_HTTP_PROFILE_NAMES) {
       const policy = OUTBOUND_HTTP_POLICY_MATRIX[name];
@@ -105,6 +111,64 @@ describe("outbound HTTP profiles", () => {
       }),
     ).rejects.toMatchObject({ failure: { code: "target-denied" } });
     expect(dispatcher).not.toHaveBeenCalled();
+  });
+
+  it("rejects private OAuth metadata endpoints before credential-bearing dispatch", async () => {
+    const dispatcher = vi.fn(async () => new Response("must not run"));
+    const transport = new OutboundHttpTransport({
+      dispatcher,
+      resolveAddresses: async () => [{ address: "10.0.0.8", family: 4 }],
+    });
+
+    await expect(
+      transport.request({
+        profile: OUTBOUND_HTTP_PROFILES.oauthMetadataEndpoint([
+          "https://tokens.example/token",
+        ]),
+        operation: "oauth-token-fixture",
+        url: "https://tokens.example/token",
+        method: "POST",
+        headers: { Authorization: "Basic secret" },
+        body: "grant_type=client_credentials",
+      }),
+    ).rejects.toMatchObject({
+      failure: { code: "target-denied", profile: "oauth-metadata-endpoint" },
+    });
+    expect(dispatcher).not.toHaveBeenCalled();
+  });
+
+  it("requires HTTPS when selecting an OAuth metadata endpoint origin", () => {
+    expect(() =>
+      OUTBOUND_HTTP_PROFILES.oauthMetadataEndpoint([
+        "http://tokens.example/token",
+      ])
+    ).toThrow(/must use https/);
+  });
+
+  it("allows an explicitly configured OAuth origin to select a private target", async () => {
+    const dispatcher = vi.fn(async () => new Response("ok"));
+    const resolveAddresses = vi.fn(async () => [
+      { address: "127.0.0.1", family: 4 as const },
+    ]);
+    const transport = new OutboundHttpTransport({
+      dispatcher,
+      resolveAddresses,
+    });
+
+    const result = await transport.request({
+      profile: OUTBOUND_HTTP_PROFILES.oauthProtectedResource([
+        "https://127.0.0.1",
+      ]),
+      operation: "configured-private-oauth-fixture",
+      url: "https://127.0.0.1/token",
+      method: "POST",
+      headers: { Authorization: "Basic secret" },
+      body: "grant_type=client_credentials",
+    });
+
+    expect(await result.response.text()).toBe("ok");
+    expect(dispatcher).toHaveBeenCalledOnce();
+    expect(resolveAddresses).not.toHaveBeenCalled();
   });
 
   it("fails closed when a caller requests limits above a profile maximum", async () => {

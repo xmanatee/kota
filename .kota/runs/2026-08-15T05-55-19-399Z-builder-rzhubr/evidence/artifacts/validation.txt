@@ -1,0 +1,33 @@
+Focused runtime regression
+PASS: pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts -t "redrives an unreadable artifact failure" --reporter=junit --outputFile .kota/builder-evidence/2026-08-15T05-55-19-399Z-builder-rzhubr/artifacts/runtime-redrive-transcript.txt
+Result: 1 passed through WorkflowRuntime and the persistent dead-letter store. The trace records an initial failed EACCES dispatch/open dead letter, a successful replacement run, the original item transitioned to redriven, a-before.txt and z-after.txt retained, m-unreadable excluded, and an ending queue of open=0/total=1.
+
+Focused workflow and policy suite
+PASS: pnpm exec vitest run --configLoader runner src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/strict-types-policy.integration.test.ts src/modules/autonomy/autonomy-change-decision.test.ts
+Result: 3 files passed, 43 tests passed.
+
+Static validation
+PASS: pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/progress-review/artifact-evidence.ts src/modules/autonomy/workflows/progress-reviewer/progress-review/internal-types.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts
+Result: 3 files checked with no fixes required.
+PASS: pnpm run typecheck
+Result: TypeScript completed with no errors.
+PASS: builder evidence policy inspection through the Node source loader
+Result: all 7 registered builder evidence files are ready, including the runtime redrive JUnit trace.
+PASS: autonomy change classification and decision parsing through the Node source loader
+Result: the two material progress-reviewer helper files classify as reviewer changes, and autonomy-change-decision.json is valid and covers reviewer.
+
+Task lifecycle
+PASS: the canonical task mover transitioned task-make-workflow-evidence-collection-tolerate-unreada from ready to doing and then done while preserving dead-letter dlq-69a4e56a-2119-4b30-b661-aa07517a4d83 in the task body.
+PASS: pnpm run validate-tasks
+Result: the staged canonical task transition passes queue validation.
+
+Post-check source-size repair
+PASS: moved the runtime redrive regression into workflow.runtime-redrive.test.ts (259 lines) and restored workflow.test.ts to its pre-task size.
+PASS: NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/progress-reviewer/workflow.runtime-redrive.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts
+Result: 2 files passed, 38 tests passed.
+PASS: pnpm exec biome check src/modules/autonomy/workflows/progress-reviewer/workflow.test.ts src/modules/autonomy/workflows/progress-reviewer/workflow.runtime-redrive.test.ts
+Result: 2 files checked with no fixes required.
+PASS: pnpm run typecheck
+Result: TypeScript completed with no errors after the test split.
+PASS: source-size policy evaluated against the final tracked diff plus the new test file.
+Result: no source-size warnings; the substantial-growth blocker is resolved.

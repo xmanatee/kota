@@ -69,6 +69,13 @@ export type WorkflowDefinitionInput = {
     | number
     | ((input: WorkflowDispatchBurstInput) => number);
   /**
+   * Optional definition-owned admission check that runs after trigger payload
+   * validation but before any pending-queue or dispatch-idempotency mutation.
+   * Use this for canonical, scope-local replay watermarks that cannot be
+   * expressed by an event filter alone.
+   */
+  triggerAdmission?: WorkflowTriggerAdmissionResolver;
+  /**
    * Optional JSON Schema object describing the expected shape of trigger payloads.
    * When present, the runtime validates each trigger payload against this schema
    * before queuing the run. Invalid payloads are rejected with a descriptive error.
@@ -130,6 +137,20 @@ export type WorkflowDispatchBurstInput = WorkflowConcurrencyInput & {
   trigger: WorkflowRunTrigger;
 };
 
+export type WorkflowTriggerAdmissionInput = {
+  projectDir: string;
+  workflowName: string;
+  trigger: WorkflowRunTrigger;
+};
+
+export type WorkflowTriggerAdmissionDecision =
+  | { admitted: true }
+  | { admitted: false; reason: string };
+
+export type WorkflowTriggerAdmissionResolver = (
+  input: WorkflowTriggerAdmissionInput,
+) => WorkflowTriggerAdmissionDecision;
+
 export type WorkflowContributionSource = "project" | "installed" | "foreign";
 
 export type RegisteredWorkflowDefinitionInput = WorkflowDefinitionInput & {
@@ -189,6 +210,8 @@ export type WorkflowDefinition = {
   dispatchBurst?:
     | number
     | ((input: WorkflowDispatchBurstInput) => number);
+  /** Definition-owned pre-queue semantic replay admission. */
+  triggerAdmission?: WorkflowTriggerAdmissionResolver;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
   inputSchema?: Record<string, unknown>;
   /** Optional JSON Schema for validating the last step output on successful completion. */

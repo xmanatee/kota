@@ -1,0 +1,97 @@
+Runtime module event lifecycle and scoped routing evidence
+Run: 2026-08-14T09-21-39-818Z-builder-22fj23
+
+Post-check repair outcomes
+
+- Production loadRuntimeModules requires the host EventBus before discovery or lifecycle execution. Low-level ModuleLoader event proxies also reject every operation when no bus is bound.
+- If an aggregate load fails, every subscription installed by that attempt is removed while preserving the loader's established partial-load reporting semantics.
+- Daemon, HTTP server, Slack, Telegram, webhook, and Vercel-created AgentSessions borrow the already-loaded host ModuleLoader. Borrowed sessions do not rediscover modules, duplicate host event subscriptions, reset the provider registry, or unload host state on close.
+- Module contexts resolve their session factory dynamically, allowing daemon/server hosts to install the factory after module onLoad while preserving the original module contexts.
+
+Direct lifecycle and context validation
+
+Observed repair assertions:
+- loadRuntimeModules without a host bus rejects before module discovery.
+- A later aggregate-load failure removes an earlier module's listener without inventing rollback lifecycle calls.
+- A module context created before host session-factory installation uses the later installed factory.
+- Event proxy emit, subscribe, emitExternal, subscribeExternal, and listenerCount operations all throw without runtime authority.
+
+Production daemon assembly, session ownership, and restart
+
+Command:
+pnpm test src/daemon-runtime-load.integration.test.ts
+
+Result after repair attempt 9: 1 file passed, 3 tests passed.
+
+Observed assertions in the production runtime-loader/Daemon fixture:
+- The initial runtime module load installed a positive workflow.failure.alert listener count before the daemon started.
+- The daemon served the provider-backed /api/knowledge route with HTTP 200 on that same EventBus.
+- The first daemon stop and module unload returned workflow.failure.alert listeners to 0.
+- A fresh runtime loader bound to the same host EventBus restored exactly the initial listener count, without duplication.
+- POST /sessions created a real daemon AgentSession without changing the host listener count or dropping the daemon runtime-scope provider.
+- After restart, one scoped workflow.failure.alert produced one autonomy.health.signal, one needs-decision projected issue, and one autonomy.issue.decision-requested event.
+- The daemon EventJournal contained exactly one scoped health event and one scoped decision handoff.
+- DELETE /sessions/:id closed the AgentSession without changing the host listener count or replacing the runtime-scope provider.
+- The second daemon stop and module unload again returned workflow.failure.alert listeners to 0.
+
+Production two-scope all-source acceptance
+
+Command:
+NODE_OPTIONS=--conditions=source pnpm exec vitest run src/daemon-runtime-scoped-events.integration.test.ts --configLoader runner --silent=true
+
+Result after repair attempt 10: 1 file passed, 1 test passed.
+
+Observed assertions in one production loadRuntimeModules + Daemon assembly:
+- All five source event names had active module onLoad listeners before daemon startup, and both configured directory scopes were hosted by the same daemon EventBus.
+- Interleaved workflow failure, review scrutiny, trajectory diagnostics, owner-question resolution, dead-letter change, and builder interruption evidence traversed the loaded autonomy module subscribers.
+- Warning source observations crossed the production reviewer's declared five-event batch trigger; no test helper called the projection reducer.
+- Each scope gained six source-family issues, six successful reviewer artifacts, and exactly one autonomy.issue.decision-requested handoff per issue.
+- The shared EventJournal recorded every source family, autonomy.health.signal, and each scoped decision handoff for both scopes.
+- A later event in either scope left the other scope's issue projection, run metadata, DLQ, owner-question record, and source artifacts byte-for-byte unchanged.
+- Unknown and conflicting selectors failed explicitly. Conflicting emit failures selected no project DLQ, so neither the default nor foreign scope changed.
+- Daemon shutdown and module unload returned every source-event listener count to zero.
+
+Scoped source-family isolation
+
+Command:
+pnpm test src/modules/autonomy/autonomy-issue-multi-scope.test.ts
+
+Result: 1 file passed, 2 tests passed.
+
+Observed assertions:
+- Two ProjectRuntime scopes shared one EventBus and interleaved workflow failure, review scrutiny, trajectory diagnostics, owner-question resolution, dead-letter change, and builder interruption events.
+- Each emitted health signal carried its originating scopeId/projectId and each reviewer projection contained only that scope's root causes.
+- A later foreign-scope event left the other scope's projection byte-for-byte unchanged.
+- Unknown and conflicting scope selectors threw explicit errors and created no projection in either project.
+
+Additional isolated host validation
+
+- src/server-e2e.integration.test.ts: 1 file passed, 42 tests passed after the HTTP server borrowed its runtime loader.
+- Scheduler persistence now canonicalizes directory identity and refreshes hosted timers, so daemon and Telegram scheduling probes observe external writes and fire on the host runtime.
+- The oversized server E2E file is split into two registered cross-cutting fixtures; the severe source-size batch is reduced below the blocking threshold.
+
+Static validation:
+- pnpm run typecheck: passed.
+- Focused repair validation: 32 files passed, 816 tests passed, including every originally failing module-loader suite plus strict-types, root-layout, scoped autonomy, server, scheduler, Telegram, and workflow repair-loop coverage.
+- Repair-attempt-9 focused validation: 3 files passed, 13 tests passed (module lifecycle, production daemon assembly, root layout).
+- pnpm hygiene: passed with no blocking findings.
+- pnpm validate-tasks: passed.
+- Biome check on all repair-attempt-9 files: passed.
+
+Repair-attempt-10 validation:
+- All 20 suites changed by the repair, including the formerly failing ModuleLoader, middleware, skill-role, skill-ops, and production daemon fixtures: 20 files passed, 236 tests passed.
+- EventBus singleton isolation, instruction-size guard, approval-queue sandbox fixture, loader regressions, and production two-scope routing: 10 files passed, 393 tests passed.
+- Root layout, strict-types policy, lifecycle-mode, production daemon load, and files-overview integration: 5 files passed, 13 tests passed.
+- `pnpm typecheck`, `pnpm lint`, `pnpm hygiene`, and `pnpm validate-tasks`: passed; hygiene reported advisory findings only.
+- The oversized production daemon acceptance test was split into co-located root integration fixtures; only three touched source files remain above the 300-line advisory threshold, with no substantial-growth warning, so the severe batch no longer blocks.
+
+Repair-attempt-12 validation:
+- Runtime ModuleLoader no longer borrows `getEventBus()`: direct runtime load rejects an unbound loader even when the process singleton exists. Runtime tests bind a fresh authority explicitly; the process-wide Vitest compatibility authority was removed.
+- Daemon module authority is one atomic `runtimeModuleHost` pair. Daemon construction validates that the runtime-mode loader is already bound to the pair's exact EventBus and rejects a split authority before creating runtime state.
+- `pnpm test src/core/modules/module-event-lifecycle.test.ts src/daemon-runtime-load.integration.test.ts`: 2 files passed, 10 tests passed, including missing authority, process-singleton non-fallback, listener ownership, and mismatched daemon-host authority coverage.
+- `pnpm test src/core/modules/module-loader.test.ts`: 1 file passed, 78 tests passed after its runtime fixtures received explicit per-loader buses.
+- `pnpm test src/core/tools/tool-middleware.test.ts src/core/mcp/manager.test.ts src/modules/mcp-server/server.test.ts src/modules/skill-ops/skill-ops-operations.test.ts`: 4 files passed, 283 tests passed.
+- `pnpm typecheck` and `pnpm lint`: passed. Diff checks passed for every repair-attempt-12 file.
+- A full `pnpm test` completed with 1,275 files and 12,551 tests passing. Its failures were managed-sandbox restrictions: the process could not traverse the protected temp parent, bind loopback listeners, or read the explicitly denied Telegram `.env.example`; none implicated runtime EventBus lifecycle behavior.
+
+This is a bounded trusted-host production-assembly daemon fixture. It does not control or restart the workflow daemon that launched this builder run.

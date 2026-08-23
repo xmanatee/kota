@@ -1,0 +1,1 @@
+Restore scoped runtime events and canonical daemon module registration

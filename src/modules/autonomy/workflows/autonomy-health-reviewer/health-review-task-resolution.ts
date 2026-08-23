@@ -1,23 +1,23 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-  type WorkflowCommitPathPolicy,
+import type {
+  WorkflowCommitPathPolicy,
 } from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
 import {
-  checkCommitMessageExists,
-  checkNoScratchArtifacts,
   runCheck,
   stepCommitted,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import {
+  workflowCommitOperation,
+  workflowCommitValidationOperation,
+} from "#modules/autonomy/workflow-commit-operations.js";
 import type { AutonomyHealthReviewActionResult } from "./health-review.js";
 
 type ActionOutput = { actions: AutonomyHealthReviewActionResult };
@@ -43,9 +43,9 @@ export function createHealthReviewTaskResolutionSteps(
       (applyActions.output(ctx)?.actions.taskMutationPaths.length ?? 0) > 0,
     validate: (raw) =>
       expectStructuredOutput<{ written: true }>(raw, ["written"]),
-    run: (ctx) => {
-      mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-      writeFileSync(
+    run: async (ctx) => {
+      await mkdir(ctx.workflow.runDirPath, { recursive: true });
+      await writeFile(
         join(ctx.workflow.runDirPath, "commit-message.txt"),
         "autonomy: resolve cleared issue generated work\n",
         "utf-8",
@@ -64,9 +64,11 @@ export function createHealthReviewTaskResolutionSteps(
       await runCheck("pnpm run validate-tasks", ctx.projectDir, {
         signal: ctx.signal,
       });
-      checkNoScratchArtifacts(ctx.projectDir);
-      checkCommitStageable(ctx.projectDir, taskCommitPolicy(actions));
-      checkCommitMessageExists(ctx.workflow.runDirPath, ctx.projectDir);
+      await ctx.runBlocking(workflowCommitValidationOperation, {
+        projectDir: ctx.projectDir,
+        runDirPath: ctx.workflow.runDirPath,
+        policy: taskCommitPolicy(actions),
+      });
       return { ok: true } as const;
     },
   });
@@ -77,11 +79,11 @@ export function createHealthReviewTaskResolutionSteps(
     when: stepSucceeded("validate-task-mutation"),
     validate: decodeWorkflowCommitOutcome,
     run: (ctx) =>
-      commitWorkflowChanges(
-        ctx.projectDir,
-        ctx.workflow.runDirPath,
-        taskCommitPolicy(applyActions.outputRequired(ctx).actions),
-      ),
+      ctx.runBlocking(workflowCommitOperation, {
+        projectDir: ctx.projectDir,
+        runDirPath: ctx.workflow.runDirPath,
+        policy: taskCommitPolicy(applyActions.outputRequired(ctx).actions),
+      }),
   });
 
   return {

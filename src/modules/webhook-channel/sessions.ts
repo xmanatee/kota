@@ -1,5 +1,3 @@
-import { AgentSession } from "#core/loop/loop.js";
-import { NullTransport } from "#core/loop/transport.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 
@@ -33,12 +31,9 @@ export function createAgentSession({
   autonomyMode: AutonomyMode;
   ctx: ModuleContext;
 }): Pick<WebhookSession, "send" | "close"> {
-  const agent = new AgentSession({
+  const agent = ctx.createSession({
     autonomyMode,
     model: ctx.config.model,
-    verbose: ctx.verbose,
-    config: ctx.config,
-    transport: new NullTransport(),
     label,
     noHistory: false,
     historySource: "action",

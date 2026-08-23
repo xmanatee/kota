@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -29,10 +30,17 @@ function assertPathInside(parent: string, child: string, label: string): void {
   throw new Error(`${label} escaped progress-review artifact boundary`);
 }
 
+function unreadableDirectoryCode(error: Error): "EACCES" | "EPERM" | null {
+  if (!("code" in error)) return null;
+  if (error.code === "EACCES" || error.code === "EPERM") return error.code;
+  return null;
+}
+
 function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactListing {
   const root = resolve(runDir);
   const files: string[] = [];
   let hitDepthLimit = false;
+  const unreadableDirectories: string[] = [];
   function visit(dir: string, relativeParts: string[]): boolean {
     if (files.length >= maxFiles) return true;
     const resolvedDir = resolve(dir);
@@ -41,9 +49,18 @@ function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactList
       hitDepthLimit = true;
       return false;
     }
-    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+    } catch (error) {
+      const code = error instanceof Error ? unreadableDirectoryCode(error) : null;
+      if (code === null) throw error;
+      const relativePath = relativeParts.join("/") || ".";
+      unreadableDirectories.push(`${relativePath} (${code})`);
+      return false;
+    }
     for (const entry of entries) {
       if (files.length >= maxFiles) return true;
       const nextParts = [...relativeParts, entry.name];
@@ -68,7 +85,12 @@ function listRunArtifactFiles(runDir: string, maxFiles: number): RunArtifactList
     return files.length >= maxFiles;
   }
   const hitFileLimit = visit(root, []);
-  return { files: files.sort(), hitFileLimit, hitDepthLimit };
+  return {
+    files: files.sort(),
+    hitFileLimit,
+    hitDepthLimit,
+    unreadableDirectories,
+  };
 }
 
 export function listArtifactEvidence(
@@ -100,6 +122,11 @@ export function listArtifactEvidence(
     if (listing.hitDepthLimit) {
       excluded.push(
         `artifacts for ${run.runId}: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
+      );
+    }
+    for (const directory of listing.unreadableDirectories) {
+      excluded.push(
+        `artifacts for ${run.runId}: skipped unreadable directory ${directory}`,
       );
     }
     if (listing.hitFileLimit) {

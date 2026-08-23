@@ -91,6 +91,33 @@ describe("OutboundHttpTransport", () => {
     expect(captured).toHaveLength(1);
   });
 
+  it("enforces redirect policy before returning a streaming response", async () => {
+    const captured: Array<{ url: string; init: RequestInit }> = [];
+    const transport = publicTransport(
+      queuedDispatcher(
+        [
+          new Response(null, {
+            status: 307,
+            headers: { location: "http://127.0.0.1/private" },
+          }),
+        ],
+        captured,
+      ),
+    );
+
+    await expect(
+      transport.requestStream({
+        profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://mcp.example"]),
+        operation: "mcp-stream-redirect-fixture",
+        url: "https://mcp.example/rpc",
+        method: "POST",
+        headers: { Authorization: "Bearer secret" },
+        body: '{"jsonrpc":"2.0"}',
+      }),
+    ).rejects.toMatchObject({ failure: { code: "redirect-denied" } });
+    expect(captured.map((request) => request.url)).toEqual(["https://mcp.example/rpc"]);
+  });
+
   it("classifies retries by the original method after a POST-to-GET redirect", async () => {
     const transport = publicTransport(
       queuedDispatcher([

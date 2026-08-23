@@ -54,6 +54,7 @@ const EXECUTE_HARNESS_TOOLS = [
 
 export type DelegateHarnessConfig = {
   cwd?: string;
+  projectDir?: string;
   projectContext?: string;
   instructionContext?: string;
   costTracker?: CostTracker;
@@ -189,6 +190,7 @@ export async function runDelegateHarness(
           ? { abortController: invalidation.abortController }
           : {}),
         autonomyMode,
+        projectDir: config.projectDir ?? config.cwd ?? process.cwd(),
         cwd: config.cwd ?? process.cwd(),
         effort: "xhigh",
         tokenBudget: config.tokenBudget,

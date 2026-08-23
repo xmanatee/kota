@@ -1,18 +1,3 @@
-/**
- * Fan-out consolidator workflow.
- *
- * Triggers after each builder commit and on the rolling cadence emitted by
- * the dispatcher. Reads the current done queue, detects completed multi-
- * client fan-out batches, and seeds one consolidation review task in
- * `ready/` per new batch. Idempotent: re-running with the same batch state
- * is a noop.
- *
- * Code-only workflow — no agent step. The seeded task is the actionable
- * artifact; a builder run will pick it up and a critic will review the
- * result. The rendered-evidence validator gate catches the case where the
- * builder tries to clear the consolidation with prose-only test logs.
- */
-
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
@@ -26,7 +11,11 @@ import {
   onRecoveryTrigger,
   resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
-import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
+import {
+  runCheck,
+  stepCommitRequiresDaemonRestart,
+} from "#modules/autonomy/shared.js";
+
 import {
   workflowCommitOperation,
   workflowCommitValidationOperation,
@@ -138,7 +127,6 @@ const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
     "Detect completed multi-client fan-out batches and seed one consolidation review task per new batch in ready/.",
   tags: ["monitored"],
   recoveryCapable: true,
-  // Code-only workflow — no agent step. defaultAutonomyMode is omitted.
   triggers: [
     { event: "workflow.build.committed" },
     { event: "runtime.recovered" },

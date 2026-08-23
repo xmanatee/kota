@@ -1,108 +1,208 @@
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
-import { resolveStorageStatePath } from "./config.js";
+import { dirname } from "node:path";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
-  loadPlaywrightModule,
-  type PlaywrightBrowser,
-  type PlaywrightContext,
-  type PlaywrightModule,
-  type PlaywrightPage,
+  registerSessionEnvironmentResource,
+  sessionEnvironmentVersionForExecution,
+} from "#core/tools/session-environment.js";
+import {
+  closeBrowserProcess,
+  ensureBrowserProcess,
+} from "./browser-process.js";
+import {
+  type BrowserProfileOptions,
+  type BrowserProfileOwner,
+  resolveBrowserProfileStoragePath,
+  snapshotConfiguredBrowserProfile,
+} from "./browser-profile.js";
+import {
+  type BrowserSessionIdentity,
+  resolveBrowserSessionIdentity,
+} from "./browser-session-identity.js";
+import type {
+  PlaywrightContext,
+  PlaywrightPage,
 } from "./playwright-loader.js";
 
+export type {
+  BrowserProfileOptions,
+  BrowserProfileOwner,
+} from "./browser-profile.js";
+export {
+  configureBrowserProfile,
+  getConfiguredBrowserProfile,
+} from "./browser-profile.js";
+export { isPlaywrightAvailable } from "./playwright-availability.js";
+
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-const requireFromHere = createRequire(import.meta.url);
 
-let pw: PlaywrightModule | null = null;
-let browser: PlaywrightBrowser | null = null;
-let context: PlaywrightContext | null = null;
-let page: PlaywrightPage | null = null;
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
-
-/**
- * Resolved profile options for an authenticated browser context. The
- * `storageStatePath` is where Playwright loads cookies/localStorage from
- * (if the file exists) and where the module can persist state back to.
- * When `persist` is true, the context's storage is written back to the
- * same path on idle close so a fresh login stays durable across runs.
- */
-export type BrowserProfileOptions = {
-  storageStatePath: string | null;
-  persist: boolean;
-  headless: boolean;
+type BrowserSessionResource = {
+  identity: BrowserSessionIdentity;
+  profile: BrowserProfileOptions;
+  profileOwner: BrowserProfileOwner | null;
+  context: PlaywrightContext | null;
+  page: PlaywrightPage | null;
+  pagePromise: Promise<PlaywrightPage> | null;
+  initializing: Promise<void>;
+  closing: Promise<void> | null;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  detachSessionCleanup: () => void;
+  closed: boolean;
 };
 
-let profile: BrowserProfileOptions = {
-  storageStatePath: null,
-  persist: false,
-  headless: true,
-};
+const resourcesByScope = new Map<string, Map<string, BrowserSessionResource>>();
 
-/**
- * Configure the persistent browser profile. Called from the module's
- * `onLoad` with values resolved from `modules.browser` config. Absence
- * of a profile path keeps the default ephemeral context.
- */
-export function configureBrowserProfile(options: BrowserProfileOptions): void {
-  profile = options;
+function resourceForIdentity(
+  identity: BrowserSessionIdentity,
+): BrowserSessionResource | undefined {
+  return resourcesByScope.get(identity.scopeId)?.get(identity.sessionId);
 }
 
-export function getConfiguredBrowserProfile(): BrowserProfileOptions {
-  return profile;
-}
-
-async function ensurePlaywright(): Promise<PlaywrightModule> {
-  if (pw) return pw;
-  pw = await loadPlaywrightModule();
-  return pw;
-}
-
-function resetIdleTimer(): void {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => void closeBrowser(), IDLE_TIMEOUT_MS);
-}
-
-function resolveStoragePath(projectDir: string | null): string | null {
-  const configured = profile.storageStatePath;
-  if (!configured) return null;
-  const base = projectDir ?? process.cwd();
-  return resolveStorageStatePath(configured, base);
-}
-
-async function ensureContext(): Promise<PlaywrightContext> {
-  if (context) return context;
-  const playwright = await ensurePlaywright();
-  if (!browser || !browser.isConnected()) {
-    browser = await playwright.chromium.launch({ headless: profile.headless });
+function storeResource(resource: BrowserSessionResource): void {
+  let sessions = resourcesByScope.get(resource.identity.scopeId);
+  if (!sessions) {
+    sessions = new Map();
+    resourcesByScope.set(resource.identity.scopeId, sessions);
   }
-  const storagePath = resolveStoragePath(null);
+  sessions.set(resource.identity.sessionId, resource);
+}
+
+function removeResource(resource: BrowserSessionResource): void {
+  const sessions = resourcesByScope.get(resource.identity.scopeId);
+  if (sessions?.get(resource.identity.sessionId) !== resource) return;
+  sessions.delete(resource.identity.sessionId);
+  if (sessions.size === 0) resourcesByScope.delete(resource.identity.scopeId);
+}
+
+function allResources(): BrowserSessionResource[] {
+  return [...resourcesByScope.values()].flatMap((sessions) => [
+    ...sessions.values(),
+  ]);
+}
+
+function resolveStoragePath(resource: BrowserSessionResource): string | null {
+  return resolveBrowserProfileStoragePath(resource, resource.identity);
+}
+
+async function initializeResource(
+  resource: BrowserSessionResource,
+): Promise<void> {
+  const activeBrowser = await ensureBrowserProcess(resource.profile);
+  const storagePath = resolveStoragePath(resource);
   const options: { storageState?: string } = {};
   if (storagePath && existsSync(storagePath)) {
     options.storageState = storagePath;
   }
-  context = await browser.newContext(options);
-  return context;
-}
-
-export async function getPage(): Promise<PlaywrightPage> {
-  const ctx = await ensureContext();
-  if (!page || page.isClosed()) {
-    page = await ctx.newPage();
+  const createdContext = await activeBrowser.newContext(options);
+  if (resource.closed) {
+    await createdContext.close().catch(() => {});
+    return;
   }
-  resetIdleTimer();
-  return page;
+  resource.context = createdContext;
 }
 
-/**
- * Persist the current browser context's storage state to the configured
- * path. Only invoked when the operator has explicitly enabled persistence
- * (`modules.browser.persistProfile`). No-op when no profile is configured
- * or persist is disabled.
- */
-export async function persistBrowserProfile(): Promise<void> {
-  if (!profile.persist || !profile.storageStatePath) return;
-  if (!context) return;
-  const resolved = resolveStoragePath(null);
+function createResource(
+  identity: BrowserSessionIdentity,
+  runnerContext: ToolRunnerContext,
+): BrowserSessionResource {
+  const configuredProfile = snapshotConfiguredBrowserProfile();
+  const resource: BrowserSessionResource = {
+    identity,
+    ...configuredProfile,
+    context: null,
+    page: null,
+    pagePromise: null,
+    initializing: Promise.resolve(),
+    closing: null,
+    idleTimer: null,
+    detachSessionCleanup: () => {},
+    closed: false,
+  };
+  storeResource(resource);
+  resource.detachSessionCleanup = registerSessionEnvironmentResource(
+    runnerContext,
+    () => {
+      void closeSessionResource(resource).catch(() => {});
+    },
+  );
+  resource.initializing = initializeResource(resource).catch(async (error) => {
+    resource.closed = true;
+    resource.detachSessionCleanup();
+    removeResource(resource);
+    await closeSharedBrowserIfUnused();
+    throw error;
+  });
+  return resource;
+}
+
+async function ensureResource(
+  context: ToolRunnerContext | undefined,
+): Promise<BrowserSessionResource> {
+  const identity = resolveBrowserSessionIdentity(context);
+  if (sessionEnvironmentVersionForExecution(context) === null) {
+    throw new Error("Browser tools require a live session");
+  }
+  const existing = resourceForIdentity(identity);
+  if (existing) {
+    if (existing.identity.projectDir !== identity.projectDir) {
+      throw new Error(
+        "Browser session scope was invoked with a different project directory",
+      );
+    }
+    await existing.initializing;
+    if (existing.closed) throw new Error("Browser session is closing");
+    return existing;
+  }
+
+  const created = createResource(identity, context as ToolRunnerContext);
+  await created.initializing;
+  if (created.closed) throw new Error("Browser session closed during startup");
+  return created;
+}
+
+function resetIdleTimer(resource: BrowserSessionResource): void {
+  if (resource.idleTimer) clearTimeout(resource.idleTimer);
+  resource.idleTimer = setTimeout(() => {
+    void closeSessionResource(resource).catch(() => {});
+  }, IDLE_TIMEOUT_MS);
+}
+
+async function pageForResource(
+  resource: BrowserSessionResource,
+): Promise<PlaywrightPage> {
+  if (resource.page && !resource.page.isClosed()) return resource.page;
+  if (resource.pagePromise) return resource.pagePromise;
+  if (!resource.context) throw new Error("Browser context did not initialize");
+
+  resource.pagePromise = (async () => {
+    const createdPage = await resource.context!.newPage();
+    if (resource.closed) {
+      await createdPage.close().catch(() => {});
+      throw new Error("Browser session closed during page startup");
+    }
+    resource.page = createdPage;
+    return createdPage;
+  })();
+  try {
+    return await resource.pagePromise;
+  } finally {
+    resource.pagePromise = null;
+  }
+}
+
+export async function getPage(
+  context?: ToolRunnerContext,
+): Promise<PlaywrightPage> {
+  const resource = await ensureResource(context);
+  const activePage = await pageForResource(resource);
+  resetIdleTimer(resource);
+  return activePage;
+}
+
+async function persistResource(resource: BrowserSessionResource): Promise<void> {
+  if (!resource.profile.persist || !resource.profile.storageStatePath) return;
+  if (!resource.context) return;
+  const resolved = resolveStoragePath(resource);
   if (!resolved) return;
   const dir = dirname(resolved);
   if (!existsSync(dir)) {
@@ -111,43 +211,75 @@ export async function persistBrowserProfile(): Promise<void> {
         "Create it explicitly or point storageStatePath at an existing location.",
     );
   }
-  await context.storageState({ path: resolved });
+  await resource.context.storageState({ path: resolved });
 }
 
+/** Persist only the authenticated context owned by the invoking session. */
+export async function persistBrowserProfile(
+  context: ToolRunnerContext,
+): Promise<void> {
+  const identity = resolveBrowserSessionIdentity(context);
+  const resource = resourceForIdentity(identity);
+  if (!resource) return;
+  if (resource.identity.projectDir !== identity.projectDir) {
+    throw new Error(
+      "Browser session scope was invoked with a different project directory",
+    );
+  }
+  await resource.initializing;
+  await persistResource(resource);
+}
+
+async function closeSharedBrowserIfUnused(): Promise<void> {
+  if (resourcesByScope.size > 0) return;
+  await closeBrowserProcess();
+}
+
+async function closeSessionResource(
+  resource: BrowserSessionResource,
+): Promise<void> {
+  if (resource.closing) return resource.closing;
+  resource.closed = true;
+  if (resource.idleTimer) {
+    clearTimeout(resource.idleTimer);
+    resource.idleTimer = null;
+  }
+  resource.detachSessionCleanup();
+  removeResource(resource);
+
+  resource.closing = (async () => {
+    await resource.initializing.catch(() => {});
+    await persistResource(resource).catch(() => {});
+    if (resource.page && !resource.page.isClosed()) {
+      await resource.page.close().catch(() => {});
+    }
+    resource.page = null;
+    if (resource.context) {
+      await resource.context.close().catch(() => {});
+    }
+    resource.context = null;
+    await closeSharedBrowserIfUnused();
+  })();
+  return resource.closing;
+}
+
+/** Close only the browser state owned by the invoking session and scope. */
+export async function closeBrowserSession(
+  context?: ToolRunnerContext,
+): Promise<void> {
+  const identity = resolveBrowserSessionIdentity(context);
+  const resource = resourceForIdentity(identity);
+  if (!resource) return;
+  if (resource.identity.projectDir !== identity.projectDir) {
+    throw new Error(
+      "Browser session scope was invoked with a different project directory",
+    );
+  }
+  await closeSessionResource(resource);
+}
+
+/** Module lifecycle cleanup: close every remaining session resource. */
 export async function closeBrowser(): Promise<void> {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
-  }
-  await persistBrowserProfile().catch(() => {});
-  if (page && !page.isClosed()) {
-    await page.close().catch(() => {});
-  }
-  page = null;
-  if (context) {
-    await context.close().catch(() => {});
-  }
-  context = null;
-  if (browser) {
-    await browser.close().catch(() => {});
-  }
-  browser = null;
-  pw = null;
-}
-
-export function isPlaywrightAvailable(projectDir: string = process.cwd()): boolean {
-  try {
-    const requireFromProject = createRequire(resolve(projectDir, "package.json"));
-    requireFromProject.resolve("playwright");
-    return true;
-  } catch {
-    // Fall back to the module install location below.
-  }
-
-  try {
-    requireFromHere.resolve("playwright");
-    return true;
-  } catch {
-    return false;
-  }
+  await Promise.all(allResources().map((resource) => closeSessionResource(resource)));
+  await closeSharedBrowserIfUnused();
 }

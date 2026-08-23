@@ -1,6 +1,7 @@
 import { defineProviderToken } from "#core/modules/provider-registry.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { AutomationWorktreeCanonicalReconciliation } from "#modules/git/worktree-lifecycle-types.js";
 
 export type WorkflowStateRecoveryAction = "release" | "supersede";
 
@@ -45,6 +46,7 @@ export type WorkflowStateRecoveryWorktreeEvidence = {
   uniqueCommitError?: string;
   branchAhead: number | null;
   branchBehind: number | null;
+  canonicalReconciliation?: AutomationWorktreeCanonicalReconciliation;
 };
 
 export type WorkflowStateRecoveryDeadLetterLink = {
@@ -97,6 +99,7 @@ export type WorkflowStateRecoveryWorktree = {
   uniqueCommitError?: string;
   branchAhead: number | null;
   branchBehind: number | null;
+  canonicalReconciliation?: AutomationWorktreeCanonicalReconciliation;
   relatedDeadLetters: WorkflowStateRecoveryDeadLetterLink[];
   recommendedAction: WorkflowStateRecoveryRecommendedAction;
 };

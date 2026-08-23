@@ -74,21 +74,25 @@ async function followWithSse(
   const emittedSteps = new Set<string>();
   const stepOutputOffset = new Map<string, number>();
 
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let done = false;
+    const streamAbort = new AbortController();
 
-    const cleanup = () => {
-      if (!done) {
-        done = true;
-        resolve();
-      }
+    const settle = (error?: Error) => {
+      if (done) return;
+      done = true;
+      streamAbort.abort();
+      process.removeListener("SIGINT", onSigint);
+      if (error !== undefined) reject(error);
+      else resolve();
     };
 
-    process.once("SIGINT", () => {
+    const onSigint = () => {
       print(line(plain("")));
       print(line(plain("Detached. Run continues in background.")));
-      cleanup();
-    });
+      settle();
+    };
+    process.once("SIGINT", onSigint);
 
     async function handleEvent(event: DaemonSseEvent): Promise<void> {
       if (done) return;
@@ -128,39 +132,23 @@ async function followWithSse(
           print(line(plain("")));
           print(line(plain(`Run ${activeRunId}: ${statusIcon(status)} ${status} ${dur}`)));
         }
-        cleanup();
+        settle();
       }
-    }
-
-    async function waitForRunThenStream(): Promise<void> {
-      if (!activeRunId) {
-        const pollTimer = setInterval(async () => {
-          if (done) {
-            clearInterval(pollTimer);
-            return;
-          }
-          const wfStatus = await link.request<WorkflowLiveStatus>("GET", "/workflow/status");
-          if (wfStatus && wfStatus.activeRuns.length > 0) {
-            activeRunId = wfStatus.activeRuns[0].runId;
-            print(line(plain(`Following run: ${activeRunId}`)));
-            clearInterval(pollTimer);
-            void streamEvents();
-          }
-        }, 1_000);
-        return;
-      }
-      void streamEvents();
     }
 
     async function streamEvents(): Promise<void> {
-      for await (const event of link.events()) {
+      for await (const event of link.events({ signal: streamAbort.signal })) {
         if (done) break;
         await handleEvent(event);
       }
-      if (!done) cleanup();
+      settle();
     }
 
-    void waitForRunThenStream();
+    void streamEvents().catch((error) => {
+      if (!done) {
+        settle(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
   });
 }
 
@@ -178,18 +166,13 @@ export function registerFollowCommand(wfCmd: Command): void {
 
       let resolvedId = runId;
       if (runId && !runId.includes("Z-")) {
-        try {
-          const dirs = readdirSync(store.runsDir).sort().reverse();
-          const match = dirs.find((d) => d.startsWith(runId));
-          if (!match) {
-            print(line(span(`Run "${runId}" not found.`, "error")));
-            process.exit(1);
-          }
-          resolvedId = match;
-        } catch {
+        const dirs = readdirSync(store.runsDir).sort().reverse();
+        const match = dirs.find((d) => d.startsWith(runId));
+        if (!match) {
           print(line(span(`Run "${runId}" not found.`, "error")));
           process.exit(1);
         }
+        resolvedId = match;
       }
 
       if (resolvedId) {

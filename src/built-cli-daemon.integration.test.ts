@@ -105,7 +105,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
     // route assertions are independent of which adapter is configured.
     writeFileSync(
       join(stateDir, "config.json"),
-      JSON.stringify({ defaultAgentHarness: "claude-agent-sdk" }),
+      JSON.stringify({ defaultAgentHarness: "codex" }),
     );
     child = null;
     stderrChunks = [];

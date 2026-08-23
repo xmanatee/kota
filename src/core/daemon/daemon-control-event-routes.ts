@@ -5,6 +5,18 @@ import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
 import type { EventSchemaDetail, EventSchemaSummary } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 
+export const SSE_HEARTBEAT_INTERVAL_MS = 30_000;
+
+export function startSseHeartbeat(
+  res: Pick<NodeJS.WritableStream, "write">,
+): () => void {
+  const timer = setInterval(() => {
+    res.write(": heartbeat\n\n");
+  }, SSE_HEARTBEAT_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
+}
+
 function eventTypeMatchesGlob(eventType: string, glob: string): boolean {
   const segments = glob.split("*");
   const prefix = segments[0] ?? "";
@@ -145,7 +157,11 @@ export function buildDaemonEventControlRoutes(
           }
         }
         sseClients.add(res);
-        req.on("close", () => { sseClients.delete(res); });
+        const stopHeartbeat = startSseHeartbeat(res);
+        res.once("close", () => {
+          stopHeartbeat();
+          sseClients.delete(res);
+        });
       },
     },
     {

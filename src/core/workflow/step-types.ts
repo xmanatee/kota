@@ -131,6 +131,7 @@ export type WorkflowCodeStep = WorkflowProgressStep & {
   resolveAgentContract?: WorkflowAgentRunContractResolver;
   updatesWorkspaceDir?: boolean;
   updatesRuntimeResources?: boolean;
+  rerunOnRetry?: boolean;
   /**
    * Runtime decoder propagated by the step validator. When present, the
    * executor runs it on the raw `run()` result and replaces the persisted

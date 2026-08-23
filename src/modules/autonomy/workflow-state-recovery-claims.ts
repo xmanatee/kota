@@ -275,6 +275,9 @@ export function listRecoveryWorktrees(projectDir: string): WorkflowStateRecovery
         ...(unique.error !== undefined ? { uniqueCommitError: unique.error } : {}),
         branchAhead: unique.branchAhead,
         branchBehind: unique.branchBehind,
+        ...(worktree.canonicalReconciliation !== undefined
+          ? { canonicalReconciliation: worktree.canonicalReconciliation }
+          : {}),
         relatedDeadLetters: relatedDeadLettersForRun(
           projectDir,
           worktree.workflowId,

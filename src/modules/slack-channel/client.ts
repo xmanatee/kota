@@ -59,6 +59,7 @@ export type SlackInteractivePayload = {
   type: "block_actions";
   actions: SlackAction[];
   user: { id: string; name: string };
+  team?: { id?: string };
   channel: { id: string };
   message: { ts: string };
 };

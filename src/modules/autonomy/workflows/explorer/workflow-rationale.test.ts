@@ -10,6 +10,7 @@ import explorerWorkflow from "./workflow.js";
 
 describe("explorer exploration-rationale repair check", () => {
   let projectDir: string;
+  let workflowRunDir: string;
   let runDir: string;
 
   beforeEach(() => {
@@ -19,7 +20,9 @@ describe("explorer exploration-rationale repair check", () => {
       mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
     }
     execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-    runDir = mkdtempSync(join(tmpdir(), "explorer-rationale-run-"));
+    workflowRunDir = join(projectDir, ".kota", "runs", "test-run");
+    runDir = join(workflowRunDir, "agent-output");
+    mkdirSync(runDir, { recursive: true });
   });
 
   function findExplorationRationaleCheck() {
@@ -74,7 +77,13 @@ describe("explorer exploration-rationale repair check", () => {
   ): WorkflowStepContext {
     return {
       projectDir,
-      workflow: { runDirPath: runDir, runId: "test-run", workflowName: "explorer" },
+      workflow: {
+        name: "explorer",
+        definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
+        runId: "test-run",
+        runDir: ".kota/runs/test-run",
+        runDirPath: workflowRunDir,
+      },
       trigger: { event: "autonomy.queue.empty", payload: {} },
       previousOutput: undefined,
       stepOutputs: { "inspect-queue": makeAssessment(actionableCount, overrides) },

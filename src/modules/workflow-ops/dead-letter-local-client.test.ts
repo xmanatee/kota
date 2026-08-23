@@ -6,10 +6,7 @@ import {
   createWorkflowDispatchDeadLetter,
   deadLetterStoreForProject,
 } from "#core/daemon/dead-letter-queue.js";
-import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import workflowOpsModule from "./index.js";
 
 describe("workflow-ops local dead-letter client", () => {
@@ -24,10 +21,7 @@ describe("workflow-ops local dead-letter client", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("lists, exports, mutates, and publishes scoped changes", async () => {
-    const bus = new EventBus();
-    const changed: Array<Record<string, unknown>> = [];
-    bus.on("workflow.dead-letter.changed", (payload) => changed.push(payload));
+  it("lists, exports, and mutates without runtime event authority", async () => {
     const dlq = deadLetterStoreForProject(projectDir);
     const item = createWorkflowDispatchDeadLetter({
       store: dlq,
@@ -44,7 +38,6 @@ describe("workflow-ops local dead-letter client", () => {
     });
     const handlers = workflowOpsModule.localClient!({
       cwd: projectDir,
-      events: makeStubEventProxy(bus),
     } as ModuleContext);
     if (!handlers.workflow) throw new Error("workflow handler missing");
     const handler = handlers.workflow;
@@ -71,10 +64,9 @@ describe("workflow-ops local dead-letter client", () => {
       item: { id: item.id, status: "dismissed" },
     });
 
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    expect(changed).toEqual([
-      expect.objectContaining({ id: item.id, status: "redriven", scopeId, projectId: scopeId }),
-      expect.objectContaining({ id: item.id, status: "dismissed", scopeId, projectId: scopeId }),
-    ]);
+    expect(deadLetterStoreForProject(projectDir).get(item.id)).toMatchObject({
+      status: "dismissed",
+      dismissalReason: "operator closed",
+    });
   });
 });

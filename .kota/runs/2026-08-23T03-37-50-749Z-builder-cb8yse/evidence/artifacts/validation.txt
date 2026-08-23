@@ -1,0 +1,26 @@
+Security boundary verification completed 2026-08-23.
+
+PASS: pnpm test src/core/workflow/steps/step-executor-agent-prompt.test.ts src/core/workflow/repair-loop.test.ts src/modules/autonomy/workflows/builder/merge-conflict-prompt-content.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native-review.test.ts
+Result: 6 test files passed, 30 tests passed.
+
+PASS: pnpm typecheck
+
+PASS: pnpm test src/strict-types-policy.integration.test.ts src/modules/git src/modules/autonomy/workflows/builder
+Result: 55 test files passed, 354 tests passed.
+
+PASS: pnpm validate-tasks --summary against an isolated temporary index/object store containing the workflow-host-deferred task rename.
+Result: task-queue-valid, errors=0, warnings=6.
+
+Post-check repair verification completed 2026-08-23.
+
+PASS: TMPDIR=<writable-runtime-root> pnpm test src/modules/autonomy/production-dead-letter-routing-replay.integration.test.ts src/modules/autonomy/task-claim-races.test.ts src/modules/autonomy/task-claim-path-security.test.ts
+Result: 3 test files passed, 12 tests passed. The three reported post-check failures were reproduced before the repair and passed afterward.
+
+PASS: TMPDIR=<writable-runtime-root> pnpm test src/strict-types-policy.integration.test.ts src/modules/git src/modules/autonomy/workflows/builder
+Result: 55 test files passed, 354 tests passed.
+
+PASS: pnpm exec biome check on the five post-check repair files.
+PASS: pnpm typecheck
+
+INCONCLUSIVE: pnpm test under the managed sandbox.
+Result: 1,330 files passed and 12,683 tests passed, including the repaired suites; 223 tests failed because the permission profile denies traversal of the default temporary parent, local socket binds, and the protected Telegram .env.example. Focused and affected suites were rerun successfully with the explicitly writable runtime temporary root.

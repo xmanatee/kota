@@ -1,0 +1,116 @@
+Validation summary for 2026-08-15T14-27-26-867Z-builder-xn748x
+
+PASS pnpm run typecheck
+PASS pnpm run lint (3,544 source files)
+PASS focused progress/scope/dispatcher/replay suite (18 files, 85 tests)
+PASS docs surface, root layout, and strict-types policy (3 files, 8 tests)
+PASS full src/modules/autonomy suite after canonical macOS TMPDIR check:
+  - broad run: 208 files and 1,173 tests passed, 1 file skipped; two
+    task-probe-toolchain assertions exposed /tmp versus /private/tmp aliasing
+  - canonical /private/tmp rerun: task-probe-toolchain 3/3 passed
+PASS git diff --check
+PASS autonomy-change-decision.json parser
+PASS builder evidence-manifest.json parser
+PASS full builder evidence policy inspection (8 files, under 14 KiB projected)
+
+Post-check source-size repair:
+
+PASS pnpm run typecheck
+PASS pnpm run lint (3,547 source files)
+PASS dispatcher/progress-reviewer focused suite (6 files, 64 tests)
+PASS projected final source-size severe gate: only two shrinking legacy test
+  files remain advisory; the oversized batch and substantial-growth reasons are gone
+PASS git diff --check HEAD
+
+Post-check autonomy decision repair:
+
+PASS autonomy-change-decision.json parser; declared classes include
+  workflow, prompt, reviewer, critic-gate, and improver-gate
+PASS staged autonomy decision gate: artifact covers 41 material autonomy files
+
+Post-check semantic coalescing repair:
+
+PASS pnpm run typecheck
+PASS Biome check for all seven repaired source/test files
+PASS complete dispatcher/scope-improver suite (6 files, 33 tests)
+PASS semantic reflection/action/replay suite (3 files, 7 tests)
+PASS pnpm run validate-tasks
+PASS scoped Git diff whitespace checks
+
+The production task validator currently reports only the workflow-owned index
+handoff: the task CLI moved the claimed task from ready to doing to done with
+KOTA_REPO_TASK_STAGING_OWNER=workflow-host, while this native agent is forbidden
+to stage Git metadata. The workflow runtime stages the exact ready deletion and
+done addition before its repair-loop task validation.
+
+Post-check dirty semantic lifecycle repair:
+
+PASS pnpm run typecheck
+PASS pnpm run lint (3,548 source files)
+PASS pnpm run validate-tasks
+PASS complete dispatcher/progress-reviewer/scope-improver and production
+  routing replay suite (19 files, 90 tests)
+PASS strict-types policy, docs surface, and autonomy workspace-policy fixtures
+  (4 files, 20 tests)
+PASS dirty automatic progress and scope inputs park one latest semantic input
+  and resume only after canonical cleanup
+PASS explicit scope review preserves the separate automatic onboarding
+  fingerprint watermark
+
+Post-check repair attempt 6 — queue isolation and authoritative policy:
+
+PASS focused dispatcher/progress-reviewer/scope-improver/core policy suite
+  (6 files, 73 tests)
+PASS explicit progress and scope requests remain lossless while two automatic
+  deliveries coalesce to one latest queued revision/fingerprint
+PASS resolved machine-owned scope-policy changes alter the scope fingerprint;
+  project config and scope-improvement config formatting-only rewrites do not
+PASS pnpm run typecheck
+PASS pnpm run lint (3,551 source files)
+PASS pnpm kota workflow validate (25/25 definitions)
+PASS pnpm run validate-tasks
+PASS production routing replay, module manifest coverage, strict-types policy,
+  and autonomy source-size checks (4 files, 24 tests)
+PASS autonomy decision and builder evidence-policy suites (2 files, 9 tests)
+PASS builder evidence inspection (8 registered files, 17,511 bytes)
+PASS git diff --check
+
+Post-check repair attempt 7 — source-size batch:
+
+PASS pnpm run typecheck
+PASS focused Biome check for the six repaired source/test files
+PASS workflow context and scope-improver suite (4 files, 12 tests)
+PASS projected final source-size scan: two advisory legacy tests remain,
+  below the blocking batch threshold of four; step-context.ts is 297 lines
+  and the split scope-improver suites are 200 and 204 lines
+PASS git diff --check HEAD
+
+Post-check repair attempt 8 — prequeue admission and live onboarding:
+
+PASS pnpm run typecheck
+PASS pnpm run lint (3,554 source files)
+PASS focused semantic admission suite (5 files, 24 tests)
+PASS workflow/runtime/autonomy regression suite (25 files, 123 tests)
+PASS strict-types, docs surface, root layout, autonomy decision, source-size,
+  builder evidence policy, module dependency, and workspace-policy guards
+  (8 files, 33 tests)
+PASS pnpm kota workflow validate (25/25 definitions)
+PASS pnpm run validate-tasks
+PASS automatic progress and scope replays are rejected by canonical workflow
+  trigger admission before queue insertion; deferred cleanup retries use a new
+  delivery-attempt key while explicit operator requests remain lossless
+PASS live machine-owned scope registration emits one initial, authoritative
+  scope-improvement request and duplicate registration does not emit another
+PASS builder evidence inspection (8 registered files, 20,359 bytes)
+PASS git diff --check HEAD
+
+Post-check repair attempt 9 — source-size cohesion:
+
+PASS pnpm run typecheck
+PASS focused Biome check for all five repaired source/test files
+PASS semantic admission and progress-review integration suite (5 files, 51 tests)
+PASS runtime dispatch, root layout, and strict-types suite (3 files, 14 tests)
+PASS projected final source-size scan: semantic-input is split into 180- and
+  200-line modules, workflow-queue is 297 lines, and only two legacy test
+  files remain advisory; the four-file batch and 150-line growth blockers are absent
+PASS git diff --check HEAD

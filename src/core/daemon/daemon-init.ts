@@ -1,4 +1,3 @@
-import { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import {
@@ -19,6 +18,7 @@ import {
   type WorkflowEventDispatcher,
 } from "#core/workflow/workflow-event-dispatcher-provider.js";
 import { probeCapabilityReadinessWithTrigger } from "./capability-readiness.js";
+import { createDaemonAgentSessionFactories } from "./daemon-agent-session-factory.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { createChatHistoryProviderResolver } from "./daemon-chat-history-provider.js";
 import { DaemonControlServer, type InteractiveSession } from "./daemon-control.js";
@@ -33,6 +33,7 @@ import {
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "./runtime-scope-provider.js";
 import { inspectChannelScopeDrainBlockers } from "./scope-channel-drain-inspection.js";
 import { inspectExternalScopeDrainBlockers } from "./scope-drain-inspection.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
@@ -114,7 +115,6 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     ],
   });
   const daemonModel = config.model ?? config.config?.model;
-  const daemonVerbose = config.verbose;
   const getDefaultWorkflows = () => projectRuntimes.getDefault().workflowRuntime;
   const chatBindings = new DaemonChatBindingStore(stateDir);
   const historyProjectProvider = getProviderRegistry()?.get(HISTORY_PROJECT_PROVIDER_TOKEN);
@@ -221,27 +221,29 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
         return { ok: true, runtime: projectRuntimes.getDefault() };
       },
     });
+    registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
+      resolve: (projectId) => {
+        try {
+          return { ok: true, runtime: projectRuntimes.get(projectId) };
+        } catch {
+          return { ok: false, projectId };
+        }
+      },
+    });
     registry.register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "daemon", dispatcher);
     registry.register(WORKFLOW_EVENT_DISPATCHER_PROVIDER_TYPE, "daemon", eventDispatcher);
     registry.register(WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE, "daemon", metricsSource);
     registry.register(WORKFLOW_DEFINITIONS_PROVIDER_TYPE, "daemon", definitionsSource);
   }
 
+  const { makeAgentSession, createModuleSession } =
+    createDaemonAgentSessionFactories(config, projectRuntimes);
+  config.runtimeModuleHost?.moduleLoader.setSessionFactory(createModuleSession);
+
   const controlServer = new DaemonControlServer(handle, token, {
     eventBufferSize: config.config?.daemon?.eventBufferSize,
-    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId) => {
-      const runtime = projectRuntimes.get(projectId);
-      return new AgentSession({
-        autonomyMode,
-        model: daemonModel,
-        verbose: daemonVerbose,
-        transport,
-        config: config.config,
-        resumeConversation,
-        projectDir: runtime.project.projectDir,
-        projectRuntime: runtime,
-      });
-    },
+    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId) =>
+      makeAgentSession(transport, autonomyMode, projectId, { resumeConversation }),
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,
     chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
     chatBindings,

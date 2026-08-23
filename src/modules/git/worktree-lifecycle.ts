@@ -731,6 +731,9 @@ function operatorStatusForInspection(inspection: AutomationWorktreeInspection): 
 		...(inspection.runState === "active" && metadata.runtimeResources !== undefined
 			? { runtimeResources: metadata.runtimeResources }
 			: {}),
+		...(metadata.canonicalReconciliation !== undefined
+			? { canonicalReconciliation: metadata.canonicalReconciliation }
+			: {}),
 		nextAction: nextActionFor(inspection, cleanupStatus),
 	};
 }

@@ -213,6 +213,7 @@ export async function runHandoffAgent(
             ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
             modelOutputTokenLimits: runtime.modelOutputTokenLimits,
             systemPrompt,
+            projectDir: runtime.projectDir ?? cwd,
             cwd,
             ...(runtime.env !== undefined ? { env: runtime.env } : {}),
             effort: agent.effort,

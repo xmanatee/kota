@@ -1,0 +1,144 @@
+Validation summary
+
+PASS pnpm lint
+- Biome checked 3,583 source files with no findings.
+
+PASS pnpm build
+- TypeScript production build completed.
+
+PASS pnpm typecheck
+- tsc --noEmit completed.
+
+PASS production replacement contract tests
+- 2 files, 6 tests.
+- Includes the canonical task mover rejecting a missing artifact, rejecting a real failing declared test command, retaining the doing task after rejection, then accepting the same task only after the declared tests run successfully.
+- Includes unbound-owner, bypassed-restart-ingress, reachable-retired-path, malformed declaration, unsafe path, and queue validation failures.
+
+PASS production lifecycle regression tests
+- 4 files, 15 tests.
+- Covers the full runtime module loader and daemon cold start/restart, EventBus authority binding, live trigger admission, and persisted pending-run restoration.
+
+PASS task/docs/strict policy tests
+- 4 files, 75 tests passed, 1 staging-sensitive current-repo assertion skipped.
+- The skipped assertion is exercised by the workflow host after it exact-stages the native task transition; every non-staging structural assertion ran.
+
+EXPECTED HOST-OWNED STAGING
+- `pnpm validate-tasks` reports only the deleted ready/ task path and untracked done/ task path because this native CLI sandbox cannot write linked-worktree Git metadata.
+- `KOTA_REPO_TASK_STAGING_OWNER=workflow-host` preserved the canonical filesystem transition, and the builder workflow repair step owns exact-path staging before queue validation.
+- A direct validation query reports no production-replacement contract findings.
+
+POST-CHECK REPAIR VALIDATION
+
+PASS security-review due-check teardown repair
+- The focused file passed all 5 tests.
+- The focused file then passed 20 consecutive process-isolated runs (100 assertions total).
+- Fixture cleanup now uses Node's bounded recursive-removal retries for transient ENOTEMPTY/EPERM races.
+
+PASS focused formatting and types
+- Biome checked the repaired file with no findings.
+- pnpm typecheck completed successfully.
+
+PASS replacement contract and production lifecycle regressions
+- 2 replacement-contract files, 6 tests.
+- 4 production lifecycle files, 15 tests.
+
+FULL-SUITE ATTEMPT BLOCKED BY AGENT PERMISSIONS
+- pnpm test completed with 1,332 files / 12,689 tests passing and 48 files / 223 tests failing.
+- The repaired security-review due-check was not among the failures.
+- Representative remaining failures are EPERM reads of the policy-protected native runtime root and deploy/telegram-assistant/.env.example; those locations are explicitly unreadable in this builder session and outside this repair.
+
+CRITIC REPAIR ATTEMPT 2
+
+PASS durable production replacement contract tests
+- `pnpm test src/modules/repo-tasks/production-replacement-proof.test.ts src/modules/repo-tasks/production-replacement-completion.test.ts --run`
+- 2 files, 6 tests passed.
+- The declaration now rejects ignored builder-local proof paths, and the canonical mover retains `doing` until the exact durable projection is tracked or staged with index content matching the validated file.
+
+PASS builder evidence projection tests
+- `pnpm test src/modules/autonomy/workflows/builder/agent-run-artifacts.test.ts --run`
+- 1 file, 6 tests passed, including force-staging screened registered evidence at the durable run projection before task-queue validation.
+
+PASS task queue and static validation
+- `pnpm run validate-tasks`
+- `pnpm run typecheck`
+- `pnpm run lint` (Biome checked 3,583 source files with no findings.)
+
+CRITIC REPAIR ATTEMPT 3
+
+PASS execution-bound production replacement contract
+- `pnpm test src/modules/repo-tasks/production-replacement-proof.test.ts src/modules/repo-tasks/production-replacement-completion.test.ts --run`
+- 2 files, 6 tests passed.
+- The canonical mover invokes Vitest directly, ignores a failing package test script, rejects an optimistic claim whose named assertion did not execute, rejects a declared file whose behavior fails, and accepts only the exact passing machine report.
+
+PASS cold-start and restart production lifecycle proof
+- `pnpm test src/daemon-runtime-load.integration.test.ts src/core/modules/module-event-lifecycle.test.ts src/core/workflow/runtime-trigger-admission.test.ts src/core/workflow/workflow-queue-restoration.test.ts --run`
+- 4 files, 15 tests passed in 5.42 seconds.
+- The first daemon generation now delivers workflow.failure.alert to the loaded autonomy subscriber before unload; the restarted generation observes the same effect, and the journal contains both health signals.
+- A direct `pnpm exec vitest run ... --configLoader=runner --reporter=json` run passed all four declared files and emitted every exact assertion name bound by the schema-v2 artifact.
+
+PASS broader source validation
+- `pnpm lint` — 3,585 files checked with no findings.
+- `pnpm build` and `pnpm typecheck` completed successfully.
+- Repo-task, task/docs, root-layout, and strict-types selection: 105 non-staging assertions passed.
+- Final combined replacement/lifecycle run passed 6 files / 21 tests; the final docs, strict-types, repo-task operations, layout, and evidence-projection run passed 6 files / 41 tests.
+- Artifact validation, Vitest execution, and completion orchestration are split into cohesive files of 135, 148, and 139 lines, below the source-size gate.
+
+EXPECTED WORKFLOW-OWNED STAGING
+- The selection's sole failure and `pnpm validate-tasks` sole finding are the current-repo clean-index assertion for production-replacement-proof.json: the workflow-owned index still contains the prior staged projection while this repair's schema-v2 projection is in the worktree.
+- The workflow host exact-stages registered evidence after the agent stops; no other task-queue finding was reported.
+
+CRITIC REPAIR ATTEMPT 4
+
+PASS production-proven assertion bindings
+- The artifact is schema v3 and contains no hand-authored effectObserved or reachable pass flags.
+- Each exact bound assertion is rerun alone with Vitest, and completion requires runtime transform provenance for every entrypoint bound to that assertion.
+- The canonical mover test now rejects the critic's synthetic owner-string self-comparison before accepting behavioral fixtures that exercise non-test production entrypoints.
+- Real-task execution returned {"structural":null,"execution":null}; the four declared lifecycle files and all four isolated assertion probes passed.
+
+PASS focused and broader validation
+- Contract tests: 2 files / 7 tests.
+- Combined contract and lifecycle tests: 6 files / 22 tests.
+- Task/docs/strict/layout/evidence selection: 5 files / 19 tests.
+- pnpm lint checked 3,585 files with no findings.
+- pnpm build and pnpm typecheck completed successfully.
+- production-replacement-execution.ts is 297 lines, below the 300-line source-size warning threshold.
+
+EXPECTED WORKFLOW-OWNED STAGING
+- pnpm validate-tasks reports only the updated schema-v3 durable proof artifact as index-divergent.
+- The workflow host exact-stages registered evidence after the agent stops; the working artifact itself passed structural validation and the full strengthened executor.
+
+POST-CHECK REPAIR ATTEMPT 5
+
+PASS managed-sandbox production provenance
+- Four focused repo-task files passed 10 tests: declaration parsing, direct and sandbox-projected Vitest path normalization, completion validation, and the canonical task transition.
+- The canonical mover rejects missing, index-divergent, unbound, failing, and synthetic proofs, then accepts the production fixture only after isolated assertions load their declared non-test entrypoints.
+- The real done task's strengthened executor returned `ok: true` after running all four declared production test files and their isolated assertion-to-entrypoint provenance probes.
+
+PASS source-size severe repair
+- The former 306-line completion test is split into 168-line completion behavior and 165-line task-transition coverage.
+- Production proof execution is 262 lines after extracting the 52-line Vitest path normalizer; its focused path test is 39 lines.
+- A prospective HEAD-to-worktree source-size scan reports only the two prior advisory oversized module files, with two warnings total and no file above the 150-line substantial-growth threshold.
+
+PASS static and queue validation
+- pnpm typecheck completed successfully.
+- pnpm lint checked 3,588 source files with no findings.
+- pnpm validate-tasks completed successfully.
+
+FULL-SUITE ATTEMPT BLOCKED BY AGENT PERMISSIONS
+- The repaired production-proof files passed in the full run.
+- The run finished with 1,334 files / 12,693 tests passing, 5 files / 22 tests skipped, and 48 files / 223 tests failing outside this task.
+- Representative failures are EPERM on the intentionally non-searchable protected runtime parent, denied loopback listeners, and the policy-denied deploy/telegram-assistant/.env.example path; the host repair runner is required for those checks.
+
+POST-CHECK REPAIR ATTEMPT 6
+
+PASS terminal-colored production provenance
+- Vitest trace normalization strips terminal control sequences before resolving fail-closed repo paths, so a production entrypoint observed in colored debug output binds to its declared path.
+- The path regression includes an ANSI-wrapped Vite transform line while preserving rejection of unrelated project paths.
+- The exact previously failing task-transition selection passed 2 files / 5 tests.
+- The canonical transition file also passed 2 tests end to end with `FORCE_COLOR=1`.
+
+PASS replacement contract and static validation
+- Four focused repo-task files passed 10 tests, including the canonical task mover's synthetic-proof rejection and real production-entrypoint acceptance.
+- pnpm typecheck completed successfully.
+- pnpm lint checked 3,588 source files with no findings.
+- pnpm validate-tasks completed successfully.

@@ -32,6 +32,7 @@ export function evidenceRefs(args: {
   ownerQuestions: readonly ProgressReviewEvidenceRef[];
   approvals: readonly ProgressReviewEvidenceRef[];
   deadLetters: readonly ProgressReviewEvidenceRef[];
+  state: readonly ProgressReviewEvidenceRef[];
 }): ProgressReviewEvidenceRef[] {
   return [
     ...args.runs,
@@ -42,6 +43,7 @@ export function evidenceRefs(args: {
     ...args.ownerQuestions,
     ...args.approvals,
     ...args.deadLetters,
+    ...args.state,
   ].map(toEvidenceRef);
 }
 
@@ -70,6 +72,7 @@ function progressReviewEvidenceCounts(
     | "ownerQuestions"
     | "approvals"
     | "deadLetters"
+    | "canonicalState"
     | "evidence"
     | "taskClassDistribution"
   >,
@@ -83,6 +86,7 @@ function progressReviewEvidenceCounts(
     ownerQuestions: packet.ownerQuestions.length,
     approvals: packet.approvals.length,
     deadLetters: packet.deadLetters.length,
+    state: packet.canonicalState.length,
     evidence: packet.evidence.length,
     taskClasses: packet.taskClassDistribution,
   };
@@ -106,6 +110,8 @@ function agentEvidenceKindOrder(kind: ProgressReviewEvidenceRef["kind"]): number
       return 6;
     case "git":
       return 7;
+    case "state":
+      return -1;
   }
 }
 
@@ -222,6 +228,10 @@ export function compactProgressReviewEvidenceForAgent(
   }
   return {
     generatedAt: packet.generatedAt,
+    semanticInput: {
+      ...packet.semanticInput,
+      evidenceRefs: [...packet.semanticInput.evidenceRefs],
+    },
     triggerKind: packet.triggerKind,
     triggerEvent: packet.triggerEvent,
     scope: packet.scope,

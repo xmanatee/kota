@@ -2,8 +2,6 @@ import { join } from "node:path";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const SCOPE_IMPROVEMENT_ARTIFACT = "scope-improvement.json";
-export const SCOPE_IMPROVEMENT_SCHEDULE_EVENT =
-  "autonomy.scope-improvement.scheduled";
 export const SCOPE_IMPROVEMENT_STATE_PATH = join(
   ".kota",
   "scope-improvement",
@@ -14,30 +12,28 @@ export const SCOPE_IMPROVEMENT_CONFIG_PATH = join(
   "scope-improvement",
   "config.json",
 );
-export const SCOPE_IMPROVEMENT_DEFAULT_MIN_MINUTES_BETWEEN_RUNS = 30;
 export const SCOPE_IMPROVEMENT_DEFAULT_MAX_ACTIONS_PER_RUN = 2;
 export const SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN = 30;
 export const SCOPE_IMPROVEMENT_MAX_SIGNATURES = 80;
 
 export type ScopeImprovementTriggerKind =
-  | "manual"
-  | "schedule"
-  | "evidence"
-  | "file"
-  | "task"
-  | "run";
+  | "explicit-request"
+  | "initial-onboarding"
+  | "content-policy-changed";
 
 export type ScopeImprovementConfig = {
   enabled: boolean;
-  minMinutesBetweenRuns: number;
   maxActionsPerRun: number;
-  allowAutonomousEdits: boolean;
-  writePaths: string[];
 };
 
 export type ScopeImprovementState = {
   scopeId: string;
   lastRunAt: string | null;
+  consumedFingerprint: string | null;
+  pendingFingerprint: string | null;
+  pendingBoundary: "initial-onboarding" | "content-policy-changed" | null;
+  pendingDelivery: "queued" | "deferred" | null;
+  pendingDeliveryAttempt: number;
   recentSignatures: { signature: string; action: string; lastSeenAt: string }[];
 };
 
@@ -67,7 +63,12 @@ export type ScopeImprovementInputs = {
   instructions: ScopeInstruction[];
   changedFiles: string[];
   evidence: ScopeImprovementEvidence[];
-  throttle: { reason: string; eventCount: number } | null;
+  semanticInput: {
+    automatic: boolean;
+    fingerprint: string;
+    evidenceRefs: string[];
+  };
+  alreadyConsumed: boolean;
 };
 
 export type ScopeImprovementTaskSpec = {
@@ -93,9 +94,6 @@ export type ScopeImprovementCandidate =
     })
   | (ScopeImprovementCandidateBase & {
       preferredAction: "owner-question";
-    })
-  | (ScopeImprovementCandidateBase & {
-      preferredAction: "safe-edit";
     })
   | (ScopeImprovementCandidateBase & {
       preferredAction: "skip";
@@ -129,14 +127,6 @@ export type ScopeImprovementRecommendation =
       proposedAnswers: string[];
     }
   | {
-      kind: "safe-edit";
-      signature: string;
-      path: string;
-      title: string;
-      summary: string;
-      evidenceIds: string[];
-    }
-  | {
       kind: "skipped";
       signature: string;
       reason: string;
@@ -154,13 +144,11 @@ export type ScopeImprovementAppliedAction =
     }
   | { kind: "owner-question"; questionId: string; signature: string }
   | { kind: "updated-owner-question"; questionId: string; signature: string }
-  | { kind: "safe-edit"; path: string; signature: string }
   | { kind: "skipped"; signature: string; reason: string };
 
 export type ScopeImprovementActionResult = {
   createdTaskIds: string[];
   ownerQuestionIds: string[];
-  safeEditPaths: string[];
   applied: ScopeImprovementAppliedAction[];
   requiresCommit: boolean;
 };
@@ -174,7 +162,7 @@ export type ScopeImprovementPreflight = {
   };
 };
 
-export type ScopeImprovementCooldownDecision = {
+export type ScopeImprovementConsumptionDecision = {
   recorded: boolean;
   reason: string | null;
 };
@@ -186,5 +174,5 @@ export type ScopeImprovementArtifact = {
   evidence: ScopeImprovementEvidencePacket;
   recommendations: ScopeImprovementRecommendation[];
   actions: ScopeImprovementActionResult;
-  cooldown: ScopeImprovementCooldownDecision;
+  consumption: ScopeImprovementConsumptionDecision;
 };

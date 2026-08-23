@@ -1,3 +1,4 @@
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { daemonWriteEffect, networkDestructiveEffect } from "#core/tools/effect.js";
@@ -194,7 +195,15 @@ const browserModule: KotaModule = {
       );
     }
     const profile = resolveProfile(ctx);
-    configureBrowserProfile(profile);
+    configureBrowserProfile(profile, {
+      scopeId: deriveDirectoryScopeId(ctx.cwd),
+      projectDir: ctx.cwd,
+    });
+    if (profile.networkProfile.name === "configured-provider") {
+      ctx.log.info(
+        `browser: configured-provider network profile selected for ${profile.networkProfile.allowedOrigins.length} operator-approved origin(s)`,
+      );
+    }
     if (profile.storageStatePath) {
       ctx.log.info(
         `browser: authenticated profile configured at ${profile.storageStatePath}` +

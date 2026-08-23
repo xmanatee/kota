@@ -155,6 +155,7 @@ export function createPrepareBuilderWorktreeStep(
         );
         const evidenceRunId = findPreservedBuilderEvidenceRunId(
           inspection.metadata.workspaceDir,
+          worktreeRunId,
         );
         return prepareWorktreeResources(
           ctx,
@@ -162,7 +163,7 @@ export function createPrepareBuilderWorktreeStep(
           taskId,
           claimId,
           worktreeRunId,
-          evidenceRunId ?? undefined,
+          evidenceRunId,
         );
       }
 

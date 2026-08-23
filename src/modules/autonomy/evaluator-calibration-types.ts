@@ -2,6 +2,7 @@ import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const EVALUATOR_CALIBRATION_ARTIFACT = "evaluator-calibration.json";
+export const EVALUATOR_CALIBRATION_STEP_ID = "write-calibration-artifact";
 
 /**
  * Repair-check id of the critic. A failure means the critic found something

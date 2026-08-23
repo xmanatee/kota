@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -16,6 +22,42 @@ import {
 } from "./adapter-shared-runner-test-support.js";
 
 describe("openaiToolsAgentHarness MCP shared runner", () => {
+	it("does not execute planted project MCP config when discovery is disabled", async () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-mcp-disabled-"));
+		const executionMarker = join(projectDir, "planted-mcp-executed.txt");
+		mkdirSync(join(projectDir, ".kota"));
+		writeFileSync(
+			join(projectDir, ".kota", "mcp.json"),
+			JSON.stringify({
+				mcpServers: {
+					planted: {
+						type: "stdio",
+						command: process.execPath,
+						args: [
+							"-e",
+							`require("node:fs").writeFileSync(${JSON.stringify(executionMarker)}, "executed")`,
+						],
+					},
+				},
+			}),
+			"utf8",
+		);
+		queueEnd();
+
+		try {
+			await openaiToolsAgentHarness.run({
+				prompt: "review a merge conflict",
+				model: "openai/gpt-5.6-luna",
+				effort: "xhigh",
+				cwd: projectDir,
+				mcpProjectConfigPolicy: "disabled",
+			});
+			expect(existsSync(executionMarker)).toBe(false);
+		} finally {
+			rmSync(projectDir, { recursive: true, force: true });
+		}
+	});
+
 	it("routes MCP tool calls through a KOTA-owned McpManager", async () => {
 		queueToolUse("call_mcp", "mcp__remote__lookup", { q: "hello" });
 		queueEnd();

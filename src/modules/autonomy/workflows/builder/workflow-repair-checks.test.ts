@@ -7,11 +7,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTONOMY_CHANGE_DECISION_ARTIFACT } from "#modules/autonomy/autonomy-change-decision.js";
 import "./workflow-test-support.js";
 import { checkMobileTypecheck } from "./project-repair-checks.js";
+import { builderRepairChecks } from "./repair-checks.js";
 import {
-  builderRepairChecks,
   checkActionableTaskClaimed,
   checkActionableTaskResolved,
-} from "./repair-checks.js";
+} from "./task-state-repair-checks.js";
 import { resetBuilderWorkflowMocks } from "./workflow-test-support.js";
 
 const promptPath = fileURLToPath(new URL("./prompt.md", import.meta.url));

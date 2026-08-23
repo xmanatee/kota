@@ -87,6 +87,7 @@ export async function executeParallelStepGroup(
       stepOutputList: [...context.stepOutputList],
       runTool: (name, input, toolContext) =>
         context.runTool(name, input, {
+          ...toolContext,
           stepId: toolContext?.stepId ?? childStep.id,
         }),
     };

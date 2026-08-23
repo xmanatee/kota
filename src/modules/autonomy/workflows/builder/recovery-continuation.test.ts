@@ -12,7 +12,10 @@ vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
   listRecoveryClaims,
 }));
 
-import { listPendingBuilderRecoveries } from "./recovery-continuation.js";
+import {
+  inspectPendingBuilderRecoveriesInWorker,
+  listPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
 
 const tempDirs: string[] = [];
 
@@ -68,7 +71,64 @@ function continuedRecoveryCandidate(projectDir: string): WorkflowStateRecoveryCl
   };
 }
 
+function writeTask(
+  projectDir: string,
+  id: string,
+  taskClass: "Safety" | "Platform" | "Meta",
+  priority: "p1" | "p2",
+): void {
+  const dir = join(projectDir, "data", "tasks", "ready");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${id}.md`),
+    [
+      "---",
+      `id: ${id}`,
+      `title: ${id}`,
+      "status: ready",
+      `priority: ${priority}`,
+      "area: core",
+      `task_class: ${taskClass}`,
+      `summary: ${id}`,
+      "created_at: 2026-08-01T00:00:00.000Z",
+      "updated_at: 2026-08-01T00:00:00.000Z",
+      "---",
+      "",
+      "## Problem",
+      "",
+      id,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+}
+
 describe("builder recovery continuation bounds", () => {
+	it("requests unresolved pending merge after the prior continuation declined a generic retry", () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "builder-pending-merge-recovery-"));
+		tempDirs.push(projectDir);
+		const runDir = join(projectDir, ".kota", "runs", "recovery-run");
+		mkdirSync(runDir, { recursive: true });
+		writeFileSync(
+			join(runDir, "terminal-worktree-finalizer.json"),
+			JSON.stringify({
+				recoveryRequested: false,
+				recoveryAction: { kind: "state-recovery-required" },
+			}),
+			"utf8",
+		);
+		const candidate = continuedRecoveryCandidate(projectDir);
+		candidate.claim.status = "pending-merge";
+		candidate.recoveryStatus = "pending-merge";
+		candidate.ownerRunStatus = "success";
+		candidate.worktree.state = "pending-merge";
+		candidate.worktree.dirtyState = "conflicted";
+		candidate.worktree.dirtyEntries = ["UU src/shared.ts"];
+		listRecoveryClaims.mockReturnValue([candidate]);
+
+		expect(listPendingBuilderRecoveries(projectDir)).toEqual([candidate]);
+	});
+
   it("does not requeue a continuation after its finalizer requires state recovery", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-bound-"));
     tempDirs.push(projectDir);
@@ -85,5 +145,28 @@ describe("builder recovery continuation bounds", () => {
     listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
 
     expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
+  });
+
+  it("defers recovery behind a higher-ranked claimable task", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-frontier-"));
+    tempDirs.push(projectDir);
+    writeTask(projectDir, "task-one", "Platform", "p1");
+    writeTask(projectDir, "task-security", "Safety", "p1");
+    listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
+    const result = inspectPendingBuilderRecoveriesInWorker({ projectDir });
+
+    expect(result).toEqual({ candidateCount: 1, requested: [] });
+  });
+
+  it("requests recovery when it outranks the claimable frontier", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-frontier-"));
+    tempDirs.push(projectDir);
+    writeTask(projectDir, "task-one", "Platform", "p1");
+    writeTask(projectDir, "task-meta", "Meta", "p2");
+    listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
+    const result = inspectPendingBuilderRecoveriesInWorker({ projectDir });
+
+    expect(result.requested).toHaveLength(1);
+    expect(result.requested[0]?.taskId).toBe("task-one");
   });
 });

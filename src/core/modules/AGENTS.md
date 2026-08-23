@@ -5,14 +5,10 @@ and foreign-module transports.
 
 ## Module Loader Layout
 
-`module-loader.ts` is the orchestrator: it owns the `ModuleLoader` class, the
-public accessor surface, and lifecycle-mode wiring. Each load-time concern
-with cohesive state lives in a sibling file. New concerns land as a phase
-function in the appropriate sibling, not as a fresh inline block in
-`module-loader.ts`.
+`module-loader.ts` owns the `ModuleLoader` orchestrator, public accessors, and
+lifecycle-mode wiring. Cohesive load concerns belong in sibling phase files.
 
-- `module-loader-state.ts` — the shared `LoaderState` shape every phase reads
-  or mutates.
+- `module-loader-state.ts` — shared `LoaderState` for every phase.
 - `module-loader-context.ts` — `createLoaderModuleContext` and per-loader
   tool-call-depth bookkeeping.
 - `module-loader-load-phases.ts` — every load phase as a typed function
@@ -20,41 +16,33 @@ function in the appropriate sibling, not as a fresh inline block in
   channel/command/route registration, `onLoad`, skills, agents). The
   `runModuleLoadPhases` helper drives the sequence so the orchestrator only
   owns early checks and final dispatch.
-- `module-loader-clients.ts` — local- and daemon-side `KotaClient` handler
-  collection plus the runtime `assembleDaemonClientHandlers(transport)`
-  builder.
+- `module-loader-clients.ts` — local/daemon `KotaClient` handler assembly.
 - `module-loader-bootstrap.ts` — multi-module orchestrators outside a single
   `load()`: `loadAllModules`, `reloadModule`, `reimportModule`, provider
   activation.
-- `module-loader-summaries.ts` — read-only `getModuleSummaries` and
-  `formatSkillsPrompt` derivations.
+- `module-loader-skills.ts` / `module-loader-summaries.ts` — imported-skill
+  refresh, summaries, and prompt derivation.
 - `module-lifecycle.ts` — the unload-side counterpart and paired state
   cleanup.
 
 ## Module Context Surfaces
 
-The runtime hands every module hook the same physical context object, but the
-typed protocol exposes fewer capabilities to non-`onLoad` hooks. Two surfaces
-matter:
+Every hook receives the same context object, but the typed protocol exposes
+fewer capabilities outside `onLoad`:
 
-- `ModuleContext` — the **contribution context**. Available to `tools`,
+- `ModuleContext` — the **contribution context** for `tools`,
   `commands`, `routes`, `controlRoutes`, `localClient`, plus the `workflows`,
   `channels`, `skills`, and `agents` factories (and any handler closure built
   from them). Read access, tool invocation, provider lookup, event emit,
-  per-call session creation, and CLI-local `KotaClient` access. No lifecycle
-  registration.
-- `ModuleRuntimeContext` — the **runtime context**, used only for `onLoad`.
-  Extends `ModuleContext` with the registration capabilities that mutate
-  load-time runtime state: `registerProvider`, `registerMiddleware`,
+  per-call sessions, and CLI-local `KotaClient` access. No lifecycle registration.
+- `ModuleRuntimeContext` — the **runtime context** for `onLoad`. It adds
+  load-time registration: `registerProvider`, `registerMiddleware`,
   `registerGroup`, and the loop/harness decoration hooks
   (`registerCleanupHook`, `registerDynamicStateProvider`, `registerPreSendHook`,
   `registerHarnessHook`).
 
-Lifecycle registration belongs in `onLoad`. A factory hook that reaches for
-`registerProvider` is doing something the protocol forbids — providers may
-already be activated by the time a route handler runs, and a contribution
-factory's idempotency story is much weaker than the lifecycle's. The capability
-boundary is enforced at compile time by `module-context-capabilities.test.ts`.
+Lifecycle registration belongs in `onLoad`; contribution factories may run
+after provider activation. `module-context-capabilities.test.ts` enforces this.
 
 - Modules own tool, workflow, channel, provider, agent, and service contributions.
 - Treat `<project>/.kota/modules/` as untrusted. Resolve persisted machine trust
@@ -115,7 +103,10 @@ between cheap CLI subcommand registration and a fully-driven module runtime.
 - `"runtime"`: drive every module's lifecycle to completion. Required by any
   long-lived host that serves provider-backed routes or runs workflows. Use
   `loadRuntimeModules` for all daemon, MCP, eval-harness, and similar paths.
-  All accessors are safe in this mode.
+  Bind the host `EventBus` before lifecycle execution. `loadRuntimeModules`
+  rejects a missing bus; direct runtime loaders must call `setBus` explicitly.
+  Without a bound authority, loading and event calls fail. Failed load, unload, reload,
+  and shutdown remove owned listeners. Sessions borrow host runtime state.
 
 The runtime-only guard prevents a partial-context bug class: a daemon that
 reads route contributions from a `"commands"` snapshot whose `onLoad` hooks
@@ -128,7 +119,7 @@ module definitions during `load()` regardless of mode — which is what
 hydrates a runtime-mode loader inside the action before executing the run so
 workflow tool steps and module lifecycle state are available.
 
-Tests, helpers, and runtime hosts must declare which mode they exercise:
+Tests and hosts declare their mode and bind runtime test loaders explicitly:
 commands-mode callers may read static contributions but not `getRoutes()`,
 `getContributedControlRoutes()`, or `probeHealthChecks()`; runtime-mode
-callers may read every accessor.
+callers may read every accessor; event tests supply an authority.

@@ -1,14 +1,15 @@
 import type { Command } from "commander";
 import type { AgentEffort } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
+import { createProjectRuntime } from "#core/daemon/project-runtime.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type {
   WorkflowAgentStep,
   WorkflowCodeStep,
@@ -186,9 +187,11 @@ export function registerExecCommand(
       }
 
       const runtimeConfig = loadConfig(ctx.cwd);
+      const bus = new EventBus();
       const runtimeLoader = await loadRuntimeModules({
         config: runtimeConfig,
         cwd: ctx.cwd,
+        eventBus: bus,
       });
       try {
         const runtime = resolveAgentRuntime(runtimeConfig);
@@ -225,9 +228,28 @@ export function registerExecCommand(
           throw new Error(`Workflow "${name}" disappeared during execution validation.`);
         }
 
-        const bus = new EventBus();
-        const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(ctx.cwd));
-        const store = new WorkflowRunStore(ctx.cwd);
+        const scopeId = deriveDirectoryScopeId(ctx.cwd);
+        const projectRuntime = createProjectRuntime({
+          project: {
+            projectId: scopeId,
+            projectDir: ctx.cwd,
+            displayName: scopeId,
+          },
+          bus,
+          config: runtimeConfig,
+          workflows: definitions,
+          onLog: (message) => printWorkflowError(message),
+          installSingletons: false,
+        });
+        const registry = getProviderRegistry();
+        if (registry === null) {
+          throw new Error("Workflow execution runtime provider registry is unavailable");
+        }
+        registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
+          resolve: (selectedId) => selectedId === scopeId
+            ? { ok: true, runtime: projectRuntime }
+            : { ok: false, projectId: selectedId },
+        });
         const trigger: WorkflowRunTrigger = {
           event: opts.event,
           schemaRef: null, payload: {
@@ -239,8 +261,8 @@ export function registerExecCommand(
         const { promise } = executeWorkflowRun(executionDefinition, trigger, {
           projectDir: ctx.cwd,
           bus,
-          pbus,
-          store,
+          pbus: projectRuntime.pbus,
+          store: projectRuntime.runStore,
           config: runtimeConfig,
           log: (msg) => printWorkflowError(msg),
           resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),

@@ -127,7 +127,7 @@ describe("autonomy workflow blocking review and task operations", () => {
       );
       const scopeInputs: ScopeImprovementInputs = {
         generatedAt: "2026-08-14T12:00:00.000Z",
-        triggerKind: "manual",
+        triggerKind: "explicit-request",
         triggerEvent: "autonomy.scope-improvement.requested",
         scope: {
           scopeId: "root",
@@ -136,16 +136,27 @@ describe("autonomy workflow blocking review and task operations", () => {
         },
         config: {
           enabled: true,
-          minMinutesBetweenRuns: 0,
           maxActionsPerRun: 1,
-          allowAutonomousEdits: false,
-          writePaths: [],
         },
-        state: { scopeId: "root", lastRunAt: null, recentSignatures: [] },
+        state: {
+          scopeId: "root",
+          lastRunAt: null,
+          consumedFingerprint: null,
+          pendingFingerprint: null,
+          pendingBoundary: null,
+          pendingDelivery: null,
+          pendingDeliveryAttempt: 0,
+          recentSignatures: [],
+        },
         instructions: [],
         changedFiles: [],
         evidence: [],
-        throttle: null,
+        semanticInput: {
+          automatic: false,
+          fingerprint: "worker-boundary",
+          evidenceRefs: ["boundary:test"],
+        },
+        alreadyConsumed: false,
       };
       const scopeImprovement = await runWorkflowBlockingOperation(
         applyScopeImprovementRecommendationsOperation,

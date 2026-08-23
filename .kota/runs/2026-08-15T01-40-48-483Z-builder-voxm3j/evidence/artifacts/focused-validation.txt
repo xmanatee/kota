@@ -1,0 +1,20 @@
+Observability recheck
+- Input: git diffs for 30549f8c5f13 and cabddc9c8ef6, the focused follow-up test diff, and observability-obligation-rationale.json.
+- Result: outcome ok; 50 candidates across 48 unique files satisfied; missingFiles empty.
+- Remaining-candidate evidence: AgentOutputSchema uses a narrow type-only rationale; both Antigravity CLI files retain cli-output-command-trace.test.ts; daemon-client-test-stubs.ts maps to daemon-client.test.ts; execution-env.ts maps to execution-env.test.ts.
+
+Focused tests
+- Command: pnpm test src/core/server/daemon-client.test.ts src/modules/execution/execution-env.test.ts src/modules/antigravity-cli-agent-harness/cli-output-command-trace.test.ts src/modules/autonomy/observability-obligation.test.ts
+- Result: 4 test files passed; 21 tests passed.
+
+Static checks
+- Command: pnpm exec biome check src/core/server/daemon-client.test.ts src/modules/execution/execution-env.test.ts
+- Result: checked 2 files; no fixes applied.
+- Command: pnpm run typecheck
+- Result: tsc --noEmit passed.
+- Command: git diff --check -- <changed task and test paths>
+- Result: passed with no output.
+
+Task lifecycle and validation
+- `pnpm kota task show task-close-observability-obligations-from-recent-harnes` reports status done and preserves the four cited evidence ids.
+- Agent-side `pnpm run validate-tasks -- --summary` reported only `task-untracked` for the done destination and `task-deleted-unstaged` for the ready source. These are the exact native linked-worktree index writes that repo policy defers to the workflow host; no structural, dependency, lifecycle, evidence, or content finding was reported. The workflow-host staging repair exact-stages the claimed task paths and reruns task validation before commit.

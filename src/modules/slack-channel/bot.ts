@@ -11,6 +11,7 @@ import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { NullTransport } from "#core/loop/transport.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
+import { admitSlackInteraction, admitSlackMessage, reportSlackAdmission } from "./admission.js";
 import { handleSlackApprovalAction, postSlackApproval } from "./approval-interactions.js";
 import { consumeSlackInboundSignal } from "./bot-inbound-signal.js";
 import type { SlackBotOptions } from "./bot-options.js";
@@ -186,6 +187,8 @@ export class SlackBot {
     event: SlackMessageEvent,
     envelope: SlackEventsApiPayload,
   ): Promise<void> {
+    if (!reportSlackAdmission(admitSlackMessage(this.options, event, envelope), "message")) return;
+
     const parsed = parseSlackSlashCommand(text);
     if (parsed) {
       await this.handleSlashCommand(channelId, parsed, userId);
@@ -273,6 +276,7 @@ export class SlackBot {
   }
 
   private async handleBlockAction(payload: SlackInteractivePayload): Promise<void> {
+    if (!reportSlackAdmission(admitSlackInteraction(this.options, payload), "callback")) return;
     await handleSlackApprovalAction(this.options, payload);
   }
 

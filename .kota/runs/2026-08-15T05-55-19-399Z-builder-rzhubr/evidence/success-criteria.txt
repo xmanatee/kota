@@ -1,0 +1,2 @@
+1. Progress-review artifact discovery records EACCES or EPERM directories as run-relative excluded evidence and continues collecting accessible sibling artifacts.
+2. A redriven progress-review workflow completes through the collect-evidence step with an unreadable run descendant, while focused validation and run evidence preserve the cited dead-letter provenance.

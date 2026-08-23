@@ -1,0 +1,3 @@
+1. Verified: `admission.ts` default-denies missing policy and admits messages only for an allowlisted user, the configured workspace, and `channel_type: "im"`; `bot.ts` applies it before command, signal, session, and callback dispatch.
+2. Verified: focused admission and socket tests reject unauthorized users, workspaces, public channels, and callbacks before side effects, while an admitted user can still carry downstream `actor.trust: "untrusted"`; all 115 Slack-channel tests passed.
+3. Verified: the task records the passing test, typecheck, and schema commands and was moved to `done` through `kota task move`; task-file staging and queue validation remain explicitly owned by the workflow host.

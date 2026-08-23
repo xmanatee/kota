@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
+import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
 import { discoverModules as discoverMachineAuthorizedModules } from "./module-discovery.js";
-import { ModuleLoader } from "./module-loader.js";
+import type { ModuleLoader } from "./module-loader.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-module-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -34,7 +35,7 @@ describe("discoverModules", () => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
-    loader = new ModuleLoader({}, false, { globalConfigPath });
+    loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
   });
 
   afterEach(async () => {

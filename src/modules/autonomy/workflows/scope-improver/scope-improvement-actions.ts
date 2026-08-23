@@ -1,16 +1,12 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   type GeneratedWorkProposalAction,
   materializeGeneratedWorkProposal,
 } from "#modules/autonomy/generated-work-proposal.js";
-import {
-  isScopeImprovementWriteAllowed,
-  readScopeImprovementConfig,
-  writeScopeImprovementState,
-} from "./scope-improvement-state.js";
+import { writeScopeImprovementState } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_ARTIFACT,
   type ScopeImprovementActionResult,
@@ -115,44 +111,6 @@ function writeTask(args: {
   };
 }
 
-function writeSafeEdit(args: {
-  projectDir: string;
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "safe-edit" }>;
-}): ScopeImprovementAppliedAction {
-  const config = readScopeImprovementConfig(args.projectDir);
-  if (!isScopeImprovementWriteAllowed(config, args.recommendation.path)) {
-    return skipped(
-      args.recommendation.signature,
-      `policy does not allow autonomous edit of ${args.recommendation.path}`,
-    );
-  }
-  const path = join(args.projectDir, args.recommendation.path);
-  if (existsSync(path)) {
-    return skipped(
-      args.recommendation.signature,
-      `${args.recommendation.path} already exists`,
-    );
-  }
-  writeFileSync(
-    path,
-    [
-      "# Scope Guidance",
-      "",
-      "This directory is a KOTA-managed scope.",
-      "",
-      "- Record durable scope constraints here before broad autonomous improvement work.",
-      "- Keep task-specific acceptance evidence in normal KOTA task files or run artifacts.",
-      "",
-    ].join("\n"),
-    "utf-8",
-  );
-  return {
-    kind: "safe-edit",
-    path: args.recommendation.path,
-    signature: args.recommendation.signature,
-  };
-}
-
 function enqueueQuestion(args: {
   projectDir: string;
   runId: string;
@@ -235,9 +193,6 @@ export function applyScopeImprovementRecommendations(
     if (recommendation.kind === "owner-question") {
       return enqueueQuestion({ projectDir: args.projectDir, runId: args.runId, recommendation });
     }
-    if (recommendation.kind === "safe-edit") {
-      return [writeSafeEdit({ projectDir: args.projectDir, recommendation })];
-    }
     return [skipped(recommendation.signature, recommendation.reason)];
   });
   writeScopeImprovementState({
@@ -267,22 +222,16 @@ function summarizeActions(
       action.kind === "owner-question",
     )
     .map((action) => action.questionId);
-  const safeEditPaths = applied
-    .filter((action): action is Extract<ScopeImprovementAppliedAction, { kind: "safe-edit" }> =>
-      action.kind === "safe-edit",
-    )
-    .map((action) => action.path);
   return {
     createdTaskIds,
     ownerQuestionIds,
-    safeEditPaths,
     applied,
     requiresCommit:
       applied.some((action) =>
         action.kind === "created-task" ||
         action.kind === "updated-task" ||
         action.kind === "dropped-task"
-      ) || safeEditPaths.length > 0,
+      ),
   };
 }
 

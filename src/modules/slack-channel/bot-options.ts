@@ -1,5 +1,6 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AnswerClient } from "#modules/answer/client.js";
@@ -26,11 +27,14 @@ export type SlackInboundSignalRuntime = {
 export type SlackBotOptions = {
 	botToken: string;
 	appToken: string;
+	workspaceId?: string;
+	allowedUserIds: readonly string[];
 	notifyChannel?: string;
 	model?: string;
 	verbose?: boolean;
 	config?: KotaConfig;
 	autonomyMode: AutonomyMode;
+	moduleLoader?: ModuleLoader;
 	getDefaultProjectRuntime: () => ProjectRuntime;
 	recall: RecallClient;
 	answer: AnswerClient;

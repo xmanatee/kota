@@ -48,6 +48,7 @@ function resolveLocalApprovalTarget(selector?: ScopeSelector): LocalApprovalTarg
 		executionContext: {
 			scopeId: resolved.runtime.project.projectId,
 			projectId: resolved.runtime.project.projectId,
+			projectDir: resolved.runtime.project.projectDir,
 			cwd: resolved.runtime.project.projectDir,
 		},
 	};

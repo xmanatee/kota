@@ -71,7 +71,7 @@ export async function runTrialAttempt(args: {
         "unknown_workflow",
       );
     }
-    const bus = new EventBus();
+    const bus = runtime.eventBus ?? new EventBus();
     bus.on("*", (event) => {
       busEvents.push({
         type: event.type,
@@ -79,8 +79,10 @@ export async function runTrialAttempt(args: {
         payload: projectTrialPayload(event.payload),
       });
     });
-    const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(trialProjectDir));
-    const store = new WorkflowRunStore(trialProjectDir);
+    const pbus = runtime.projectRuntime?.pbus
+      ?? new ProjectScopedEventBus(bus, deriveDirectoryScopeId(trialProjectDir));
+    const store = runtime.projectRuntime?.runStore
+      ?? new WorkflowRunStore(trialProjectDir);
     const runId = formatRunId(`${args.variant.workflow}-trial`);
     const trigger: WorkflowRunTrigger = {
       event: "manual",

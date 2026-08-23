@@ -1,4 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,11 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { executeTool } from "#core/tools/index.js";
 import {
-	handleApproveAllApprovals,
-	handleApproveApproval,
 	handleListApprovals,
-	handleRejectAllApprovals,
-	handleRejectApproval,
 } from "./routes.js";
 
 vi.mock("#core/tools/index.js", () => ({
@@ -37,7 +32,7 @@ function mockResponse() {
 	return { res, result };
 }
 
-function mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
+function _mockRequest(body: Record<string, unknown> = {}): IncomingMessage {
 	const buf = Buffer.from(JSON.stringify(body));
 	let dataHandler: ((chunk: Buffer) => void) | null = null;
 	let endHandler: (() => void) | null = null;
@@ -69,7 +64,7 @@ function reviewDigest(queue: ApprovalQueue, id: string): string {
 	return review.digest;
 }
 
-function approvalDecisionBody(
+function _approvalDecisionBody(
 	queue: ApprovalQueue,
 	id: string,
 	note?: string,
@@ -80,7 +75,7 @@ function approvalDecisionBody(
 	};
 }
 
-function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown> {
+function _approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown> {
 	return {
 		reviews: queue.list("pending").map((item) => ({
 			id: item.id,
@@ -89,7 +84,7 @@ function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown
 	};
 }
 
-function approvePending(queue: ApprovalQueue, id: string): void {
+function _approvePending(queue: ApprovalQueue, id: string): void {
 	const selection = queue.getExecutionSnapshot(id);
 	if (!selection.ok) throw new Error("expected execution snapshot");
 	const result = queue.approveForExecution(selection.snapshot.descriptor);
@@ -163,10 +158,10 @@ function mockTransport(spec: RouteResponseSpec = {}): import("#core/server/daemo
 }
 
 describe("approval-routes", () => {
-	let queue: ApprovalQueue;
+	let _queue: ApprovalQueue;
 
 	beforeEach(() => {
-		queue = makeQueue();
+		_queue = makeQueue();
 		vi.mocked(executeTool).mockResolvedValue({ content: "ok" });
 	});
 

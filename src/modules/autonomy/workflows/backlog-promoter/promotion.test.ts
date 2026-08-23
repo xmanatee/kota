@@ -359,7 +359,9 @@ describe("buildPromotionRationale", () => {
     expect(blockedRejection?.state).toBe("blocked");
 
     expect(rationale.candidates.length).toBe(5);
-    expect(rationale.summary).toMatch(/Promoted 2 of 4 promotable backlog/);
+    expect(rationale.summary).toMatch(
+      /Promoted 2 of 4 frontier-improving backlog/,
+    );
     expect(rationale.summary).toMatch(/task-p1-blocked-arch/);
   });
 
@@ -384,6 +386,68 @@ describe("buildPromotionRationale", () => {
 
     expect(rationale.selected).toHaveLength(1);
     expect(rationale.rejected.filter((r) => r.state === "backlog")).toHaveLength(2);
+  });
+
+  it("promotes backlog work only when it improves the ready frontier", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "ready", "task-p2-meta-ready", {
+      priority: "p2",
+      taskClass: "Meta",
+      area: "autonomy",
+      body: [
+        "## Product / Safety Link",
+        "",
+        "This task supports Product/Safety delivery.",
+      ].join("\n"),
+    });
+    writeTask(projectDir, "backlog", "task-p1-product", {
+      priority: "p1",
+      taskClass: "Product",
+      area: "client",
+    });
+    writeTask(projectDir, "backlog", "task-p3-safety", {
+      priority: "p3",
+      taskClass: "Safety",
+      area: "core",
+    });
+
+    const rationale = buildPromotionRationale(projectDir);
+
+    expect(rationale.selected.map((task) => task.id)).toEqual([
+      "task-p1-product",
+    ]);
+    expect(rationale.frontier).toMatchObject({
+      incumbentTaskId: "task-p2-meta-ready",
+      improved: true,
+    });
+    expect(
+      rationale.rejected.find((task) => task.id === "task-p3-safety")?.reason,
+    ).toContain("does not outrank ready frontier");
+  });
+
+  it("does not promote backlog work when ready already has the better task", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "ready", "task-p1-safety-ready", {
+      priority: "p1",
+      taskClass: "Safety",
+      area: "core",
+    });
+    writeTask(projectDir, "backlog", "task-p1-product", {
+      priority: "p1",
+      taskClass: "Product",
+      area: "client",
+    });
+
+    const rationale = buildPromotionRationale(projectDir);
+
+    expect(rationale.selected).toEqual([]);
+    expect(rationale.frontier).toMatchObject({
+      incumbentTaskId: "task-p1-safety-ready",
+      improved: false,
+    });
+    expect(rationale.summary).toContain(
+      "No backlog task outranks the current ready frontier",
+    );
   });
 
   it("skips backlog candidates that cannot enter ready as actionable work", () => {
@@ -442,7 +506,32 @@ describe("buildPromotionRationale", () => {
       "task-repair-workflow-failure-pattern-runtime",
     );
     expect(rationale.selected[0].reason).toContain("runtime posture repair");
-    expect(rationale.summary).toContain("runtime-posture repair exception");
+    expect(rationale.summary).toContain("proven runtime repair first");
+  });
+
+  it("keeps P1 Product delivery ahead of non-runtime Meta urgency", () => {
+    const projectDir = makeProjectDir();
+    writeTask(projectDir, "backlog", "task-p0-meta", {
+      priority: "p0",
+      taskClass: "Meta",
+      area: "autonomy",
+      body: [
+        "## Product / Safety Link",
+        "",
+        "This task supports Product/Safety delivery but is not a runtime posture repair.",
+      ].join("\n"),
+    });
+    writeTask(projectDir, "backlog", "task-p1-product", {
+      priority: "p1",
+      taskClass: "Product",
+      area: "client",
+    });
+
+    const rationale = buildPromotionRationale(projectDir, { batchLimit: 1 });
+
+    expect(rationale.selected.map((task) => task.id)).toEqual([
+      "task-p1-product",
+    ]);
   });
 
   it("rejects backlog candidates with unfinished hard dependencies", () => {

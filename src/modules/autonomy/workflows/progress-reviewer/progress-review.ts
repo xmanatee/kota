@@ -11,6 +11,15 @@ export {
 export {
   compactProgressReviewEvidenceForAgent,
 } from "./progress-review/agent-packet.js";
+export {
+  digestProgressReviewEvidencePacket,
+  type ProgressReviewEvidenceHandle,
+  readProgressReviewEvidencePacketFromHandle,
+  validateProgressReviewAgentEvidencePacket,
+  validateProgressReviewAgentStepOutput,
+  validateProgressReviewEvidenceHandle,
+  validateProgressReviewEvidencePacket,
+} from "./progress-review/agent-step-output.js";
 export { writeProgressReviewArtifact } from "./progress-review/artifact.js";
 export {
   collectProgressReviewEvidence,
@@ -32,7 +41,6 @@ export {
   PROGRESS_REVIEW_MAX_GIT_STATUS_LINES,
   PROGRESS_REVIEW_MAX_RUNS,
   PROGRESS_REVIEW_MAX_TASKS,
-  PROGRESS_REVIEW_SCHEDULE_EVENT,
 } from "./progress-review/constants.js";
 export {
   classifyProgressReviewTrigger,

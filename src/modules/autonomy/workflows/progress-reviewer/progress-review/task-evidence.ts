@@ -23,10 +23,15 @@ const TASK_EVIDENCE_ID_REFERENCE_RE = /\btask:(task-[A-Za-z0-9-]+)\b/g;
 function summarizeTask(
   source: ProgressReviewDirectorySource,
   record: RepoTaskFullRecord,
+  stateByTaskId: ReadonlyMap<string, RepoTaskFullRecord["state"]> = new Map(),
 ): ProgressReviewTaskEvidence {
   const taskClass = record.taskClass === "Unclassified"
     ? classifyStoredWorkflowGeneratedTask(record) ?? record.taskClass
     : record.taskClass;
+  const waitingOn = record.dependsOn.filter((id) => {
+    const state = stateByTaskId.get(id);
+    return state !== "done" && state !== "dropped";
+  });
   return {
     id: sourceEvidenceId(source, `task:${record.id}`),
     kind: "task",
@@ -37,9 +42,17 @@ function summarizeTask(
     priority: record.priority,
     area: record.area,
     taskClass,
+    anchor: record.anchor,
+    dependsOn: [...record.dependsOn],
+    waitingOn,
     operatorEvidenceMentioned: taskMentionsOperatorEvidence(record),
     path: join("data", "tasks", record.state, `${record.id}.md`),
-    summary: sourceSummary(source, `${record.id} ${record.state}: ${record.title}`),
+    summary: sourceSummary(
+      source,
+      `${record.id} ${record.state}${record.anchor ? " strategic-anchor" : ""}: ` +
+        `${record.title}; dependsOn=${record.dependsOn.join(",") || "none"}; ` +
+        `waitingOn=${waitingOn.join(",") || "none"}`,
+    ),
   };
 }
 
@@ -54,14 +67,28 @@ export function listRecentTasks(
   windowStartMs: number,
   excluded: string[],
 ): ProgressReviewTaskEvidence[] {
-  const records = sources.flatMap((source) =>
-    listFullRepoTasks(source.projectDir)
-      .filter((record) => {
-        const updatedMs = Date.parse(record.updatedAt);
-        return Number.isFinite(updatedMs) && updatedMs >= windowStartMs;
-      })
-      .map((record) => ({ source, record })),
-  );
+  const openStates = new Set(["backlog", "ready", "doing", "blocked"]);
+  const records = sources.flatMap((source) => {
+    const all = listFullRepoTasks(source.projectDir);
+    const stateByTaskId = new Map(all.map((record) => [record.id, record.state]));
+    const open = all.filter((record) => openStates.has(record.state));
+    const recentTerminal = all.filter((record) => {
+      if (openStates.has(record.state)) return false;
+      const updatedMs = Date.parse(record.updatedAt);
+      return Number.isFinite(updatedMs) && updatedMs >= windowStartMs;
+    });
+    recentTerminal.sort((a, b) =>
+      Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || a.id.localeCompare(b.id)
+    );
+    if (recentTerminal.length > PROGRESS_REVIEW_MAX_TASKS) {
+      excluded.push(
+        `terminal tasks: truncated ${recentTerminal.length} recent records to ${PROGRESS_REVIEW_MAX_TASKS}; the open queue remains complete`,
+      );
+    }
+    return [...open, ...recentTerminal.slice(0, PROGRESS_REVIEW_MAX_TASKS)].map(
+      (record) => ({ source, record, stateByTaskId }),
+    );
+  });
   records.sort((a, b) => {
     const byUpdated = Date.parse(b.record.updatedAt) - Date.parse(a.record.updatedAt);
     if (byUpdated !== 0) return byUpdated;
@@ -70,12 +97,10 @@ export function listRecentTasks(
     );
   });
 
-  if (records.length > PROGRESS_REVIEW_MAX_TASKS) {
-    excluded.push(`tasks: truncated ${records.length} updated tasks to ${PROGRESS_REVIEW_MAX_TASKS}`);
-  }
   return records
-    .slice(0, PROGRESS_REVIEW_MAX_TASKS)
-    .map(({ source, record }) => summarizeTask(source, record));
+    .map(({ source, record, stateByTaskId }) =>
+      summarizeTask(source, record, stateByTaskId)
+    );
 }
 
 function referencedTaskIds(text: string): string[] {
@@ -127,6 +152,7 @@ export function taskClassDistribution(
 ): ProgressReviewTaskClassCount[] {
   const counts = new Map<RepoTaskClass, number>();
   for (const task of tasks) {
+    if (task.state === "done" || task.state === "dropped") continue;
     counts.set(task.taskClass, (counts.get(task.taskClass) ?? 0) + 1);
   }
   const order = new Map<RepoTaskClass, number>([

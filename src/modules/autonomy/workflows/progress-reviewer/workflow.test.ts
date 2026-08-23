@@ -46,7 +46,10 @@ import {
 } from "#core/workflow/validation.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
-import { progressReviewRequested } from "./events.js";
+import {
+  automaticProgressReviewRequested,
+  progressReviewRequested,
+} from "./events.js";
 import {
   applyProgressReviewActions,
   classifyProgressReviewTrigger,
@@ -60,14 +63,15 @@ import {
   PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH,
   PROGRESS_REVIEW_MAX_ARTIFACTS,
   PROGRESS_REVIEW_MAX_RUNS,
-  PROGRESS_REVIEW_SCHEDULE_EVENT,
   type ProgressReviewActionResult,
   type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
   readTaskStatus,
 } from "./progress-review.js";
+import { readPendingProgressReviewInput } from "./semantic-input.js";
 import {
   channelBatchPayload,
+  commitProgressReviewFixture,
   makeProgressReviewProjectDir,
   NOW,
   readProgressReviewFixture,
@@ -78,10 +82,16 @@ const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
 
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-  getRepoWorktreeStatusAsync: vi.fn(),
-}));
+vi.mock("#core/util/repo-worktree.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
+      "#core/util/repo-worktree.js",
+    );
+  return {
+    ...actual,
+    getRepoWorktreeStatus: vi.fn(),
+  };
+});
 
 vi.mock("#modules/autonomy/commit.js", async () => {
   const actual =
@@ -266,22 +276,6 @@ function writeRunArtifactFile(
   writeFileSync(path, contents);
 }
 
-function gitCommitAll(projectDir: string, message: string, committedAt: string): string {
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "--quiet", "-m", message], {
-    cwd: projectDir,
-    env: {
-      ...process.env,
-      GIT_AUTHOR_DATE: committedAt,
-      GIT_COMMITTER_DATE: committedAt,
-    },
-  });
-  return execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: projectDir,
-    encoding: "utf-8",
-  }).trim();
-}
-
 function writeApproval(
   projectDir: string,
   id: string,
@@ -391,10 +385,8 @@ function parseReviewInputFromAgentPrompt(
 }
 
 async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus, getRepoWorktreeStatusAsync } = await import(
-    "#core/util/repo-worktree.js"
-  );
-  const status = {
+  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
     available: true,
     dirty: false,
     trackedDirty: false,
@@ -402,16 +394,12 @@ async function mockCleanWorktree() {
     fingerprint: "",
     summary: "clean",
     headSha: "abc1234",
-  };
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue(status);
-  vi.mocked(getRepoWorktreeStatusAsync).mockResolvedValue(status);
+  });
 }
 
 async function mockDirtyWorktree() {
-  const { getRepoWorktreeStatus, getRepoWorktreeStatusAsync } = await import(
-    "#core/util/repo-worktree.js"
-  );
-  const status = {
+  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
+  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
     available: true,
     dirty: true,
     trackedDirty: true,
@@ -419,9 +407,7 @@ async function mockDirtyWorktree() {
     fingerprint: "src/active-builder-change.ts:M",
     summary: "M src/active-builder-change.ts",
     headSha: "abc1234",
-  };
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue(status);
-  vi.mocked(getRepoWorktreeStatusAsync).mockResolvedValue(status);
+  });
 }
 
 describe("progress-reviewer workflow", () => {
@@ -464,7 +450,7 @@ describe("progress-reviewer workflow", () => {
     expect(prompt).not.toContain("Return exactly one structured JSON object");
   });
 
-  it("skips review-evidence while tracked worktree changes are present", async () => {
+  it("parks an automatic semantic input while tracked worktree changes are present", async () => {
     await mockDirtyWorktree();
     const projectDir = trackProjectDir("progress-reviewer-dirty");
     const scopeId = deriveDirectoryScopeId(projectDir);
@@ -481,7 +467,14 @@ describe("progress-reviewer workflow", () => {
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: {
+          scopeId,
+          projectId: scopeId,
+          automatic: true,
+          boundary: "parked-queue",
+          inputRevision: 1,
+          evidenceRefs: ["data/tasks/done/task-delivery.md"],
+        },
       },
     });
 
@@ -491,33 +484,34 @@ describe("progress-reviewer workflow", () => {
     expect(result.steps["inspect-worktree"].output).toEqual({ dirty: true });
     expect(result.steps["review-evidence"].status).toBe("skipped");
     expect(result.steps["write-artifact"].status).toBe("skipped");
+    expect(result.steps["defer-semantic-input"].output).toEqual({ deferred: true });
+    expect(readPendingProgressReviewInput(projectDir)).toMatchObject({
+      boundary: "parked-queue",
+      inputRevision: 1,
+      delivery: "deferred",
+    });
   });
 
-  it("declares schedule, manual, run-count, and task-count triggers without direct inbound-signal triggers", () => {
+  it("declares only semantic requests and recovery without direct inbound-signal or build triggers", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register("autonomy", progressReviewRequested);
+    moduleEvents.register("autonomy", automaticProgressReviewRequested);
 
     expect(() => compileProgressReviewerWorkflow()).not.toThrow();
 
-    expect(progressReviewerWorkflow.triggers).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ event: progressReviewRequested.name }),
-        expect.objectContaining({
-          event: PROGRESS_REVIEW_SCHEDULE_EVENT,
-          schedule: "0 */6 * * *",
-          runOn: "default-scope",
-          payload: { scopeId: GLOBAL_SCOPE_ID },
-        }),
-        expect.objectContaining({
-          event: "workflow.completed",
-          batch: expect.objectContaining({ maxCount: 5 }),
-        }),
-        expect.objectContaining({
-          event: "workflow.build.committed",
-          batch: expect.objectContaining({ maxCount: 3 }),
-        }),
-      ]),
-    );
+    expect(progressReviewerWorkflow.triggers).toEqual([
+      {
+        event: progressReviewRequested.name,
+        cooldownMs: 0,
+        queueMode: "all",
+      },
+      {
+        event: automaticProgressReviewRequested.name,
+        cooldownMs: 0,
+        queueMode: "latest",
+      },
+      { event: "runtime.recovered" },
+    ]);
     expect(progressReviewerWorkflow.triggers).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ event: inboundSignalReceived.name }),
@@ -623,6 +617,11 @@ describe("progress-reviewer workflow", () => {
         isError: false,
       };
     });
+    commitProgressReviewFixture(
+      projectDir,
+      "prepare scratch-cleanup fixture",
+      "2026-06-04T11:30:00.000Z",
+    );
 
     const { promise } = executeWorkflowRun(
       compileProgressReviewerWorkflow(),
@@ -668,7 +667,7 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("classifies the runtime schedule trigger in the review artifact", async () => {
+  it("classifies an explicit request in the review artifact", async () => {
     const projectDir = trackProjectDir("progress-reviewer-schedule");
     writeTask(projectDir, "done", "task-ship-coding-slice", {
       title: "Ship coding slice",
@@ -685,8 +684,13 @@ describe("progress-reviewer workflow", () => {
     const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir,
       trigger: {
-        event: "schedule",
-        schemaRef: null, payload: { scheduledAt: "2026-06-04T12:00:00.000Z" },
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: {
+          scopeId: deriveDirectoryScopeId(projectDir),
+          projectId: deriveDirectoryScopeId(projectDir),
+          reason: "operator requested a milestone review",
+        },
       },
       stepMocks: {
         "review-evidence": readFixture("autonomous-coding-review"),
@@ -700,11 +704,11 @@ describe("progress-reviewer workflow", () => {
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { triggerKind: string; triggerEvent: string };
     };
-    expect(artifact.evidence.triggerKind).toBe("schedule");
-    expect(artifact.evidence.triggerEvent).toBe("schedule");
+    expect(artifact.evidence.triggerKind).toBe("manual");
+    expect(artifact.evidence.triggerEvent).toBe(progressReviewRequested.name);
   });
 
-  it("writes a global review artifact for the default-scope scheduled trigger", async () => {
+  it("writes a global review artifact for an explicit global request", async () => {
     const projectA = trackProjectDir("progress-reviewer-scheduled-global-a");
     const projectB = trackProjectDir("progress-reviewer-scheduled-global-b");
     writeTask(projectA, "done", "task-scheduled-scope-a", {
@@ -740,9 +744,9 @@ describe("progress-reviewer workflow", () => {
     const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir: projectA,
       trigger: {
-        event: PROGRESS_REVIEW_SCHEDULE_EVENT,
+        event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scheduledAt: NOW.toISOString(), scopeId: GLOBAL_SCOPE_ID },
+        payload: { scopeId: GLOBAL_SCOPE_ID, reason: "operator global review" },
       },
       stepMocks: {
         "review-evidence": reviewOutput({
@@ -805,8 +809,8 @@ describe("progress-reviewer workflow", () => {
         };
       };
     };
-    expect(artifact.evidence.triggerKind).toBe("schedule");
-    expect(artifact.evidence.triggerEvent).toBe(PROGRESS_REVIEW_SCHEDULE_EVENT);
+    expect(artifact.evidence.triggerKind).toBe("manual");
+    expect(artifact.evidence.triggerEvent).toBe(progressReviewRequested.name);
     expect(artifact.evidence.scope).toMatchObject({
       kind: "global",
       scopeId: GLOBAL_SCOPE_ID,
@@ -1572,12 +1576,9 @@ describe("progress-reviewer workflow", () => {
     });
     const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
 
-    expect(reviewInput.counts.taskClasses).toEqual([
-      { taskClass: "Safety", count: 1 },
-      { taskClass: "Product", count: 1 },
-      { taskClass: "Platform", count: 1 },
-      { taskClass: "Meta", count: 1 },
-    ]);
+    // Current queue balance deliberately excludes terminal history. The recent
+    // done Product task remains available for operator-journey scrutiny below.
+    expect(reviewInput.counts.taskClasses).toEqual([]);
     expect(reviewInput.operatorJourneyRisks).toEqual([
       expect.objectContaining({
         taskId: "task-product-tests-only",
@@ -1629,11 +1630,7 @@ describe("progress-reviewer workflow", () => {
       now: NOW,
     });
 
-    expect(evidence.taskClassDistribution).toEqual([
-      { taskClass: "Safety", count: 1 },
-      { taskClass: "Platform", count: 2 },
-      { taskClass: "Meta", count: 1 },
-    ]);
+    expect(evidence.taskClassDistribution).toEqual([]);
     expect(
       evidence.tasks.find((task) => task.taskId === "task-security-generated")?.taskClass,
     ).toBe("Safety");
@@ -1895,7 +1892,7 @@ describe("progress-reviewer workflow", () => {
         `large packet git fixture ${index}\n`,
       );
     }
-    gitCommitAll(
+    commitProgressReviewFixture(
       projectDir,
       "seed large progress review fixture",
       "2026-06-04T11:10:00.000Z",
@@ -2003,6 +2000,11 @@ describe("progress-reviewer workflow", () => {
       }),
     );
     const store = new WorkflowRunStore(projectDir);
+    commitProgressReviewFixture(
+      projectDir,
+      "prepare large run-count fixture",
+      "2026-06-04T11:30:00.000Z",
+    );
     const { promise } = executeWorkflowRun(
       definition,
       {
@@ -2150,6 +2152,11 @@ describe("progress-reviewer workflow", () => {
         isError: false,
       };
     });
+    commitProgressReviewFixture(
+      projectDir,
+      "prepare compacted evidence fixture",
+      "2026-06-04T11:30:00.000Z",
+    );
     const { promise } = executeWorkflowRun(
       compileProgressReviewerWorkflow(),
       {
@@ -2759,10 +2766,10 @@ describe("progress-reviewer workflow", () => {
     const projectDir = trackProjectDir("progress-reviewer-git-commit");
     const scopeId = deriveDirectoryScopeId(projectDir);
     writeFileSync(join(projectDir, "README.md"), "initial\n");
-    gitCommitAll(projectDir, "initial fixture", "2026-06-04T10:00:00.000Z");
+    commitProgressReviewFixture(projectDir, "initial fixture", "2026-06-04T10:00:00.000Z");
     mkdirSync(join(projectDir, "src"), { recursive: true });
     writeFileSync(join(projectDir, "src", "coding.ts"), "export const shipped = true;\n");
-    const commit = gitCommitAll(
+    const commit = commitProgressReviewFixture(
       projectDir,
       "ship coding slice",
       "2026-06-04T11:40:00.000Z",

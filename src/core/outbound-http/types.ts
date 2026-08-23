@@ -2,6 +2,7 @@ export const OUTBOUND_HTTP_PROFILE_NAMES = [
   "public-untrusted",
   "configured-provider",
   "oauth-protected-resource",
+  "oauth-metadata-endpoint",
   "daemon-loopback",
   "explicit-callback",
 ] as const;
@@ -16,6 +17,10 @@ export type OutboundHttpProfile =
     }
   | {
       readonly name: "oauth-protected-resource";
+      readonly allowedOrigins: readonly string[];
+    }
+  | {
+      readonly name: "oauth-metadata-endpoint";
       readonly allowedOrigins: readonly string[];
     }
   | { readonly name: "daemon-loopback" }
@@ -46,6 +51,14 @@ export type OutboundHttpRequest = {
   readonly idempotencyKey?: string;
 };
 
+export type OutboundHttpStreamingOptions = {
+  /**
+   * Profile limits remain the default. Long-lived protocol streams may delegate
+   * their cumulative body limit to a consumer that enforces bounded frames.
+   */
+  readonly responseBodyLimit?: "profile" | "caller-managed";
+};
+
 export type OutboundHttpRetryDisposition =
   | {
       readonly eligible: false;
@@ -67,6 +80,8 @@ export type OutboundHttpResponse = {
   readonly byteLength: number;
   readonly retry: OutboundHttpRetryDisposition;
 };
+
+export type OutboundHttpStreamingResponse = Omit<OutboundHttpResponse, "byteLength">;
 
 type OutboundHttpFailureBase = {
   readonly profile: OutboundHttpProfileName;

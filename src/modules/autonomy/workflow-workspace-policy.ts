@@ -111,9 +111,14 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     workflow: "dispatcher",
     kind: "canonical-control-state",
     trackedMutationScope: "runtime-state",
-    writes: [".kota/scope-improvement/evidence-ready.json", "queue-shape events"],
+    writes: [
+      ".kota/progress-reviewer/semantic-boundary-state.json",
+      ".kota/progress-reviewer/consumption-watermark.json",
+      ".kota/scope-improvement/state.json",
+      "queue-shape events",
+    ],
     reason:
-      "Dispatcher owns canonical queue observation and scope-improvement dedupe state; moving it into a worktree would make emitted state stale.",
+      "Dispatcher owns canonical semantic-boundary watermarks; moving them into a worktree would make emitted state stale.",
     safetyMechanisms: ["does not edit tracked repo files", "writes only daemon control dedupe state"],
   },
   {
@@ -177,7 +182,12 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     workflow: "improver",
     kind: "canonical-control-state",
     trackedMutationScope: "task-control-state",
-    writes: ["data/tasks/", "owner-question records", ".kota/runs/"],
+    writes: [
+      "data/tasks/",
+      "owner-question records",
+      ".kota/progress-reviewer/consumption-watermark.json",
+      ".kota/runs/",
+    ],
     reason:
       "Improver reviews one changed issue revision without source write access, then routes accepted work through the canonical task or owner-question lifecycle.",
     safetyMechanisms: CANONICAL_CONTROL_SAFETY,
@@ -231,9 +241,9 @@ export const AUTONOMY_WORKFLOW_WORKSPACE_POLICIES = [
     workflow: "scope-improver",
     kind: "canonical-control-state",
     trackedMutationScope: "autonomy-control-plane",
-    writes: ["data/tasks/", "owner-question records", "scoped AGENTS.md safe edits"],
+    writes: ["data/tasks/", "owner-question records", ".kota/scope-improvement/state.json"],
     reason:
-      "Scope improver updates scope-local control instructions and follow-up tasks that clients and future runs must read from the canonical project path.",
+      "Scope improver records consumed fingerprints and materializes proposal tasks or owner questions; source edits remain builder-owned.",
     safetyMechanisms: CANONICAL_CONTROL_SAFETY,
   },
   {

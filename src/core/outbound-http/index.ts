@@ -1,5 +1,11 @@
 export { createDefaultOutboundHttpDispatcher } from "#core/outbound-http/dispatcher.js";
 export {
+  resolveOutboundAddresses,
+  resolveOutboundHttpConnectionAddress,
+  resolvePublicOutboundAddresses,
+  validateOutboundHttpTarget,
+} from "#core/outbound-http/network-policy.js";
+export {
   OUTBOUND_HTTP_POLICY_MATRIX,
   OUTBOUND_HTTP_PROFILES,
   outboundHttpPolicy,
@@ -26,8 +32,11 @@ export {
   type OutboundHttpRequest,
   type OutboundHttpResponse,
   type OutboundHttpRetryDisposition,
+  type OutboundHttpStreamingOptions,
+  type OutboundHttpStreamingResponse,
   type OutboundHttpTelemetryEvent,
   type OutboundHttpTelemetrySink,
+  type ResolvedOutboundAddress,
 } from "#core/outbound-http/types.js";
 
 export const outboundHttp = new OutboundHttpTransport();

@@ -10,9 +10,10 @@ import {
   type WorkflowRunTrigger,
 } from "#core/workflow/trigger-types.js";
 import {
-  PROGRESS_REVIEW_DEFAULT_WINDOW_MS,
-  PROGRESS_REVIEW_SCHEDULE_EVENT,
-} from "./constants.js";
+  automaticProgressReviewRequested,
+  progressReviewRequested,
+} from "../events.js";
+import { PROGRESS_REVIEW_DEFAULT_WINDOW_MS } from "./constants.js";
 import type {
   ProgressReviewDirectorySource,
   ProgressReviewEvidencePacket,
@@ -140,9 +141,13 @@ export function batchPayload(trigger: WorkflowRunTrigger): WorkflowBatchFlushPay
 export function classifyProgressReviewTrigger(
   trigger: WorkflowRunTrigger,
 ): ProgressReviewTriggerKind {
-  if (trigger.event === "autonomy.progress-review.requested") return "manual";
+  if (
+    trigger.event === progressReviewRequested.name ||
+    trigger.event === automaticProgressReviewRequested.name
+  ) {
+    return trigger.payload.automatic === true ? "semantic-boundary" : "manual";
+  }
   if (trigger.event === "schedule") return "schedule";
-  if (trigger.event === PROGRESS_REVIEW_SCHEDULE_EVENT) return "schedule";
 
   const batch = batchPayload(trigger);
   if (!batch) return "event-batch";

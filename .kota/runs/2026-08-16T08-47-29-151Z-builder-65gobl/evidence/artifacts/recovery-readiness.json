@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "builder-pending-merge-recovery-readiness",
+  "taskId": "task-keep-daemon-control-api-responsive-during-workflow",
+  "claimRunId": "2026-08-14T04-31-59-044Z-builder-18pact",
+  "worktreeRunId": "2026-08-13T10-23-52-462Z-builder-bojhem",
+  "branchHead": "44f5972e0465b2b04ac8e5b0ca658feb555150f4",
+  "pendingCanonicalHead": "d3606798556b22093427df692c7000ab7ca2acf2",
+  "observedCanonicalHead": "47c68d6cf18fbc04022082e59b7cb392c593f816",
+  "pendingHeadIsCanonicalAncestor": true,
+  "originalConflictCount": 16,
+  "originalConflicts": [
+    "src/core/workflow/repair-loop-types.ts",
+    "src/core/workflow/repair-loop.ts",
+    "src/modules/autonomy/critic.ts",
+    "src/modules/autonomy/workflows/autonomy-health-reviewer/workflow.ts",
+    "src/modules/autonomy/workflows/builder/repair-checks.ts",
+    "src/modules/autonomy/workflows/builder/terminal-worktree-finalizer.ts",
+    "src/modules/autonomy/workflows/decomposer/assessment.ts",
+    "src/modules/autonomy/workflows/decomposer/workflow.ts",
+    "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
+    "src/modules/autonomy/workflows/improver/workflow.ts",
+    "src/modules/autonomy/workflows/owner-intervention-escalator/workflow.ts",
+    "src/modules/autonomy/workflows/progress-reviewer/workflow-steps.ts",
+    "src/modules/autonomy/workflows/review-scrutiny-escalator/workflow.ts",
+    "src/modules/autonomy/workflows/scope-improver/scope-improvement-actions.ts",
+    "src/modules/autonomy/workflows/trajectory-diagnostic-escalator/workflow.ts",
+    "src/modules/autonomy/workflows/workflow-failure-escalator/workflow.ts"
+  ],
+  "conflictClassification": "textual",
+  "candidateChecks": {
+    "nativePreservedLifecycle": "passed from a continued pending-merge claim through dispatch, native resolution, canonical reconciliation, final merge gate, claim release, worktree cleanup, and an empty recovery projection",
+    "pendingMergeDispatchAfterFinalizer": "passed with recoveryRequested:false on the prior continuation artifact",
+    "nativeConflictScope": "passed through exact conflict-path projection; linked-worktree physical Git directories are projected read-only",
+    "codexAdapterNativeFixture": "passed in a trusted-host run on 2026-08-23: codex sandbox -P kota-native denied create and append writes across both physical Git metadata roots while allowing the exact conflict file",
+    "validationBeforeRuntimeStageOrCommit": "passed for canonical reconciliation and the shared merge gate; failed validation preserves the unmerged index and checkpoint HEAD",
+    "resolvedDiffTaskScopeReview": "passed for justified resolution; needs-review for ambiguous in-scope resolution",
+    "ambiguousResolutionTerminality": "passed: persisted needs-review reconciliation is not automatically redispatched",
+    "destructiveConflictRejection": "passed for both delete/modify index directions and for a branch-side rename/modify conflict reported by Git as UU; none dispatched the textual resolver",
+    "unrelatedEditRejection": "passed and preserved unstaged",
+    "missingAcceptanceEvidenceRejection": "passed before dispatch",
+    "kotaRoutableResolver": "passed",
+    "focusedRepairTests": "the trusted-host run passed all 85 tests across the 15 changed behavioral suites without skips, including the shipped Codex sandbox boundary and continued preserved-claim lifecycle",
+    "builderAndGitTests": "the prior 20-file affected run passed 133 tests; the trusted-host focused run additionally passed all 85 tests across the 15 changed behavioral suites without skips",
+    "typecheck": "passed",
+    "lint": "focused Biome checks passed for all 38 changed TypeScript files",
+    "taskValidation": "passed"
+  },
+  "liveTransition": {
+    "status": "not-completed",
+    "reason": "The synthetic continued-claim lifecycle and shipped Codex OS-boundary fixture pass. Host inspection confirms that the preserved index remains at HEAD 44f5972e with MERGE_HEAD d3606798, 16 unmerged paths, and 288 staged paths. The candidate is not yet committed or loaded by the workflow runtime, so the live runtime-owned canonical merge, claim release, and worktree cleanup remain pending.",
+    "taskState": "blocked",
+    "requiredEvidence": [
+      "resolver transcript and task-scope judgment for all 16 paths",
+      "resolved diff and focused plus task acceptance checks",
+      "canonical merge commit",
+      "terminal claim transition",
+      "worktree cleanup",
+      "state-recovery projection with no pending lineage"
+    ]
+  }
+}

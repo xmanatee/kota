@@ -1,8 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { initEventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { executeTool } from "#core/tools/index.js";
+import {
+  registerSessionEnvironment,
+  unregisterSessionEnvironment,
+} from "#core/tools/session-environment.js";
 import { writeStdout } from "#modules/rendering/transport.js";
 import { isPlaywrightAvailable } from "./lifecycle.js";
 import {
@@ -40,8 +47,18 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
         const runtimeLoader = await loadRuntimeModules({
           config: runtimeConfig,
           cwd: ctx.cwd,
+          eventBus: initEventBus(),
         });
         const defaults = defaultSourceAccessReportOptions(ctx.cwd);
+        const scopeId = deriveDirectoryScopeId(ctx.cwd);
+        const runnerContext = {
+          sessionId: `browser-cli:${randomUUID()}`,
+          scopeId,
+          projectId: scopeId,
+          projectDir: ctx.cwd,
+          cwd: ctx.cwd,
+        };
+        registerSessionEnvironment(runnerContext);
         try {
           const result = await runSourceAccessReport(
             {
@@ -56,12 +73,14 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
             },
             {
               isPlaywrightAvailable: () => isPlaywrightAvailable(ctx.cwd),
-              callTool: executeTool,
+              callTool: (name, input) =>
+                executeTool(name, input, runnerContext),
               now: () => new Date(),
             },
           );
           writeStdout(result.transcript);
         } finally {
+          unregisterSessionEnvironment(runnerContext);
           await runtimeLoader.unloadAll();
         }
       },

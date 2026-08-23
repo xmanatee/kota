@@ -14,6 +14,49 @@ export type AutomationWorktreeDirtySummary = "clean" | "dirty" | "conflicted";
 
 export type AutomationWorktreeRunState = "active" | "finished" | "missing" | "orphaned-running";
 
+export type AutomationWorktreeCanonicalReconciliationPhase =
+	| "checkpointing"
+	| "reconciling-canonical"
+	| "conflict-blocked"
+	| "ready-to-resume";
+
+export type AutomationWorktreeCanonicalReconciliationDisposition =
+	| "pending"
+	| "needs-review"
+	| "ready-to-resume";
+
+export type AutomationWorktreeCanonicalConflict = {
+	path: string;
+	kind: "text" | "binary" | "blocked-path";
+	reason: string;
+};
+
+export type AutomationWorktreeCanonicalValidation = {
+	command: string[];
+	exitCode: number | null;
+	stdoutTail: string;
+	stderrTail: string;
+	passed: boolean;
+};
+
+export type AutomationWorktreeCanonicalReconciliation = {
+	phase: AutomationWorktreeCanonicalReconciliationPhase;
+	disposition: AutomationWorktreeCanonicalReconciliationDisposition;
+	originalBaseCommit: string;
+	checkpointCommit: string | null;
+	canonicalHeadCommit: string;
+	integratedCanonicalHeadCommit: string | null;
+	branchBehindAtStart: number | null;
+	branchBehindAtResume: number | null;
+	overlappingPaths: string[];
+	canonicalDestructivePaths: string[];
+	conflicts: AutomationWorktreeCanonicalConflict[];
+	validations: AutomationWorktreeCanonicalValidation[];
+	reason: string | null;
+	artifactPath: string;
+	updatedAt: string;
+};
+
 export type AutomationWorktreeOperatorStatus = {
 	taskId: string;
 	runId: string;
@@ -36,6 +79,7 @@ export type AutomationWorktreeOperatorStatus = {
 	cleanupEligible: boolean;
 	cleanupBlockers: string[];
 	runtimeResources?: AutomationWorktreeRuntimeResources;
+	canonicalReconciliation?: AutomationWorktreeCanonicalReconciliation;
 	nextAction: string;
 };
 
@@ -65,6 +109,7 @@ export type AutomationWorktreeMetadata = {
 	state: AutomationWorktreeState;
 	copiedSetupFiles: string[];
 	runtimeResources?: AutomationWorktreeRuntimeResources;
+	canonicalReconciliation?: AutomationWorktreeCanonicalReconciliation;
 	lastCleanupBlockers?: string[];
 	stateReason?: string;
 	removedAt?: string;

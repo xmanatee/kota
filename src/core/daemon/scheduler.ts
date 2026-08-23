@@ -1,18 +1,10 @@
-/**
- * Scheduler — manages timed reminders and scheduled tasks.
- *
- * Stores items in the target project's `.kota/schedules-<hash>.json` with the same
- * project-scoping pattern as TaskStore. Supports one-shot reminders
- * and repeating schedules.
- *
- * Pure parsing utilities (parseTime, parseRepeat, etc.) live in
- * schedule-parser.ts. File I/O helpers live in scheduler-store.ts.
- */
+/** Timed reminders and event-triggered tasks, persisted per project. */
 
 import { join } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope } from "#core/events/event-bus-types.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { projectStorageIdentity } from "./project-storage-identity.js";
 import {
   getPendingSummary,
   matchesFilter,
@@ -38,7 +30,7 @@ export class Scheduler {
     storageDir?: string | null,
     pbus?: ProjectScopedEventBus | null,
   ) {
-    this.project = projectDir || process.cwd();
+    this.project = projectStorageIdentity(projectDir || process.cwd());
     this.pbus = pbus ?? null;
     if (storageDir === null) {
       this.filePath = null;
@@ -56,6 +48,18 @@ export class Scheduler {
     const data = loadFromFile(this.filePath, this.project);
     this.items = data.items;
     this.nextId = data.nextId;
+  }
+
+  /** Refresh host-owned timers from writes made by another scheduler client. */
+  private refreshFromStorage(): void {
+    if (!this.filePath) {
+      this.ensureLoaded();
+      return;
+    }
+    const data = loadFromFile(this.filePath, this.project);
+    this.items = data.items;
+    this.nextId = data.nextId;
+    this.loaded = true;
   }
 
   private persist(): void {
@@ -191,6 +195,7 @@ export class Scheduler {
   ): () => void {
     this.stopTimer();
     this.timer = setInterval(() => {
+      this.refreshFromStorage();
       const due = this.getDue();
       if (due.length > 0) {
         for (const item of due) this.markFired(item.id);
@@ -214,7 +219,7 @@ export class Scheduler {
     const handleEnvelope = (envelope: BusEnvelope): void => {
       if (envelope.type === "schedule.fire") return;
 
-      this.ensureLoaded();
+      this.refreshFromStorage();
       const matches = this.items.filter(
         (i) =>
           i.status === "pending" &&
@@ -255,8 +260,6 @@ export class Scheduler {
   }
 }
 
-// --- Singleton ---
-
 let instance: Scheduler | undefined;
 
 /**
@@ -282,7 +285,6 @@ export function setSchedulerInstance(scheduler: Scheduler): void {
   // which remains hosted after a default-scope change.
   instance = scheduler;
 }
-
 export function getScheduler(): Scheduler {
   if (!instance) instance = new Scheduler(undefined, null);
   return instance;

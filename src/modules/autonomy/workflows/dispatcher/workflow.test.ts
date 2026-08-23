@@ -8,7 +8,9 @@ import {
   computeResourceFingerprint,
   renderRetryMarker,
 } from "../research-retry/precondition.js";
-import { scopeImprovementEvidenceReady } from "../scope-improver/events.js";
+import { scopeImprovementChanged } from "../scope-improver/events.js";
+import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
+import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import dispatcherWorkflow from "./workflow.js";
 
 function taskFixture(
@@ -19,6 +21,7 @@ function taskFixture(
     dependsOn?: string[];
     resources?: string[];
     marker?: string;
+    priority?: "p0" | "p1" | "p2" | "p3";
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
   } = {},
 ): string {
@@ -27,7 +30,7 @@ function taskFixture(
     `id: ${id}`,
     `title: ${id}`,
     `status: ${state}`,
-    "priority: p2",
+    `priority: ${options.priority ?? "p2"}`,
     "area: modules",
     ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     `summary: ${id} summary`,
@@ -129,33 +132,6 @@ describe("dispatcher workflow", () => {
     );
   }
 
-  function writeRunMetadata(args: {
-    runId: string;
-    workflow: string;
-    status: string;
-  }): void {
-    const runDir = join(projectDir, ".kota", "runs", args.runId);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      `${JSON.stringify(
-        {
-          id: args.runId,
-          workflow: args.workflow,
-          status: args.status,
-          trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
-          startedAt: "2026-06-20T00:00:00.000Z",
-          completedAt: "2026-06-20T00:00:00.000Z",
-          runDir: `.kota/runs/${args.runId}`,
-          steps: [],
-        },
-        null,
-        2,
-      )}\n`,
-      "utf-8",
-    );
-  }
-
   it("emits autonomy.queue.available when ready tasks exist", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "ready", "task-foo.md"),
@@ -171,6 +147,44 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+  });
+
+  it("promotes a better backlog frontier before dispatching the builder", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-platform-ready.md"),
+      taskFixture("task-platform-ready", "ready", {
+        priority: "p2",
+        taskClass: "Platform",
+      }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-product-backlog.md"),
+      taskFixture("task-product-backlog", "backlog", {
+        priority: "p1",
+        taskClass: "Product",
+      }),
+    );
+
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<
+      string,
+      unknown
+    >;
+    expect(output.actionableCount).toBe(1);
+    expect(output.promotionFrontier).toMatchObject({
+      incumbentTaskId: "task-platform-ready",
+      improved: true,
+    });
+    expect(
+      result.emitted.some(
+        (event) => event.event === "autonomy.queue.needs-promotion",
+      ),
+    ).toBe(true);
+    expect(
+      result.emitted.some((event) => event.event === "autonomy.queue.available"),
+    ).toBe(false);
   });
 
   it("does not treat ready work with unfinished hard dependencies as actionable", async () => {
@@ -437,55 +451,74 @@ describe("dispatcher workflow", () => {
     });
   });
 
-  it("emits scope-improvement evidence-ready once for a weighted signature", async () => {
-    writeRunMetadata({
-      runId: "2026-06-20T00-00-00-000Z-builder-failed",
-      workflow: "builder",
-      status: "failed",
-    });
+  it("emits one scope review only for a changed content/policy fingerprint", async () => {
+    rmSync(join(projectDir, ".git"), { recursive: true, force: true });
+    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    writeProjectFile(".gitignore", ".kota/\n");
+    writeProjectFile("AGENTS.md", "# Scope\n\n- Initial policy.\n");
+    commitAll("initial scope policy");
+    const scopePolicySnapshot = scopePolicySnapshotForTest(projectDir);
+    const initial = computeScopeContentFingerprint(
+      projectDir,
+      scopePolicySnapshot.policy,
+    );
+    writeProjectFile(
+      ".kota/scope-improvement/state.json",
+      `${JSON.stringify({
+        scopeId: scopePolicySnapshot.policy.scopeId,
+        lastRunAt: "2026-06-19T00:00:00.000Z",
+        consumedFingerprint: initial.fingerprint,
+        pendingFingerprint: null,
+        recentSignatures: [],
+      }, null, 2)}\n`,
+    );
+    const changedScopePolicySnapshot = scopePolicySnapshotForTest(
+      projectDir,
+      [{
+        scopeId: scopePolicySnapshot.policy.scopeId,
+        reason: "Operator restricted writes for this scope.",
+        writes: { mode: "none" },
+      }],
+      1,
+    );
 
     const first = await new WorkflowTestHarness(dispatcherWorkflow, {
       projectDir,
+      scopePolicySnapshot: changedScopePolicySnapshot,
     }).run();
 
     const evidenceEvent = first.emitted.find(
-      (event) => event.event === scopeImprovementEvidenceReady.name,
+      (event) => event.event === scopeImprovementChanged.name,
     );
     expect(evidenceEvent?.payload).toMatchObject({
-      totalWeight: 5,
-      evidenceIds: ["run:2026-06-20T00-00-00-000Z-builder-failed"],
-      sources: [
-        expect.objectContaining({
-          kind: "failed-run",
-          ref: ".kota/runs/2026-06-20T00-00-00-000Z-builder-failed/metadata.json",
-          weight: 5,
-        }),
-      ],
+      automatic: true,
+      boundary: "content-policy-changed",
+      evidenceRefs: expect.arrayContaining([
+        `scope-policy:${scopePolicySnapshot.policy.scopeId}`,
+      ]),
     });
     const firstOutput = first.steps["assess-and-dispatch"].output as {
-      scopeImprovementEvidence: { shouldEmit: boolean; totalWeight: number };
+      scopeBoundary: { shouldEmit: boolean; fingerprint: string };
     };
-    expect(firstOutput.scopeImprovementEvidence).toMatchObject({
+    expect(firstOutput.scopeBoundary).toMatchObject({
       shouldEmit: true,
-      totalWeight: 5,
     });
 
     const second = await new WorkflowTestHarness(dispatcherWorkflow, {
       projectDir,
+      scopePolicySnapshot: changedScopePolicySnapshot,
     }).run();
 
     expect(
       second.emitted.some(
-        (event) => event.event === scopeImprovementEvidenceReady.name,
+        (event) => event.event === scopeImprovementChanged.name,
       ),
     ).toBe(false);
     const secondOutput = second.steps["assess-and-dispatch"].output as {
-      scopeImprovementEvidence: { shouldEmit: boolean; reason: string };
+      scopeBoundary: { shouldEmit: boolean; reason: string };
     };
-    expect(secondOutput.scopeImprovementEvidence.shouldEmit).toBe(false);
-    expect(secondOutput.scopeImprovementEvidence.reason).toContain(
-      "duplicate scope-improvement evidence signature",
-    );
+    expect(secondOutput.scopeBoundary.shouldEmit).toBe(false);
+    expect(secondOutput.scopeBoundary.reason).toContain("already queued");
   });
 
   it("does not emit blocked-research attemptable when capability is missing", async () => {

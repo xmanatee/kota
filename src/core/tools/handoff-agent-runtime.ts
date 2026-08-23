@@ -21,6 +21,7 @@ import type { GuardrailsConfig } from "./guardrails.js";
 
 export type HandoffAgentRuntime = {
   cwd: string;
+  projectDir?: string;
   harness: string;
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;

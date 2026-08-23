@@ -21,63 +21,74 @@ import {
 } from "#modules/autonomy/workflow-commit-operations.js";
 import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import {
-  type ScopeImprovementActionResult,
-  type ScopeImprovementArtifact,
-  type ScopeImprovementCooldownDecision,
-  type ScopeImprovementPreflight,
-  writeScopeImprovementArtifact,
-} from "./scope-improvement.js";
-import { writeScopeImprovementState } from "./scope-improvement-state.js";
-import { scopeImproverTriggers } from "./triggers.js";
-import {
-  applyRecommendations,
   collectInputs,
   discoverCandidates,
   gatherEvidence,
   inspectWorktree,
   recommend,
-} from "./workflow-analysis-steps.js";
+} from "./preparation-steps.js";
+import {
+  applyScopeImprovementRecommendationsOperation,
+  type ScopeImprovementActionResult,
+  type ScopeImprovementArtifact,
+  type ScopeImprovementConsumptionDecision,
+  type ScopeImprovementPreflight,
+  writeScopeImprovementArtifact,
+} from "./scope-improvement.js";
+import { recordScopeImprovementConsumptionOperation } from "./scope-improvement-consumption.js";
+import { admitScopeImprovementTrigger } from "./semantic-request.js";
+import { scopeImproverTriggers } from "./triggers.js";
+
+const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
+  id: "apply-recommendations",
+  type: "code",
+  when: (ctx) => {
+    if (!stepSucceeded("recommend-improvements")(ctx)) return false;
+    if (inspectWorktree.output(ctx)?.dirty !== false) return false;
+    return recommend.outputRequired(ctx).recommendations.length > 0;
+  },
+  validate: (raw) =>
+    expectStructuredOutput<ScopeImprovementActionResult>(raw, [
+      "createdTaskIds",
+      "ownerQuestionIds",
+      "applied",
+      "requiresCommit",
+    ]),
+  run: (ctx) =>
+    ctx.runBlocking(applyScopeImprovementRecommendationsOperation, {
+      projectDir: ctx.projectDir,
+      runId: ctx.workflow.runId,
+      inputs: collectInputs.outputRequired(ctx),
+      recommendations: recommend.outputRequired(ctx).recommendations,
+    }),
+});
 
 function hasVisibleActions(actions: ScopeImprovementActionResult): boolean {
   return (
     actions.createdTaskIds.length > 0 ||
-    actions.ownerQuestionIds.length > 0 ||
-    actions.safeEditPaths.length > 0
+    actions.ownerQuestionIds.length > 0
   );
 }
 
-function zeroActionCooldownReason(
-  ctx: Parameters<typeof collectInputs.outputRequired>[0],
-): string | null {
-  const inputs = collectInputs.outputRequired(ctx);
-  if (!inputs.config.enabled || inputs.throttle) return null;
-  if (applyRecommendations.output(ctx)) return null;
-  const recommendations = recommend.output(ctx)?.recommendations ?? [];
-  if (recommendations.length === 0) return "no scope-improvement recommendations";
-  if (inspectWorktree.output(ctx)?.dirty !== false) {
-    return "worktree was dirty before recommendations could be applied";
-  }
-  return null;
-}
-
-const recordZeroActionCooldown = typedCodeStep<ScopeImprovementCooldownDecision>({
-  id: "record-zero-action-cooldown",
+const recordSemanticConsumption = typedCodeStep<ScopeImprovementConsumptionDecision>({
+  id: "record-semantic-consumption",
   type: "code",
   when: stepSucceeded("recommend-improvements"),
   validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementCooldownDecision>(raw, [
+    expectStructuredOutput<ScopeImprovementConsumptionDecision>(raw, [
       "recorded",
       "reason",
     ]),
   run: (ctx) => {
-    const reason = zeroActionCooldownReason(ctx);
-    if (!reason) return { recorded: false, reason: null };
-    writeScopeImprovementState({
+    const inputs = collectInputs.outputRequired(ctx);
+    const recommendations = recommend.output(ctx)?.recommendations ?? [];
+    return ctx.runBlocking(recordScopeImprovementConsumptionOperation, {
       projectDir: ctx.projectDir,
-      inputs: collectInputs.outputRequired(ctx),
-      actions: [],
+      inputs,
+      recommendationCount: recommendations.length,
+      worktreeClean: inspectWorktree.output(ctx)?.dirty === false,
+      actionApplied: applyRecommendations.output(ctx) !== undefined,
     });
-    return { recorded: true, reason };
   },
 });
 
@@ -85,7 +96,6 @@ function emptyActions(): ScopeImprovementActionResult {
   return {
     createdTaskIds: [],
     ownerQuestionIds: [],
-    safeEditPaths: [],
     applied: [],
     requiresCommit: false,
   };
@@ -122,7 +132,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       evidence: gatherEvidence.outputRequired(ctx),
       recommendations: recommend.output(ctx)?.recommendations ?? [],
       actions: applyRecommendations.output(ctx) ?? emptyActions(),
-      cooldown: recordZeroActionCooldown.output(ctx) ?? {
+      consumption: recordSemanticConsumption.output(ctx) ?? {
         recorded: false,
         reason: null,
       },
@@ -145,7 +155,6 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
       "scope-improver: apply scoped improvement action(s)",
       "",
       ...actions.createdTaskIds.map((id) => `- create ${id}`),
-      ...actions.safeEditPaths.map((path) => `- edit ${path}`),
     ];
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
     writeFileSync(
@@ -195,9 +204,10 @@ const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
   name: "scope-improver",
   description:
-    "Watch configured scopes and turn evidence-backed improvement candidates into tasks, owner questions, or bounded safe edits.",
+    "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
   tags: ["scope-improvement"],
   recoveryCapable: true,
+  triggerAdmission: admitScopeImprovementTrigger,
   triggers: scopeImproverTriggers,
   steps: [
     {
@@ -216,7 +226,7 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     gatherEvidence,
     recommend,
     applyRecommendations,
-    recordZeroActionCooldown,
+    recordSemanticConsumption,
     writeArtifact,
     writeCommitMessage,
     validateBeforeCommit,
@@ -238,14 +248,13 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
               label: "Scope improvement",
               detail:
                 `tasks=${actions.createdTaskIds.length} ` +
-                `questions=${actions.ownerQuestionIds.length} edits=${actions.safeEditPaths.length}`,
+                `questions=${actions.ownerQuestionIds.length}`,
             },
           ],
           text:
             "Scope improvement run completed.\n" +
             `Tasks: ${actions.createdTaskIds.join(", ") || "none"}\n` +
-            `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}\n` +
-            `Safe edits: ${actions.safeEditPaths.join(", ") || "none"}`,
+            `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}`,
         };
       },
     },

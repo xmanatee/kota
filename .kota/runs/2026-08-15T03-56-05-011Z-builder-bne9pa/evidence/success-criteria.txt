@@ -1,0 +1,3 @@
+1. Slack interactive input is default-deny and admits only configured users from the expected workspace and supported direct-message channel type before any slash command, inbound signal, agent session, or interactive callback runs.
+2. Actor trust metadata remains separate from admission, and focused regression coverage proves authorized input works while unauthorized users, workspaces, channel types, and callbacks fail closed.
+3. The claimed task records the final focused verification commands, moves to done only after the implementation is verified, and leaves deferred task-file staging and queue validation to the workflow host.

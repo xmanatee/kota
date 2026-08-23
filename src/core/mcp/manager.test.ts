@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
   AGENT_SKILLS_DISCOVERY_SCHEMA,
@@ -2165,6 +2166,7 @@ describe("McpManager", () => {
 
       expect(existsSync(join(projectDir, ".kota", "skills"))).toBe(false);
       const loader = new ModuleLoader({});
+      loader.setBus(new EventBus());
       loader.setCwd(projectDir);
       await loader.load({ name: "empty-module" });
       expect(loader.getSkillsPromptFor("all", "builder")).not.toContain("Remote skill guidance");

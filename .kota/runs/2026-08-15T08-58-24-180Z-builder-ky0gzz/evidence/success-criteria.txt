@@ -1,0 +1,7 @@
+1. The shipped workflow catalog excludes the four removed escalators, and issue disposition does not listen to generic successful workflow completions.
+2. Replaying the exact captured 200-row production window records the baseline invocations and proves the candidate removes all 92 escalator executions and all 10 completion-driven improver executions.
+3. Replaying the four captured passive-Codex dead letters creates one durable issue, one AI disposition, and at most one generated task or owner question; repeated records enrich the same issue without repeated review or attention.
+4. The improver remains unable to edit source or commit implementation changes, and any proposed repair reaches the normal task and builder eligibility path.
+5. The four production progress-reviewer dead-letter ids are linked to the one issue and the terminal replay resolves it using the captured commit 532ab1ae evidence.
+6. The shared generated-work materializer continues to deduplicate and update one stable proposal across every task state and owner-question state.
+7. Focused fixtures cover source observations, restart replay, material revision, no-op repetition, proposal lifecycle, and the explicit failure-to-resolution path.

@@ -1,11 +1,13 @@
 import { dirname } from "node:path";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
+import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type {
   AgentCanUseTool,
   AgentEffort,
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
 import { normalizeCanUseTool } from "./executor-permissions.js";
@@ -55,6 +57,8 @@ export type ExecutorWriter = { write(text: string): boolean };
 export type ExecutorOptions = {
   model?: string;
   cwd?: string;
+  agentWriteScope?: AgentWriteScope;
+  agentOutputDir?: string;
   verbose?: boolean;
   systemPrompt?: SDKSystemPrompt;
   maxTurns?: number;
@@ -90,6 +94,12 @@ export type ExecutorResult = {
 };
 
 export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
+  const cwd = options.cwd ?? process.cwd();
+  const agentWriteRoots = resolveAgentFilesystemWriteRoots(
+    cwd,
+    options.agentWriteScope,
+    options.agentOutputDir,
+  );
   const requestedPermissionMode = options.permissionMode ?? "bypassPermissions";
   const permissionMode =
     options.canUseTool && requestedPermissionMode === "bypassPermissions"
@@ -108,7 +118,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     disallowedTools: options.disallowedTools,
     mcpServers: options.mcpServers,
     permissionMode,
-    cwd: options.cwd ?? process.cwd(),
+    cwd,
     persistSession: options.persistSession,
     resume: options.resumeSessionId,
     effort: options.effort,
@@ -132,7 +142,7 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
       allowUnsandboxedCommands: false,
       autoAllowBashIfSandboxed: true,
       filesystem: {
-        allowWrite: [options.cwd ?? process.cwd()],
+        allowWrite: agentWriteRoots ?? [cwd],
         denyWrite: [dirname(authorityConfigPath), ...authorityTokenPaths],
         denyRead: authorityTokenPaths,
       },

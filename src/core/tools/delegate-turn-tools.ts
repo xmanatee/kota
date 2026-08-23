@@ -57,6 +57,7 @@ export async function executeDelegateToolBlocks(args: {
   const context = args.runnerContext;
   const approvalQueue = context?.approvalQueue ?? inherited?.approvalQueue;
   const sessionId = context?.sessionId ?? inherited?.sessionId;
+  const projectDir = context?.projectDir ?? inherited?.projectDir;
   const cwd = context?.cwd ?? inherited?.cwd;
   const env = context?.env ?? inherited?.env;
   const authorityConfigPath =
@@ -96,6 +97,7 @@ export async function executeDelegateToolBlocks(args: {
       : {}),
     ...(approvalQueue !== undefined ? { approvalQueue } : {}),
     ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(projectDir !== undefined ? { projectDir } : {}),
     ...(cwd !== undefined ? { cwd } : {}),
     ...(env !== undefined ? { env } : {}),
     ...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),

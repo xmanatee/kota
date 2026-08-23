@@ -23,17 +23,6 @@ import { checkMacosSwiftBuild, checkPackageScript } from "./project-package-chec
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
 export { checkCalibrationRepairEvidence } from "./calibration-repair-evidence-check.js";
-export { checkModuleBoundary } from "./project-repair-checks.js";
-export {
-  checkSuccessCriteriaDeclared,
-  checkSuccessCriteriaVerified,
-} from "./success-criteria-repair-checks.js";
-export {
-  checkActionableTaskClaimed,
-  checkActionableTaskResolved,
-  checkClaimedTaskCommitSet,
-  checkClaimedTaskStateStaged,
-} from "./task-state-repair-checks.js";
 
 type CalibrationRepairEvidenceOperationInput = {
   workspaceDir: string;
