@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { checkpointAndReconcileAutomationWorktree } from "./worktree-canonical-reconciliation.js";
@@ -79,34 +79,42 @@ describe("preserved worktree canonical reconciliation", () => {
 		});
 	});
 
-	it("holds a canonical deletion conflict without dispatching the textual resolver", async () => {
+	it("lets the bounded resolver accept a canonical deletion without resurrecting the path", async () => {
 		const created = reconciliationFixture("delete", {
 			"src/legacy.ts": "export const value = 1;\n",
 		});
 		write(created.workspaceDir, "src/legacy.ts", "export const value = 2;\n");
 		git(created.projectDir, ["rm", "src/legacy.ts"]);
 		const canonicalHead = commit(created.projectDir, "delete legacy path");
-		const resolver = vi.fn(() => ({ resolved: true, summary: "unexpected" }));
+		const resolver = vi.fn((request) => {
+			rmSync(join(request.workspaceDir, "src/legacy.ts"));
+			return {
+				resolved: true,
+				summary: "accepted the canonical deletion of the unrelated legacy path",
+			};
+		});
 		const { input } = reconciliationInput(created, { resolver });
 
 		const result = await checkpointAndReconcileAutomationWorktree(input);
 
 		expect(result).toMatchObject({
-			phase: "conflict-blocked",
-			disposition: "needs-review",
+			phase: "ready-to-resume",
+			disposition: "ready-to-resume",
 			canonicalHeadCommit: canonicalHead,
-			integratedCanonicalHeadCommit: null,
+			integratedCanonicalHeadCommit: canonicalHead,
 			canonicalDestructivePaths: ["src/legacy.ts"],
-			conflicts: [
-				{
-					path: "src/legacy.ts",
-					kind: "blocked-path",
-				},
-			],
+			conflicts: [],
 		});
 		expect(result.checkpointCommit).not.toBeNull();
-		expect(resolver).not.toHaveBeenCalled();
-		expect(inspectAutomationWorktree(created).metadata.state).toBe("pending-merge");
+		expect(resolver).toHaveBeenCalledOnce();
+		expect(resolver.mock.calls[0]?.[0]).toMatchObject({
+			conflicts: [{
+				path: "src/legacy.ts",
+				kind: "blocked-path",
+				reason: "canonical deletion or rename requires preserved recovery review",
+			}],
+		});
+		expect(existsSync(join(created.workspaceDir, "src/legacy.ts"))).toBe(false);
 		expect(git(created.projectDir, ["ls-tree", "-r", "--name-only", "HEAD"])).not.toContain(
 			"src/legacy.ts",
 		);
