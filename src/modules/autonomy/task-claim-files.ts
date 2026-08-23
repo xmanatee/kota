@@ -242,13 +242,18 @@ export function writeClaim(
   claim: TaskClaim,
   flag: "w" | "wx",
 ): void {
-  runClaimFilesystemOperation(projectDir, {
+  const response = runClaimFilesystemOperation(projectDir, {
     operation: "write-active",
     taskId: claim.taskId,
     fileName: claimFileName(claim.taskId),
     content: `${JSON.stringify(claim, null, 2)}\n`,
     flag,
   });
+  if (response.writeConflict) {
+    const error = new Error("Task claim already exists") as NodeJS.ErrnoException;
+    error.code = "EEXIST";
+    throw error;
+  }
 }
 
 function sameClaim(left: TaskClaim, right: TaskClaim): boolean {

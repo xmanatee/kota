@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-autonomous-merge-conflict-reso
 title: Security review: The autonomous merge-conflict resolver and its semantic reviewer concatenate branch-controlled task text, conflict metadata, diffs, validation output, and resolver output directly into agent prompts without injection screening or an untrusted-content envelope. A prompt injection can therefore influence both the generated resolution and its reviewer before the merge gate commits and fast-forwards the result into the canonical checkout.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The autonomous merge-conflict resolver and its semantic reviewer concatenate branch-controlled task text, conflict metadata, diffs, validation output, and resolver output directly into agent prompts without injection screening or an untrusted-content envelope. A prompt injection can therefore influence both the generated resolution and its reviewer before the merge gate commits and fast-forwards the result into the canonical checkout.
 created_at: 2026-08-23T03:30:42.896Z
-updated_at: 2026-08-23T03:30:42.896Z
+updated_at: 2026-08-23T03:51:51.839Z
 ---
 
 ## Problem
@@ -143,3 +143,5 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- Focused verification passed: `pnpm test src/core/workflow/steps/step-executor-agent-prompt.test.ts src/core/workflow/repair-loop.test.ts src/modules/autonomy/workflows/builder/merge-conflict-prompt-content.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native.test.ts src/modules/autonomy/workflows/builder/merge-conflict-resolver-native-review.test.ts` (6 files, 30 tests).
+- Affected-suite verification passed: `pnpm test src/strict-types-policy.integration.test.ts src/modules/git src/modules/autonomy/workflows/builder` (55 files, 354 tests); `pnpm typecheck` also passed.

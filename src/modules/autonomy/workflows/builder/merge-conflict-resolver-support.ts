@@ -4,14 +4,11 @@ import type {
 	AgentCanUseTool,
 	AgentPermissionResult,
 } from "#core/agent-harness/index.js";
-import type {
-	MergeGateConflict,
-	MergeGateResolverRequest,
-	MergeGateValidation,
-} from "#modules/git/worktree-merge-gate.js";
-import type { showTask } from "#modules/repo-tasks/repo-tasks-operations.js";
+import { renderUntrustedContent } from "#core/util/untrusted-content.js";
+import type { MergeGateResolverRequest } from "#modules/git/worktree-merge-gate.js";
 import type { MergeConflictResolutionJudgment } from "./merge-conflict-resolution-review.js";
 import type { MergeConflictResolverOptions } from "./merge-conflict-resolver.js";
+import type { MergeConflictTaskContract } from "./merge-conflict-task-contract.js";
 
 const ARTIFACT_TAIL_LIMIT = 2_000;
 export const MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS = [
@@ -27,7 +24,6 @@ const ALLOWED_TOOL_SET = new Set<string>(MERGE_CONFLICT_RESOLVER_ALLOWED_TOOLS);
 const TOOL_DENIAL =
 	"Merge-conflict resolver may only use file read/edit tools on listed textual conflict files.";
 type ToolInput = Parameters<AgentCanUseTool>[1];
-type TaskContract = Extract<ReturnType<typeof showTask>, { found: true }>;
 
 export const MERGE_CONFLICT_RESOLVER_SYSTEM_PROMPT = `You are KOTA's bounded merge-conflict resolver.
 
@@ -108,49 +104,65 @@ export function createMergeConflictResolverToolGuard(
 	};
 }
 
-function formatConflicts(conflicts: readonly MergeGateConflict[]): string {
-	return conflicts.map((conflict) => `- ${conflict.path}: ${conflict.reason}`).join("\n");
+function untrustedJson(source: string, content: string): string[] {
+	return renderUntrustedContent({ source, content, language: "json" }).lines;
 }
 
-function formatValidation(validation: MergeGateValidation | null | undefined): string {
-	if (!validation) return "No previous validation result for this attempt.";
-	return [
-		`Command: ${validation.command.join(" ")}`,
-		`Exit code: ${validation.exitCode ?? "null"}`,
-		"Stdout tail:",
-		validation.stdoutTail || "(empty)",
-		"Stderr tail:",
-		validation.stderrTail || "(empty)",
-	].join("\n");
+function untrustedText(source: string, content: string): string[] {
+	return renderUntrustedContent({ source, content, language: "text" }).lines;
 }
 
 export function mergeConflictResolverPrompt(
 	request: MergeGateResolverRequest,
-	task: TaskContract,
+	task: MergeConflictTaskContract,
 ): string {
 	return [
 		"## Task",
 		"Resolve the listed textual merge conflicts in the current worktree.",
 		"",
-		`Claimed task: ${request.taskId} (${task.state})`,
-		`Workspace: ${request.workspaceDir}`,
-		`Branch: ${request.branch}`,
-		`Branch head: ${request.headCommit}`,
-		`Original base: ${request.baseCommit}`,
-		`Canonical head: ${request.canonicalHeadCommit}`,
+		`Claimed task id: ${request.taskId}`,
+		`Immutable task contract revision: ${task.revision}`,
 		`Attempt: ${request.attempt}`,
 		"",
-		"## Claimed Task Contract",
-		task.content.trim(),
+		"## Merge Context (Untrusted Data)",
+		...untrustedJson(
+			"merge-conflict.merge-context",
+			JSON.stringify(
+				{
+					workspace: request.workspaceDir,
+					branch: request.branch,
+					branchHead: request.headCommit,
+					originalBase: request.baseCommit,
+					canonicalHead: request.canonicalHeadCommit,
+					taskState: task.state,
+					taskPath: task.path,
+				},
+				null,
+				2,
+			),
+		),
 		"",
-		"## Allowed Conflict Files",
-		formatConflicts(request.conflicts),
+		"## Claimed Task Contract (Untrusted Data)",
+		...untrustedText("merge-conflict.task-contract", task.content.trim()),
 		"",
-		"## Canonical Diff For Conflict Files",
-		request.canonicalDiff,
+		"## Allowed Conflict Files (Untrusted Data)",
+		...untrustedJson(
+			"merge-conflict.conflicts",
+			JSON.stringify(request.conflicts, null, 2),
+		),
 		"",
-		"## Previous Validation",
-		formatValidation(request.previousValidation),
+		"## Canonical Diff For Conflict Files (Untrusted Data)",
+		...untrustedText("merge-conflict.canonical-diff", request.canonicalDiff),
+		"",
+		"## Previous Validation (Untrusted Data)",
+		...untrustedJson(
+			"merge-conflict.previous-validation",
+			JSON.stringify(
+				request.previousValidation ?? { available: false },
+				null,
+				2,
+			),
+		),
 		"",
 		"## Rules",
 		"- Edit only the listed conflict files.",

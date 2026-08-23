@@ -170,9 +170,15 @@ export function writeDeadLetterSnapshot(
 ): void {
   const dir = join(projectDir, ".kota", "dead-letter-queue");
   mkdirSync(dir, { recursive: true });
+  const replayItems = items.map((item) => ({
+    ...item,
+    // Historical captures must remain observable for the duration of a replay,
+    // independent of the host clock crossing their production retention date.
+    retention: { kind: "retain" as const },
+  }));
   writeFileSync(
     join(dir, "items.json"),
-    `${JSON.stringify({ items }, null, 2)}\n`,
+    `${JSON.stringify({ items: replayItems }, null, 2)}\n`,
     "utf-8",
   );
 }

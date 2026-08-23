@@ -55,8 +55,21 @@ function listActive(request) {
 function writeActive(request) {
   validateStoredTaskId(request.content, request.taskId, request.fileName);
   const identities = enterActive(request, true);
-  writePrivateFile(identities, request.fileName, request.content, request.flag);
-  return { ok: true };
+  const written = writePrivateFile(
+    identities,
+    request.fileName,
+    request.content,
+    request.flag,
+    request.flag === "wx",
+  );
+  if (!written) {
+    inspectChain(identities);
+    const collision = inspectPrivateFile(request.fileName);
+    if (collision === null) refuse("task claim collision disappeared before inspection");
+    validateStoredTaskId(collision.content, request.taskId, request.fileName);
+    inspectChain(identities);
+  }
+  return { ok: true, writeConflict: !written };
 }
 
 function writeHistoryCopy(request, removeActive) {

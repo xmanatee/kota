@@ -174,13 +174,14 @@ export function makeMergeConflictFixture() {
 }
 
 export function makeRequest(workspaceDir: string): MergeGateResolverRequest {
+	const headCommit = git(workspaceDir, ["rev-parse", "HEAD"]);
 	return {
 		taskId: TASK_ID,
 		workspaceDir,
 		branch: "kota/task/task-native-merge-conflict/test-run",
-		baseCommit: "base-commit",
-		canonicalHeadCommit: "canonical-head",
-		headCommit: "branch-head",
+		baseCommit: headCommit,
+		canonicalHeadCommit: headCommit,
+		headCommit,
 		canonicalDiff: "diff --git a/src/conflict.ts b/src/conflict.ts\n+canonical change",
 		attempt: 1,
 		conflicts: [{ path: "src/conflict.ts", kind: "text", reason: "both modified" }],

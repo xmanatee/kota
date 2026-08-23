@@ -12,7 +12,6 @@ import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-execu
 import { AUTONOMY_DISALLOWED_TOOLS } from "#modules/autonomy/shared.js";
 import type { MergeGateResolver } from "#modules/git/worktree-merge-gate.js";
 import { hasConcreteTaskAcceptanceEvidence } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { showTask } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { reviewMergeConflictResolution } from "./merge-conflict-resolution-review.js";
 import {
 	appendMergeConflictResolverAttempt,
@@ -22,6 +21,7 @@ import {
 	MERGE_CONFLICT_RESOLVER_SYSTEM_PROMPT,
 	mergeConflictResolverPrompt,
 } from "./merge-conflict-resolver-support.js";
+import { loadMergeConflictTaskContract } from "./merge-conflict-task-contract.js";
 
 export {
 	createMergeConflictResolverToolGuard,
@@ -69,9 +69,15 @@ export function resolveMergeConflictResolverRunContract(
 export function createMergeConflictResolver(options: MergeConflictResolverOptions): MergeGateResolver {
 	return async (request) => {
 		const harness = resolveAgentHarness(options.agentContract.harness);
-		const task = showTask(request.workspaceDir, request.taskId);
-		if (!task.found) {
-			const summary = `Merge-conflict resolver could not find claimed task contract ${request.taskId}.`;
+		const taskResult = loadMergeConflictTaskContract({
+			workspaceDir: request.workspaceDir,
+			taskId: request.taskId,
+			revision: request.baseCommit,
+		});
+		if (!taskResult.found) {
+			const summary =
+				`Merge-conflict resolver could not bind claimed task contract ${request.taskId} ` +
+				`to original base ${request.baseCommit}: ${taskResult.reason}.`;
 			appendMergeConflictResolverAttempt(options, request, {
 				resolved: false,
 				summary,
@@ -80,6 +86,7 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 			});
 			return { resolved: false, summary };
 		}
+		const task = taskResult.task;
 		if (!hasConcreteTaskAcceptanceEvidence(task.content)) {
 			const summary =
 				`Merge-conflict resolver rejected task ${request.taskId} because its acceptance ` +

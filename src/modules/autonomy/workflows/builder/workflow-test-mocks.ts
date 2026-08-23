@@ -31,6 +31,7 @@ vi.mock("#core/workflow/steps/agent-write-scope.js", () => ({
 vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   isRepoTaskQueueSnapshot: vi.fn(() => true),
+  listFullRepoTasks: vi.fn(() => []),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
   REPO_TASKS_DIR: "data/tasks",
 }));
@@ -48,6 +49,7 @@ vi.mock("#modules/autonomy/task-claims.js", () => ({
   taskClaimPath: vi.fn((projectDir: string, taskId: string) =>
     `${projectDir}/.kota/task-claims/active/${taskId}.json`
   ),
+  listClaimableQueueTaskCandidates: vi.fn(() => []),
   claimNextQueueTask: vi.fn(() => ({
     claimed: true,
     taskId: "task-claimed",

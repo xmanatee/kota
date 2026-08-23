@@ -3,7 +3,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { AgentDef, AgentWriteScope } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
-import { detectInjection } from "#core/util/injection-detector.js";
+import { renderUntrustedContent } from "#core/util/untrusted-content.js";
 import { resolveAgentRunDir } from "../agent-run-dir.js";
 import type {
   WorkflowRunMetadata,
@@ -97,31 +97,12 @@ function fencedJsonBlock(content: string): string[] {
   return [`${fence}json`, content, fence];
 }
 
-function escapeJsonForUntrustedBlock(content: string): string {
-  return content.replace(/[<>&]/g, (char) => {
-    if (char === "<") return "\\u003c";
-    if (char === ">") return "\\u003e";
-    return "\\u0026";
-  });
-}
-
 function buildUntrustedJsonBlock(
   source: string,
   value: ExposedStepOutput,
 ): string[] {
   const serialized = JSON.stringify(value, null, 2);
-  const verdict = detectInjection(serialized);
-  const rendered = escapeJsonForUntrustedBlock(serialized);
-  const screening = JSON.stringify({
-    suspicious: verdict.suspicious,
-    reasons: verdict.reasons,
-  });
-  return [
-    `Injection screening: ${screening}`,
-    `<untrusted-content source="${source}">`,
-    ...fencedJsonBlock(rendered),
-    "</untrusted-content>",
-  ];
+  return renderUntrustedContent({ source, content: serialized, language: "json" }).lines;
 }
 
 function buildUntrustedTriggerPayloadBlock(trigger: WorkflowRunTrigger): string[] {

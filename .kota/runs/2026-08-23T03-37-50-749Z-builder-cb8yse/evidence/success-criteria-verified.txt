@@ -1,0 +1,3 @@
+1. Verified: merge-conflict-task-contract.ts loads the task only from request.baseCommit; resolver and reviewer prompts use the shared detectInjection-backed escaped envelope; the reviewer returns suspicious-prompt-content without dispatching when any evidence source is suspicious.
+2. Verified: the focused six-file suite passed 30 tests, including immutable-contract, hostile task/path/diff/validation/summary/closing-marker, native resolver, and structured-review regressions.
+3. Verified: pnpm typecheck and the affected suite command `pnpm test src/strict-types-policy.integration.test.ts src/modules/git src/modules/autonomy/workflows/builder` passed; the latter ran 55 files and 354 tests.
