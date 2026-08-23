@@ -1,0 +1,54 @@
+PASS  pnpm --dir clients/mobile typecheck
+PASS  BROWSERSLIST=defaults pnpm --dir clients/mobile exec jest --runInBand
+      36 suites, 451 tests, 1 snapshot
+PASS  pnpm typecheck
+PASS  pnpm exec vitest run <push + cross-client contract/binding/ownership/distribution tests> --configLoader runner
+      6 files, 33 tests
+PASS  focused generated graph/action/renderer/daemon/notification tests
+PASS  git diff --check for task-owned source paths
+PASS  builder evidence policy: 17 registered files screened and ready
+PASS  pnpm kota task move task-render-shared-ui-surfaces-in-android-mobile done
+PASS  pnpm validate-tasks
+PASS  repair: workflow-runtime concurrency regression (1 focused test)
+PASS  repair: src/workflow-runtime.integration.test.ts (50 tests)
+PASS  repair: pnpm --dir clients/mobile typecheck
+PASS  repair: Android Jest preset (35 active suites, 450 active tests, 1 intentionally skipped suite/test, 1 snapshot)
+PASS  repair: pnpm typecheck
+PASS  repair: push notification + cross-client contract/distribution tests (4 files, 26 tests)
+PASS  repair: git diff --check for staged task paths and the workflow-runtime test
+INFO  repair: full pnpm test exercised the repaired workflow-runtime case without failure; the managed tool sandbox then reported 223 unrelated EPERM failures because it cannot search its injected temp-root ancestors, bind loopback sockets, or read the policy-denied Telegram .env.example.
+PASS  repair 3: pnpm --dir clients/mobile typecheck
+PASS  repair 3: Android Jest preset with the exact captured bundle (37 suites, 455 tests, 1 snapshot)
+PASS  repair 3: production AppNavigator + DaemonProvider journey (stable-id notification navigation, authenticated SSE refetch, confirmed /ui/actions/execute)
+PASS  repair 3: authenticated daemon-route native stack and strict JSON decoder (7 focused tests across production journey + daemon client)
+PASS  repair 3: pnpm typecheck
+PASS  repair 3: evidence fixture server --check (20 surfaces; SHA-256 5d8e3e996ba012095d5335bb584a1bfb476706a956c1607f556aef49732130be)
+PASS  repair 3: builder evidence policy (18 registered/root files screened within size limits)
+PASS  repair 3: git diff --check on task-owned source paths
+PASS  repair 3: task moved from done to blocked through `pnpm kota task move` with workflow-host staging ownership
+PASS  repair 3: blocked precondition parser accepts the operator-capture path and description
+DEFERRED  repair 3: task queue validation runs after the workflow host exact-stages the native task transition; this agent cannot write linked-worktree Git metadata
+PASS  repair 4: workflow-runtime retrigger regression uses observable first-run readiness and second-run invocation (1 focused test; complete file 50 tests)
+PASS  repair 4: production journey split below source-size guideline (274-line journey; 176-line daemon/SSE fixture; no substantial-growth blocker remains)
+PASS  repair 4: Android Jest preset with the exact captured bundle (37 suites, 455 tests, 1 snapshot)
+PASS  repair 4: pnpm --dir clients/mobile typecheck
+PASS  repair 4: pnpm typecheck
+PASS  repair 4: pnpm validate-tasks
+PASS  repair 4: git diff --check on repaired source paths
+PASS  repair 5: package-declared entry resolves and registers the production App (1 focused test)
+PASS  repair 5: exact-bundle Android journey mounts production App for stable-id navigation, authenticated SSE refresh, daemon-route rendering, and confirmed action execution (2 tests)
+PASS  repair 5: Android Jest preset (37 suites and 455 tests passed, 1 intentionally skipped suite/test, 1 snapshot)
+PASS  repair 5: pnpm --dir clients/mobile typecheck
+PASS  repair 5: pnpm typecheck
+PASS  repair 5: Expo public configuration resolves the Android product
+PASS  repair 5: pnpm validate-tasks
+PASS  repair 5: git diff --check
+NOT-EXECUTED  repair 5: Expo export cannot traverse the sandbox-denied canonical checkout package.json/pnpm-workspace.yaml during workspace discovery; entry registration and the production App journey passed inside the readable worktree
+PASS  repair 6: non-Android ownership regression (iOS + Expo web; no DaemonProvider effects or product navigation)
+PASS  repair 6: package entry + Android production journey focused suite (3 suites, 5 tests)
+PASS  repair 6: Android Jest preset (38 suites and 457 tests passed, 1 intentionally skipped suite/test, 1 snapshot)
+PASS  repair 6: pnpm --dir clients/mobile typecheck
+PASS  repair 6: pnpm typecheck
+PASS  repair 6: pnpm validate-tasks
+PASS  repair 6: manual accessibility/performance/theming/responsive review; packaged audit skill instructions remained sandbox-inaccessible
+PASS  repair 6: git diff --check on repaired source paths

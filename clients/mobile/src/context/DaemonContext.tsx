@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useReducer,
   useRef,
+  useState,
 } from 'react';
 import { DaemonClient } from '../daemonClient';
 import { useSSE } from '../hooks/useSSE';
@@ -16,7 +17,13 @@ import type {
   RetractRequest,
   RetractTarget,
   SseEvent,
+  UiAction,
+  UiActionExecutionResult,
+  UiJsonValue,
+  UiLogEntry,
+  UiSurfaceBundle,
 } from '../types';
+import { matchUiEvent, uiLogEntry } from '../shared-ui/live-events';
 import {
   type CaptureTargetChoice,
   type DaemonState,
@@ -28,13 +35,37 @@ const URL_KEY = 'kota_daemon_url';
 const TOKEN_KEY = 'kota_daemon_token';
 const PUSH_ENABLED_KEY = 'kota_push_notifications_enabled';
 
+export type LiveUiLogEntries = Readonly<
+  Record<string, readonly UiLogEntry[]>
+>;
+
+export type SharedUiState = {
+  bundle: UiSurfaceBundle | null;
+  loading: boolean;
+  error: string | null;
+  liveLogEntries: LiveUiLogEntries;
+};
+
+const initialSharedUiState: SharedUiState = {
+  bundle: null,
+  loading: false,
+  error: null,
+  liveLogEntries: {},
+};
+
 interface DaemonContextValue {
   state: DaemonState;
+  ui: SharedUiState;
   client: DaemonClient | null;
   saveSettings: (url: string, token: string) => Promise<void>;
   setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
   setActiveProjectId: (projectId: string) => void;
   refresh: () => void;
+  refreshUi: () => Promise<void>;
+  executeUiAction: (
+    action: UiAction,
+    parameters?: UiJsonValue,
+  ) => Promise<UiActionExecutionResult>;
   refreshDigest: () => Promise<void>;
   refreshAttention: () => Promise<void>;
   setKnowledgeQuery: (query: string) => void;
@@ -65,11 +96,18 @@ interface DaemonContextValue {
 
 const DaemonContext = createContext<DaemonContextValue>({
   state: initialState,
+  ui: initialSharedUiState,
   client: null,
   saveSettings: async () => {},
   setPushNotificationsEnabled: async () => {},
   setActiveProjectId: () => {},
   refresh: () => {},
+  refreshUi: async () => {},
+  executeUiAction: async () => ({
+    ok: false,
+    reason: 'unavailable',
+    message: 'Daemon connection is unavailable.',
+  }),
   refreshDigest: async () => {},
   refreshAttention: async () => {},
   setKnowledgeQuery: () => {},
@@ -100,10 +138,18 @@ const DaemonContext = createContext<DaemonContextValue>({
 
 export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [ui, setUi] = useState<SharedUiState>(initialSharedUiState);
   const clientRef = useRef<DaemonClient | null>(null);
+  const uiRef = useRef(ui);
+  const uiRequestRef = useRef(0);
+  const uiRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const healthTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pushRegisteredRef = useRef(false);
+
+  useEffect(() => {
+    uiRef.current = ui;
+  }, [ui]);
 
   // Load persisted settings on mount
   useEffect(() => {
@@ -125,6 +171,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     clientRef.current = state.daemonUrl && state.token
       ? new DaemonClient(state.daemonUrl, state.token)
       : null;
+    uiRequestRef.current += 1;
+    setUi(initialSharedUiState);
     pushRegisteredRef.current = false;
   }, [state.daemonUrl, state.token, state.settingsLoaded]);
 
@@ -137,6 +185,47 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     activeProjectIdRef.current = state.activeProjectId;
   }, [state.activeProjectId]);
+
+  const fetchUiSurfaces = useCallback(async (projectId?: string) => {
+    const requestId = ++uiRequestRef.current;
+    const client = clientRef.current;
+    if (!client) {
+      setUi(initialSharedUiState);
+      return;
+    }
+    setUi((current) => ({ ...current, loading: true, error: null }));
+    try {
+      const bundle = await client.getUiSurfaces(projectId);
+      if (requestId !== uiRequestRef.current) return;
+      setUi((current) => ({
+        ...current,
+        bundle,
+        loading: false,
+        error: null,
+      }));
+    } catch (error) {
+      if (requestId !== uiRequestRef.current) return;
+      setUi((current) => ({
+        ...current,
+        loading: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+    }
+  }, []);
+
+  const scheduleUiRefresh = useCallback(() => {
+    if (uiRefreshTimerRef.current !== null) return;
+    uiRefreshTimerRef.current = setTimeout(() => {
+      uiRefreshTimerRef.current = null;
+      void fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+    }, 200);
+  }, [fetchUiSurfaces]);
+
+  useEffect(() => () => {
+    if (uiRefreshTimerRef.current !== null) {
+      clearTimeout(uiRefreshTimerRef.current);
+    }
+  }, []);
 
   const fetchAll = useCallback(async () => {
     const client = clientRef.current;
@@ -158,6 +247,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       });
       activeProjectIdRef.current = nextProjectId;
 
+      void fetchUiSurfaces(nextProjectId);
+
       const [statusRes, runsRes, approvalsRes, tasksRes, ownerQuestionsRes] = await Promise.all([
         client.getStatus(nextProjectId),
         client.getRuns(undefined, 30, nextProjectId),
@@ -174,7 +265,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       dispatch({ type: 'ERROR', error: e instanceof Error ? e.message : String(e) });
     }
-  }, []);
+  }, [fetchUiSurfaces]);
 
   // Health check loop
   useEffect(() => {
@@ -184,6 +275,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       const client = clientRef.current;
       if (!client) {
         dispatch({ type: 'ONLINE', online: false });
+        setUi(initialSharedUiState);
         return;
       }
       try {
@@ -192,6 +284,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         void fetchAll();
       } catch {
         dispatch({ type: 'ONLINE', online: false });
+        setUi(initialSharedUiState);
       }
     }
 
@@ -231,6 +324,21 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     const projectId = activeProjectIdRef.current ?? undefined;
+    const uiMatch = matchUiEvent(uiRef.current.bundle, event);
+    if (uiMatch.refresh) scheduleUiRefresh();
+    if (uiMatch.streamIds.length > 0) {
+      const entry = uiLogEntry(event);
+      setUi((current) => {
+        const liveLogEntries = { ...current.liveLogEntries };
+        for (const streamId of uiMatch.streamIds) {
+          liveLogEntries[streamId] = [
+            ...(current.liveLogEntries[streamId] ?? []),
+            entry,
+          ].slice(-100);
+        }
+        return { ...current, liveLogEntries };
+      });
+    }
 
     switch (event.type) {
       case 'workflow.started':
@@ -264,7 +372,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
           .then((r) => dispatch({ type: 'OWNER_QUESTIONS', questions: r.questions }));
         break;
     }
-  }, []);
+  }, [scheduleUiRefresh]);
 
   const handleSseStatus = useCallback((connected: boolean) => {
     dispatch({ type: 'SSE_STATUS', connected });
@@ -290,6 +398,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveProjectId = useCallback((projectId: string) => {
     activeProjectIdRef.current = projectId;
+    uiRequestRef.current += 1;
+    setUi(initialSharedUiState);
     dispatch({ type: 'ACTIVE_PROJECT', projectId });
     void fetchAll();
   }, [fetchAll]);
@@ -305,6 +415,23 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     void fetchAll();
   }, [fetchAll]);
+
+  const refreshUi = useCallback(async () => {
+    await fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+  }, [fetchUiSurfaces]);
+
+  const executeSharedUiAction = useCallback(
+    async (action: UiAction, parameters?: UiJsonValue) => {
+      const client = clientRef.current;
+      if (!client) throw new Error('Daemon connection is unavailable.');
+      const result = await client.executeUiAction(action, parameters);
+      if (result.ok) {
+        await fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+      }
+      return result;
+    },
+    [fetchUiSurfaces],
+  );
 
   const refreshDigest = useCallback(async () => {
     const client = clientRef.current;
@@ -576,11 +703,14 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     <DaemonContext.Provider
       value={{
         state,
+        ui,
         client: clientRef.current,
         saveSettings,
         setPushNotificationsEnabled,
         setActiveProjectId,
         refresh,
+        refreshUi,
+        executeUiAction: executeSharedUiAction,
         refreshDigest,
         refreshAttention,
         setKnowledgeQuery,

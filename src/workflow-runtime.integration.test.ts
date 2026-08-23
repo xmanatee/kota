@@ -831,7 +831,7 @@ describe("WorkflowRuntime", () => {
       path: "src/a.ts",
       changes: [{ path: "src/a.ts", type: "change" }],
     });
-    await wait(20);
+    await waitUntil(() => releaseFirstRun !== null);
 
     bus.emit("file.changed", {
       watchId: "watch-1",
@@ -845,7 +845,7 @@ describe("WorkflowRuntime", () => {
     }
     const release: () => void = releaseFirstRun;
     release();
-    await wait(120);
+    await waitUntil(() => mockedExecuteWithAgentSDK.mock.calls.length === 2);
     await runtime.stop();
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
@@ -2111,7 +2111,11 @@ describe("WorkflowRuntime", () => {
       });
 
       runtime.start();
-      await wait(50); // both workflows should have started
+      await waitUntil(
+        () =>
+          startTimes.builder !== undefined &&
+          startTimes.formatter !== undefined,
+      );
 
       expect(startTimes.builder).toBeDefined();
       expect(startTimes.formatter).toBeDefined();
@@ -2122,7 +2126,11 @@ describe("WorkflowRuntime", () => {
 
       releaseAlpha!();
       releaseBeta!();
-      await wait(60);
+      await waitUntil(
+        () =>
+          completeTimes.builder !== undefined &&
+          completeTimes.formatter !== undefined,
+      );
       await runtime.stop();
 
       expect(completeTimes.builder).toBeDefined();
@@ -2328,7 +2336,9 @@ describe("WorkflowRuntime", () => {
       });
 
       runtime.start();
-      await wait(50); // both workflows should be running
+      await waitUntil(
+        () => releaseAlpha !== null && releaseBeta !== null,
+      );
 
       const { WorkflowRunStore } = await import("#core/workflow/run-store.js");
       const store = new WorkflowRunStore(projectDir);
@@ -2341,7 +2351,9 @@ describe("WorkflowRuntime", () => {
 
       releaseAlpha!();
       releaseBeta!();
-      await wait(60);
+      await waitUntil(
+        () => (store.readState().activeRuns ?? []).length === 0,
+      );
       await runtime.stop();
 
       const stateAfter = store.readState();
@@ -2406,7 +2418,11 @@ describe("WorkflowRuntime", () => {
       });
 
       runtime.start();
-      await wait(50);
+      await waitUntil(
+        () =>
+          startTimes.builder !== undefined &&
+          completeTimes.notifier !== undefined,
+      );
 
       // agent workflow should be running (held by the mock)
       expect(startTimes.builder).toBeDefined();
@@ -2417,7 +2433,7 @@ describe("WorkflowRuntime", () => {
       expect(completeTimes.builder).toBeUndefined();
 
       releaseAgent!();
-      await wait(40);
+      await waitUntil(() => completeTimes.builder !== undefined);
       await runtime.stop();
 
       expect(completeTimes.builder).toBeDefined();

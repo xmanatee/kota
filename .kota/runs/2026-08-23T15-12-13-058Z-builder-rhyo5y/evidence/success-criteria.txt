@@ -1,0 +1,4 @@
+1. Android production loads, refreshes, and renders the daemon ui.surface.v1 bundle through one exhaustive React Native renderer backed by the generated binding, with inspectable rendered evidence.
+2. Production tabs, surface selection, and deep-link targets derive from graph navigation plus stable surface/action ids, with a runtime trace proving graph-driven navigation and live refresh.
+3. The shared renderer handles every contract node, including forms, confirmations, unavailable actions, links, logs, and typed action execution, with a runtime trace proving form submission and confirmation.
+4. Superseded operator-intent navigation, hardcoded semantic screen maps, and copied UI decoder sources are absent from the Android production path while native iOS ownership remains with clients/apple, with a search/parity artifact proving the boundary.

@@ -106,7 +106,7 @@ const pushNotificationModule: KotaModule = {
           {
             title: "KOTA daily digest",
             body: String(payload.text ?? ""),
-            screen: "digest",
+            surfaceId: "daily-digest",
           },
           (msg) => ctx.log.warn(msg),
         );
@@ -117,7 +117,7 @@ const pushNotificationModule: KotaModule = {
           {
             title: "KOTA needs your attention",
             body: String(payload.text ?? ""),
-            screen: "attention",
+            surfaceId: "inbox",
           },
           (msg) => ctx.log.warn(msg),
         );

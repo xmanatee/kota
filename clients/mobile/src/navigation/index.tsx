@@ -2,361 +2,283 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   createNavigationContainerRef,
   NavigationContainer,
-  NavigatorScreenParams,
+  type NavigatorScreenParams,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
-import React, { useEffect } from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
-import { AnswerHistoryScreen } from '../screens/AnswerHistoryScreen';
-import { AnswerScreen } from '../screens/AnswerScreen';
-import { ApprovalDetailScreen } from '../screens/ApprovalDetailScreen';
-import { ApprovalListScreen } from '../screens/ApprovalListScreen';
-import { AttentionScreen } from '../screens/AttentionScreen';
-import { CaptureScreen } from '../screens/CaptureScreen';
+import type {
+  UiIntent,
+  UiSurfaceBundle,
+} from '../daemon/conformance/ui-surface.generated';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
-import { ChatListScreen } from '../screens/ChatListScreen';
-import { DigestScreen } from '../screens/DigestScreen';
-import { HistoryScreen } from '../screens/HistoryScreen';
-import {
-  InboxHomeScreen,
-  KnowledgeHomeScreen,
-  WorkHomeScreen,
-} from '../screens/IntentHomeScreens';
-import { KnowledgeScreen } from '../screens/KnowledgeScreen';
-import { MemoryScreen } from '../screens/MemoryScreen';
-import { OwnerQuestionListScreen } from '../screens/OwnerQuestionListScreen';
-import { RecallScreen } from '../screens/RecallScreen';
-import { RetractScreen } from '../screens/RetractScreen';
-import { RunDetailScreen } from '../screens/RunDetailScreen';
-import { RunListScreen } from '../screens/RunListScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { StatusScreen } from '../screens/StatusScreen';
-import { TaskQueueScreen } from '../screens/TaskQueueScreen';
-import { TaskSearchScreen } from '../screens/TaskSearchScreen';
-import { PRIMARY_OPERATOR_TABS } from './operatorIntents';
+import {
+  entrySurface,
+  orderedIntents,
+  resolveDeepLink,
+  surfacesForIntent,
+  type UiDeepLinkTarget,
+} from '../shared-ui/graph';
+import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
+import { CenteredMessage } from './CenteredMessage';
+import { DaemonRouteScreen } from './DaemonRouteScreen';
 import { routeNotificationResponse } from './routeNotificationResponse';
+import { navigationStyles as styles } from './styles';
 
-export type StatusStackParams = {
-  DaemonStatus: undefined;
-  RunDetail: { runId: string };
-  Settings: undefined;
+type SurfaceRouteParams = {
+  actionId?: string;
+  sessionId?: string;
+  daemonRoutePath?: string;
 };
 
-export type InboxStackParams = {
-  InboxHome: undefined;
-  ApprovalList: undefined;
-  ApprovalDetail: { approvalId: string };
-  OwnerQuestions: undefined;
-  BlockedWork: undefined;
-  Attention: undefined;
-};
+type SurfaceStackParams = Record<string, SurfaceRouteParams | undefined>;
+type IntentTabParams = Record<
+  string,
+  NavigatorScreenParams<SurfaceStackParams> | undefined
+>;
 
-export type WorkStackParams = {
-  WorkHome: undefined;
-  RunList: undefined;
-  RunDetail: { runId: string };
-  Tasks: undefined;
-  TaskSearch: undefined;
-  Digest: undefined;
-  AnswerHistory: undefined;
-  ChatList: undefined;
-  ChatDetail: { sessionId: string };
-};
+const SESSION_EXTENSION_ROUTE = '__kota_session_extension__';
+const DAEMON_ROUTE_EXTENSION_ROUTE = '__kota_daemon_route_extension__';
+const SurfaceStack = createNativeStackNavigator<SurfaceStackParams>();
+const IntentTabs = createBottomTabNavigator<IntentTabParams>();
+const navigationRef = createNavigationContainerRef<IntentTabParams>();
 
-export type KnowledgeStackParams = {
-  KnowledgeHome: undefined;
-  Answer: undefined;
-  Recall: undefined;
-  KnowledgeSearch: undefined;
-  Memory: undefined;
-  History: undefined;
-  Capture: undefined;
-  Retract: undefined;
-};
+export function AppNavigator() {
+  const { state, ui, refreshUi } = useDaemon();
+  const [connectionOpen, setConnectionOpen] = useState(false);
+  const bundleRef = useRef(ui.bundle);
+  const pendingTargetRef = useRef<UiDeepLinkTarget | null>(null);
+  bundleRef.current = ui.bundle;
 
-export type SetupStackParams = {
-  Settings: undefined;
-};
-
-export type TabParams = {
-  Status: undefined;
-  Inbox: NavigatorScreenParams<InboxStackParams> | undefined;
-  Work: NavigatorScreenParams<WorkStackParams> | undefined;
-  Knowledge: NavigatorScreenParams<KnowledgeStackParams> | undefined;
-  Setup: undefined;
-};
-
-const StatusStack = createNativeStackNavigator<StatusStackParams>();
-const InboxStack = createNativeStackNavigator<InboxStackParams>();
-const WorkStack = createNativeStackNavigator<WorkStackParams>();
-const KnowledgeStack = createNativeStackNavigator<KnowledgeStackParams>();
-const SetupStack = createNativeStackNavigator<SetupStackParams>();
-const Tab = createBottomTabNavigator<TabParams>();
-
-// Navigation ref for use outside of React tree (e.g. notification response handler).
-const navigationRef = createNavigationContainerRef<TabParams>();
-
-function navigateToApproval(approvalId?: string) {
-  if (!navigationRef.isReady()) return;
-  if (approvalId) {
-    navigationRef.navigate('Inbox', {
-      screen: 'ApprovalDetail',
-      params: { approvalId },
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
     });
-  } else {
-    navigationRef.navigate('Inbox', { screen: 'ApprovalList' });
+  }, []);
+
+  const flushPendingTarget = useCallback(() => {
+    const bundle = bundleRef.current;
+    const target = pendingTargetRef.current;
+    if (!bundle || !target) return;
+    if (!resolveDeepLink(bundle, target)) {
+      pendingTargetRef.current = null;
+      return;
+    }
+    if (navigateToUiTarget(bundle, target)) {
+      pendingTargetRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        routeNotificationResponse(
+          response.notification.request.content.data,
+          {
+            toSharedUi: (target) => {
+              pendingTargetRef.current = target;
+              flushPendingTarget();
+            },
+          },
+        );
+      },
+    );
+    return () => subscription.remove();
+  }, [flushPendingTarget]);
+
+  useEffect(flushPendingTarget, [flushPendingTarget, ui.bundle]);
+
+  if (!state.settingsLoaded) {
+    return <CenteredMessage loading title="Loading device settings" />;
   }
-}
+  if (!state.daemonUrl || !state.token || connectionOpen) {
+    return (
+      <View style={styles.fullScreen}>
+        {state.daemonUrl && state.token ? (
+          <TouchableOpacity
+            style={styles.closeConnection}
+            accessibilityRole="button"
+            accessibilityLabel="Close daemon connection settings"
+            onPress={() => setConnectionOpen(false)}
+          >
+            <Text style={styles.closeConnectionLabel}>Done</Text>
+          </TouchableOpacity>
+        ) : null}
+        <SettingsScreen />
+      </View>
+    );
+  }
+  if (ui.loading && !ui.bundle) {
+    return <CenteredMessage loading title="Loading shared operator surfaces" />;
+  }
+  if (ui.error && !ui.bundle) {
+    return (
+      <CenteredMessage title="Shared UI unavailable" detail={ui.error}>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          accessibilityRole="button"
+          accessibilityLabel="Retry shared UI"
+          onPress={() => void refreshUi()}
+        >
+          <Text style={styles.primaryButtonLabel}>Retry</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          accessibilityRole="button"
+          accessibilityLabel="Open daemon connection settings"
+          onPress={() => setConnectionOpen(true)}
+        >
+          <Text style={styles.secondaryButtonLabel}>Connection</Text>
+        </TouchableOpacity>
+      </CenteredMessage>
+    );
+  }
+  if (!ui.bundle || ui.bundle.surfaces.length === 0) {
+    return (
+      <CenteredMessage
+        title="No operator surfaces"
+        detail="The connected scope does not contribute any shared UI surfaces."
+      />
+    );
+  }
 
-function navigateToDigest() {
-  if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Work', { screen: 'Digest' });
-}
-
-function navigateToAttention() {
-  if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Inbox', { screen: 'Attention' });
-}
-
-// Configure how notifications are presented while the app is in the foreground.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-function StatusNavigator() {
+  const intents = orderedIntents(ui.bundle);
   return (
-    <StatusStack.Navigator>
-      <StatusStack.Screen
-        name="DaemonStatus"
-        options={({ navigation }) => ({
-          title: 'KOTA',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-              <Text style={{ fontSize: 22 }}>⚙</Text>
-            </TouchableOpacity>
-          ),
-        })}
+    <NavigationContainer ref={navigationRef} onReady={flushPendingTarget}>
+      <IntentTabs.Navigator screenOptions={{ headerShown: false }}>
+        {intents.map((intent) => (
+          <IntentTabs.Screen
+            key={intent}
+            name={intent}
+            options={{
+              tabBarLabel: intent,
+              tabBarIcon: ({ color }) => (
+                <Text style={[styles.tabGlyph, { color }]}>
+                  {intent.slice(0, 1)}
+                </Text>
+              ),
+            }}
+          >
+            {() => (
+              <IntentNavigator
+                bundle={ui.bundle!}
+                intent={intent}
+                onOpenConnection={() => setConnectionOpen(true)}
+              />
+            )}
+          </IntentTabs.Screen>
+        ))}
+      </IntentTabs.Navigator>
+    </NavigationContainer>
+  );
+}
+
+function IntentNavigator({
+  bundle,
+  intent,
+  onOpenConnection,
+}: {
+  bundle: UiSurfaceBundle;
+  intent: UiIntent;
+  onOpenConnection: () => void;
+}) {
+  const { ui, refreshUi } = useDaemon();
+  const surfaces = surfacesForIntent(bundle, intent);
+  const initial = entrySurface(surfaces);
+
+  return (
+    <SurfaceStack.Navigator initialRouteName={initial?.surfaceId}>
+      {surfaces.map((surface) => (
+        <SurfaceStack.Screen
+          key={surface.surfaceId}
+          name={surface.surfaceId}
+          options={{ title: surface.title }}
+        >
+          {({ route, navigation }) => (
+            <SharedUiSurface
+              surface={surface}
+              onNavigate={(surfaceId) =>
+                navigateToUiTarget(bundle, { surfaceId })
+              }
+              onOpenLink={(target) => {
+                switch (target.kind) {
+                  case 'surface':
+                    navigateToUiTarget(bundle, {
+                      surfaceId: target.surfaceId,
+                    });
+                    return;
+                  case 'session':
+                    navigation.navigate(SESSION_EXTENSION_ROUTE, {
+                      sessionId: target.sessionId,
+                    });
+                    return;
+                  case 'daemon-route':
+                    navigation.navigate(DAEMON_ROUTE_EXTENSION_ROUTE, {
+                      daemonRoutePath: target.path,
+                    });
+                    return;
+                  case 'external-url':
+                    void Linking.openURL(target.url);
+                    return;
+                  default:
+                    assertLinkNever(target);
+                }
+              }}
+              onRefresh={() => void refreshUi()}
+              refreshing={ui.loading}
+              onOpenConnection={onOpenConnection}
+              liveLogEntries={ui.liveLogEntries}
+              highlightedActionId={route.params?.actionId}
+            />
+          )}
+        </SurfaceStack.Screen>
+      ))}
+      <SurfaceStack.Screen
+        name={DAEMON_ROUTE_EXTENSION_ROUTE}
+        options={{ title: 'Daemon response' }}
       >
-        {({ navigation }) => (
-          <StatusScreen
-            onRunPress={(runId) => navigation.navigate('RunDetail', { runId })}
-            onSettingsPress={() => navigation.navigate('Settings')}
-          />
+        {({ route }) => (
+          <DaemonRouteScreen path={route.params?.daemonRoutePath ?? ''} />
         )}
-      </StatusStack.Screen>
-      <StatusStack.Screen name="RunDetail" options={{ title: 'Run Detail' }}>
-        {({ route }) => <RunDetailScreen runId={route.params.runId} />}
-      </StatusStack.Screen>
-      <StatusStack.Screen name="Settings" component={SettingsScreen} />
-    </StatusStack.Navigator>
-  );
-}
-
-function InboxNavigator() {
-  return (
-    <InboxStack.Navigator>
-      <InboxStack.Screen name="InboxHome" options={{ title: 'Inbox' }}>
-        {({ navigation }) => (
-          <InboxHomeScreen
-            onApprovalsPress={() => navigation.navigate('ApprovalList')}
-            onQuestionsPress={() => navigation.navigate('OwnerQuestions')}
-            onBlockedWorkPress={() => navigation.navigate('BlockedWork')}
-            onAttentionPress={() => navigation.navigate('Attention')}
-          />
-        )}
-      </InboxStack.Screen>
-      <InboxStack.Screen name="ApprovalList" options={{ title: 'Approvals' }}>
-        {({ navigation }) => (
-          <ApprovalListScreen
-            onApprovalPress={(id) => navigation.navigate('ApprovalDetail', { approvalId: id })}
-          />
-        )}
-      </InboxStack.Screen>
-      <InboxStack.Screen name="ApprovalDetail" options={{ title: 'Approval Detail' }}>
-        {({ route, navigation }) => (
-          <ApprovalDetailScreen
-            approvalId={route.params.approvalId}
-            onDone={() => navigation.goBack()}
-          />
-        )}
-      </InboxStack.Screen>
-      <InboxStack.Screen
-        name="OwnerQuestions"
-        component={OwnerQuestionListScreen}
-        options={{ title: 'Owner questions' }}
-      />
-      <InboxStack.Screen
-        name="BlockedWork"
-        component={TaskQueueScreen}
-        options={{ title: 'Blocked work' }}
-      />
-      <InboxStack.Screen
-        name="Attention"
-        component={AttentionScreen}
-        options={{ title: 'Attention' }}
-      />
-    </InboxStack.Navigator>
-  );
-}
-
-function WorkNavigator() {
-  return (
-    <WorkStack.Navigator>
-      <WorkStack.Screen name="WorkHome" options={{ title: 'Work' }}>
-        {({ navigation }) => (
-          <WorkHomeScreen
-            onRunsPress={() => navigation.navigate('RunList')}
-            onTasksPress={() => navigation.navigate('Tasks')}
-            onTaskSearchPress={() => navigation.navigate('TaskSearch')}
-            onDigestPress={() => navigation.navigate('Digest')}
-            onAnswerHistoryPress={() => navigation.navigate('AnswerHistory')}
-            onChatPress={() => navigation.navigate('ChatList')}
-          />
-        )}
-      </WorkStack.Screen>
-      <WorkStack.Screen name="RunList" options={{ title: 'Runs' }}>
-        {({ navigation }) => (
-          <RunListScreen onRunPress={(id) => navigation.navigate('RunDetail', { runId: id })} />
-        )}
-      </WorkStack.Screen>
-      <WorkStack.Screen name="RunDetail" options={{ title: 'Run Detail' }}>
-        {({ route }) => <RunDetailScreen runId={route.params.runId} />}
-      </WorkStack.Screen>
-      <WorkStack.Screen name="Tasks" component={TaskQueueScreen} />
-      <WorkStack.Screen
-        name="TaskSearch"
-        component={TaskSearchScreen}
-        options={{ title: 'Task search' }}
-      />
-      <WorkStack.Screen name="Digest" component={DigestScreen} />
-      <WorkStack.Screen
-        name="AnswerHistory"
-        component={AnswerHistoryScreen}
-        options={{ title: 'Answer history' }}
-      />
-      <WorkStack.Screen name="ChatList" options={{ title: 'Chat' }}>
-        {({ navigation }) => (
-          <ChatListScreen
-            onSessionPress={(sessionId) => navigation.navigate('ChatDetail', { sessionId })}
-          />
-        )}
-      </WorkStack.Screen>
-      <WorkStack.Screen name="ChatDetail" options={{ title: 'Session' }}>
+      </SurfaceStack.Screen>
+      <SurfaceStack.Screen
+        name={SESSION_EXTENSION_ROUTE}
+        options={{ title: 'Session' }}
+      >
         {({ route, navigation }) => (
           <ChatDetailScreen
-            sessionId={route.params.sessionId}
+            sessionId={route.params?.sessionId ?? ''}
             onClose={() => navigation.goBack()}
           />
         )}
-      </WorkStack.Screen>
-    </WorkStack.Navigator>
+      </SurfaceStack.Screen>
+    </SurfaceStack.Navigator>
   );
 }
 
-function KnowledgeNavigator() {
-  return (
-    <KnowledgeStack.Navigator>
-      <KnowledgeStack.Screen name="KnowledgeHome" options={{ title: 'Knowledge' }}>
-        {({ navigation }) => (
-          <KnowledgeHomeScreen
-            onAnswerPress={() => navigation.navigate('Answer')}
-            onRecallPress={() => navigation.navigate('Recall')}
-            onKnowledgePress={() => navigation.navigate('KnowledgeSearch')}
-            onMemoryPress={() => navigation.navigate('Memory')}
-            onHistoryPress={() => navigation.navigate('History')}
-            onCapturePress={() => navigation.navigate('Capture')}
-            onRetractPress={() => navigation.navigate('Retract')}
-          />
-        )}
-      </KnowledgeStack.Screen>
-      <KnowledgeStack.Screen name="Answer" component={AnswerScreen} />
-      <KnowledgeStack.Screen name="Recall" component={RecallScreen} />
-      <KnowledgeStack.Screen
-        name="KnowledgeSearch"
-        component={KnowledgeScreen}
-        options={{ title: 'Knowledge' }}
-      />
-      <KnowledgeStack.Screen name="Memory" component={MemoryScreen} />
-      <KnowledgeStack.Screen name="History" component={HistoryScreen} />
-      <KnowledgeStack.Screen name="Capture" component={CaptureScreen} />
-      <KnowledgeStack.Screen name="Retract" component={RetractScreen} />
-    </KnowledgeStack.Navigator>
-  );
+export function navigateToUiTarget(
+  bundle: UiSurfaceBundle,
+  target: UiDeepLinkTarget,
+): boolean {
+  const resolved = resolveDeepLink(bundle, target);
+  if (!resolved || !navigationRef.isReady()) return false;
+  navigationRef.navigate(resolved.surface.intent, {
+    screen: resolved.surface.surfaceId,
+    params:
+      resolved.actionId === undefined
+        ? undefined
+        : { actionId: resolved.actionId },
+  });
+  return true;
 }
 
-function SetupNavigator() {
-  return (
-    <SetupStack.Navigator>
-      <SetupStack.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ title: 'Setup' }}
-      />
-    </SetupStack.Navigator>
-  );
-}
-
-export function AppNavigator() {
-  const { state } = useDaemon();
-  const pendingCount = state.pendingApprovalCount;
-  const pendingQuestionCount = state.pendingOwnerQuestionCount;
-  const blockedCount = state.tasks?.counts.blocked ?? state.tasks?.tasks.blocked?.length ?? 0;
-  const inboxCount = pendingCount + pendingQuestionCount + blockedCount;
-
-  // Handle notification taps. Navigate based on the `screen` field in the payload.
-  // Old notifications without `screen` open the app home as-is (no navigation).
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      routeNotificationResponse(response.notification.request.content.data, {
-        toApproval: navigateToApproval,
-        toDigest: navigateToDigest,
-        toAttention: navigateToAttention,
-      });
-    });
-    return () => sub.remove();
-  }, []);
-
-  return (
-    <NavigationContainer ref={navigationRef}>
-      <Tab.Navigator screenOptions={{ headerShown: false }}>
-        <Tab.Screen
-          name={PRIMARY_OPERATOR_TABS[0]}
-          component={StatusNavigator}
-          options={{ tabBarIcon: () => <Text>📡</Text> }}
-        />
-        <Tab.Screen
-          name={PRIMARY_OPERATOR_TABS[1]}
-          component={InboxNavigator}
-          options={{
-            tabBarIcon: () => <Text>☑</Text>,
-            tabBarBadge: inboxCount > 0 ? inboxCount : undefined,
-          }}
-        />
-        <Tab.Screen
-          name={PRIMARY_OPERATOR_TABS[2]}
-          component={WorkNavigator}
-          options={{
-            tabBarIcon: () => <Text>◼</Text>,
-            tabBarActiveTintColor: state.online ? undefined : '#8e8e93',
-          }}
-        />
-        <Tab.Screen
-          name={PRIMARY_OPERATOR_TABS[3]}
-          component={KnowledgeNavigator}
-          options={{ tabBarIcon: () => <Text>◇</Text> }}
-        />
-        <Tab.Screen
-          name={PRIMARY_OPERATOR_TABS[4]}
-          component={SetupNavigator}
-          options={{ tabBarIcon: () => <Text>⚙</Text> }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
-  );
+function assertLinkNever(value: never): never {
+  throw new Error(`Unhandled ui.surface.v1 link: ${JSON.stringify(value)}`);
 }

@@ -1,0 +1,1 @@
+{"schemaVersion":1,"protocolVersion":"ui.surface.v1","sourceBundle":"clients/conformance/contract-fixture.json#uiSurfaces.statusInbox","target":{"kind":"daemon-route","path":"/ui/surfaces"},"presentation":"native DaemonRouteScreen","request":{"method":"GET","path":"/ui/surfaces","authenticatedRequest":true},"observed":"decoded daemon JSON rendered in ui-daemon-route-screen"}

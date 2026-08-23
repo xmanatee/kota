@@ -15,17 +15,17 @@ fields, `200 { ok: true }` on success — matches what the mobile client's
 
 ## Subscriptions
 
-- `approval.requested` → push payload `data: { screen: "approvals", approvalId }`.
-  The mobile client's notification-response listener deep-links into
-  `ApprovalDetailScreen`.
-- `workflow.daily.digest` → push payload `data: { screen: "digest" }` with
+- `approval.requested` → push payload with stable shared-graph
+  `surfaceId: "approvals"` and the matching dynamic approval action id.
+  The mobile notification listener resolves both ids against the live bundle.
+- `workflow.daily.digest` → push payload `data: { surfaceId: "daily-digest" }` with
   the title `KOTA daily digest` and a short preview drawn from the rendered
-  digest text. Wakes the mobile DigestScreen for the 08:00 cadence rollup.
-- `workflow.attention.digest` → same `data.screen` shape with a distinct
-  attention-posture title (`KOTA needs your attention`).
+  digest text.
+- `workflow.attention.digest` → targets the shared `inbox` surface with a
+  distinct attention-posture title (`KOTA needs your attention`).
 
-The push payload deliberately does not embed the digest body itself —
-DigestScreen refetches the full payload from `/api/digest` on focus, which
+The push payload deliberately does not embed the digest body itself — the
+shared surface graph refreshes from the daemon when opened, which
 keeps the push under Expo's 4 KB limit and keeps the digest body in one
 source of truth.
 

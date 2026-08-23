@@ -3,15 +3,10 @@
  * push-notification module owns:
  *
  * - `sendPushNotifications` for `approval.requested` — mobile app deep-links
- *   into the approval queue using `data.screen = "approvals"` +
- *   `data.approvalId`.
- * - `sendDigestPushNotifications` for `workflow.daily.digest` (deep-links
- *   into DigestScreen, `data.screen = "digest"`) and `workflow.attention.digest`
- *   (deep-links into AttentionScreen, `data.screen = "attention"`). Both
- *   surfaces share the body-preview pipeline; the screen field is the only
- *   discriminator. The body is a short preview of the rendered digest/attention
- *   text; the screen refetches the full payload from `/api/digest` or
- *   `/api/attention` respectively.
+ *   into the approval surface and dynamic resolution action by stable graph ids.
+ * - `sendDigestPushNotifications` for `workflow.daily.digest` and
+ *   `workflow.attention.digest`. Both surfaces share the body-preview pipeline;
+ *   their graph-owned surface id is the only discriminator.
  *
  * A regression in either payload silently breaks mobile push deep-linking,
  * so each shape is pinned exactly here.
@@ -87,14 +82,20 @@ describe("push-notification send paths", () => {
           sound: "default",
           title: "session — shell",
           body: "Risk: moderate",
-          data: { screen: "approvals", approvalId: "approval-42" },
+          data: {
+            surfaceId: "approvals",
+            actionId: "approval.resolve-approval-42",
+          },
         },
         {
           to: "ExponentPushToken[bbb]",
           sound: "default",
           title: "session — shell",
           body: "Risk: moderate",
-          data: { screen: "approvals", approvalId: "approval-42" },
+          data: {
+            surfaceId: "approvals",
+            actionId: "approval.resolve-approval-42",
+          },
         },
       ]);
     });
@@ -158,7 +159,7 @@ describe("push-notification send paths", () => {
         {
           title: "KOTA daily digest",
           body: "Daily digest 2026-04-26\n- builder committed: Add foo",
-          screen: "digest",
+          surfaceId: "daily-digest",
         },
         vi.fn(),
       );
@@ -175,25 +176,25 @@ describe("push-notification send paths", () => {
           sound: "default",
           title: "KOTA daily digest",
           body: "Daily digest 2026-04-26",
-          data: { screen: "digest" },
+          data: { surfaceId: "daily-digest" },
         },
         {
           to: "ExponentPushToken[bbb]",
           sound: "default",
           title: "KOTA daily digest",
           body: "Daily digest 2026-04-26",
-          data: { screen: "digest" },
+          data: { surfaceId: "daily-digest" },
         },
       ]);
     });
 
-    it("emits screen=attention with an attention-posture title for workflow.attention.digest", async () => {
+    it("targets the shared inbox with an attention-posture title for workflow.attention.digest", async () => {
       await sendDigestPushNotifications(
         projectDir,
         {
           title: "KOTA needs your attention",
           body: "3 items need attention",
-          screen: "attention",
+          surfaceId: "inbox",
         },
         vi.fn(),
       );
@@ -206,16 +207,16 @@ describe("push-notification send paths", () => {
         sound: "default",
         title: "KOTA needs your attention",
         body: "3 items need attention",
-        data: { screen: "attention" },
+        data: { surfaceId: "inbox" },
       });
-      expect((body[1] as { data: { screen: string } }).data.screen).toBe("attention");
+      expect((body[1] as { data: { surfaceId: string } }).data.surfaceId).toBe("inbox");
     });
 
     it("truncates the body preview to keep payload under Expo limits", async () => {
       const longLine = "x".repeat(500);
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: longLine, screen: "digest" },
+        { title: "KOTA daily digest", body: longLine, surfaceId: "daily-digest" },
         vi.fn(),
       );
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -230,7 +231,7 @@ describe("push-notification send paths", () => {
         {
           title: "KOTA daily digest",
           body: "\n\n  \nReal first line\nSecond line",
-          screen: "digest",
+          surfaceId: "daily-digest",
         },
         vi.fn(),
       );
@@ -246,7 +247,7 @@ describe("push-notification send paths", () => {
       );
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: "anything", screen: "digest" },
+        { title: "KOTA daily digest", body: "anything", surfaceId: "daily-digest" },
         vi.fn(),
       );
       expect(fetchMock).not.toHaveBeenCalled();
@@ -259,7 +260,7 @@ describe("push-notification send paths", () => {
       const log = vi.fn();
       await sendDigestPushNotifications(
         projectDir,
-        { title: "KOTA daily digest", body: "x", screen: "digest" },
+        { title: "KOTA daily digest", body: "x", surfaceId: "daily-digest" },
         log,
       );
       expect(log).toHaveBeenCalledTimes(1);

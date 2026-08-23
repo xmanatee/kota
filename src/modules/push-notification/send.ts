@@ -21,16 +21,16 @@ export type ApprovalPushPayload = {
 export type DigestPushPayload = {
   title: string;
   body: string;
-  screen: "digest" | "attention";
+  surfaceId: "daily-digest" | "inbox";
 };
 
 const EXPO_PUSH_API_URL = "https://exp.host/--/expo-server/push/send";
 const DIGEST_BODY_PREVIEW_CHARS = 140;
 
 type ExpoMessageData =
-  | { screen: "approvals"; approvalId: string }
-  | { screen: "digest" }
-  | { screen: "attention" };
+  | { surfaceId: "approvals"; actionId: string }
+  | { surfaceId: "daily-digest" }
+  | { surfaceId: "inbox" };
 
 type ExpoMessage = {
   to: string;
@@ -57,7 +57,10 @@ export async function sendPushNotifications(
     sound: "default",
     title,
     body,
-    data: { screen: "approvals", approvalId },
+    data: {
+      surfaceId: "approvals",
+      actionId: `approval.resolve-${approvalId}`,
+    },
   }));
 
   await postMessages(messages, log);
@@ -78,7 +81,7 @@ export async function sendDigestPushNotifications(
     sound: "default",
     title: payload.title,
     body,
-    data: { screen: payload.screen },
+    data: { surfaceId: payload.surfaceId },
   }));
 
   await postMessages(messages, log);

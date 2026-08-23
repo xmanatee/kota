@@ -34,6 +34,11 @@ import type {
   TasksSearchResponse,
   VoiceSynthesizeResult,
   VoiceTranscribeResult,
+  UiAction,
+  UiActionExecutionResult,
+  UiDaemonRouteDocument,
+  UiJsonValue,
+  UiSurfaceBundle,
 } from './daemon';
 import * as approvals from './daemon/approvals';
 import * as core from './daemon/core';
@@ -52,6 +57,7 @@ import * as retractNs from './daemon/retract';
 import * as sessions from './daemon/sessions';
 import * as push from './daemon/push';
 import * as voice from './daemon/voice';
+import * as ui from './daemon/ui';
 import type { DaemonHttp } from './daemon/http';
 
 export class DaemonClient {
@@ -95,6 +101,21 @@ export class DaemonClient {
 
   getRunDetail(id: string, projectId?: string): Promise<RunDetail> {
     return core.getRunDetail(this.http, id, projectId);
+  }
+
+  getUiSurfaces(projectId?: string): Promise<UiSurfaceBundle> {
+    return ui.getUiSurfaces(this.http, projectId);
+  }
+
+  executeUiAction(
+    action: UiAction,
+    parameters?: UiJsonValue,
+  ): Promise<UiActionExecutionResult> {
+    return ui.executeUiAction(this.http, action, parameters);
+  }
+
+  getUiDaemonRoute(path: string): Promise<UiDaemonRouteDocument> {
+    return ui.getUiDaemonRoute(this.http, path);
   }
 
   getApprovals(): Promise<{ approvals: Approval[] }> {

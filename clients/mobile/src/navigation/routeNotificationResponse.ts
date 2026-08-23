@@ -1,45 +1,33 @@
-/**
- * Pure dispatcher for `Notifications.addNotificationResponseReceivedListener`
- * payloads. Keeps the deep-link contract (`data.screen` → target tab/screen)
- * out of the React tree so it stays unit-testable without rendering the full
- * tab navigator.
- *
- * Recognized payloads:
- * - `{ screen: "approvals", approvalId? }` → Inbox/ApprovalList or ApprovalDetail
- * - `{ screen: "digest" }` → Work/Digest
- * - `{ screen: "attention" }` → Inbox/Attention
- *
- * Anything else is a no-op (older notifications without a `screen` field, or
- * payloads from a future version the mobile app has not learned yet).
- */
+import type { UiDeepLinkTarget } from '../shared-ui/graph';
 
 export type NotificationRouter = {
-  toApproval(approvalId?: string): void;
-  toDigest(): void;
-  toAttention(): void;
+  toSharedUi(target: UiDeepLinkTarget): void;
 };
 
+/**
+ * Routes daemon-owned notification targets without maintaining a mobile screen
+ * catalog. The graph lookup in `AppNavigator` validates both stable ids before
+ * navigation, so stale notifications fail closed after a capability unload.
+ */
 export function routeNotificationResponse(
   data: unknown,
   router: NotificationRouter,
 ): void {
-  if (!data || typeof data !== "object") return;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
   const fields = data as Record<string, unknown>;
-  const screen = fields.screen;
-
-  if (screen === "approvals") {
-    const approvalId = typeof fields.approvalId === "string" ? fields.approvalId : undefined;
-    router.toApproval(approvalId);
+  if (
+    typeof fields.surfaceId !== 'string' ||
+    fields.surfaceId.trim().length === 0
+  ) {
     return;
   }
-
-  if (screen === "digest") {
-    router.toDigest();
+  if (fields.actionId !== undefined && typeof fields.actionId !== 'string') {
     return;
   }
-
-  if (screen === "attention") {
-    router.toAttention();
-    return;
-  }
+  router.toSharedUi({
+    surfaceId: fields.surfaceId,
+    ...(typeof fields.actionId === 'string'
+      ? { actionId: fields.actionId }
+      : {}),
+  });
 }

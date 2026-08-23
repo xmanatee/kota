@@ -102,7 +102,7 @@ describe("pushNotificationModule bus subscriptions", () => {
     await new Promise((resolve) => setImmediate(resolve));
   }
 
-  it("fans approval.requested out as a screen=approvals push", async () => {
+  it("fans approval.requested out to the shared approval action", async () => {
     bus.emit("approval.requested", {
       id: "approval-7",
       tool: "shell",
@@ -119,11 +119,14 @@ describe("pushNotificationModule bus subscriptions", () => {
     expect(body[0]).toMatchObject({
       to: REGISTERED_TOKEN,
       title: "session — shell",
-      data: { screen: "approvals", approvalId: "approval-7" },
+      data: {
+        surfaceId: "approvals",
+        actionId: "approval.resolve-approval-7",
+      },
     });
   });
 
-  it("fans workflow.daily.digest out as a screen=digest push with cadence title", async () => {
+  it("fans workflow.daily.digest out to the shared digest surface", async () => {
     bus.emit("workflow.daily.digest", {
       windowStartedAt: "2026-04-25T08:00:00.000Z",
       windowEndedAt: "2026-04-26T08:00:00.000Z",
@@ -140,11 +143,11 @@ describe("pushNotificationModule bus subscriptions", () => {
       sound: "default",
       title: "KOTA daily digest",
       body: "Daily digest 2026-04-26",
-      data: { screen: "digest" },
+      data: { surfaceId: "daily-digest" },
     });
   });
 
-  it("fans workflow.attention.digest out as a screen=attention push with attention title", async () => {
+  it("fans workflow.attention.digest out to the shared inbox surface", async () => {
     bus.emit("workflow.attention.digest", {
       items: [{ kind: "pending-owner-question", id: "abc" }],
       text: "Attention required 2026-04-26\n- owner question pending",
@@ -159,7 +162,7 @@ describe("pushNotificationModule bus subscriptions", () => {
       sound: "default",
       title: "KOTA needs your attention",
       body: "Attention required 2026-04-26",
-      data: { screen: "attention" },
+      data: { surfaceId: "inbox" },
     });
   });
 
