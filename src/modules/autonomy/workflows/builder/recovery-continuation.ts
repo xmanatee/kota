@@ -3,13 +3,19 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type ClaimTaskAttempt,
+  compareQueueTaskCandidates,
   continueTaskClaim,
   DEFAULT_TASK_CLAIM_LEASE_MS,
+  listClaimableQueueTaskCandidates,
   listTaskClaimInspections,
   type QueueTaskClaimResult,
   type TaskClaim,
 } from "#modules/autonomy/task-claims.js";
 import { listRecoveryClaims } from "#modules/autonomy/workflow-state-recovery-claims.js";
+import {
+  listFullRepoTasks,
+  type RepoTaskFullRecord,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
 
 export const BUILDER_RECOVERY_EVENT = "autonomy.builder.recovery.requested";
@@ -116,9 +122,28 @@ export function requestPendingBuilderRecoveries(
   ctx: Pick<WorkflowStepContext, "projectDir" | "emit">,
 ): BuilderRecoveryDispatchResult {
   const candidates = listPendingBuilderRecoveries(ctx.projectDir);
-  const requested = candidates
-    .slice(0, 1)
-    .map((candidate) => builderRecoveryRequestForCandidate(candidate));
+  const taskById = new Map<string, RepoTaskFullRecord>(
+    listFullRepoTasks(ctx.projectDir, ["ready", "doing"]).map((task) => [
+      task.id,
+      task,
+    ]),
+  );
+  const rankedCandidates = candidates
+    .map((candidate) => ({ candidate, task: taskById.get(candidate.claim.taskId) }))
+    .filter(
+      (entry): entry is { candidate: WorkflowStateRecoveryClaim; task: RepoTaskFullRecord } =>
+        entry.task !== undefined,
+    )
+    .sort((a, b) => compareQueueTaskCandidates(a.task, b.task));
+  const recoveryTaskIds = new Set(candidates.map((candidate) => candidate.claim.taskId));
+  const queueFrontier = listClaimableQueueTaskCandidates(ctx.projectDir).find(
+    (task) => !recoveryTaskIds.has(task.id),
+  );
+  const selected = rankedCandidates[0];
+  const requested = selected &&
+      (!queueFrontier || compareQueueTaskCandidates(selected.task, queueFrontier) <= 0)
+    ? [builderRecoveryRequestForCandidate(selected.candidate)]
+    : [];
   for (const request of requested) {
     emitBuilderRecoveryRequest(ctx.emit, request);
   }

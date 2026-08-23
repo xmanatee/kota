@@ -12,7 +12,10 @@ vi.mock("#modules/autonomy/workflow-state-recovery-claims.js", () => ({
   listRecoveryClaims,
 }));
 
-import { listPendingBuilderRecoveries } from "./recovery-continuation.js";
+import {
+  listPendingBuilderRecoveries,
+  requestPendingBuilderRecoveries,
+} from "./recovery-continuation.js";
 
 const tempDirs: string[] = [];
 
@@ -68,6 +71,38 @@ function continuedRecoveryCandidate(projectDir: string): WorkflowStateRecoveryCl
   };
 }
 
+function writeTask(
+  projectDir: string,
+  id: string,
+  taskClass: "Safety" | "Platform" | "Meta",
+  priority: "p1" | "p2",
+): void {
+  const dir = join(projectDir, "data", "tasks", "ready");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, `${id}.md`),
+    [
+      "---",
+      `id: ${id}`,
+      `title: ${id}`,
+      "status: ready",
+      `priority: ${priority}`,
+      "area: core",
+      `task_class: ${taskClass}`,
+      `summary: ${id}`,
+      "created_at: 2026-08-01T00:00:00.000Z",
+      "updated_at: 2026-08-01T00:00:00.000Z",
+      "---",
+      "",
+      "## Problem",
+      "",
+      id,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+}
+
 describe("builder recovery continuation bounds", () => {
 	it("requests unresolved pending merge after the prior continuation declined a generic retry", () => {
 		const projectDir = mkdtempSync(join(tmpdir(), "builder-pending-merge-recovery-"));
@@ -110,5 +145,40 @@ describe("builder recovery continuation bounds", () => {
     listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
 
     expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
+  });
+
+  it("defers recovery behind a higher-ranked claimable task", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-frontier-"));
+    tempDirs.push(projectDir);
+    writeTask(projectDir, "task-one", "Platform", "p1");
+    writeTask(projectDir, "task-security", "Safety", "p1");
+    listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
+    const emitted: string[] = [];
+
+    const result = requestPendingBuilderRecoveries({
+      projectDir,
+      emit: (event) => emitted.push(event),
+    });
+
+    expect(result).toEqual({ candidateCount: 1, requested: [] });
+    expect(emitted).toEqual([]);
+  });
+
+  it("requests recovery when it outranks the claimable frontier", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-frontier-"));
+    tempDirs.push(projectDir);
+    writeTask(projectDir, "task-one", "Platform", "p1");
+    writeTask(projectDir, "task-meta", "Meta", "p2");
+    listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
+    const emitted: string[] = [];
+
+    const result = requestPendingBuilderRecoveries({
+      projectDir,
+      emit: (event) => emitted.push(event),
+    });
+
+    expect(result.requested).toHaveLength(1);
+    expect(result.requested[0]?.taskId).toBe("task-one");
+    expect(emitted).toEqual(["autonomy.builder.recovery.requested"]);
   });
 });
