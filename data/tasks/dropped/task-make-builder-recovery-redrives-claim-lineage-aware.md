@@ -1,12 +1,12 @@
 ---
 id: task-make-builder-recovery-redrives-claim-lineage-aware
 title: Make builder recovery redrives claim-lineage aware
-status: ready
+status: dropped
 priority: p0
 area: autonomy
 summary: Make retries and dead-letter redrives of preserved builder recovery work continue one validated claim, worktree, and evidence lineage instead of replaying claim output owned by an earlier physical run.
 created_at: 2026-08-23T07:14:47.804Z
-updated_at: 2026-08-23T07:14:47.804Z
+updated_at: 2026-08-23T07:25:45.815Z
 task_class: Meta
 ---
 ## Problem
