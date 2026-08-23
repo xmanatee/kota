@@ -39,17 +39,3 @@ export function vitestRepoPath(projectDir: string, rawId: string): string | null
     ? null
     : safeRepoPath(projectDir, portableId.slice(markerIndex + projectMarker.length));
 }
-
-export function collectTransformedRepoPaths(
-  projectDir: string,
-  stderr: string,
-): Set<string> {
-  const paths = new Set<string>();
-  for (const line of stderr.split(/\r?\n/)) {
-    const match = /vite:transform\s+\S+\s+(.+)$/.exec(line);
-    if (!match) continue;
-    const path = vitestRepoPath(projectDir, match[1]);
-    if (path !== null) paths.add(path);
-  }
-  return paths;
-}

@@ -165,6 +165,8 @@ export function writeSyntheticReplacementProofFixture(projectDir: string): void 
       join(projectDir, testPath),
       `import { writeFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import { exerciseLiveAssembly } from "./live-runtime.js";
+import { exerciseRestartAssembly } from "./restart-runtime.js";
 
 it(${JSON.stringify(REPLACEMENT_TEST_NAMES[index])}, () => {
   const observedOwner = ${JSON.stringify(REPLACEMENT_OWNER)};

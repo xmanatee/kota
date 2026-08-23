@@ -4,23 +4,15 @@
 - Tasks define the contract and constraints; the implementing agent owns the detailed plan.
 - Changes here shape the default autonomous development behavior.
 - Mutating work uses the workflow-selected cwd: normally a task worktree; `branchPerTask: false` is an explicit serial opt-out.
-- Give preserved work one automatic continuation only after its complete visible work is checkpointed on the existing branch and the merge-gate-serialized canonical head is reconciled.
-  Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
-  a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
+- Give preserved work one automatic continuation only after checkpointing its complete visible work on the existing branch and reconciling the canonical head under the merge gate.
+  Keep original-base provenance and unresolved overlap checkpointed and claim-held; a continuation that fails or stops reporting trusted progress preserves the worktree for typed state-recovery review.
 - Bounded recovery may resolve text conflicts and accept canonical destructive
-  paths only by keeping those paths absent. Other structural and binary
-  conflicts remain preserved for review.
-- A structured semantic `needs-review` judgment may guide one remaining bounded
-  resolver attempt; invalid or exhausted reviews remain preserved for review.
-- Recovery scanning decides whether to emit an automatic continuation. Once a
-  recovery event is queued, its exact task/worktree target governs consumption;
-  a redrive may follow persisted `retryOf` lineage to the current claim owner,
-  but unrelated ownership changes fail closed. Do not reapply the producer's
-  automatic-attempt gate in the builder.
+  paths only by keeping them absent; preserve other structural and binary conflicts for review.
+- A structured semantic `needs-review` judgment may guide one remaining bounded resolver attempt; preserve invalid or exhausted reviews for review.
+- Recovery scanning decides whether to emit an automatic continuation. Once queued, its exact task/worktree target governs consumption; a redrive may follow persisted `retryOf` lineage to the current claim owner.
+  Unrelated ownership changes fail closed. Do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
-- A clean timeout or exhausted repair reserves the task claim for decomposer
-  disposition. Builder must not reclaim that task while decomposition is
-  pending; ordinary failures still release clean claims normally.
+- A clean timeout or exhausted repair reserves the task claim for decomposer disposition. Builder must not reclaim it while decomposition is pending; ordinary failures still release clean claims normally.
 - Long-running harness readiness runs before task claim acquisition; unverifiable unattended renewal leaves the task and worktree untouched.
 - Source-changing commits request daemon restart before emitting the build-committed handoff. The paused runtime persists that handoff so consumers evaluate it only after loading the committed definitions; task-only commits keep the immediate path.
 ## Success Criteria
@@ -31,8 +23,7 @@ Declare concrete success criteria before implementation and verify them before c
 
 `$KOTA_RUN_DIR` is agent-writable `.kota/builder-evidence/`, not the canonical workflow store; the protocol files above are code-registered.
 Preserved-work continuations keep the original evidence and projection lineage; execution-scoped temp, port, and run metadata use the new run.
-Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
-in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
+Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
 screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.
 The terminal commit repeats projection and excludes both runtime namespaces.
 Unregistered files cannot satisfy Product evidence. Text passes secret screening;

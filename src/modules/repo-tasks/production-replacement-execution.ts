@@ -1,12 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import {
+  type AssertionCoverageHarness,
+  readAssertionCoveragePaths,
+  writeAssertionCoverageHarness,
+} from "./production-replacement-assertion-coverage.js";
 import type { ProductionReplacementArtifact } from "./production-replacement-evidence.js";
 import type { ProductionReplacementDeclaration } from "./production-replacement-proof.js";
-import {
-  collectTransformedRepoPaths,
-  vitestRepoPath,
-} from "./production-replacement-vitest-paths.js";
+import { vitestRepoPath } from "./production-replacement-vitest-paths.js";
 
 type VitestJsonReport = {
   success: boolean;
@@ -24,7 +26,7 @@ type VitestExecution =
   | {
     ok: true;
     report: VitestJsonReport;
-    transformedPaths: Set<string>;
+    assertionCoveragePaths: Set<string> | null;
   }
   | { ok: false; error: string };
 
@@ -38,6 +40,7 @@ function executeVitest(args: {
   projectDir: string;
   testArgs: string[];
   outputFile: string;
+  coverageHarness?: AssertionCoverageHarness;
 }): VitestExecution {
   const nodeOptions = [process.env.NODE_OPTIONS, "--conditions=source"]
     .filter((value) => value !== undefined && value.length > 0)
@@ -49,6 +52,9 @@ function executeVitest(args: {
       "vitest",
       "run",
       ...args.testArgs,
+      ...(args.coverageHarness === undefined
+        ? []
+        : [`--config=${args.coverageHarness.configFile}`]),
       "--configLoader=runner",
       "--reporter=json",
       `--outputFile=${args.outputFile}`,
@@ -58,7 +64,6 @@ function executeVitest(args: {
       encoding: "utf-8",
       env: {
         ...process.env,
-        DEBUG: "vite:transform",
         NODE_OPTIONS: nodeOptions,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -67,18 +72,28 @@ function executeVitest(args: {
     },
   );
   if (execution.error || execution.status !== 0) {
-    const detail = execution.error?.message ?? execution.stderr.trim();
+    const detail = [
+      execution.error?.message ?? "",
+      execution.stderr,
+      execution.stdout,
+    ].filter((value) => value.length > 0).join("\n").trim();
     return {
       ok: false,
-      error: `declared production tests failed: ${detail || `exit ${execution.status ?? "unknown"}`}`,
+      error: `declared production tests failed: ${detail.slice(-20_000) || `exit ${execution.status ?? "unknown"}`}`,
     };
   }
   try {
-    return {
-      ok: true,
-      report: JSON.parse(readFileSync(args.outputFile, "utf-8")) as VitestJsonReport,
-      transformedPaths: collectTransformedRepoPaths(args.projectDir, execution.stderr),
-    };
+    const report = JSON.parse(readFileSync(args.outputFile, "utf-8")) as VitestJsonReport;
+    if (args.coverageHarness === undefined) {
+      return { ok: true, report, assertionCoveragePaths: null };
+    }
+    const coverage = readAssertionCoveragePaths({
+      projectDir: args.projectDir,
+      observationFile: args.coverageHarness.observationFile,
+    });
+    return coverage.ok
+      ? { ok: true, report, assertionCoveragePaths: coverage.paths }
+      : coverage;
   } catch (error) {
     return {
       ok: false,
@@ -148,7 +163,7 @@ function escapeRegex(value: string): string {
 
 function validateBindingProvenance(args: {
   report: VitestJsonReport;
-  transformedPaths: Set<string>;
+  assertionCoveragePaths: Set<string>;
   projectDir: string;
   path: string;
   name: string;
@@ -180,11 +195,11 @@ function validateBindingProvenance(args: {
     return `isolated production assertion ${JSON.stringify(args.name)} did not pass exactly once in ${args.path}`;
   }
   const missingEntrypoint = args.entrypoints.find(
-    (entrypoint) => !args.transformedPaths.has(entrypoint),
+    (entrypoint) => !args.assertionCoveragePaths.has(entrypoint),
   );
   return missingEntrypoint === undefined
     ? null
-    : `assertion ${JSON.stringify(args.name)} in ${args.path} did not execute declared production entrypoint ${missingEntrypoint}; transformed: ${[...args.transformedPaths].join(", ")}`;
+    : `assertion ${JSON.stringify(args.name)} in ${args.path} did not exercise declared production entrypoint ${missingEntrypoint} during assertion-scoped runtime coverage; observed: ${[...args.assertionCoveragePaths].join(", ")}`;
 }
 
 export function runProductionReplacementTests(args: {
@@ -234,6 +249,11 @@ export function runProductionReplacementTests(args: {
     }
     let index = 0;
     for (const binding of boundAssertions.values()) {
+      const coverageHarness = writeAssertionCoverageHarness({
+        projectDir: args.projectDir,
+        executionDir,
+        index,
+      });
       const isolatedExecution = executeVitest({
         projectDir: args.projectDir,
         testArgs: [
@@ -242,12 +262,16 @@ export function runProductionReplacementTests(args: {
           `^${escapeRegex(binding.name)}$`,
         ],
         outputFile: join(executionDir, `binding-${index}.json`),
+        coverageHarness,
       });
       index += 1;
       if (!isolatedExecution.ok) return isolatedExecution.error;
+      if (isolatedExecution.assertionCoveragePaths === null) {
+        return "isolated production assertion did not produce assertion-scoped runtime coverage";
+      }
       const provenanceError = validateBindingProvenance({
         report: isolatedExecution.report,
-        transformedPaths: isolatedExecution.transformedPaths,
+        assertionCoveragePaths: isolatedExecution.assertionCoveragePaths,
         projectDir: args.projectDir,
         path: binding.path,
         name: binding.name,
