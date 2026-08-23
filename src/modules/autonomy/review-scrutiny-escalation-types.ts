@@ -123,42 +123,6 @@ export type ReviewScrutinyEscalationProposal =
       previousEvidenceFingerprint: string | null;
     };
 
-export type ReviewScrutinyEscalationApplied =
-  | {
-      kind: "noop";
-      taskId: string;
-      patternFingerprint: string;
-      reason: string;
-      suppression: "already-current" | "cooldown" | "in-flight";
-      existingState?: RepoTaskState;
-    }
-  | {
-      kind: "created" | "refreshed";
-      taskId: string;
-      patternFingerprint: string;
-      path: string;
-    }
-  | {
-      kind: "promoted";
-      taskId: string;
-      patternFingerprint: string;
-      fromState: "backlog";
-      path: string;
-      previousPath: string;
-    }
-  | {
-      kind: "recreated";
-      taskId: string;
-      patternFingerprint: string;
-      previousState: "done" | "dropped";
-      path: string;
-    };
-
-export type ReviewScrutinyEscalationContext = {
-  projectDir: string;
-  nowIso: string;
-};
-
 export type ReviewScrutinyEscalationReport = {
   activePatterns: ReviewScrutinyPatternSummary[];
   cooldownPatterns: ReviewScrutinyPatternSummary[];
@@ -177,16 +141,6 @@ export type ReviewScrutinyPatternSummary = {
   patternFingerprint: string;
   action: ReviewScrutinyEscalationProposal["action"] | "below-threshold";
   reason: string;
-  runIds: string[];
-};
-
-export type ReviewScrutinyAttentionEntry = {
-  surface: ReviewSurface;
-  workflow: string;
-  taskId: string;
-  action: ReviewScrutinyEscalationApplied["kind"] | "skipped";
-  thinAcceptances: number;
-  approvalLikeDecisions: number;
   runIds: string[];
 };
 

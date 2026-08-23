@@ -9,7 +9,11 @@ import {
   judgeUnavailableResult,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
-import { handleVerdict, parseVerdict } from "./critic-verdict.js";
+import {
+  clearCriticOutcomeArtifacts,
+  handleVerdict,
+  parseVerdict,
+} from "./critic-verdict.js";
 import { resolveDurableOperatorEvidenceDir } from "./product-evidence.js";
 import { criticReviewInspectionOperation } from "./review-input-operations.js";
 import { formatProbeBlock } from "./task-probe.js";
@@ -71,6 +75,7 @@ Treat these as **critical issues** that block the run:
 - **Required-source dishonesty.** A task depending on an external source where the source was 401/403/paywalled/fetch-failed and the run pretends it was processed.
 - **Done-When item not implemented and not traced.** A Done-When line that this change does not address and is not deferred to a named follow-up task or recorded as a known limitation in the task body. "Acceptable because…" without a tracked trace is acceptance, not deferral. If you find yourself writing "not implemented in this change", "remains" / "still", or "not traced to a follow-up" about a Done-When item, that is a critical issue, not a warning.
 - **Runtime defect masked by missing test coverage.** A code change that introduces or leaves a behavior bug visible on the real execution path (TTY rendering, network call, file write, event emit) which mechanical checks pass only because the existing tests do not exercise that path. Phrasings like "tests only check X, so this defect passes mechanically", "on a real TTY this will print literal …", "the runtime path is wrong but the test stubs around it" mean the change ships broken — fail the run and require either the bug be fixed or the missing test be added.
+- **Evaluator signal reachable only in synthetic fixtures.** A calibration, monitoring, or quality-gate repair whose detector requires evidence that no production writer can emit is silenced, not repaired. If tests manufacture an otherwise unreachable artifact or status combination, fail until a live producer path and a production-shaped test prove the signal can occur.
 
 Treat these as **warnings** that still allow pass — but only when accompanied by a durable trace:
 
@@ -241,6 +246,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
       ].join("\n");
 
       let response: Awaited<ReturnType<typeof invokeAgentJudge>>;
+      clearCriticOutcomeArtifacts(runDir);
       try {
         response = await invokeAgentJudge(
           userMessage,

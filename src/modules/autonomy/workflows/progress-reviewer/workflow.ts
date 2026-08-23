@@ -15,13 +15,14 @@ import {
   PROGRESS_REVIEW_SCHEDULE_EVENT,
 } from "./progress-review.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
-import { emptyActions, needsAttention } from "./workflow-results.js";
 import {
   agent,
   applyActions,
   collectEvidence,
   commitChanges,
+  emptyActions,
   inspectWorktree,
+  needsAttention,
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
   validateBeforeCommit,
@@ -115,7 +116,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       type: "emit",
       when: (ctx) => {
         if (!stepSucceeded("write-artifact")(ctx)) return false;
-        return needsAttention(decodeProgressReviewAgentOutput(ctx.stepOutputs["review-evidence"]));
+        return needsAttention(applyActions.output(ctx) ?? emptyActions());
       },
       event: "workflow.attention.digest",
       payload: (ctx) => {

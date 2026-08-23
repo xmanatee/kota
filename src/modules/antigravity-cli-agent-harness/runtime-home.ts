@@ -1,8 +1,3 @@
-import {
-  existsSync,
-  mkdirSync,
-  symlinkSync,
-} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
@@ -21,25 +16,19 @@ export function resolveAntigravityCliKeychainDirectory(
 }
 
 export function prepareAntigravityCliRuntimeEnvironment(
-  context: NativeCliRuntimeContext,
+  _context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const keychainDirectory = resolveAntigravityCliKeychainDirectory(env);
   const prepared = { ...env };
   delete prepared[ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV];
   if (keychainDirectory === undefined) return prepared;
-  if (!existsSync(keychainDirectory)) {
-    throw new Error(
-      `Antigravity CLI keychain directory does not exist: ${keychainDirectory}`,
-    );
-  }
 
-  const libraryDirectory = join(context.toolRuntimeRoot, "home", "Library");
-  mkdirSync(libraryDirectory, { recursive: true, mode: 0o700 });
-  symlinkSync(
-    keychainDirectory,
-    join(libraryDirectory, "Keychains"),
-    "dir",
+  throw new Error(
+    'The "antigravity-cli" agent harness cannot safely project the macOS ' +
+      "Keychains directory into AGY's auto-approved native tool process tree. " +
+      "A provider-only authentication broker or an invocation-local AGY-only " +
+      "credential store is required; refusing to launch before AGY or " +
+      "repository-controlled content can start.",
   );
-  return prepared;
 }

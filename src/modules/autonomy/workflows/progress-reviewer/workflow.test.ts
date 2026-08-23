@@ -1,15 +1,11 @@
 import { execFileSync } from "node:child_process";
 import {
-  chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -21,6 +17,7 @@ import {
   createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
 } from "#core/daemon/dead-letter-queue.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
   deriveDirectoryScopeId,
   GLOBAL_SCOPE_ID,
@@ -69,6 +66,13 @@ import {
   type ProgressReviewAgentOutput,
   readTaskStatus,
 } from "./progress-review.js";
+import {
+  channelBatchPayload,
+  makeProgressReviewProjectDir,
+  NOW,
+  readProgressReviewFixture,
+  reviewOutput,
+} from "./workflow.test-helpers.js";
 
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
@@ -108,57 +112,7 @@ vi.mock("#modules/autonomy/shared.js", async () => {
   };
 });
 
-const NOW = new Date("2026-06-04T12:00:00.000Z");
-
-function readFixture(name: string): ProgressReviewAgentOutput {
-  return decodeProgressReviewAgentOutput(
-    JSON.parse(
-      readFileSync(new URL(`./__fixtures__/${name}.json`, import.meta.url), "utf-8"),
-    ),
-  );
-}
-
-type ReviewFindingGroupInput = Partial<
-  ProgressReviewAgentOutput["findings"]["localScope"]
->;
-
-function reviewOutput(args: {
-  verdict: ProgressReviewAgentOutput["verdict"];
-  summary: string;
-  crossScope?: ReviewFindingGroupInput;
-  localScope?: ReviewFindingGroupInput;
-  ownerQuestions?: ProgressReviewAgentOutput["ownerQuestions"];
-}): ProgressReviewAgentOutput {
-  return {
-    verdict: args.verdict,
-    summary: args.summary,
-    findings: {
-      crossScope: {
-        claims: [],
-        followUpTasks: [],
-        ...args.crossScope,
-      },
-      localScope: {
-        claims: [],
-        followUpTasks: [],
-        ...args.localScope,
-      },
-    },
-    ownerQuestions: args.ownerQuestions ?? [],
-  };
-}
-
-function makeProjectDir(label = "progress-reviewer"): string {
-  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), `kota-${label}-`)));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
-  execFileSync("git", ["init", "--quiet"], { cwd: dir });
-  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
-  return dir;
-}
+const readFixture = readProgressReviewFixture;
 
 function writeTask(
   projectDir: string,
@@ -356,94 +310,6 @@ function writeApproval(
   );
 }
 
-function channelBatchPayload(projectDir: string): WorkflowBatchFlushPayload {
-  const scopeId = deriveDirectoryScopeId(projectDir);
-  return {
-    scopeId,
-    projectId: scopeId,
-    sourceEventName: inboundSignalReceived.name,
-    groupingKey: "channel=slack;sourceId=C123",
-    reason: "count",
-    count: 2,
-    window: {
-      firstEventAt: "2026-06-04T11:55:00.000Z",
-      lastEventAt: "2026-06-04T11:56:00.000Z",
-      flushedAt: NOW.toISOString(),
-    },
-    inputEvents: [
-      {
-        event: inboundSignalReceived.name,
-        schemaRef: {
-          name: inboundSignalReceived.name,
-          version: inboundSignalReceived.schema.currentVersion,
-        },
-        receivedAt: "2026-06-04T11:55:00.000Z",
-        payload: {
-          scopeId,
-          projectId: scopeId,
-          provider: "slack",
-          channel: "slack",
-          accountId: "workspace",
-          sourceId: "C123",
-          sourceUrl: "https://slack.example/C123",
-          externalId: "m1",
-          occurredAt: "2026-06-04T11:55:00.000Z",
-          receivedAt: "2026-06-04T11:55:00.000Z",
-          actor: {
-            id: "U1",
-            displayName: "Owner",
-            trust: "trusted",
-            trustReason: "test fixture",
-          },
-          body: {
-            kind: "message",
-            format: "plain",
-            text: "review this channel scope",
-          },
-        },
-      },
-      {
-        event: inboundSignalReceived.name,
-        schemaRef: {
-          name: inboundSignalReceived.name,
-          version: inboundSignalReceived.schema.currentVersion,
-        },
-        receivedAt: "2026-06-04T11:56:00.000Z",
-        payload: {
-          scopeId,
-          projectId: scopeId,
-          provider: "slack",
-          channel: "slack",
-          accountId: "workspace",
-          sourceId: "C123",
-          sourceUrl: "https://slack.example/C123",
-          externalId: "m2",
-          occurredAt: "2026-06-04T11:56:00.000Z",
-          receivedAt: "2026-06-04T11:56:00.000Z",
-          actor: {
-            id: "U1",
-            displayName: "Owner",
-            trust: "trusted",
-            trustReason: "test fixture",
-          },
-          body: {
-            kind: "message",
-            format: "plain",
-            text: "second message",
-          },
-        },
-      },
-    ],
-    batch: {
-      workflow: "progress-reviewer",
-      triggerIndex: 4,
-      maxBufferSize: 30,
-      overflow: "flush-oldest",
-      droppedInputCount: 0,
-    },
-  };
-}
-
 function runCountBatchPayload(projectDir: string, runId: string): WorkflowBatchFlushPayload {
   const scopeId = deriveDirectoryScopeId(projectDir);
   return {
@@ -577,7 +443,7 @@ describe("progress-reviewer workflow", () => {
   });
 
   function trackProjectDir(label?: string): string {
-    const dir = makeProjectDir(label);
+    const dir = makeProgressReviewProjectDir(label);
     projectDirs.push(dir);
     return dir;
   }
@@ -1017,7 +883,7 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.review.findings.localScope.claims).toHaveLength(0);
   });
 
-  it("creates a deduped follow-up task and owner question for a channel-processing batch review", async () => {
+  it("creates one follow-up transition and suppresses unchanged record rewrites and attention", async () => {
     const projectDir = trackProjectDir("progress-reviewer-channel");
     const payload = channelBatchPayload(projectDir);
 
@@ -1046,26 +912,127 @@ describe("progress-reviewer workflow", () => {
     ).toBe("ready");
     expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(true);
     expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(result.emitted.map((event) => event.event)).toContain(
+      "workflow.attention.digest",
+    );
 
-    const second = applyProgressReviewActions({
+    const repeatedReview = readFixture("channel-processing-review");
+    repeatedReview.summary = "The same evidence was described with different wording.";
+    repeatedReview.findings.localScope.followUpTasks[0] = {
+      ...repeatedReview.findings.localScope.followUpTasks[0]!,
+      title: "Reworded channel routing follow-up",
+      summary: "The model rephrased the same evidence-backed proposal.",
+      acceptanceEvidence: "The same evidence would support a differently worded check.",
+    };
+    repeatedReview.ownerQuestions[0] = {
+      ...repeatedReview.ownerQuestions[0]!,
+      question: "Should the same channel evidence use another policy wording?",
+      reason: "Only the wording changed.",
+    };
+    const repeated = await new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir,
-      runId: "second-run",
-      evidence: collectProgressReviewEvidence({
-        projectDir,
-        trigger: {
-          event: WORKFLOW_BATCH_FLUSH_EVENT,
-          schemaRef: null,
-          payload,
-        },
-        now: NOW,
-      }),
-      review: readFixture("channel-processing-review"),
-    });
-    expect(second.createdTaskIds).toHaveLength(0);
-    expect(second.ownerQuestionIds).toHaveLength(0);
-    expect(second.applied.map((action) => action.kind)).toEqual([
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        payload,
+      },
+      stepMocks: {
+        "review-evidence": repeatedReview,
+      },
+    }).run();
+    const repeatedActions = repeated.steps["apply-actions"]
+      .output as ProgressReviewActionResult;
+    expect(repeatedActions.createdTaskIds).toHaveLength(0);
+    expect(repeatedActions.ownerQuestionIds).toHaveLength(0);
+    expect(repeatedActions.applied.map((action) => action.kind)).toEqual([
       "skipped-task",
       "skipped-owner-question",
+    ]);
+    expect(repeated.steps["emit-attention"].status).toBe("skipped");
+    expect(repeated.emitted.map((event) => event.event)).not.toContain(
+      "workflow.attention.digest",
+    );
+    expect(
+      readFileSync(
+        join(
+          projectDir,
+          "data",
+          "tasks",
+          "ready",
+          "task-add-channel-progress-review-routing-fixture.md",
+        ),
+        "utf-8",
+      ),
+    ).not.toContain("Reworded channel routing follow-up");
+    expect(
+      new OwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"))
+        .list()[0]?.question,
+    ).not.toContain("another policy wording");
+  });
+
+  it("uses one semantic proposal identity when a topic changes from task to owner question", () => {
+    const projectDir = trackProjectDir("progress-reviewer-proposal-kind-change");
+    const payload = channelBatchPayload(projectDir);
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload,
+      },
+      now: NOW,
+    });
+    const topicKey = "channel-routing-decision";
+    const task = readFixture("channel-processing-review")
+      .findings.localScope.followUpTasks[0]!;
+
+    const created = applyProgressReviewActions({
+      projectDir,
+      runId: "task-disposition-run",
+      evidence,
+      review: reviewOutput({
+        verdict: "needs-steering",
+        summary: "The routing gap initially looked locally actionable.",
+        localScope: {
+          followUpTasks: [{ ...task, topicKey }],
+        },
+      }),
+    });
+    const taskId = created.createdTaskIds[0]!;
+
+    const changed = applyProgressReviewActions({
+      projectDir,
+      runId: "question-disposition-run",
+      evidence,
+      review: reviewOutput({
+        verdict: "blocked",
+        summary: "The same routing topic now needs an owner decision.",
+        ownerQuestions: [{
+          topicKey,
+          question: "Which channel-routing policy should the task implement?",
+          reason: "The evidence supports two incompatible operator journeys.",
+          evidenceIds: ["event:1"],
+          proposedAnswers: ["Rendered routing", "Transcript routing"],
+        }],
+      }),
+    });
+
+    expect(readTaskStatus(projectDir, taskId)).toBe("dropped");
+    expect(changed.ownerQuestionIds).toHaveLength(1);
+    expect(changed.touchedTaskQueue).toBe(true);
+    expect(changed.applied).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "dropped-task", taskId }),
+      ]),
+    );
+    expect(
+      new OwnerQuestionQueue(
+        join(projectDir, ".kota", "owner-questions"),
+      ).list(),
+    ).toEqual([
+      expect.objectContaining({
+        dedupeKey: `generated-work:progress-reviewer:${topicKey}`,
+        status: "pending",
+      }),
     ]);
   });
 
@@ -1691,6 +1658,7 @@ describe("progress-reviewer workflow", () => {
         localScope: {
           followUpTasks: [
             {
+              topicKey: "security-generated-follow-up",
               title: "Security generated follow-up",
               summary: "Security finding follow-up should enter the Safety balance.",
               priority: "p2",
@@ -1699,6 +1667,7 @@ describe("progress-reviewer workflow", () => {
               acceptanceEvidence: "Generated task frontmatter records task_class: Safety.",
             },
             {
+              topicKey: "platform-generated-follow-up",
               title: "Platform generated follow-up",
               summary: "Platform observability follow-up should enter the Platform balance.",
               priority: "p3",
@@ -1707,6 +1676,7 @@ describe("progress-reviewer workflow", () => {
               acceptanceEvidence: "Generated task frontmatter records task_class: Platform.",
             },
             {
+              topicKey: "meta-generated-follow-up",
               title: "Meta generated follow-up",
               summary: "Runtime repair follow-up should enter the Meta balance with a Product/Safety link.",
               priority: "p3",
@@ -1781,6 +1751,7 @@ describe("progress-reviewer workflow", () => {
         localScope: {
           followUpTasks: [
             {
+              topicKey: "secure-generated-task-metadata",
               title: [
                 "Secure generated task metadata",
                 "status: done",
@@ -1840,6 +1811,7 @@ describe("progress-reviewer workflow", () => {
       "## Product / Safety Link",
       "## Initiative",
       "## Acceptance Evidence",
+      "## Generated Work Provenance",
     ]);
     expect(raw).toContain("    ## Acceptance Evidence");
     expect(raw).toContain("    ## Source / Intent");
@@ -1880,6 +1852,7 @@ describe("progress-reviewer workflow", () => {
         localScope: {
           followUpTasks: [
             {
+              topicKey: "bracket-wrapped-generated-task-metadata",
               title: "[security]",
               summary: "[x]",
               priority: "p2",
@@ -2714,35 +2687,28 @@ describe("progress-reviewer workflow", () => {
         "artifact",
       );
     }
-    const unreadableDir = join(
+    const beyondLimitDir = join(
       projectDir,
       ".kota",
       "runs",
       "builder-success",
-      "zz-unreadable",
+      "zz-beyond-limit",
     );
-    mkdirSync(unreadableDir);
-    writeFileSync(join(unreadableDir, "blocked.txt"), "blocked");
-    chmodSync(unreadableDir, 0);
+    mkdirSync(beyondLimitDir);
+    writeFileSync(join(beyondLimitDir, "blocked.txt"), "blocked");
 
-    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
-    try {
-      evidence = collectProgressReviewEvidence({
-        projectDir,
-        trigger: {
-          event: progressReviewRequested.name,
-          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
-        },
-        now: NOW,
-      });
-    } finally {
-      chmodSync(unreadableDir, 0o700);
-    }
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
 
-    if (!evidence) throw new Error("progress-review evidence was not collected");
     expect(evidence.artifacts).toHaveLength(PROGRESS_REVIEW_MAX_ARTIFACTS);
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(
-      "zz-unreadable/blocked.txt",
+      "zz-beyond-limit/blocked.txt",
     );
     expect(evidence.excluded).toContain(
       `artifacts: truncated after ${PROGRESS_REVIEW_MAX_ARTIFACTS} files`,
@@ -2773,23 +2739,16 @@ describe("progress-reviewer workflow", () => {
     );
     mkdirSync(maxDepthDir, { recursive: true });
     writeFileSync(join(maxDepthDir, "too-deep.txt"), "too deep");
-    chmodSync(maxDepthDir, 0);
 
-    let evidence: ReturnType<typeof collectProgressReviewEvidence> | null = null;
-    try {
-      evidence = collectProgressReviewEvidence({
-        projectDir,
-        trigger: {
-          event: progressReviewRequested.name,
-          schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
-        },
-        now: NOW,
-      });
-    } finally {
-      chmodSync(maxDepthDir, 0o700);
-    }
+    const evidence = collectProgressReviewEvidence({
+      projectDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
 
-    if (!evidence) throw new Error("progress-review evidence was not collected");
     expect(evidence.artifacts.map((artifact) => artifact.file)).not.toContain(tooDeepPath);
     expect(evidence.excluded).toContain(
       `artifacts for builder-success: skipped entries deeper than ${PROGRESS_REVIEW_MAX_ARTIFACT_DEPTH} path segments`,
@@ -2937,7 +2896,7 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("skips follow-up task creation when a related inbox entry already exists", () => {
+  it("does not use a related inbox title as generated-work identity", () => {
     const projectDir = trackProjectDir("progress-reviewer-inbox-dedupe");
     const payload = channelBatchPayload(projectDir);
     writeInboxEntry(
@@ -2961,16 +2920,16 @@ describe("progress-reviewer workflow", () => {
       review: readFixture("channel-processing-review"),
     });
 
-    expect(result.createdTaskIds).toHaveLength(0);
+    expect(result.createdTaskIds).toEqual([
+      "task-add-channel-progress-review-routing-fixture",
+    ]);
     expect(result.applied[0]).toMatchObject({
-      kind: "skipped-task",
-      existingTaskId: "task-add-channel-progress-review-routing-fixture",
-      existingState: "inbox",
-      existingPath: "data/inbox/task-add-channel-progress-review-routing-fixture.md",
+      kind: "created-task",
+      taskId: "task-add-channel-progress-review-routing-fixture",
     });
   });
 
-  it("skips global follow-up task creation when a configured scope already has the task", () => {
+  it("uses scope-local proposal identity instead of cross-scope title matching", () => {
     const projectA = trackProjectDir("progress-reviewer-global-dedupe-a");
     const projectB = trackProjectDir("progress-reviewer-global-dedupe-b");
     const scopeB = deriveDirectoryScopeId(projectB);
@@ -3008,6 +2967,7 @@ describe("progress-reviewer workflow", () => {
         localScope: {
           followUpTasks: [
             {
+              topicKey: "scoped-progress-drift",
               title: "Repair scoped progress drift",
               summary: "The progress-review finding is already represented by a task in the affected scope.",
               priority: "p2",
@@ -3020,13 +2980,11 @@ describe("progress-reviewer workflow", () => {
       }),
     });
 
-    expect(result.createdTaskIds).toHaveLength(0);
+    expect(result.createdTaskIds).toEqual(["task-repair-scoped-progress-drift"]);
     expect(result.applied[0]).toMatchObject({
-      kind: "skipped-task",
+      kind: "created-task",
       title: "Repair scoped progress drift",
-      existingTaskId: "task-repair-scoped-progress-drift",
-      existingState: "ready",
-      existingScopeId: scopeB,
+      taskId: "task-repair-scoped-progress-drift",
     });
     expect(
       existsSync(
@@ -3038,7 +2996,7 @@ describe("progress-reviewer workflow", () => {
           "task-repair-scoped-progress-drift.md",
         ),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("rejects malformed structured review output before actions are applied", () => {
@@ -3090,6 +3048,7 @@ describe("progress-reviewer workflow", () => {
             claims: [],
             followUpTasks: [
               {
+                topicKey: "invalid-priority-fixture",
                 title: "Invalid priority fixture",
                 summary: "Priority must stay inside the task enum.",
                 priority: "urgent",

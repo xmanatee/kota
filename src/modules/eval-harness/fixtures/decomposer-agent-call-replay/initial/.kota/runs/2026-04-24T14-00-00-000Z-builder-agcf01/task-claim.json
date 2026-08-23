@@ -14,6 +14,11 @@
         "mtimeMs": 1,
         "ctimeMs": 1
       }
-    }
+    },
+    "taskContentDigest": "1cfd994aa9549b865d4abed33cedbbb5bbcd1d5d0b58bc1d72f9b387ad825a14",
+    "taskContractDigest": "b163b025433259f78b8df2a011d77988a2e855c0332083d312b489307657a9a2",
+    "runId": "2026-04-24T14-00-00-000Z-builder-agcf01",
+    "workflowId": "builder",
+    "status": "active"
   }
 }

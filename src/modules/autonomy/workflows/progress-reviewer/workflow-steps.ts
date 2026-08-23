@@ -36,7 +36,6 @@ import {
   progressReviewActionOperation,
   writeProgressReviewArtifact,
 } from "./progress-review.js";
-import { emptyActions } from "./workflow-results.js";
 
 export const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -204,15 +203,21 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
   },
 });
 
+export function emptyActions(): ProgressReviewActionResult {
+  return {
+    createdTaskIds: [],
+    ownerQuestionIds: [],
+    applied: [],
+    touchedTaskQueue: false,
+  };
+}
+
 export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
   type: "code",
   when: stepSucceeded("review-evidence"),
   validate: (raw) =>
-    expectStructuredOutput<{ written: boolean; path: string }>(raw, [
-      "written",
-      "path",
-    ]),
+    expectStructuredOutput<{ written: boolean; path: string }>(raw, ["written", "path"]),
   run: (ctx) => {
     const reviewInput = prepareReviewInput.outputRequired(ctx);
     const evidence = readProgressReviewEvidencePacket(ctx);
@@ -248,11 +253,7 @@ export const writeCommitMessage = typedCodeStep<{ written: boolean }>({
       ...actions.createdTaskIds.map((id) => `- create ${id}`),
     ];
     mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    writeFileSync(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${lines.join("\n")}\n`,
-      "utf-8",
-    );
+    writeFileSync(join(ctx.workflow.runDirPath, "commit-message.txt"), `${lines.join("\n")}\n`);
     return { written: true };
   },
 });
@@ -291,3 +292,11 @@ export const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
       runDirPath: ctx.workflow.runDirPath,
     }),
 });
+export function needsAttention(actions: ProgressReviewActionResult): boolean {
+  return actions.applied.some((action) =>
+    action.kind === "created-task" ||
+    action.kind === "updated-task" ||
+    action.kind === "owner-question" ||
+    action.kind === "updated-owner-question"
+  );
+}

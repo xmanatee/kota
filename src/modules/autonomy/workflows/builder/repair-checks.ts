@@ -1,3 +1,4 @@
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { AUTONOMY_CHANGE_DECISION_CHECK_ID } from "#modules/autonomy/autonomy-change-decision.js";
@@ -14,9 +15,15 @@ import {
   projectBuilderAgentRunArtifactsOperation,
   runBuilderRepairCheck,
 } from "./blocking-operations.js";
+import {
+  CALIBRATION_REPAIR_EVIDENCE_CHECK_ID,
+  checkCalibrationRepairEvidence,
+} from "./calibration-repair-evidence-check.js";
 import { checkMacosSwiftBuild, checkPackageScript } from "./project-package-checks.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
+export { checkCalibrationRepairEvidence } from "./calibration-repair-evidence-check.js";
+export { checkModuleBoundary } from "./project-repair-checks.js";
 export {
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
@@ -27,6 +34,27 @@ export {
   checkClaimedTaskCommitSet,
   checkClaimedTaskStateStaged,
 } from "./task-state-repair-checks.js";
+
+type CalibrationRepairEvidenceOperationInput = {
+  workspaceDir: string;
+  agentRunDir: string;
+  claim?: QueueTaskClaimResult;
+};
+
+export function checkCalibrationRepairEvidenceInWorker(
+  input: CalibrationRepairEvidenceOperationInput,
+): string {
+  return checkCalibrationRepairEvidence(
+    input.workspaceDir,
+    input.agentRunDir,
+    input.claim,
+  );
+}
+
+const calibrationRepairEvidenceOperation = defineWorkflowBlockingOperation<
+  CalibrationRepairEvidenceOperationInput,
+  string
+>(import.meta.url, "checkCalibrationRepairEvidenceInWorker");
 
 export function builderRepairChecks(): WorkflowRepairCheck[] {
   return [
@@ -70,6 +98,24 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
           {
             agentRunDir: builderAgentRunDir(ctx),
             workspaceDir: workflowWorkspaceDir(ctx),
+          },
+        ),
+    },
+    {
+      id: CALIBRATION_REPAIR_EVIDENCE_CHECK_ID,
+      type: "code" as const,
+      phase: 2,
+      run: (ctx) =>
+        withWorkflowBlockingOperation(ctx).runBlocking(
+          calibrationRepairEvidenceOperation,
+          {
+            workspaceDir: workflowWorkspaceDir(ctx),
+            agentRunDir: builderAgentRunDir(ctx),
+            ...(ctx.stepOutputs["claim-task"] === undefined
+              ? {}
+              : {
+                  claim: ctx.stepOutputs["claim-task"] as QueueTaskClaimResult,
+                }),
           },
         ),
     },

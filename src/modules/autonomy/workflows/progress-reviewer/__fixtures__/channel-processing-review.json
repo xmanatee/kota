@@ -17,6 +17,7 @@
       ],
       "followUpTasks": [
         {
+          "topicKey": "channel-progress-review-routing-fixture",
           "title": "Add channel progress review routing fixture",
           "summary": "Create a fixture that shows an inbound channel batch being reviewed with routed workflow evidence.",
           "priority": "p2",

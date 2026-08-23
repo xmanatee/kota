@@ -77,17 +77,17 @@ describe("autonomy workflow workspace policy", () => {
     }
   });
 
-  it("backs the improver canonical exception with a clean-checkout agent gate", () => {
+  it("keeps improver read-only and routes dispositions through task control state", () => {
     const policy = workflowWorkspacePolicyFor("improver");
     expect(policy?.kind).toBe("canonical-control-state");
-    expect(policy?.trackedMutationScope).toBe("autonomy-control-plane");
-    expect(policy?.safetyMechanisms).toContain(
-      "clean-checkout preflight gates the agent step",
-    );
+    expect(policy?.trackedMutationScope).toBe("task-control-state");
+    expect(policy?.writes).not.toContain("src/modules/autonomy/");
 
     const source = sourceFor("improver");
     expect(source).toContain('id: "inspect-worktree"');
     expect(source).toContain("inspectWorktree.output(ctx)?.dirty === false");
+    expect(source).toContain('writeScope: "deny-all"');
+    expect(source).not.toContain('event: "workflow.completed"');
   });
 
   it("keeps research-retry scoped to task control files", () => {

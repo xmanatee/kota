@@ -131,4 +131,55 @@ function writePrivateFile(identities, fileName, content, flag) {
     closeSync(directoryFd);
   }
 }
+
+// Lock payloads are never read. Reserve the final path directly so competing
+// acquirers cannot observe the two-link installation window used by claim data.
+function createPrivateLock(identities, fileName, content) {
+  if (Buffer.byteLength(content, "utf8") > MAX_CLAIM_BYTES) {
+    refuse("task claim lock entry exceeds the storage limit");
+  }
+  const directoryFd = openSync(
+    ".",
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  let lockFd;
+  let lockIdentity;
+  let installed = false;
+  try {
+    inspectChain(identities);
+    lockFd = openSync(
+      fileName,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_NOFOLLOW,
+      FILE_MODE,
+    );
+    const lockStats = fstatSync(lockFd);
+    if (!lockStats.isFile() || lockStats.nlink !== 1) {
+      refuse("task claim lock entry is not a private regular file");
+    }
+    lockIdentity = identity(lockStats);
+    fchmodSync(lockFd, FILE_MODE);
+    writeFileSync(lockFd, content, "utf8");
+    fsyncSync(lockFd);
+
+    inspectChain(identities);
+    const installedStats = lstatSync(fileName);
+    if (
+      !installedStats.isFile() ||
+      installedStats.nlink !== 1 ||
+      !sameFile(installedStats, lockIdentity)
+    ) {
+      refuse("task claim lock entry changed while it was installed");
+    }
+    installed = true;
+    fsyncSync(directoryFd);
+    return lockIdentity;
+  } finally {
+    if (lockFd !== undefined) closeSync(lockFd);
+    if (!installed) cleanupTemporaryFile(fileName, lockIdentity);
+    closeSync(directoryFd);
+  }
+}
 `;

@@ -1,0 +1,3 @@
+1. Verified that Antigravity sandbox launches receive no Keychain read root and that any macOS Keychain locator is rejected before AGY or repository-controlled content starts.
+2. Verified focused sandbox, runtime-home, macOS readiness, authentication isolation, and provider-egress coverage across 44 passing tests.
+3. Recorded the passing verification commands and the unrelated repository-wide lint warnings in the completed task.

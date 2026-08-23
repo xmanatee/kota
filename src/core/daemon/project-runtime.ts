@@ -32,7 +32,11 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { ApprovalQueue, setApprovalQueueInstance } from "./approval-queue.js";
-import { DeadLetterQueueStore } from "./dead-letter-queue.js";
+import type { DeadLetterQueueStore } from "./dead-letter-queue.js";
+import {
+  EventedDeadLetterQueueStore,
+  projectScopedDeadLetterChangedPublisher,
+} from "./dead-letter-queue-events.js";
 import { setIdempotencyStoreInstance } from "./idempotency-singleton.js";
 import { IdempotencyStore } from "./idempotency-store.js";
 import { NotificationGate, type QuietHoursConfig } from "./notification-gate.js";
@@ -159,8 +163,10 @@ export function createProjectRuntime(
     { defaultTtlMs: opts.config?.approvalTtlMs },
   );
   const secretStore = getProjectSecretStore(projectDir);
-  const deadLetterQueue = new DeadLetterQueueStore(
+  const deadLetterQueue = new EventedDeadLetterQueueStore(
     join(projectDir, ".kota", "dead-letter-queue"),
+    undefined,
+    projectScopedDeadLetterChangedPublisher(pbus),
   );
   const idempotencyStore = new IdempotencyStore(
     join(projectDir, ".kota", "idempotency"),

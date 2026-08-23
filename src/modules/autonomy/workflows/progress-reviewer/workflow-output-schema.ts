@@ -18,6 +18,7 @@ const reviewClaimOutputSchema = {
 const reviewFollowUpTaskOutputSchema = {
   type: "object",
   required: [
+    "topicKey",
     "title",
     "summary",
     "priority",
@@ -27,6 +28,7 @@ const reviewFollowUpTaskOutputSchema = {
   ],
   additionalProperties: false,
   properties: {
+    topicKey: { type: "string", pattern: "^[a-z0-9][a-z0-9:_-]*$" },
     title: { type: "string" },
     summary: { type: "string" },
     priority: {

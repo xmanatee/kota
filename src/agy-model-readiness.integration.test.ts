@@ -61,7 +61,11 @@ describe("AGY autonomy model/effort readiness", () => {
     registerAgentHarness({
       ...antigravityCliAgentHarness,
       readiness: (request) =>
-        antigravityCliReadiness(request, unavailableHighEffortDeps()),
+        antigravityCliReadiness(
+          request,
+          unavailableHighEffortDeps(),
+          { platform: "linux" },
+        ),
       run,
     });
     const step: WorkflowAgentStep = {

@@ -82,6 +82,7 @@ describe("progress and calibration blocking operations", () => {
               claims: [],
               followUpTasks: [
                 {
+                  topicKey: "worker-boundary",
                   title: "Exercise progress review worker boundary",
                   summary:
                     "Keep progress-review task scans and writes off the daemon event loop.",
@@ -135,11 +136,33 @@ describe("progress and calibration blocking operations", () => {
       );
       writeFileSync(donePath, `---\nid: ${CALIBRATION_REPAIR_TASK_ID}\n---\n`);
       commitFixture(projectDir);
+      writeFileSync(join(projectDir, "post-fix.ts"), "export const fixed = true;\n");
+      commitFixture(projectDir);
+      const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: projectDir,
+        encoding: "utf8",
+      }).trim();
       const runDir = join(projectDir, ".kota", "runs", "post-fix");
       mkdirSync(runDir, { recursive: true });
       writeFileSync(
         join(runDir, "evaluator-calibration.json"),
-        `${JSON.stringify({ completedAt: "2099-01-01T00:00:00.000Z" })}\n`,
+        `${JSON.stringify({
+          runId: "post-fix",
+          workflow: "builder",
+          completedAt: "2099-01-01T00:00:00.000Z",
+          verdict: "pass",
+          warningCount: 0,
+          criticalIssueCount: 0,
+          repairIterations: 0,
+          finalIterationFailures: [],
+          criticFailureCount: 0,
+          terminalRunStatus: "success",
+          taskId: "task-post-fix",
+          taskFinalState: "done",
+          sourceRevision,
+          sourceFilesChanged: ["post-fix.ts"],
+          criticPromptHash: "worker-boundary",
+        })}\n`,
       );
       const context: CalibrationRepairContext = {
         projectDir,

@@ -1,0 +1,3 @@
+Repair evaluator calibration drift
+
+Retune the live gate with source-bound weak-evidence disposition, and split calibration helpers so instruction and source-size checks pass.

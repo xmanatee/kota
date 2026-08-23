@@ -1,7 +1,8 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { WorkflowDeadLetterBusEvents } from "./event-bus-dead-letter-events.js";
 import type { ProjectId, ScopeId } from "./project-scope.js";
 
-export type TailBusEvents = {
+export type TailBusEvents = WorkflowDeadLetterBusEvents & {
   "approval.requested": {
     projectId: ProjectId;
     id: string;

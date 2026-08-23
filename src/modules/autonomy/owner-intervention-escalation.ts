@@ -12,18 +12,13 @@ export {
   detectRecurringOwnerInterventionPatternsFromReport,
 } from "./owner-intervention-escalation-detect.js";
 export {
-  buildOwnerInterventionAttentionDigest,
   buildOwnerInterventionEscalationReport,
 } from "./owner-intervention-escalation-report.js";
 export {
-  applyOwnerInterventionEscalation,
   proposeOwnerInterventionEscalation,
 } from "./owner-intervention-escalation-tasks.js";
 export type {
-  OwnerInterventionAttentionEntry,
-  OwnerInterventionEscalationApplied,
   OwnerInterventionEscalationConfig,
-  OwnerInterventionEscalationContext,
   OwnerInterventionEscalationDetection,
   OwnerInterventionEscalationProposal,
   OwnerInterventionEscalationReport,

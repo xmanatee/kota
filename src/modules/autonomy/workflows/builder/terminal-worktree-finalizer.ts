@@ -1,5 +1,7 @@
 import { join } from "node:path";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowTerminalFinalizerInput } from "#core/workflow/types.js";
+import { recordFailedBuilderCalibration } from "./failed-calibration-finalizer.js";
 import { emitBuilderRecoveryRequest } from "./recovery-continuation.js";
 import { builderTerminalWorktreeFinalizerOperation } from "./terminal-worktree-finalizer-operation.js";
 
@@ -7,6 +9,40 @@ type BuilderTerminalWorkspace = {
   taskId: string;
   worktreeRunId: string;
 };
+
+type FailedBuilderCalibrationOperationInput = Pick<
+  WorkflowTerminalFinalizerInput,
+  "projectDir" | "workspaceDir" | "metadata" | "trigger" | "agentFailureKind"
+>;
+
+export function recordFailedBuilderCalibrationInWorker(
+  input: FailedBuilderCalibrationOperationInput,
+): string[] {
+  const logMessages: string[] = [];
+  const runBlocking: WorkflowTerminalFinalizerInput["runBlocking"] = async () => {
+    throw new Error("Nested blocking operations are unavailable in a worker");
+  };
+  recordFailedBuilderCalibration({
+    ...input,
+    runBlocking,
+    emit: () => {},
+    log: (message) => logMessages.push(message),
+  });
+  return logMessages;
+}
+
+const recordFailedBuilderCalibrationOperation =
+  defineWorkflowBlockingOperation<
+    FailedBuilderCalibrationOperationInput,
+    string[]
+  >(import.meta.url, "recordFailedBuilderCalibrationInWorker");
+
+function requiresFailedBuilderCalibrationInspection(
+  input: WorkflowTerminalFinalizerInput,
+): boolean {
+  const buildStep = input.metadata.steps.find((step) => step.id === "build");
+  return input.metadata.status === "failed" && buildStep?.status === "failed";
+}
 
 function workspaceOutput(
   input: WorkflowTerminalFinalizerInput,
@@ -48,6 +84,33 @@ function workspaceOutput(
 export async function finalizeBuilderTerminalWorktree(
   input: WorkflowTerminalFinalizerInput,
 ): Promise<void> {
+  if (requiresFailedBuilderCalibrationInspection(input)) {
+    try {
+      const calibrationLogMessages = await input.runBlocking(
+        recordFailedBuilderCalibrationOperation,
+        {
+          projectDir: input.projectDir,
+          workspaceDir: input.workspaceDir,
+          metadata: input.metadata,
+          trigger: input.trigger,
+          ...(input.agentFailureKind === undefined
+            ? {}
+            : { agentFailureKind: input.agentFailureKind }),
+        },
+      );
+      for (const message of calibrationLogMessages) input.log(message);
+    } catch (error) {
+      input.log(
+        `Builder terminal finalizer could not record calibration: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  } else {
+    // The helper returns before repository inspection unless this is a failed
+    // builder step, so the cheap terminal-state guard stays inline.
+    recordFailedBuilderCalibration(input);
+  }
   const workspace = workspaceOutput(input);
   if (!workspace) return;
   const result = await input.runBlocking(

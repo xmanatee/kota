@@ -68,11 +68,31 @@ export class RepairLoopError extends Error {
       : this.agentBackoff?.retryable;
   }
 
+  get retryAt(): string | undefined {
+    return this.stepRuntimeKind === undefined
+      ? undefined
+      : this.agentBackoff?.retryAt;
+  }
+
   asAgentStepRuntimeError(): this {
     if (this.repairKind === undefined && this.agentBackoff !== undefined) {
       this.stepRuntimeKind = this.agentBackoff.kind;
       this[AGENT_STEP_RUNTIME_ERROR] = true;
     }
     return this;
+  }
+}
+
+/** A classified repair-agent failure with the repair usage retained. */
+export class RepairAgentRuntimeError extends RepairLoopError {
+  constructor(
+    error: AgentStepRuntimeError,
+    stepId: string,
+    failureIds: string[],
+    output: RepairLoopFailureOutput,
+  ) {
+    super(undefined, stepId, failureIds, output, error.message, error);
+    this.name = AgentStepRuntimeError.name;
+    this.asAgentStepRuntimeError();
   }
 }

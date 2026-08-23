@@ -12,6 +12,7 @@ export type ProgressReviewClaimOutput = {
 };
 
 export type ProgressReviewFollowUpTaskOutput = {
+  topicKey: string;
   title: string;
   summary: string;
   priority: "p0" | "p1" | "p2" | "p3";
@@ -51,6 +52,17 @@ export type ProgressReviewAppliedAction =
       title: string;
     }
   | {
+      kind: "updated-task";
+      taskId: string;
+      path: string;
+      title: string;
+    }
+  | {
+      kind: "dropped-task";
+      taskId: string;
+      fromState: RepoTaskState;
+    }
+  | {
       kind: "skipped-task";
       title: string;
       reason: string;
@@ -61,6 +73,11 @@ export type ProgressReviewAppliedAction =
     }
   | {
       kind: "owner-question";
+      questionId: string;
+      question: string;
+    }
+  | {
+      kind: "updated-owner-question";
       questionId: string;
       question: string;
     }

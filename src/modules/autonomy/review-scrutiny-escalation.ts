@@ -3,18 +3,13 @@ export {
   detectRecurringReviewScrutinyPatternsFromReport,
 } from "./review-scrutiny-escalation-detect.js";
 export {
-  buildReviewScrutinyAttentionDigest,
   buildReviewScrutinyEscalationReport,
 } from "./review-scrutiny-escalation-report.js";
 export {
-  applyReviewScrutinyEscalation,
   proposeReviewScrutinyEscalation,
 } from "./review-scrutiny-escalation-tasks.js";
 export type {
-  ReviewScrutinyAttentionEntry,
-  ReviewScrutinyEscalationApplied,
   ReviewScrutinyEscalationConfig,
-  ReviewScrutinyEscalationContext,
   ReviewScrutinyEscalationDetection,
   ReviewScrutinyEscalationProposal,
   ReviewScrutinyEscalationReport,

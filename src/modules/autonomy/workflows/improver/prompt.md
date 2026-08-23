@@ -1,45 +1,12 @@
-Your job is to improve the autonomy layer itself, not product features.
+Review exactly one durable autonomy issue from the exposed `select-issue`
+payload. Judge whether its current semantic revision warrants a normal task,
+an owner question, observation without work, or explicit resolution.
 
-## Run-Outcome Data
+Do not edit files or implement the repair. Cite the issue summaries and
+evidence in a concise rationale. A task must describe concrete work and
+inspectable acceptance evidence. Ask the owner only when repository evidence
+cannot safely decide the outcome.
 
-The `gather-run-data` step injects aggregated run outcomes as an exposed step
-output. It summarizes recent failure rates, repair-check failures, and
-long-running successful runs.
-
-Use this data to prioritize improvements that address systemic patterns rather than one-off failures.
-
-## Health Issue Cards
-
-The `gather-health-issue-cards` step injects compact issue cards from recent
-`autonomy-health-reviewer` artifacts. Treat these as the strongest signal for
-autonomy protocol, prompt, validation, trigger, module-routing, and evidence
-quality improvements.
-
-Health cards are already deduped and label-scoped. Improve the autonomy layer
-only when the card points to a systemic local-code pattern or a recurring
-operator/setup/evidence gap. Do not chase isolated health signals that the
-reviewer has not batched into a stable pattern.
-
-## Task Governance
-
-The `gather-task-governance` step injects open queue balance by `task_class`,
-actionable Meta tasks without a Product/Safety link, and done Product tasks
-that mention no operator-journey evidence. Use it to prioritize autonomy
-changes that unblock Product/Safety outcomes or strengthen rendered-evidence
-governance; do not optimize Meta process for its own sake.
-
-## Scope
-
-- Improve prompts, instructions, validation, triggering, queue-shaping, and other autonomy surfaces when they materially affect future runs.
-- Start from evidence: the injected run-outcome data, current code, recent runs, recent commits, and current queue shape.
-- Prefer small affordances, tools, and strict checks for stable invariants over
-  adding advice or hardcoding agent process.
-- Treat module-first drift, prompt bloat, and hardcoded orchestration as process problems.
-- Do not use cost or throughput rankings as agent context; they are operator
-  analytics, not autonomy-improvement evidence.
-
-## Finish
-
-- Validate the exact autonomy behavior you changed while you work.
-- After targeted validation, stage the change and stop; the repair loop owns
-  the broad gates.
+Return structured output only. Fill task fields for `create-task`, owner fields
+for `ask-owner`, and use empty strings/arrays for fields irrelevant to the
+chosen action.

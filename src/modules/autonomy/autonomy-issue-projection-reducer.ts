@@ -93,7 +93,11 @@ function applyClear(
           updatedAt: observation.observedAt,
           semanticRevision: existing.semanticRevision,
         },
-        links: mergeObservationLinks(existing.links, observation),
+        links: {
+          ...mergeObservationLinks(existing.links, observation),
+          taskIds: [],
+          ownerQuestionIds: [],
+        },
         history: [
           ...existing.history,
           historyEntry(observation, "cleared", existing.semanticRevision),

@@ -167,7 +167,7 @@ describe("durable autonomy issue projection", () => {
     });
     recordAutonomyIssueRecoveryDisposition({
       projectDir,
-      taskId: "task-health-builder-runtime-warning",
+      taskId: "task-health-builder-follow-up",
       recoveryDispositionRef:
         ".kota/runs/recovery-2/workflow-state-recovery.json",
       recordedAt: "2026-06-17T13:02:00.000Z",
@@ -175,15 +175,10 @@ describe("durable autonomy issue projection", () => {
 
     const restarted = readAutonomyIssueProjection(projectDir).issues[0]!;
     expect(restarted.links).toEqual({
-      taskIds: [
-        "task-health-builder-follow-up",
-        "task-health-builder-runtime-warning",
-      ],
-      ownerQuestionIds: ["question-1"],
+      taskIds: ["task-health-builder-follow-up"],
+      ownerQuestionIds: [],
       deadLetterIds: ["dlq-1"],
-      recoveryDispositionRefs: [
-        ".kota/runs/recovery-2/workflow-state-recovery.json",
-      ],
+      recoveryDispositionRefs: [".kota/runs/recovery-2/workflow-state-recovery.json"],
     });
     expect(restarted.status).toBe("open");
   });

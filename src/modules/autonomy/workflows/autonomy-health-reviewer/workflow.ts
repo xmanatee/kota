@@ -1,30 +1,37 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import {
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import type { WorkflowCommitPathPolicy } from "#modules/autonomy/commit.js";
 import {
   decodeWorkflowCommitOutcome,
   type WorkflowCommitOutcome,
 } from "#modules/autonomy/commit-result.js";
-import {
-  autonomyHealthSignal,
-} from "#modules/autonomy/health-signal.js";
+import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
   onRecoveryTrigger,
   resetWorktreeForRecoveryOperation,
 } from "#modules/autonomy/recovery.js";
-import { runCheck, stepCommitRequiresDaemonRestart } from "#modules/autonomy/shared.js";
+import {
+  runCheck,
+  stepCommitted,
+  stepSucceeded,
+} from "#modules/autonomy/shared.js";
 import {
   workflowCommitOperation,
   workflowCommitValidationOperation,
 } from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  type ApplyAutonomyHealthReviewActionsOutput,
-  applyAutonomyHealthReviewActionsOperation,
-} from "./action-operations.js";
-import {
   type AutonomyHealthReviewActionResult,
+  applyAutonomyHealthReviewActions,
   buildAutonomyHealthAttentionDigest,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
@@ -40,6 +47,29 @@ type WorktreeInspection = {
   dirty: boolean;
 };
 
+type ApplyActionsInput = {
+  projectDir: string;
+  review: Parameters<typeof applyAutonomyHealthReviewActions>[0]["review"];
+};
+
+type ApplyActionsOutput = {
+  actions: AutonomyHealthReviewActionResult;
+};
+
+export function applyAutonomyHealthReviewActionsInWorker(
+  input: ApplyActionsInput,
+): ApplyActionsOutput {
+  return {
+    actions: applyAutonomyHealthReviewActions(input),
+  };
+}
+
+const applyAutonomyHealthReviewActionsOperation =
+  defineWorkflowBlockingOperation<ApplyActionsInput, ApplyActionsOutput>(
+    import.meta.url,
+    "applyAutonomyHealthReviewActionsInWorker",
+  );
+
 const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
@@ -50,36 +80,112 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
   },
 });
 
-const applyActions = typedCodeStep<ApplyAutonomyHealthReviewActionsOutput>({
+const applyActions = typedCodeStep<ApplyActionsOutput>({
   id: "apply-actions",
   type: "code",
   when: (ctx) =>
     buildReview.output(ctx) !== undefined &&
     inspectWorktree.output(ctx)?.dirty === false,
   validate: (raw) =>
-    expectStructuredOutput<ApplyAutonomyHealthReviewActionsOutput>(raw, [
-      "actions",
-      "ownerQuestionEvents",
-    ]),
+    expectStructuredOutput<ApplyActionsOutput>(raw, ["actions"]),
   run: async (ctx) => {
-    const output = await ctx.runBlocking(applyAutonomyHealthReviewActionsOperation, {
-      projectDir: ctx.projectDir,
-      runId: ctx.workflow.runId,
-      review: buildReview.outputRequired(ctx).review,
-      nowIso: new Date().toISOString(),
-    });
-    for (const payload of output.ownerQuestionEvents) {
-      ctx.emit("owner.question.asked", payload);
+    const review = buildReview.outputRequired(ctx).review;
+    const output = await ctx.runBlocking(
+      applyAutonomyHealthReviewActionsOperation,
+      {
+        projectDir: ctx.projectDir,
+        review,
+      },
+    );
+    for (const action of output.actions.applied) {
+      if (action.kind !== "decision-requested") continue;
+      ctx.emit(autonomyIssueDecisionRequested.name, {
+        issueKey: action.issueKey,
+        rootCauseKey: action.dedupeKey,
+        semanticRevision: action.semanticRevision,
+        transition: action.transition,
+        observedAt: review.generatedAt,
+      });
     }
     return output;
   },
 });
 
+function taskCommitPolicy(
+  actions: AutonomyHealthReviewActionResult,
+): WorkflowCommitPathPolicy {
+  return { kind: "exact-paths", paths: actions.taskMutationPaths };
+}
+
+const writeTaskCommitMessage = typedCodeStep<{ written: true }>({
+  id: "write-commit-message",
+  type: "code",
+  when: (ctx) =>
+    (applyActions.output(ctx)?.actions.taskMutationPaths.length ?? 0) > 0,
+  validate: (raw) =>
+    expectStructuredOutput<{ written: true }>(raw, ["written"]),
+  run: async (ctx) => {
+    await mkdir(ctx.workflow.runDirPath, { recursive: true });
+    await writeFile(
+      join(ctx.workflow.runDirPath, "commit-message.txt"),
+      "autonomy: resolve cleared issue generated work\n",
+      "utf-8",
+    );
+    return { written: true } as const;
+  },
+});
+
+const validateTaskMutation = typedCodeStep<{ ok: true }>({
+  id: "validate-task-mutation",
+  type: "code",
+  when: stepSucceeded("write-commit-message"),
+  validate: (raw) => expectStructuredOutput<{ ok: true }>(raw, ["ok"]),
+  run: async (ctx) => {
+    const actions = applyActions.outputRequired(ctx).actions;
+    await runCheck("pnpm run validate-tasks", ctx.projectDir, {
+      signal: ctx.signal,
+    });
+    await ctx.runBlocking(workflowCommitValidationOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+      policy: taskCommitPolicy(actions),
+    });
+    return { ok: true } as const;
+  },
+});
+
+const commitTaskMutation = typedCodeStep<WorkflowCommitOutcome>({
+  id: "commit-task-mutation",
+  type: "code",
+  when: stepSucceeded("validate-task-mutation"),
+  validate: decodeWorkflowCommitOutcome,
+  run: (ctx) =>
+    ctx.runBlocking(workflowCommitOperation, {
+      projectDir: ctx.projectDir,
+      runDirPath: ctx.workflow.runDirPath,
+      policy: taskCommitPolicy(applyActions.outputRequired(ctx).actions),
+    }),
+});
+
+const taskResolution = {
+  steps: [writeTaskCommitMessage, validateTaskMutation, commitTaskMutation],
+  isDurable: async (ctx: WorkflowStepContext): Promise<boolean> => {
+    const actions = applyActions.output(ctx)?.actions;
+    return (
+      !actions ||
+      actions.taskMutationPaths.length === 0 ||
+      (await stepCommitted("commit-task-mutation")(ctx))
+    );
+  },
+};
+
 function emptyActions(): AutonomyHealthReviewActionResult {
   return {
     createdTaskIds: [],
+    droppedTaskIds: [],
     ownerQuestionIds: [],
     dismissedOwnerQuestionIds: [],
+    taskMutationPaths: [],
     issueTransitions: [],
     applied: [],
     touchedTaskQueue: false,
@@ -89,7 +195,9 @@ function emptyActions(): AutonomyHealthReviewActionResult {
 const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
   type: "code",
-  when: (ctx) => buildReview.output(ctx) !== undefined,
+  when: async (ctx) =>
+    buildReview.output(ctx) !== undefined &&
+    (await taskResolution.isDurable(ctx)),
   validate: (raw) =>
     expectStructuredOutput<{ written: boolean; path: string }>(raw, [
       "written",
@@ -107,7 +215,10 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   },
 });
 
-const writeRuntimeAuditArtifact = typedCodeStep<{ written: boolean; path: string }>({
+const writeRuntimeAuditArtifact = typedCodeStep<{
+  written: boolean;
+  path: string;
+}>({
   id: "write-runtime-audit-artifact",
   type: "code",
   when: (ctx) => buildRuntimeAudit.output(ctx) !== undefined,
@@ -125,71 +236,10 @@ const writeRuntimeAuditArtifact = typedCodeStep<{ written: boolean; path: string
   },
 });
 
-const writeCommitMessage = typedCodeStep<{ written: boolean }>({
-  id: "write-commit-message",
-  type: "code",
-  when: (ctx) => applyActions.output(ctx)?.actions.touchedTaskQueue === true,
-  validate: (raw) =>
-    expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
-  run: (ctx) => {
-    const actions = applyActions.outputRequired(ctx).actions;
-    const taskActions = actions.applied.filter(
-      (action) => action.kind === "created-task" || action.kind === "refreshed-task",
-    );
-    const lines = [
-      `autonomy-health-reviewer: route ${taskActions.length} health repair task(s)`,
-      "",
-      ...taskActions.map((action) =>
-        action.kind === "created-task"
-          ? `- create ${action.taskId}`
-          : `- refresh ${action.taskId}`,
-      ),
-    ];
-    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    writeFileSync(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${lines.join("\n")}\n`,
-      "utf-8",
-    );
-    return { written: true };
-  },
-});
-
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
-    return obj;
-  },
-  run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    });
-    return { ok: true } as const;
-  },
-});
-
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   name: "autonomy-health-reviewer",
   description:
-    "Batch typed autonomy health signals and persisted runtime evidence into deduped review artifacts, repair tasks, owner questions, and attention items.",
+    "Project typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
   recoveryCapable: true,
   triggers: [
     {
@@ -212,9 +262,7 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
         overflow: "flush-oldest",
       },
     },
-    {
-      event: "runtime.recovered",
-    },
+    { event: "runtime.recovered" },
   ],
   steps: [
     {
@@ -231,28 +279,21 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
     buildRuntimeAudit,
     buildReview,
     applyActions,
+    ...taskResolution.steps,
     writeArtifact,
     writeRuntimeAuditArtifact,
-    writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
     {
       id: "emit-attention",
       type: "emit",
-      when: (ctx) => (buildReview.output(ctx)?.review.groups.length ?? 0) > 0,
+      when: async (ctx) =>
+        (applyActions.output(ctx)?.actions.applied.length ?? 0) > 0 &&
+        (await taskResolution.isDurable(ctx)),
       event: "workflow.attention.digest",
       payload: (ctx) =>
         buildAutonomyHealthAttentionDigest({
           review: buildReview.outputRequired(ctx).review,
           actions: applyActions.output(ctx)?.actions ?? emptyActions(),
         }),
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "autonomy-health-reviewer committed health repair task changes",
-      requires: ["commit"],
     },
   ],
 };

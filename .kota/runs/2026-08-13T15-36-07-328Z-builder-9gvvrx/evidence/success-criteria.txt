@@ -1,0 +1,2 @@
+1. Inspect both stale claim worktrees, preserve every unique change, and disposition each claim so its P1/P0 task is safely claimable.
+2. Give both linked resumeSessionId dead letters a terminal, evidence-backed disposition and verify a later dispatcher no longer reports either stale claim.

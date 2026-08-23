@@ -21,6 +21,7 @@ import {
 } from "./evaluator-calibration.js";
 
 const TEST_PROMPT_HASH = "promptv0test";
+const TEST_SOURCE_REVISION = "1111111111111111111111111111111111111111";
 
 type CalibrationSeed = {
   runId: string;
@@ -35,6 +36,7 @@ type CalibrationSeed = {
   taskId?: string | null;
   taskFinalState?: EvaluatorCalibrationArtifact["taskFinalState"];
   criticPromptHash?: string;
+  terminalRunStatus?: EvaluatorCalibrationArtifact["terminalRunStatus"];
 };
 
 function seedRun(runsDir: string, seed: CalibrationSeed): void {
@@ -50,9 +52,10 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
     repairIterations: seed.repairIterations ?? 1,
     finalIterationFailures: seed.finalIterationFailures ?? [],
     criticFailureCount: seed.criticFailureCount ?? 0,
-    terminalRunStatus: "success",
+    terminalRunStatus: seed.terminalRunStatus ?? "success",
     taskId: seed.taskId ?? null,
     taskFinalState: seed.taskFinalState ?? null,
+    sourceRevision: TEST_SOURCE_REVISION,
     sourceFilesChanged: seed.sourceFilesChanged,
     criticPromptHash: seed.criticPromptHash ?? TEST_PROMPT_HASH,
   };
@@ -132,6 +135,7 @@ describe("writeCalibrationArtifact", () => {
         runId: "run-test",
         workflow: "builder",
         taskId: "task-1",
+        commitSha: TEST_SOURCE_REVISION,
         filesChanged: [
           "src/modules/autonomy/evaluator-calibration.ts",
           "data/tasks/done/task-1.md",
@@ -172,6 +176,7 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.finalIterationFailures).toEqual([]);
     expect(artifact.criticFailureCount).toBe(1);
     expect(artifact.taskId).toBe("task-1");
+    expect(artifact.sourceRevision).toBe(TEST_SOURCE_REVISION);
     expect(artifact.sourceFilesChanged).toEqual([
       "src/modules/autonomy/evaluator-calibration.ts",
       "src/modules/autonomy/critic.ts",
@@ -362,6 +367,32 @@ describe("writeCalibrationArtifact", () => {
       criticPromptHash: "promptvfixed",
     });
     expect(artifact.criticPromptHash).toBe("promptvfixed");
+  });
+
+  it("preserves the prompt hash captured when the critic made its verdict", () => {
+    const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
+    mkdirSync(agentRunDir, { recursive: true });
+    writeFileSync(
+      join(agentRunDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "Reviewed with the captured prompt.",
+        reviewerPromptHash: "capturedhash",
+      }),
+    );
+
+    const artifact = writeCalibrationArtifact(
+      makeStepContext({
+        runDir,
+        projectDir: root,
+        stepOutputs: { build: { repairIterations: [] } },
+      }),
+      { criticVerdictRunDir: agentRunDir },
+    );
+
+    expect(artifact.criticPromptHash).toBe("capturedhash");
   });
 
   it("ingests the final verdict from the builder agent evidence source", () => {
@@ -1033,7 +1064,10 @@ describe("evaluateCalibrationGate", () => {
 
   it("uses documented defaults", () => {
     expect(DEFAULT_CALIBRATION_THRESHOLD_RATE).toBe(0.25);
-    expect(DEFAULT_CALIBRATION_MIN_SAMPLE).toBe(8);
+    // The pass minimum was retuned from 8 after monitor-generated 8–10-pass
+    // windows repeatedly gated at 30–44%, while 73–74-pass windows held at
+    // 2.7%. A 10-pass affected sample must remain below the active minimum.
+    expect(DEFAULT_CALIBRATION_MIN_SAMPLE).toBeGreaterThan(10);
     // The 0.75 PWW threshold is a deliberate retune from 0.4 — autonomous
     // loops concentrate work on shared files (autonomy module, scoped
     // AGENTS.md, critic.ts), producing a high natural overlap rate

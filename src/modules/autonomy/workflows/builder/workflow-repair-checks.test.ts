@@ -144,6 +144,7 @@ describe("builder workflow prompt and repair checks", () => {
     const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
 
     expect(checks.get("agent-run-artifacts-ready")?.phase).toBe(1);
+    expect(checks.get("calibration-repair-evidence")?.phase).toBe(2);
     expect(checks.get("task-queue-valid")?.phase).toBe(2);
     expect(checks.get("critic-review")?.phase).toBe(3);
   });

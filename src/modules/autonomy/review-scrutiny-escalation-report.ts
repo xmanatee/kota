@@ -1,7 +1,6 @@
 import { proposeReviewScrutinyEscalation } from "./review-scrutiny-escalation-tasks.js";
 import {
   DEFAULT_REVIEW_SCRUTINY_REPORT_LIMIT,
-  type ReviewScrutinyAttentionEntry,
   type ReviewScrutinyEscalationConfig,
   type ReviewScrutinyEscalationDetection,
   type ReviewScrutinyEscalationReport,
@@ -65,21 +64,5 @@ export function buildReviewScrutinyEscalationReport(args: {
         )
       )
       .slice(0, limit),
-  };
-}
-
-export function buildReviewScrutinyAttentionDigest(
-  entries: ReviewScrutinyAttentionEntry[],
-): { items: Array<{ label: string; detail: string }>; text: string } {
-  const items = entries.map((entry) => ({
-    label: "Review scrutiny escalated",
-    detail:
-      `${entry.surface} ${entry.workflow}; task ${entry.taskId}; action ${entry.action}; ` +
-      `${entry.thinAcceptances}/${entry.approvalLikeDecisions} thin; runs ${entry.runIds.join(", ")}`,
-  }));
-  const header = `Attention digest (${items.length} item${items.length === 1 ? "" : "s"}):`;
-  return {
-    items,
-    text: [header, ...items.map((item) => `• *${item.label}*: ${item.detail}`)].join("\n"),
   };
 }

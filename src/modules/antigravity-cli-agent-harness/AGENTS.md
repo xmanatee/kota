@@ -52,12 +52,13 @@ failure.
 ## Isolation
 
 Daemon runs use an invocation-local home and ordinarily inherit no provider,
-GitHub, notification, or cloud credentials. On macOS, the isolated home
-exposes only the host Keychain directory through a read-only symlink so AGY
-can reuse its native login without inheriting global settings, plugins,
-history, or caches. Provider-egress eval containers explicitly project only
-this adapter's declared Google auth variables while the eval-owned upstream
-proxy marker is active. Never copy or inspect the token itself.
+GitHub, notification, or cloud credentials. Never expose the host's macOS
+Keychains directory to AGY's auto-approved native tool tree. Keychain-backed
+AGY login fails closed before process launch until KOTA can broker provider
+authentication or provision a verifiable invocation-local AGY-only credential
+store. Provider-egress eval containers explicitly project only this adapter's
+declared Google auth variables while the eval-owned upstream proxy marker is
+active. Never copy or inspect the token itself.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
 still goes only through KOTA's host-owned allowlisted proxy. In provider-egress
@@ -70,11 +71,12 @@ Git metadata and machine authority remain protected.
 ## Model Routing
 
 The shipped preset selects current AGY model ids and always passes an explicit
-model and effort. The required local auth probe uses `agy models`, which
-verifies the cached login and current model access without reading credentials.
-Treat that command as the local availability authority for short runs; it does
-not prove credential lifetime or renewal. Long-running builder preflight asks
-for unattended readiness and fails closed while AGY exposes only current
-access. Do not infer support from older Gemini CLI model catalogs. Catalog
-entries are effort-qualified, so availability checks must match the requested
-model and mapped AGY effort together.
+model and effort. Keychain-backed macOS readiness reports the provider-broker
+failure instead of treating a host `agy models` result as launchable auth. On
+non-Keychain runtimes, the required local auth probe uses `agy models` to
+verify current model access without reading credentials; it does not prove
+credential lifetime or renewal. Long-running builder preflight asks for
+unattended readiness and fails closed while AGY exposes only current access.
+Do not infer support from older Gemini CLI model catalogs. Catalog entries are
+effort-qualified, so availability checks must match the requested model and
+mapped AGY effort together.

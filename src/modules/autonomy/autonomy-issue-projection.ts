@@ -112,17 +112,7 @@ export function recordAutonomyIssueDispositions(args: {
       continue;
     }
     const latest = update.decidedAt >= existing.decidedAt ? update : existing;
-    updates.set(update.issueKey, {
-      ...latest,
-      taskIds: uniqueAutonomyIssueStrings([
-        ...existing.taskIds,
-        ...update.taskIds,
-      ]),
-      ownerQuestionIds: uniqueAutonomyIssueStrings([
-        ...existing.ownerQuestionIds,
-        ...update.ownerQuestionIds,
-      ]),
-    });
+    updates.set(update.issueKey, latest);
   }
   let changed = false;
   const issues = current.issues.map((issue) => {
@@ -132,7 +122,9 @@ export function recordAutonomyIssueDispositions(args: {
     return {
       ...issue,
       status:
-        update.kind === "owner-question"
+        update.kind === "resolved"
+          ? "resolved" as const
+          : update.kind === "owner-question"
           ? "needs-decision" as const
           : "open" as const,
       disposition: {
@@ -142,14 +134,8 @@ export function recordAutonomyIssueDispositions(args: {
       },
       links: {
         ...issue.links,
-        taskIds: uniqueAutonomyIssueStrings([
-          ...issue.links.taskIds,
-          ...update.taskIds,
-        ]),
-        ownerQuestionIds: uniqueAutonomyIssueStrings([
-          ...issue.links.ownerQuestionIds,
-          ...update.ownerQuestionIds,
-        ]),
+        taskIds: uniqueAutonomyIssueStrings(update.taskIds),
+        ownerQuestionIds: uniqueAutonomyIssueStrings(update.ownerQuestionIds),
       },
     };
   });

@@ -1,10 +1,9 @@
-import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
+import type { ModuleEventProxy } from "#core/modules/module-types.js";
 import {
   type DisposedAutomationWorktreeResult,
   disposeAutomationWorktree,
   validateCanonicalSupersedingCommit,
 } from "#modules/git/worktree-lifecycle.js";
-import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   WorkflowStateRecoveryArtifact,
   WorkflowStateRecoveryClaim,
@@ -24,6 +23,8 @@ import {
   listRecoveryDeadLetters,
   listRecoveryWorktrees,
 } from "./workflow-state-recovery-claims.js";
+import { dismissWorkflowStateRecoveryDeadLetters } from "./workflow-state-recovery-dead-letters.js";
+import { completeWorkflowStateRecoveryTask } from "./workflow-state-recovery-task.js";
 import { hasPreservedWorktreeChanges } from "./workflow-state-recovery-worktree.js";
 
 function resolveMissingClaim(
@@ -71,6 +72,7 @@ function refuseResolve(
 function mutateClaim(
   input: WorkflowStateRecoveryResolveInput,
   before: WorkflowStateRecoveryClaim,
+  events?: ModuleEventProxy,
 ): WorkflowStateRecoveryResolveResult {
   const claim = before.claim;
   let worktreeCleanup: WorkflowStateRecoveryArtifact["worktreeCleanup"];
@@ -135,10 +137,15 @@ function mutateClaim(
 
   const after = findRecoveryClaim(input.projectDir, input.taskId);
   const dismissedDeadLetterIds = input.dismissDeadLetters === true
-    ? dismissRelatedDeadLetters(input.projectDir, before, input.rationale)
+    ? dismissWorkflowStateRecoveryDeadLetters(
+        input.projectDir,
+        before,
+        input.rationale,
+        events,
+      )
     : [];
   const taskMove = input.completeTask === true
-    ? completeRecoveredTask(input.projectDir, claim.taskId)
+    ? completeWorkflowStateRecoveryTask(input.projectDir, claim.taskId)
     : undefined;
   const resultLabel: WorkflowStateRecoveryArtifact["result"] =
     input.action === "release" ? "released" : "superseded";
@@ -170,6 +177,7 @@ function mutateClaim(
 
 function resolveRecoveryClaim(
   input: WorkflowStateRecoveryResolveInput,
+  events?: ModuleEventProxy,
 ): WorkflowStateRecoveryResolveResult {
   const before = findRecoveryClaim(input.projectDir, input.taskId);
   if (!before) return resolveMissingClaim(input);
@@ -193,7 +201,7 @@ function resolveRecoveryClaim(
       "unsafe",
     );
   }
-  return mutateClaim(input, before);
+  return mutateClaim(input, before, events);
 }
 
 function isAcceptedRecoveryAction(
@@ -239,48 +247,9 @@ function disposeRecoveryWorktree(
   });
 }
 
-function dismissRelatedDeadLetters(
-  projectDir: string,
-  before: WorkflowStateRecoveryClaim,
-  rationale: string,
-): string[] {
-  const store = deadLetterStoreForProject(projectDir);
-  const dismissed: string[] = [];
-  for (const item of before.relatedDeadLetters) {
-    if (item.status !== "open") continue;
-    const result = store.dismiss(
-      item.id,
-      `workflow state recovery for ${before.claim.taskId}/${before.claim.runId}: ${rationale}`,
-    );
-    if (result) dismissed.push(item.id);
-  }
-  return dismissed;
-}
-
-function completeRecoveredTask(
-  projectDir: string,
-  taskId: string,
-): NonNullable<WorkflowStateRecoveryArtifact["taskMove"]> {
-  try {
-    const moved = moveTaskById(projectDir, taskId, "done");
-    return {
-      attempted: true,
-      moved: true,
-      message: `moved ${taskId} from ${moved.fromState} to ${moved.toState}`,
-      fromState: moved.fromState,
-      toState: moved.toState,
-      path: moved.path,
-    };
-  } catch (error) {
-    return {
-      attempted: true,
-      moved: false,
-      message: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-export function createWorkflowStateRecoveryProvider(): WorkflowStateRecoveryProvider {
+export function createWorkflowStateRecoveryProvider(
+  events?: ModuleEventProxy,
+): WorkflowStateRecoveryProvider {
   return {
     list(input) {
       return {
@@ -299,12 +268,15 @@ export function createWorkflowStateRecoveryProvider(): WorkflowStateRecoveryProv
           message: artifactRunId.message,
         };
       }
-      return resolveRecoveryClaim({
-        ...input,
-        ...(artifactRunId.artifactRunId !== undefined
-          ? { artifactRunId: artifactRunId.artifactRunId }
-          : {}),
-      });
+      return resolveRecoveryClaim(
+        {
+          ...input,
+          ...(artifactRunId.artifactRunId !== undefined
+            ? { artifactRunId: artifactRunId.artifactRunId }
+            : {}),
+        },
+        events,
+      );
     },
   };
 }

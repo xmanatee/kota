@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { EventBus } from "#core/events/event-bus.js";
+import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { WorkflowStateRecoveryWorktreeEvidence } from "#modules/workflow-ops/state-recovery-provider.js";
 import {
   claimTask,
@@ -226,7 +228,10 @@ describe("workflow state recovery observability", () => {
       },
       retention: { kind: "retain" },
     });
-    const provider = createWorkflowStateRecoveryProvider();
+    const bus = new EventBus();
+    const changed: Array<Record<string, unknown>> = [];
+    bus.on("workflow.dead-letter.changed", (payload) => changed.push(payload));
+    const provider = createWorkflowStateRecoveryProvider(makeStubEventProxy(bus));
 
     const listed = provider.list({ projectDir });
 
@@ -245,6 +250,29 @@ describe("workflow state recovery observability", () => {
         status: "open",
         dismissCommand: `pnpm kota workflow dlq dismiss ${deadLetter.id} --reason "<reason>"`,
         redriveCommand: `pnpm kota workflow dlq redrive ${deadLetter.id} --reason "<reason>"`,
+      }),
+    ]);
+
+    const resolved = provider.resolve({
+      projectDir,
+      taskId: "task-dlq",
+      runId: "run-dlq",
+      action: "supersede",
+      rationale: "the failed owner run is terminal",
+      dismissDeadLetters: true,
+      artifactRunId: "run-dlq-recovery",
+    });
+
+    expect(resolved).toMatchObject({
+      ok: true,
+      artifact: { dismissedDeadLetterIds: [deadLetter.id] },
+    });
+    expect(changed).toEqual([
+      expect.objectContaining({
+        id: deadLetter.id,
+        status: "dismissed",
+        scopeId,
+        projectId: scopeId,
       }),
     ]);
   });

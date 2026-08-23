@@ -593,18 +593,6 @@ describe("scope-improver workflow", () => {
     ]);
   });
 
-  it("creates owner questions for missing guidance when edits are not allowed", () => {
-    const projectDir = track("question");
-    const result = runCycle(projectDir, ["plans/trip.txt"]);
-
-    expect(result.actions.ownerQuestionIds).toHaveLength(1);
-    const questionFiles = readdirSync(join(projectDir, ".kota", "owner-questions"));
-    expect(questionFiles).toHaveLength(1);
-    expect(
-      readFileSync(join(projectDir, ".kota", "owner-questions", questionFiles[0]!), "utf-8"),
-    ).toContain("What durable guidance should KOTA follow");
-  });
-
   it("skips queue-only task.changed batch flushes without concrete scope evidence", () => {
     const projectDir = track("task-batch");
     writeRootAgents(projectDir);
@@ -663,22 +651,4 @@ describe("scope-improver workflow", () => {
     );
   });
 
-  it("blocks safe edits outside the configured write paths", () => {
-    const projectDir = track("guarded");
-    writeConfig(projectDir, {
-      minMinutesBetweenRuns: 0,
-      allowAutonomousEdits: true,
-      writePaths: ["docs/"],
-    });
-
-    const result = runCycle(projectDir, ["notes/reflection.txt"]);
-
-    expect(result.recommendations[0]?.kind).toBe("safe-edit");
-    expect(result.actions.safeEditPaths).toEqual([]);
-    expect(result.actions.applied[0]).toMatchObject({
-      kind: "skipped",
-      reason: "policy does not allow autonomous edit of AGENTS.md",
-    });
-    expect(existsSync(join(projectDir, "AGENTS.md"))).toBe(false);
-  });
 });

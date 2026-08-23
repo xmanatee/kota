@@ -1,7 +1,6 @@
 import { proposeOwnerInterventionEscalation } from "./owner-intervention-escalation-tasks.js";
 import {
   DEFAULT_OWNER_INTERVENTION_REPORT_LIMIT,
-  type OwnerInterventionAttentionEntry,
   type OwnerInterventionEscalationReport,
   type OwnerInterventionPattern,
   type OwnerInterventionPatternSummary,
@@ -61,22 +60,5 @@ export function buildOwnerInterventionEscalationReport(args: {
         )
       )
       .slice(0, limit),
-  };
-}
-
-export function buildOwnerInterventionAttentionDigest(
-  entries: OwnerInterventionAttentionEntry[],
-): { items: Array<{ label: string; detail: string }>; text: string } {
-  const items = entries.map((entry) => ({
-    label: "Owner intervention escalated",
-    detail:
-      `${entry.kind} ${entry.dimension.kind} ${entry.dimension.value}; ` +
-      `task ${entry.taskId}; action ${entry.action}; questions ${entry.questionCount}; ` +
-      `runs ${entry.runIds.join(", ") || "(none)"}`,
-  }));
-  const header = `Attention digest (${items.length} item${items.length === 1 ? "" : "s"}):`;
-  return {
-    items,
-    text: [header, ...items.map((item) => `• *${item.label}*: ${item.detail}`)].join("\n"),
   };
 }

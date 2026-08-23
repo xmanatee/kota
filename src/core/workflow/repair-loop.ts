@@ -20,6 +20,7 @@ import {
   resolveScopedRepairAgent,
 } from "./repair-loop-result.js";
 import {
+  RepairAgentRuntimeError,
   type RepairIteration,
   RepairLoopError,
   type RepairLoopFailureOutput,
@@ -43,6 +44,7 @@ import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 export type { RepairCheckResult } from "./repair-loop-checks.js";
 export { buildRepairPrompt } from "./repair-loop-prompt.js";
 export {
+  RepairAgentRuntimeError,
   type RepairIteration,
   RepairLoopError,
   type RepairLoopFailureOutput,
@@ -233,6 +235,14 @@ export async function runAgentRepairLoop(
         (repairAttempt.error instanceof AgentStepRuntimeError
           ? repairAttempt.error
           : undefined);
+      if (failedIteration?.agentBackoff !== undefined) {
+        throw new RepairAgentRuntimeError(
+          failedIteration.agentBackoff,
+          step.id,
+          failures.map((failure) => failure.id),
+          failureOutput(),
+        );
+      }
       throw new RepairLoopError(
         undefined,
         step.id,

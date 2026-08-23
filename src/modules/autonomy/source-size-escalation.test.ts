@@ -23,15 +23,19 @@ function initRepo(dir: string): void {
   execSync('git commit -q -m "init"', { cwd: dir });
 }
 
-function writeSourceSizeCleanupTask(dir: string, file: string): void {
-  mkdirSync(join(dir, "data", "tasks", "doing"), { recursive: true });
+function writeSourceSizeCleanupTask(
+  dir: string,
+  file: string,
+  state: "doing" | "blocked" = "doing",
+): void {
+  mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
   writeFileSync(
-    join(dir, "data", "tasks", "doing", "task-source-size-cleanup.md"),
+    join(dir, "data", "tasks", state, "task-source-size-cleanup.md"),
     [
       "---",
       "id: task-source-size-cleanup",
       "title: Split oversized source-size fixture",
-      "status: doing",
+      `status: ${state}`,
       "priority: p2",
       "area: autonomy",
       "updated_at: 2026-01-01T00:00:00.000Z",
@@ -207,5 +211,27 @@ describe("evaluateSourceFileSize", () => {
       reducingFiles: ["src/cleanup-target.ts"],
     });
     expect(checkSevereSourceFileSize(repoDir)).toContain("typed source-size cleanup exception");
+  });
+
+  it("passes a staged blocked-task exception when cleanup landed before an external blocker", () => {
+    mkdirSync(join(repoDir, "src"), { recursive: true });
+    writeFileSync(join(repoDir, "src/cleanup-target.ts"), lines(360));
+    execSync("git add src/cleanup-target.ts", { cwd: repoDir });
+    execSync('git commit -q -m "add oversized cleanup target"', { cwd: repoDir });
+    writeFileSync(join(repoDir, "src/cleanup-target.ts"), lines(330));
+    writeSourceSizeCleanupTask(repoDir, "src/cleanup-target.ts", "blocked");
+    execSync(
+      "git add src/cleanup-target.ts data/tasks/blocked/task-source-size-cleanup.md",
+      { cwd: repoDir },
+    );
+
+    const review = evaluateSourceFileSize(repoDir);
+
+    expect(review.outcome).toBe("exception");
+    if (review.outcome !== "exception") throw new Error("expected exception review");
+    expect(review.exception).toMatchObject({
+      taskPath: "data/tasks/blocked/task-source-size-cleanup.md",
+      reducingFiles: ["src/cleanup-target.ts"],
+    });
   });
 });
