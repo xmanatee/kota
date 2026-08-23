@@ -98,7 +98,7 @@ describe("daemon runtime module load", () => {
     })).toThrow(/bound to a different EventBus authority/);
   });
 
-  it("loadRuntimeModules registers provider-backed seams; daemon serves /api/knowledge", async () => {
+  it("loadRuntimeModules binds provider routes and live failure traffic across restart", async () => {
     const config = {
       defaultAgentHarness: "claude-agent-sdk",
       model: "ollama/gpt-5.6-sol",
@@ -110,6 +110,15 @@ describe("daemon runtime module load", () => {
       eventBus,
     });
     const sourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const initialHealthSignals: Array<AutonomyHealthSignal & {
+      scopeId: string;
+      projectId: string;
+    }> = [];
+    const stopInitialHealthObservation = eventBus.on(
+      autonomyHealthSignal,
+      (payload) => initialHealthSignals.push(payload),
+    );
 
     expect(() => getKnowledgeProvider()).not.toThrow();
     expect(sourceListenerCount).toBeGreaterThan(0);
@@ -140,7 +149,23 @@ describe("daemon runtime module load", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { entries: unknown[] };
       expect(Array.isArray(body.entries)).toBe(true);
+      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
+        workflow: "builder",
+        runId: "daemon-runtime-cold-start-event-run",
+        status: "failed",
+        durationMs: 1000,
+        errorSummary: "daemon cold-start integration failure",
+        text: "builder failed after cold start",
+      });
+      expect(initialHealthSignals).toEqual([
+        expect.objectContaining({
+          scopeId,
+          projectId: scopeId,
+          source: expect.objectContaining({ id: "builder" }),
+        }),
+      ]);
     } finally {
+      stopInitialHealthObservation();
       await daemon.stop();
       await startPromise;
     }
@@ -183,7 +208,6 @@ describe("daemon runtime module load", () => {
     const restartedStartPromise = restartedDaemon.start();
     try {
       await new Promise((resolve) => setTimeout(resolve, 80));
-      const scopeId = deriveDirectoryScopeId(projectDir);
       const address = readControlAddress(stateDir);
       const createSessionResponse = await globalThis.fetch(
         `http://127.0.0.1:${address.port}/sessions`,
@@ -248,7 +272,7 @@ describe("daemon runtime module load", () => {
         }),
       ]);
       const journal = new EventJournal(join(stateDir, "events"));
-      expect(journal.query({ type: autonomyHealthSignal.name, scopeId })).toHaveLength(1);
+      expect(journal.query({ type: autonomyHealthSignal.name, scopeId })).toHaveLength(2);
       expect(journal.query({ type: autonomyIssueDecisionRequested.name, scopeId })).toHaveLength(1);
       const deleteSessionResponse = await globalThis.fetch(
         `http://127.0.0.1:${address.port}/sessions/${createdSession.session_id}`,

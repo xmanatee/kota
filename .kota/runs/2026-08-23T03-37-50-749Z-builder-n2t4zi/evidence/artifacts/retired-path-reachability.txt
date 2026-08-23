@@ -1,0 +1,24 @@
+Retired boundary:
+unbound module onLoad and unvalidated persisted-run restoration are unreachable from the production lifecycle
+
+Negative production-root search 1:
+rg -n 'loadAllModules\(|new ModuleLoader' src/modules/daemon-ops/daemon-start-command.ts src/core/daemon -g '*.ts'
+exit: 1
+matches: none
+
+Positive owner cross-check 1:
+rg -n 'loadRuntimeModules\(' src/modules/daemon-ops/daemon-start-command.ts
+exit: 0
+match: src/modules/daemon-ops/daemon-start-command.ts:50
+
+Negative production-root search 2:
+rg -n 'state\.pendingRuns.*(?:push|=)|setRuns\(state\.pendingRuns\)' src/core/workflow/runtime-lifecycle.ts
+exit: 1
+matches: none
+
+Positive owner cross-check 2:
+rg -n 'wfQueue\.restorePending\(' src/core/workflow/runtime-lifecycle.ts
+exit: 0
+match: src/core/workflow/runtime-lifecycle.ts:83
+
+The paired production lifecycle tests exercise the owner calls, so the negative searches are reachability support rather than copied configuration assertions.

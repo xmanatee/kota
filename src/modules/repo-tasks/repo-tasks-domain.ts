@@ -6,6 +6,11 @@ import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
+  enforceProductionReplacementCompletion,
+  verifyProductionReplacementCompletion,
+} from "./production-replacement-completion.js";
+import { parseProductionReplacementDeclaration } from "./production-replacement-proof.js";
+import {
   type FileSnapshot,
   listVerifiedRepoMarkdownFiles,
   moveAndStageRepoMarkdownFile,
@@ -300,6 +305,7 @@ export type RepoTaskTransitionCheckInput = {
   area: string | null;
   summary: string | null;
   taskClass: RepoTaskClass;
+  productionReplacement?: boolean;
   body: string;
 };
 
@@ -313,6 +319,30 @@ export function getRepoTaskStateTransitionBlocker(
   toState: RepoTaskState,
   projectDir?: string,
 ): string | null {
+  if (task.productionReplacement === true) {
+    const declaration = parseProductionReplacementDeclaration(task.body);
+    if (declaration.kind !== "valid") {
+      const reason = declaration.kind === "absent"
+        ? "missing section"
+        : declaration.error;
+      return "production_replacement=true work needs a valid " +
+        `## Production Replacement Proof contract: ${reason}`;
+    }
+    if (toState === "done") {
+      if (!projectDir) {
+        return "production replacement completion needs the project directory to verify its live evidence";
+      }
+      const completion = verifyProductionReplacementCompletion({
+        raw: task.body,
+        taskId: task.id,
+        projectDir,
+      });
+      if (!completion.ok) {
+        return `production replacement proof is incomplete: ${completion.error}`;
+      }
+    }
+  }
+
   if (toState === "done" && !hasConcreteTaskAcceptanceEvidence(task.body)) {
     return "missing concrete ## Acceptance Evidence. Add a command, artifact, " +
       "transcript, screenshot, fixture, demo, or validation bullet before completing it.";
@@ -674,20 +704,39 @@ export function moveTaskById(
     throw new Error(`Task "${id}" already exists in "${toState}"`);
   }
   const { attrs, body } = parseFlatFrontMatter(content);
-  assertTaskStateTransitionAllowed(
-    {
-      id,
-      title: typeof attrs.title === "string" ? attrs.title : null,
-      area: typeof attrs.area === "string" ? attrs.area : null,
-      summary: typeof attrs.summary === "string" ? attrs.summary : null,
-      taskClass: parseTaskClass(
-        typeof attrs.task_class === "string" ? attrs.task_class : undefined,
-      ),
-      body,
-    },
-    toState,
-    projectDir,
-  );
+  const productionReplacementRaw = attrs.production_replacement;
+  if (
+    productionReplacementRaw !== undefined &&
+    productionReplacementRaw !== "true"
+  ) {
+    throw new Error(
+      `Task "${id}" has invalid production_replacement=${JSON.stringify(productionReplacementRaw)}; omit it or use the literal true`,
+    );
+  }
+  const transitionTask: RepoTaskTransitionCheckInput = {
+    id,
+    title: typeof attrs.title === "string" ? attrs.title : null,
+    area: typeof attrs.area === "string" ? attrs.area : null,
+    summary: typeof attrs.summary === "string" ? attrs.summary : null,
+    taskClass: parseTaskClass(
+      typeof attrs.task_class === "string" ? attrs.task_class : undefined,
+    ),
+    productionReplacement: productionReplacementRaw === "true",
+    body,
+  };
+  assertTaskStateTransitionAllowed(transitionTask, toState, projectDir);
+  if (toState === "done" && productionReplacementRaw === "true") {
+    const completion = enforceProductionReplacementCompletion({
+      raw: body,
+      taskId: id,
+      projectDir,
+    });
+    if (!completion.ok) {
+      throw new Error(
+        `Task "${id}" cannot move to "done": production replacement proof is incomplete: ${completion.error}`,
+      );
+    }
+  }
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);

@@ -1,0 +1,28 @@
+Command:
+pnpm test src/daemon-runtime-load.integration.test.ts src/core/modules/module-event-lifecycle.test.ts src/core/workflow/runtime-trigger-admission.test.ts src/core/workflow/workflow-queue-restoration.test.ts --run
+
+Result:
+PASS — 4 test files, 15 tests, 5.42 seconds.
+A direct `pnpm exec vitest run ... --configLoader=runner --reporter=json` invocation also produced passing machine results for all four declared files and every assertion named by production-replacement-proof.json. The canonical task-mover fixture rejects package-script substitution and optimistic assertion names before accepting that same report shape.
+
+Observed production effects:
+- src/daemon-runtime-load.integration.test.ts loaded the runtime through loadRuntimeModules, started the daemon, delivered workflow.failure.alert to the autonomy subscriber before the first unload, unloaded listeners, restarted the production loader and daemon, and observed the same owner-bound effect after restart. The event journal contained both health signals; the restarted reviewer persisted the issue decision.
+- src/core/modules/module-event-lifecycle.test.ts rejected runtime lifecycle execution without a bound EventBus and rejected a host that attempted to replace the immutable bus authority after loading.
+- src/core/workflow/runtime-trigger-admission.test.ts admitted live current inputs and rejected live consumed or superseded inputs through the workflow definition's production admission owner.
+- src/core/workflow/workflow-queue-restoration.test.ts restored persisted runs through WorkflowQueueManager.restorePending, discarded events absent from the current definition, reapplied payload/admission checks, preserved explicit work, and retained distinct burst deliveries.
+
+Expected fixture warnings about inactive optional modules were inert health messages. The production daemon route and event lifecycle assertions passed.
+
+CRITIC REPAIR ATTEMPT 4
+
+The schema-v3 completion executor removed hand-authored effectObserved and reachable pass flags. It reran each distinct bound assertion alone and observed the assertion's declared non-test production entrypoints in Vitest's runtime transform trace.
+
+Result:
+PASS — the real task artifact validated structurally and executed with {"structural":null,"execution":null}.
+PASS — the combined contract/lifecycle selection completed 6 files and 22 tests.
+PASS — the canonical mover rejected a literal owner-string self-comparison because neither isolated assertion executed its declared production entrypoint.
+
+Observed assertion provenance:
+- daemon startup and restart traffic: src/core/modules/runtime-loader.ts
+- unbound module-lifecycle rejection: src/core/modules/module-loader.ts
+- live trigger admission and persisted-run restoration: src/core/workflow/runtime.ts

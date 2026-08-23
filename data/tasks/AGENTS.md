@@ -16,7 +16,7 @@ State and priority are separate concepts. Priority describes importance; state d
 - If a blocked task uses an `## Unblock Precondition` of `kind: task-done`,
   its `depends_on` list must be exactly the same task id.
 - Tasks describe what must become true and why it matters; builders own the
-  implementation plan.
+  plan. Runtime replacements follow the proof contract in the repo-tasks module.
 - New strategic tasks may set `task_class: Product`, `Safety`, `Platform`, or
   `Meta` in frontmatter. Product is owner-visible capability or UX; Safety is
   security, credential, permission, policy, or destructive-action risk;

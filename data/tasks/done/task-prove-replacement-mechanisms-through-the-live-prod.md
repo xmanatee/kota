@@ -1,13 +1,14 @@
 ---
 id: task-prove-replacement-mechanisms-through-the-live-prod
 title: Prove replacement mechanisms through the live production assembly
-status: ready
+status: done
 priority: p1
 area: architecture
 task_class: Platform
+production_replacement: true
 summary: Require cross-cutting runtime replacements to prove that the production assembly uses the new mechanism and that the retired path is no longer reachable before the task can complete.
 created_at: 2026-08-16T08:35:47.222Z
-updated_at: 2026-08-16T08:36:30.000Z
+updated_at: 2026-08-23T04:47:47.560Z
 ---
 
 ## Problem
@@ -70,6 +71,18 @@ observable adoption boundary.
 - Architecture and task-authoring guidance requires this behavioral proof for
   future mechanism replacements without introducing a literal config test.
 
+## Production Replacement Proof
+
+oldBoundary: module onLoad before EventBus binding and raw persisted workflow-run restore
+replacementOwner: loadRuntimeModules and WorkflowQueueManager.restorePending
+liveIngresses: daemon startup workflow.failure.alert delivery | live workflow trigger admission
+restartIngresses: daemon module restart workflow.failure.alert delivery | persisted pending-run restoration
+observableEffect: production subscribers receive live failure traffic while current queued work survives restart and obsolete or unadmitted work is removed
+productionEntrypoints: src/core/modules/runtime-loader.ts | src/core/modules/module-loader.ts | src/core/workflow/runtime.ts
+productionTests: src/daemon-runtime-load.integration.test.ts | src/core/modules/module-event-lifecycle.test.ts | src/core/workflow/runtime-trigger-admission.test.ts | src/core/workflow/workflow-queue-restoration.test.ts
+retiredPathCheck: unbound module onLoad and unvalidated persisted-run restoration are unreachable from the production lifecycle
+evidenceArtifact: .kota/runs/2026-08-23T03-37-50-749Z-builder-n2t4zi/evidence/artifacts/production-replacement-proof.json
+
 ## Source / Intent
 
 Manual review of the last 50 commits and live daemon recovery on 2026-08-16.
@@ -83,7 +96,11 @@ Production-proven single-mechanism architecture.
 
 ## Acceptance Evidence
 
-- Production-lifecycle regression artifacts for the EventBus subscription and
-  workflow-queue restore cases.
-- One task-authored example showing a future replacement contract, its live
-  effect, and retired-path reachability result.
+- Production-lifecycle regression transcript at
+  `.kota/runs/2026-08-23T03-37-50-749Z-builder-n2t4zi/evidence/artifacts/production-lifecycle-regressions.txt`
+  covering the EventBus subscription and workflow-queue restore cases.
+- Task-authored replacement contract above, with its live effect and
+  retired-path result bound in
+  `.kota/runs/2026-08-23T03-37-50-749Z-builder-n2t4zi/evidence/artifacts/production-replacement-proof.json`.
+- Negative reachability search at
+  `.kota/runs/2026-08-23T03-37-50-749Z-builder-n2t4zi/evidence/artifacts/retired-path-reachability.txt`.
