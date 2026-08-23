@@ -5,6 +5,7 @@ import { describeSecurityReviewFindingRunTests } from "./workflow-finding-run.te
 import { describeSecurityReviewRunTests } from "./workflow-run.test-cases.js";
 import { describeSecurityReviewScanTests } from "./workflow-scan.test-cases.js";
 import { describeSecurityReviewTaskTests } from "./workflow-task.test-cases.js";
+import { describeSecurityReviewTaskIdentityTests } from "./workflow-task-identity.test-cases.js";
 
 vi.mock("#modules/autonomy/commit.js", () => ({
   checkCommitStageable: vi.fn(() => "OK: mock stageable"),
@@ -103,6 +104,7 @@ describe("security-review workflow", () => {
   });
 
   describeSecurityReviewScanTests();
+  describeSecurityReviewTaskIdentityTests();
   describeSecurityReviewTaskTests();
   describeSecurityReviewRunTests(securityReviewWorkflow);
   describeSecurityReviewFindingRunTests(securityReviewWorkflow);

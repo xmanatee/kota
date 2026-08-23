@@ -115,6 +115,7 @@ export const createFollowUpTasks = typedCodeStep<
       [
         "createdTaskIds",
         "updatedTaskIds",
+        "unchangedFindingIds",
         "skippedFindingIds",
         "taskPaths",
         "artifactPath",
@@ -137,9 +138,12 @@ export const createFollowUpTasks = typedCodeStep<
         reason:
           confirmedCount > 0
             ? "confirmed-findings"
+            : result.unchangedFindingIds.length > 0
+              ? "confirmed-findings-current"
             : "all-findings-rejected-or-uncertain",
         createdTaskIds: result.createdTaskIds,
         updatedTaskIds: result.updatedTaskIds,
+        unchangedFindingIds: result.unchangedFindingIds,
         skippedFindingIds: result.skippedFindingIds,
         summary: revalidation.summary,
       },

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
@@ -8,6 +8,7 @@ import type {
   SecurityInvestigationOutput,
   SecurityRevalidationVerdictOutput,
 } from "./security-review.js";
+import { expectSecurityReviewWorkflowReplayNoop } from "./workflow-task-identity.test-cases.js";
 import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
 
 export function describeSecurityReviewFindingRunTests(
@@ -102,6 +103,8 @@ export function describeSecurityReviewFindingRunTests(
       expect(result.steps["validate-before-commit"].status).toBe("success");
       const created = result.steps["create-follow-up-tasks"].output as { createdTaskIds: string[] };
       expect(created.createdTaskIds).toHaveLength(1);
+      const createdTaskId = created.createdTaskIds[0];
+      if (!createdTaskId) throw new Error("security-review did not create its confirmed finding");
       expect(
         readFileSync(
           join(fixture.projectDir, ".kota/runs/harness/security-review-revalidation.json"),
@@ -125,9 +128,13 @@ export function describeSecurityReviewFindingRunTests(
         "commit-message",
       ]);
       expect(preflight.checks.every((check) => check.status === "passed")).toBe(true);
-      expect(
-        existsSync(join(fixture.projectDir, "data/tasks/ready", `${created.createdTaskIds[0]}.md`)),
-      ).toBe(true);
+      await expectSecurityReviewWorkflowReplayNoop({
+        fixture,
+        investigation,
+        revalidation,
+        taskId: createdTaskId,
+        workflow: securityReviewWorkflow,
+      });
       expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
     });
 

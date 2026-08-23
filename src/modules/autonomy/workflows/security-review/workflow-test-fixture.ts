@@ -135,4 +135,74 @@ export class SecurityReviewProjectFixture {
     );
     execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
   }
+
+  writeLegacySecurityFindingTask(args: {
+    id: string;
+    state: "ready" | "done" | "dropped";
+    runId: string;
+    claim: string;
+    findingId?: string;
+    candidateId?: string;
+    supersededBy?: string;
+  }): void {
+    const findingId = args.findingId ?? "finding-terminal-task-regression";
+    const candidateId = args.candidateId ??
+      "task-workflow-mutation:src/modules/example.ts:12";
+    const path = `data/tasks/${args.state}/${args.id}.md`;
+    this.writeProjectFile(
+      path,
+      [
+        "---",
+        `id: ${args.id}`,
+        `title: Security review: ${args.claim}`,
+        `status: ${args.state}`,
+        "priority: p2",
+        "area: security",
+        "task_class: Safety",
+        `summary: ${args.claim}`,
+        "created_at: 2026-06-19T00:00:00.000Z",
+        "updated_at: 2026-06-19T00:00:00.000Z",
+        "---",
+        "",
+        "## Problem",
+        "",
+        "The security-review workflow confirmed an application-security finding.",
+        "",
+        `claim: ${args.claim}`,
+        "",
+        "## Desired Outcome",
+        "",
+        "Keep one canonical remediation record for this stable finding.",
+        "",
+        "## Constraints",
+        "",
+        "- Preserve review provenance.",
+        "",
+        "## Done When",
+        "",
+        "- The stable finding is resolved.",
+        "",
+        "## Source / Intent",
+        "",
+        `Created by security-review workflow run ${args.runId}.`,
+        "",
+        `finding id: ${findingId}`,
+        `candidate id: ${candidateId}`,
+        "",
+        "## Acceptance Evidence",
+        "",
+        "- Focused security-review replay.",
+        ...(args.supersededBy
+          ? [
+              "",
+              "## Superseded",
+              "",
+              `Superseded by \`${args.supersededBy}\` for the same stable finding identity.`,
+            ]
+          : []),
+        "",
+      ].join("\n"),
+    );
+    execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
+  }
 }

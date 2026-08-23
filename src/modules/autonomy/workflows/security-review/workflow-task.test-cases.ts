@@ -86,6 +86,7 @@ export function describeSecurityReviewTaskTests(): void {
 
       expect(result.createdTaskIds).toHaveLength(1);
       expect(result.updatedTaskIds).toHaveLength(0);
+      expect(result.unchangedFindingIds).toHaveLength(0);
       expect(result.skippedFindingIds).toEqual(["finding-rejected"]);
       const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
@@ -96,32 +97,6 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
       expect(task).toContain("Validate URL scheme and host before fetch.");
       expect(task).not.toContain("Secret value is printed.");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
-    });
-
-    it("creates a new ready task when a repeated confirmed finding has a previous done task", () => {
-      const claim = "Terminal task suppresses repeated confirmed findings.";
-      const baseId = fixture.securityFindingTaskIdForClaim(claim);
-      fixture.writeTerminalSecurityTask(baseId, "done", "previous done finding task");
-
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
-        runId: "security-review-run",
-        findings: [fixture.confirmedFindingForClaim(claim)],
-      });
-
-      expect(result.createdTaskIds).toEqual([`${baseId}-2`]);
-      expect(result.updatedTaskIds).toEqual([]);
-      const terminalPath = join(fixture.projectDir, "data/tasks/done", `${baseId}.md`);
-      const terminalTask = readFileSync(terminalPath, "utf-8");
-      expect(parseFlatFrontMatter(terminalTask).attrs.status).toBe("done");
-      expect(terminalTask).toContain("previous done finding task");
-
-      const readyPath = join(fixture.projectDir, "data/tasks/ready", `${baseId}-2.md`);
-      const readyTask = readFileSync(readyPath, "utf-8");
-      const parsed = parseFlatFrontMatter(readyTask);
-      expect(parsed.attrs.id).toBe(`${baseId}-2`);
-      expect(parsed.attrs.status).toBe("ready");
-      expect(readyTask).toContain("Terminal task suppresses repeated confirmed findings.");
       expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
     });
 
@@ -138,6 +113,7 @@ export function describeSecurityReviewTaskTests(): void {
 
       expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
       expect(result.updatedTaskIds).toEqual([]);
+      expect(result.unchangedFindingIds).toEqual([]);
       expect(existsSync(join(fixture.projectDir, "data/tasks/done", `${baseId}.md`))).toBe(true);
       expect(existsSync(join(fixture.projectDir, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
         true,

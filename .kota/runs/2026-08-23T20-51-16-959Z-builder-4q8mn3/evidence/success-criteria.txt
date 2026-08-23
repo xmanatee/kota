@@ -1,0 +1,2 @@
+1. Security-review task materialization resolves a confirmed finding by the stable finding-id and candidate-id pair across every task state, merges run provenance into the canonical record, and leaves an identical replay unchanged.
+2. Focused replay evidence covers terminal, canonical/superseded, wording-change, collision, and workflow no-op outcomes; source validation is complete and task-queue validation passes against the workflow host's exact-path staging projection.

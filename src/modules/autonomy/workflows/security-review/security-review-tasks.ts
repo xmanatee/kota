@@ -1,19 +1,16 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
-import {
-  getRepoTaskStateDir,
-  REPO_TASK_STATES,
-  type RepoTaskState,
-  writeRepoTaskFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import { writeRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { writeJsonArtifact } from "./security-review-candidates.js";
 import type {
   SecurityFindingSeverity,
   SecurityRevalidatedFinding,
 } from "./security-review-output.js";
+import {
+  resolveSecurityFindingTaskTarget,
+  securityFindingIdentityAttrs,
+} from "./security-review-task-identity.js";
 
 function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p1" | "p2" | "p3" {
   if (severity === "critical" || severity === "high") return "p1";
@@ -86,57 +83,13 @@ function quoteMarkdown(value: string): string {
     .join("\n");
 }
 
-type ExistingSecurityFindingTask = { state: RepoTaskState; path: string };
-
-type SecurityFindingTaskTarget =
-  | { kind: "create"; id: string; state: "ready"; path: string }
-  | { kind: "update"; id: string; state: RepoTaskState; path: string };
-
-function isTerminalTaskState(state: RepoTaskState): boolean {
-  return state === "done" || state === "dropped";
-}
-
-function securityFindingTaskId(baseId: string, collisionIndex: number): string {
-  return collisionIndex === 1 ? baseId : `${baseId}-${collisionIndex}`;
-}
-
-function findExistingTask(
-  projectDir: string,
-  id: string,
-): ExistingSecurityFindingTask | null {
-  for (const state of REPO_TASK_STATES) {
-    const taskPath = join(getRepoTaskStateDir(projectDir, state), `${id}.md`);
-    if (existsSync(taskPath)) return { state, path: taskPath };
-  }
-  return null;
-}
-
-function resolveSecurityFindingTaskTarget(
-  projectDir: string,
-  baseId: string,
-): SecurityFindingTaskTarget {
-  for (let collisionIndex = 1; ; collisionIndex += 1) {
-    const id = securityFindingTaskId(baseId, collisionIndex);
-    const existing = findExistingTask(projectDir, id);
-    if (!existing) {
-      return {
-        kind: "create",
-        id,
-        state: "ready",
-        path: join(getRepoTaskStateDir(projectDir, "ready"), `${id}.md`),
-      };
-    }
-    if (!isTerminalTaskState(existing.state)) {
-      return { kind: "update", id, state: existing.state, path: existing.path };
-    }
-  }
-}
-
 function buildFindingTaskBody(args: {
-  runId: string;
   finding: SecurityRevalidatedFinding;
+  reviewRunIds: readonly string[];
 }): string {
-  const { finding, runId } = args;
+  const { finding } = args;
+  const firstRunId = args.reviewRunIds[0];
+  if (!firstRunId) throw new Error("Security finding task requires review provenance");
   const evidence = finding.evidence.flatMap((entry, index) => [
     `Evidence ${index + 1}:`,
     "",
@@ -175,7 +128,11 @@ function buildFindingTaskBody(args: {
     "",
     "## Source / Intent",
     "",
-    `Created by security-review workflow run ${runId}.`,
+    `Created by security-review workflow run ${bodyScalar(firstRunId)}.`,
+    "",
+    "Confirmed by security-review workflow runs:",
+    "",
+    ...args.reviewRunIds.map((runId) => `- ${bodyScalar(runId)}`),
     "",
     `finding id: ${bodyScalar(finding.id)}`,
     `candidate id: ${bodyScalar(finding.candidateId)}`,
@@ -202,9 +159,20 @@ function buildFindingTaskBody(args: {
 export type SecurityFindingTaskResult = {
   createdTaskIds: string[];
   updatedTaskIds: string[];
+  unchangedFindingIds: string[];
   skippedFindingIds: string[];
   taskPaths: string[];
 };
+
+function taskPriorityForUpdate(
+  existing: string | string[] | undefined,
+  incoming: ReturnType<typeof taskPriorityForSeverity>,
+): ReturnType<typeof taskPriorityForSeverity> {
+  if (typeof existing !== "string" || !/^(p1|p2|p3)$/.test(existing)) return incoming;
+  return Number(existing.slice(1)) <= Number(incoming.slice(1))
+    ? existing as ReturnType<typeof taskPriorityForSeverity>
+    : incoming;
+}
 
 export function createOrUpdateSecurityFindingTasks(
   projectDir: string,
@@ -215,6 +183,7 @@ export function createOrUpdateSecurityFindingTasks(
 ): SecurityFindingTaskResult {
   const createdTaskIds: string[] = [];
   const updatedTaskIds: string[] = [];
+  const unchangedFindingIds: string[] = [];
   const skippedFindingIds: string[] = [];
   const taskPaths: string[] = [];
 
@@ -225,16 +194,32 @@ export function createOrUpdateSecurityFindingTasks(
     }
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
-    const target = resolveSecurityFindingTaskTarget(projectDir, `task-${slugifyTaskTitle(title)}`);
+    const resolution = resolveSecurityFindingTaskTarget(projectDir, {
+      baseId: `task-${slugifyTaskTitle(title)}`,
+      candidateId: finding.candidateId,
+      findingId: finding.id,
+      persistedCandidateId: bodyScalar(finding.candidateId),
+      persistedFindingId: bodyScalar(finding.id),
+      reviewRunId: normalizeControlWhitespace(args.runId),
+    });
+    if (resolution.current) {
+      unchangedFindingIds.push(finding.id);
+      continue;
+    }
+    const { key, reviewRunIds: mergedReviewRunIds, target } = resolution;
     const now = new Date().toISOString();
     const existingCreatedAt = target.kind === "update"
-      ? String(parseFlatFrontMatter(readFileSync(target.path, "utf-8")).attrs.created_at ?? now)
+      ? String(target.attrs.created_at ?? now)
       : now;
-    const attrs: Record<string, string> = {
+    const attrs: Record<string, string | string[]> = {
+      ...(target.kind === "update" ? target.attrs : {}),
       id: target.id,
       title: `Security review: ${safeClaim}`,
       status: target.state,
-      priority: taskPriorityForSeverity(finding.severity),
+      priority: taskPriorityForUpdate(
+        target.kind === "update" ? target.attrs.priority : undefined,
+        taskPriorityForSeverity(finding.severity),
+      ),
       area: "security",
       task_class: classifyWorkflowGeneratedTask({
         workflowName: "security-review",
@@ -245,18 +230,28 @@ export function createOrUpdateSecurityFindingTasks(
       summary: safeClaim,
       created_at: existingCreatedAt,
       updated_at: now,
+      ...securityFindingIdentityAttrs(key, mergedReviewRunIds),
     };
     writeRepoTaskFile(
       projectDir,
       target.path,
-      serializeFlatFrontMatter(attrs, buildFindingTaskBody({ runId: args.runId, finding })),
+      serializeFlatFrontMatter(
+        attrs,
+        buildFindingTaskBody({ finding, reviewRunIds: mergedReviewRunIds }),
+      ),
     );
     taskPaths.push(target.path);
     if (target.kind === "update") updatedTaskIds.push(target.id);
     else createdTaskIds.push(target.id);
   }
 
-  return { createdTaskIds, updatedTaskIds, skippedFindingIds, taskPaths };
+  return {
+    createdTaskIds,
+    updatedTaskIds,
+    unchangedFindingIds,
+    skippedFindingIds,
+    taskPaths,
+  };
 }
 
 export function writeSecurityReviewOutcome(

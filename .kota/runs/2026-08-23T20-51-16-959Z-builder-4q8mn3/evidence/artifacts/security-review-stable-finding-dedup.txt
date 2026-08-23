@@ -1,0 +1,22 @@
+Security-review stable finding deduplication acceptance evidence
+
+Focused behaviors exercised:
+- A legacy done task with the same finding and candidate identity is updated in place; no ready duplicate is created.
+- An explicit dropped/superseded duplicate contributes its review run to the ready canonical task while remaining unchanged as historical evidence.
+- Changed finding wording does not change canonical identity.
+- Unrelated title-slug collisions retain distinct task ids.
+- Replaying the identical workflow output returns no created or updated tasks, reports confirmed-findings-current, skips commit preparation, and leaves the task byte-for-byte unchanged.
+
+Validation:
+- pnpm exec vitest run --configLoader runner --silent=true src/modules/autonomy/workflows/security-review/workflow.test.ts
+  Result: 1 file passed; 22 tests passed.
+- pnpm typecheck
+  Result: passed.
+- pnpm exec biome check <eight touched security-review source/test files>
+  Result: passed with no fixes required.
+- git diff --check
+  Result: passed.
+- Changed source/test files are at or below the 300-line source-size guideline; new identity helper is 180 lines and task materializer is 263 lines.
+- pnpm validate-tasks -- --min-ready 0 --summary
+  Result before host staging: task content and lifecycle checks emitted no findings; only task-untracked for the new done path and task-deleted-unstaged for the former ready path remained because the native builder cannot write linked-worktree Git metadata.
+  Exact-path host projection: copied the read-only index to an isolated temporary index, stored new objects outside repository Git metadata, and staged only the task's ready and done paths. With that projection, validation passed: task-queue-valid, errors=0, warnings=0, ready count=11, strategic actionable=22.

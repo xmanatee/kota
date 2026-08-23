@@ -1,12 +1,12 @@
 ---
 id: task-deduplicate-repeated-security-review-findings-by-s
 title: Deduplicate repeated security-review findings by stable identity
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Make security-review task materialization converge on one record across task states when later runs confirm the same finding and candidate identity. Merge provenance or update the existing record instead of creating another ready task, and reconcile the current duplicate progress-reviewer trust-boundary tasks.
 created_at: 2026-08-15T13:14:03.827Z
-updated_at: 2026-08-16T08:36:30.000Z
+updated_at: 2026-08-23T21:08:52.646Z
 task_class: Meta
 ---
 ## Problem
