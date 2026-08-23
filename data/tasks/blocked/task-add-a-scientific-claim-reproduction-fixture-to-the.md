@@ -211,4 +211,4 @@ step and stops at the sandbox's loopback-listener preflight. The remaining
 product criterion is the authenticated trusted-host live eval evidence named
 by the operator-capture precondition.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-08T00:19:10.784Z -->
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-23T03:37:59.106Z -->
