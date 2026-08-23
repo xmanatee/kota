@@ -1,14 +1,14 @@
 ---
 id: task-recover-the-two-stale-builder-claims-blocking-high
 title: Recover the preserved daemon-control builder through native-harness conflict resolution
-status: blocked
+status: ready
 priority: p0
 area: autonomy
 task_class: Platform
 depends_on: [task-keep-daemon-control-api-responsive-during-workflow]
 summary: Complete the single builder recovery path so a Codex native-tool continuation can resolve bounded textual conflicts, verify the preserved implementation, and integrate the current daemon-control branch without discarding work.
 created_at: 2026-08-13T15:51:09.264Z
-updated_at: 2026-08-23T03:16:13.000Z
+updated_at: 2026-08-23T15:12:20.746Z
 ---
 
 ## Problem
