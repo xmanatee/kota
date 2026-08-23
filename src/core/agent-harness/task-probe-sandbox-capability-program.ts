@@ -1,3 +1,4 @@
+// Shared by every boundary that executes repository-controlled code.
 export const SANDBOX_CAPABILITY_EVIDENCE =
   "KOTA_RUNTIME_PROBE_BOUNDARY_CONTAINED";
 export const SANDBOX_POST_EXEC_ABORT_EVIDENCE =

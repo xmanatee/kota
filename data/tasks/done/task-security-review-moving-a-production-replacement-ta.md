@@ -1,13 +1,13 @@
 ---
 id: task-security-review-moving-a-production-replacement-ta
 title: Security review: Moving a production-replacement task to done executes repository-controlled Vitest files and configuration without isolation and passes the complete daemon environment to the child process. A compromised builder change can therefore read daemon credentials or perform host/network side effects outside its agent write scope through an operation authorized only as task-queue mutation.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Moving a production-replacement task to done executes repository-controlled Vitest files and configuration without isolation and passes the complete daemon environment to the child process. A compromised builder change can therefore read daemon credentials or perform host/network side effects outside its agent write scope through an operation authorized only as task-queue mutation.
 created_at: 2026-08-23T07:37:13.487Z
-updated_at: 2026-08-23T07:37:13.487Z
+updated_at: 2026-08-23T07:58:34.621Z
 ---
 
 ## Problem
@@ -110,4 +110,5 @@ Agentic security review for autonomous coding infrastructure.
 
 ## Acceptance Evidence
 
-- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+- `pnpm test src/core/agent-harness/task-probe-sandbox.test.ts src/core/agent-harness/task-probe-hard-links.test.ts src/core/agent-harness/task-probe-toolchain.test.ts src/modules/autonomy/task-probe-runner.test.ts src/modules/repo-tasks/production-replacement-execution.test.ts src/modules/repo-tasks/production-replacement-completion.test.ts src/modules/repo-tasks/production-replacement-task-move.test.ts` — 26 passed, 1 platform-skipped.
+- `pnpm typecheck` and `pnpm lint` pass.

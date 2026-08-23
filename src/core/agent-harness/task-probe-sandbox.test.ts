@@ -17,11 +17,13 @@ function makeWorkspace(): string {
   return workspace;
 }
 
-describe("Runtime Probe OS sandbox specifications", () => {
+describe("contained workspace OS sandbox specifications", () => {
   it("builds a Linux empty-root, disposable workspace overlay, and PID namespace", () => {
     const workspace = makeWorkspace();
     const hardLinkPath = join(workspace, "host-hard-link.txt");
+    const protectedPath = join(workspace, ".env");
     writeFileSync(hardLinkPath, "host alias");
+    writeFileSync(protectedPath, "SECRET=host-only");
     const nodeExecutable = "/opt/kota-node/bin/node";
     const pnpmExecutable = "/opt/kota-pnpm/bin/pnpm";
     const pnpmRuntimePath = "/opt/kota-pnpm";
@@ -36,6 +38,7 @@ describe("Runtime Probe OS sandbox specifications", () => {
         evidence: "test non-piped core pattern and hard-zero limit",
       },
       [{ path: hardLinkPath, kind: "file" }],
+      [protectedPath],
     );
     const args = sandbox.prefixArgs;
 
@@ -69,6 +72,11 @@ describe("Runtime Probe OS sandbox specifications", () => {
     expect(readOnlySources).toContain(pnpmRuntimePath);
     expect(readOnlySources).toContain(hardLinkPath);
     expect(args.filter((arg) => arg === hardLinkPath)).toHaveLength(2);
+    expect(args).toEqual(expect.arrayContaining([
+      "--ro-bind",
+      "/dev/null",
+      protectedPath,
+    ]));
 
     expect(args).not.toContain("--bind");
     const workspaceOverlay = args.indexOf("--overlay-src");

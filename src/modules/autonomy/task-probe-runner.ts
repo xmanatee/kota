@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import type { TaskProbe, TaskProbeResult } from "./task-probe.js";
 import {
   resolveTaskProbeSandbox,
   type TaskProbeSandbox,
-} from "./task-probe-sandbox.js";
+} from "#core/agent-harness/task-probe-sandbox.js";
+import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import type { TaskProbe, TaskProbeResult } from "./task-probe.js";
 
 const MAX_PROBE_OUTPUT_CHARS = 20_000;
 const SUPERVISOR_MAX_BUFFER = 256 * 1024;

@@ -95,7 +95,7 @@ function protectionForPath(
 /**
  * Returns regular-file workspace entries that contain an inode with at least
  * one name outside the workspace. Freezing the top-level tree also bounds
- * native sandbox policy size for package stores that materialize many hard
+ * workspace sandbox policy size for package stores that materialize many hard
  * links. Every pathname IPC or device inode rejects the probe regardless of
  * link count because namespace isolation does not sever its live host-side
  * effects. Ordinary symlinks remain safe under the sandbox's empty root.

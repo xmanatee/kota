@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   normalizedReplacementTask,
   REPLACEMENT_EVIDENCE_PATH,
@@ -23,6 +23,18 @@ import {
 } from "./production-replacement-proof.test-helpers.js";
 import { moveTaskById, REPO_TASK_STATES } from "./repo-tasks-domain.js";
 import { validateTaskQueue } from "./task-queue-validation.js";
+
+vi.mock("#core/agent-harness/task-probe-sandbox.js", () => ({
+  resolveContainedWorkspaceSandbox: () => ({
+    status: "available",
+    kind: "linux-bubblewrap",
+    processBoundary: "pid-namespace",
+    command: "/usr/bin/env",
+    prefixArgs: [],
+    probeExecutable: "pnpm",
+    evidence: "focused production replacement fixture runner",
+  }),
+}));
 
 describe("production replacement task transitions", () => {
   const projectDirs: string[] = [];

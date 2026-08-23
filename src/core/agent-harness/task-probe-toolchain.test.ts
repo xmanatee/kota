@@ -33,7 +33,7 @@ function makeFixture(): {
   return { root, workspace, pnpmRoot, pnpmExecutable };
 }
 
-describe("Runtime Probe host toolchain", () => {
+describe("contained workspace host toolchain", () => {
   it("pins the canonical pnpm package runtime from an absolute PATH entry", () => {
     const fixture = makeFixture();
     process.env.PATH = join(fixture.pnpmRoot, "bin");

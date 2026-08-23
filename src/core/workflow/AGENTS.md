@@ -4,11 +4,9 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
 - Put top-level autonomous execution semantics here, not in prompts or scheduler side channels.
 - Workflows are the only automation surface; all automation compiles to them.
 - `automation` is authoring; `workflow` is the durable triggered runtime form.
-- `defineAutomation` / `defineHook` must return ordinary workflow definitions
-  before validation, scheduling, approvals, storage, or APIs observe them.
+- `defineAutomation` / `defineHook` must return ordinary workflow definitions before validation, scheduling, approvals, storage, or APIs observe them.
 - Agent harness lifecycle hooks are internal, not operator-authored hooks.
-- Keep trigger semantics narrow and explicit. Prefer semantic events over
-  workflow-name inventories or implicit routing metadata.
+- Keep trigger semantics narrow and explicit. Prefer semantic events over workflow-name inventories or implicit routing metadata.
 - `buildOperatorQueuedRun` owns operator-trigger construction for every client
   path. Retry and replay preserve the source event and schema; lineage belongs
   in payload metadata and must not replace the semantic event.

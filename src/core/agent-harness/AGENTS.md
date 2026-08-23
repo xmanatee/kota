@@ -43,6 +43,7 @@ the protocol and registry.
   Native tools lack direct host, loopback, metadata-service, or internet routes.
   KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
   `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable.
+- Runtime Probes and production proofs use the fail-closed contained-workspace sandbox; never add an unsandboxed launcher.
 
 ## Owner-questions capability
 

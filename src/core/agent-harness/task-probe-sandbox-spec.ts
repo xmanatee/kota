@@ -23,6 +23,9 @@ export type TaskProbeSandbox =
       reason: string;
     };
 
+export type ContainedWorkspaceSandbox = TaskProbeSandbox;
+export type AvailableContainedWorkspaceSandbox = AvailableTaskProbeSandbox;
+
 export type TaskProbeToolchain = {
   nodeExecutable: string;
   pnpmExecutable: string;
@@ -117,6 +120,7 @@ export function buildLinuxTaskProbeSandbox(
   toolchain: TaskProbeToolchain,
   coreDumpBoundary: Extract<LinuxCoreDumpBoundary, { status: "available" }>,
   workspaceWriteProtections: readonly WorkspaceWriteProtection[] = [],
+  readProtectedPaths: readonly string[] = [],
 ): AvailableTaskProbeSandbox {
   const systemRuntimePaths = LINUX_SYSTEM_RUNTIME_PATHS.filter((path) =>
     existsSync(path),
@@ -161,6 +165,11 @@ export function buildLinuxTaskProbeSandbox(
       path,
       path,
     ]),
+    ...readProtectedPaths.flatMap((path) => [
+      "--ro-bind",
+      "/dev/null",
+      path,
+    ]),
     ...(existsSync(join(workspaceDir, ".git"))
       ? [
           "--ro-bind",
@@ -193,6 +202,6 @@ export function buildLinuxTaskProbeSandbox(
     probeExecutable: toolchain.pnpmExecutable,
     evidence:
       "Linux Bubblewrap empty-root namespace with read-only runtime code, a disposable project tmpfs overlay that prevents workspace writes and new pathname IPC from reaching the host, external-regular-hard-link-bearing entries frozen by nested read-only mounts, isolated device/temp/network/IPC state, a PID namespace whose init exit terminates detached descendants, " +
-      `${coreDumpBoundary.evidence}, plus CPU, memory, process, and descriptor limits`,
+      `protected project credentials masked, ${coreDumpBoundary.evidence}, plus CPU, memory, process, and descriptor limits`,
   };
 }

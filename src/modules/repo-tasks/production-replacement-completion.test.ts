@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   enforceProductionReplacementCompletion,
   verifyProductionReplacementCompletion,
@@ -17,6 +17,18 @@ import {
   writeReplacementProofFixture,
 } from "./production-replacement-proof.test-helpers.js";
 import { getRepoTaskStateTransitionBlocker } from "./repo-tasks-domain.js";
+
+vi.mock("#core/agent-harness/task-probe-sandbox.js", () => ({
+  resolveContainedWorkspaceSandbox: () => ({
+    status: "available",
+    kind: "linux-bubblewrap",
+    processBoundary: "pid-namespace",
+    command: "/usr/bin/env",
+    prefixArgs: [],
+    probeExecutable: "pnpm",
+    evidence: "focused production replacement fixture runner",
+  }),
+}));
 
 describe("production replacement completion", () => {
   const projectDirs: string[] = [];

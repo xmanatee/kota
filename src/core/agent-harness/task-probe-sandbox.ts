@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import { existingProtectedProjectPaths } from "#core/tools/protected-project-paths.js";
 import {
   findExternalHardLinkWriteProtections,
   type WorkspaceWriteProtection,
@@ -31,9 +32,11 @@ import {
 import { resolveTaskProbeToolchain } from "./task-probe-toolchain.js";
 
 export {
+  type AvailableContainedWorkspaceSandbox,
   type AvailableTaskProbeSandbox,
   assessLinuxCoreDumpBoundary,
   buildLinuxTaskProbeSandbox,
+  type ContainedWorkspaceSandbox,
   type LinuxCoreDumpBoundary,
   type TaskProbeSandbox,
   type TaskProbeToolchain,
@@ -164,6 +167,7 @@ export function resolveTaskProbeSandbox(
         }
         const toolchain = resolveTaskProbeToolchain(workspaceDir);
         if (toolchain.status === "available") {
+          const readProtectedPaths = existingProtectedProjectPaths(workspaceDir);
           buildSandbox = (workspaceWriteProtections) =>
             buildLinuxTaskProbeSandbox(
               workspaceDir,
@@ -173,6 +177,7 @@ export function resolveTaskProbeSandbox(
               toolchain.toolchain,
               coreDumpBoundary,
               workspaceWriteProtections,
+              readProtectedPaths,
             );
           capabilityExecutable = toolchain.toolchain.nodeExecutable;
           pnpmExecutable = toolchain.toolchain.pnpmExecutable;
@@ -217,3 +222,10 @@ export function resolveTaskProbeSandbox(
     };
   }
 }
+
+/**
+ * Resolve the fail-closed OS boundary used for repository-controlled code.
+ * Runtime Probes and production-replacement proofs intentionally share this
+ * containment mechanism.
+ */
+export const resolveContainedWorkspaceSandbox = resolveTaskProbeSandbox;

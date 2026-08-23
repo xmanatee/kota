@@ -7,11 +7,9 @@
 - Give preserved work one automatic continuation only after its complete visible work is checkpointed on the existing branch and the merge-gate-serialized canonical head is reconciled.
   Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
   a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
-- Recovery scanning decides whether to emit an automatic continuation. Once a
-  recovery event is queued, its exact task/worktree target governs consumption;
-  a redrive may follow persisted `retryOf` lineage to the current claim owner,
-  but unrelated ownership changes fail closed. Do not reapply the producer's
-  automatic-attempt gate in the builder.
+- Recovery scanning decides whether to emit an automatic continuation. Once queued, its exact task/worktree target governs consumption;
+  a redrive may follow persisted `retryOf` lineage to the current claim owner, but unrelated ownership changes fail closed.
+  Do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 - A clean timeout or exhausted repair reserves the task claim for decomposer
   disposition. Builder must not reclaim that task while decomposition is

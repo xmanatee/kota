@@ -27,7 +27,7 @@ function makeFifo(path: string): void {
   }
 }
 
-describe("Runtime Probe workspace hard-link inspection", () => {
+describe("contained workspace hard-link inspection", () => {
   it.runIf(process.platform !== "win32")(
     "freezes external hard-link aliases without freezing workspace-only aliases",
     () => {

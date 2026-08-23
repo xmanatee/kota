@@ -1,6 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import {
+  type AvailableContainedWorkspaceSandbox,
+  resolveContainedWorkspaceSandbox,
+} from "#core/agent-harness/task-probe-sandbox.js";
+import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
 import type { ProductionReplacementArtifact } from "./production-replacement-evidence.js";
 import type { ProductionReplacementDeclaration } from "./production-replacement-proof.js";
 import {
@@ -37,46 +42,42 @@ function exactStringSet(actual: readonly string[], expected: readonly string[]):
 function executeVitest(args: {
   projectDir: string;
   testArgs: string[];
-  outputFile: string;
+  runtimeHome: string;
+  sandbox: AvailableContainedWorkspaceSandbox;
 }): VitestExecution {
-  const nodeOptions = [process.env.NODE_OPTIONS, "--conditions=source"]
-    .filter((value) => value !== undefined && value.length > 0)
-    .join(" ");
+  const launch = buildProductionReplacementVitestLaunch(
+    args.sandbox,
+    args.testArgs,
+  );
   const execution = spawnSync(
-    "pnpm",
-    [
-      "exec",
-      "vitest",
-      "run",
-      ...args.testArgs,
-      "--configLoader=runner",
-      "--reporter=json",
-      `--outputFile=${args.outputFile}`,
-    ],
+    launch.command,
+    launch.args,
     {
       cwd: args.projectDir,
       encoding: "utf-8",
-      env: {
-        ...process.env,
-        DEBUG: "vite:transform",
-        NODE_OPTIONS: nodeOptions,
-      },
+      env: buildProductionReplacementTestEnvironment(args.runtimeHome),
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 30 * 60 * 1000,
       maxBuffer: 20 * 1024 * 1024,
     },
   );
   if (execution.error || execution.status !== 0) {
-    const detail = execution.error?.message ?? execution.stderr.trim();
+    const detail = [
+      execution.error?.message ?? "",
+      execution.stderr,
+      execution.stdout,
+    ].filter((value) => value.length > 0).join("\n").trim();
     return {
       ok: false,
-      error: `declared production tests failed: ${detail || `exit ${execution.status ?? "unknown"}`}`,
+      error: `declared production tests failed: ${
+        detail.slice(-20_000) || `exit ${execution.status ?? "unknown"}`
+      }`,
     };
   }
   try {
     return {
       ok: true,
-      report: JSON.parse(readFileSync(args.outputFile, "utf-8")) as VitestJsonReport,
+      report: JSON.parse(execution.stdout) as VitestJsonReport,
       transformedPaths: collectTransformedRepoPaths(args.projectDir, execution.stderr),
     };
   } catch (error) {
@@ -85,6 +86,39 @@ function executeVitest(args: {
       error: `declared production test report is unreadable: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
+}
+
+export function buildProductionReplacementTestEnvironment(
+  runtimeHome: string,
+  inheritedEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...buildRequiredInheritedSubprocessEnv(inheritedEnv),
+    HOME: runtimeHome,
+    TMPDIR: runtimeHome,
+    NO_COLOR: "1",
+    DEBUG: "vite:transform",
+    NODE_OPTIONS: "--conditions=source",
+  };
+}
+
+export function buildProductionReplacementVitestLaunch(
+  sandbox: AvailableContainedWorkspaceSandbox,
+  testArgs: readonly string[],
+): { command: string; args: string[] } {
+  return {
+    command: sandbox.command,
+    args: [
+      ...sandbox.prefixArgs,
+      sandbox.probeExecutable,
+      "exec",
+      "vitest",
+      "run",
+      ...testArgs,
+      "--configLoader=runner",
+      "--reporter=json",
+    ],
+  };
 }
 
 function validateExecutionReport(
@@ -195,12 +229,19 @@ export function runProductionReplacementTests(args: {
   const runtimeDir = join(args.projectDir, ".kota");
   mkdirSync(runtimeDir, { recursive: true });
   const executionDir = mkdtempSync(join(runtimeDir, "production-replacement-proof-"));
-  const outputFile = join(executionDir, "vitest-report.json");
   try {
+    const sandbox = resolveContainedWorkspaceSandbox(
+      args.projectDir,
+      30 * 60 * 1000,
+    );
+    if (sandbox.status === "unavailable") {
+      return `declared production tests were not executed because the required OS sandbox is unavailable: ${sandbox.reason}`;
+    }
     const fullExecution = executeVitest({
       projectDir: args.projectDir,
       testArgs: args.declaration.productionTests,
-      outputFile,
+      runtimeHome: executionDir,
+      sandbox,
     });
     if (!fullExecution.ok) return fullExecution.error;
     const reportError = validateExecutionReport(
@@ -232,7 +273,6 @@ export function runProductionReplacementTests(args: {
       }
       boundAssertions.set(key, existing);
     }
-    let index = 0;
     for (const binding of boundAssertions.values()) {
       const isolatedExecution = executeVitest({
         projectDir: args.projectDir,
@@ -241,9 +281,9 @@ export function runProductionReplacementTests(args: {
           "--testNamePattern",
           `^${escapeRegex(binding.name)}$`,
         ],
-        outputFile: join(executionDir, `binding-${index}.json`),
+        runtimeHome: executionDir,
+        sandbox,
       });
-      index += 1;
       if (!isolatedExecution.ok) return isolatedExecution.error;
       const provenanceError = validateBindingProvenance({
         report: isolatedExecution.report,
