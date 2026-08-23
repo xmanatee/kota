@@ -128,6 +128,11 @@ export async function checkpointAndReconcileAutomationWorktree(
 				workspaceDir,
 				inspection.branch,
 				pendingCanonicalHead,
+				canonicalDestructivePaths(
+					workspaceDir,
+					record.originalBaseCommit,
+					pendingCanonicalHead,
+				),
 				conflicts,
 			);
 			if (!resolution.ready) return resolution.record;
@@ -173,6 +178,7 @@ export async function checkpointAndReconcileAutomationWorktree(
 					workspaceDir,
 					inspection.branch,
 					canonicalHeadCommit,
+					destructivePaths,
 					conflicts,
 				);
 				if (!resolution.ready) return resolution.record;

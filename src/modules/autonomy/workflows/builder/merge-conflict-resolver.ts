@@ -168,6 +168,19 @@ export function createMergeConflictResolver(options: MergeConflictResolverOption
 			...(review.subtype !== undefined ? { subtype: review.subtype } : {}),
 		};
 		appendMergeConflictResolverAttempt(options, request, result);
-		return { resolved: result.resolved, summary: result.summary };
+		return {
+			resolved: result.resolved,
+			summary: result.summary,
+			...(review.subtype === "semantic-resolution-needs-review" &&
+				review.judgment?.verdict === "needs-review"
+				? {
+					reviewFeedback: {
+						summary: review.judgment.summary,
+						taskScopeJustification: review.judgment.taskScopeJustification,
+						pathJudgments: review.judgment.pathJudgments,
+					},
+				}
+				: {}),
+		};
 	};
 }

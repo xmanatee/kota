@@ -13,6 +13,7 @@ import {
 	createFixtureWorktree,
 	git,
 	initRepo,
+	semanticReviewFeedback,
 } from "./worktree-merge-gate-test-support.js";
 
 afterEach(cleanupMergeGateFixtures);
@@ -155,6 +156,76 @@ describe("automation worktree merge gate", () => {
 		expect(result.resolutionAttempts).toBe(1);
 		expect(result.validation?.passed).toBe(true);
 		expect(readFileSync(join(repo, "settings.txt"), "utf8")).toBe("value=resolved\n");
+	});
+
+	it("feeds structured semantic review back into the remaining bounded attempt", async () => {
+		const repo = initRepo("semantic-review-retry");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch setting");
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical setting");
+		let attempts = 0;
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			validationCommand: ["node", "-e", "process.exit(require('fs').readFileSync('settings.txt','utf8') === 'value=canonical\\n' ? 0 : 1)"],
+			resolver: (request) => {
+				attempts += 1;
+				if (attempts === 1) {
+					writeFileSync(join(request.workspaceDir, "settings.txt"), "value=unscoped\n", "utf8");
+					return {
+						resolved: false,
+						summary: "branch rewrite is unrelated to the task",
+						reviewFeedback: semanticReviewFeedback("settings.txt"),
+					};
+				}
+				expect(request.previousReview?.pathJudgments).toEqual([
+					expect.objectContaining({ path: "settings.txt", decision: "accept-canonical" }),
+				]);
+				writeFileSync(join(request.workspaceDir, "settings.txt"), "value=canonical\n", "utf8");
+				return { resolved: true, summary: "accepted canonical text" };
+			},
+			maxResolutionAttempts: 2,
+		});
+
+		expect(result).toMatchObject({ status: "merged", resolutionAttempts: 2 });
+		expect(attempts).toBe(2);
+		expect(readFileSync(join(repo, "settings.txt"), "utf8")).toBe("value=canonical\n");
+	});
+
+	it("blocks semantic-review retry when the rejected attempt crossed its path boundary", async () => {
+		const repo = initRepo("semantic-review-boundary");
+		commitFile(repo, "settings.txt", "value=base\n", "add settings");
+		const created = createFixtureWorktree(repo);
+		commitFile(created.metadata.workspaceDir, "settings.txt", "value=branch\n", "branch setting");
+		commitFile(repo, "settings.txt", "value=canonical\n", "canonical setting");
+		let attempts = 0;
+
+		const result = await mergeAutomationWorktree({
+			projectDir: repo,
+			taskId: created.metadata.taskId,
+			runId: created.metadata.runId,
+			resolver: (request) => {
+				attempts += 1;
+				writeFileSync(join(request.workspaceDir, "settings.txt"), "value=unscoped\n", "utf8");
+				writeFileSync(join(request.workspaceDir, "outside.txt"), "outside\n", "utf8");
+				return {
+					resolved: false,
+					summary: "needs a scoped correction",
+					reviewFeedback: semanticReviewFeedback("settings.txt"),
+				};
+			},
+			maxResolutionAttempts: 2,
+		});
+
+		expect(attempts).toBe(1);
+		expect(result).toMatchObject({
+			status: "blocked",
+			reason: "merge resolver left untracked paths outside allowed textual conflicts",
+			conflicts: [{ path: "outside.txt", kind: "blocked-path" }],
+		});
 	});
 
 	it("blocks resolver-staged paths outside the allowed textual conflicts before validation or commit", async () => {

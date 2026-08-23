@@ -4,8 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { createAutomationWorktree } from "./worktree-lifecycle.js";
+import type { MergeGateResolutionReview } from "./worktree-merge-gate-types.js";
 
 const repos: string[] = [];
+
+export function semanticReviewFeedback(path: string): MergeGateResolutionReview {
+	return {
+		summary: "accept canonical text",
+		taskScopeJustification: "The branch rewrite is outside the claimed task.",
+		pathJudgments: [{
+			path,
+			decision: "accept-canonical",
+			rationale: "Canonical behavior is authoritative and task-neutral.",
+		}],
+	};
+}
 
 export function git(cwd: string, args: string[]): string {
 	return execFileSync("git", args, {

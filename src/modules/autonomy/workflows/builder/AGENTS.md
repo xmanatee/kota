@@ -10,9 +10,12 @@
 - Bounded recovery may resolve text conflicts and accept canonical destructive
   paths only by keeping those paths absent. Other structural and binary
   conflicts remain preserved for review.
-- Recovery scanning decides whether to emit an automatic continuation. Once queued, its exact task/worktree target governs consumption;
-  a redrive may follow persisted `retryOf` lineage to the current claim owner, but unrelated ownership changes fail closed.
-  Do not reapply the producer's automatic-attempt gate in the builder.
+- A structured semantic `needs-review` judgment may guide one remaining bounded resolver attempt; preserve invalid or exhausted reviews for review.
+- Recovery scanning decides whether to emit an automatic continuation. Once a
+  recovery event is queued, its exact task/worktree target governs consumption;
+  a redrive may follow persisted `retryOf` lineage to the current claim owner,
+  but unrelated ownership changes fail closed. Do not reapply the producer's
+  automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
 - A clean timeout or exhausted repair reserves the task claim for decomposer
   disposition. Builder must not reclaim that task while decomposition is
@@ -27,8 +30,7 @@ Declare concrete success criteria before implementation and verify them before c
 
 `$KOTA_RUN_DIR` is agent-writable `.kota/builder-evidence/`, not the canonical workflow store; the protocol files above are code-registered.
 Preserved-work continuations keep the original evidence and projection lineage; execution-scoped temp, port, and run metadata use the new run.
-Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind
-in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
+Put additional evidence under `$KOTA_RUN_ARTIFACT_DIR`; register its path and kind in `$KOTA_RUN_DIR/evidence-manifest.json`. Before task validation, the repair loop
 screens, bounds, projects to `.kota/runs/<run-id>/evidence/`, and exact-stages it.
 The terminal commit repeats projection and excludes both runtime namespaces.
 Unregistered files cannot satisfy Product evidence. Text passes secret screening;

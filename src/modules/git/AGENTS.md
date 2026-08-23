@@ -24,6 +24,8 @@ This directory owns the `git` capability pack — version control operations wit
   canonical destructive paths may reach the bounded resolver; canonical
   destructive paths must remain absent. Other structural and binary conflicts
   stay review-only.
+- Structured semantic conflict feedback can guide another already-budgeted
+  bounded attempt; it never expands paths, attempts, or merge authority.
 
 ## Boundaries
 

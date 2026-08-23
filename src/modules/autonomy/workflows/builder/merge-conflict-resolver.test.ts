@@ -279,6 +279,90 @@ describe("createMergeConflictResolver", () => {
 		});
 	});
 
+	it("returns exact structured semantic feedback to the bounded recovery loop", async () => {
+		const workspaceDir = makeWorkspace();
+		const run = registerHarness("native", "codex");
+		run.mockImplementationOnce(async (options: AgentHarnessRunOptions) => {
+			options.abortQuarantine?.register(() => undefined);
+			if (!options.cwd) throw new Error("resolver fixture requires cwd");
+			writeFileSync(
+				join(options.cwd, "src/conflict.ts"),
+				"export const value = 'unscoped';\n",
+				"utf8",
+			);
+			return {
+				text: "kept an unrelated branch rewrite",
+				streamedText: "",
+				turns: 1,
+				isError: false,
+			};
+		});
+		run.mockImplementationOnce(async (options: AgentHarnessRunOptions) => {
+			options.abortQuarantine?.register(() => undefined);
+			return {
+				text: JSON.stringify({
+					verdict: "needs-review",
+					summary: "accept canonical text instead",
+					taskScopeJustification: "The branch rewrite is unrelated to the task.",
+					pathJudgments: [{
+						path: "src/conflict.ts",
+						decision: "accept-canonical",
+						rationale: "Canonical behavior is task-neutral.",
+					}],
+				}),
+				streamedText: "",
+				turns: 1,
+				isError: false,
+			};
+		});
+		const resolver = createMergeConflictResolver({
+			runDirPath: join(workspaceDir, ".kota/runs/test-semantic-feedback"),
+			workflowName: "builder",
+			runId: "test-semantic-feedback",
+			agentContract: mergeResolverContract("codex"),
+			runAgentHarness,
+		});
+
+		await expect(resolver(makeRequest(workspaceDir))).resolves.toMatchObject({
+			resolved: false,
+			summary: "accept canonical text instead",
+			reviewFeedback: {
+				taskScopeJustification: "The branch rewrite is unrelated to the task.",
+				pathJudgments: [{
+					path: "src/conflict.ts",
+					decision: "accept-canonical",
+				}],
+			},
+		});
+	});
+
+	it("renders prior semantic review as scoped correction context", async () => {
+		const workspaceDir = makeWorkspace();
+		const run = registerHarness();
+		const request = makeRequest(workspaceDir);
+		request.previousReview = {
+			summary: "accept canonical text instead",
+			taskScopeJustification: "The branch rewrite is unrelated to the task.",
+			pathJudgments: [{
+				path: "src/conflict.ts",
+				decision: "accept-canonical",
+				rationale: "Canonical behavior is task-neutral.",
+			}],
+		};
+		const resolver = createMergeConflictResolver({
+			runDirPath: join(workspaceDir, ".kota/runs/test-review-context"),
+			workflowName: "builder",
+			runId: "test-review-context",
+			agentContract: mergeResolverContract("test-harness"),
+			runAgentHarness,
+		});
+
+		await resolver(request);
+
+		expect(run.mock.calls[0]?.[0].prompt).toContain("## Previous Semantic Review");
+		expect(run.mock.calls[0]?.[0].prompt).toContain("accept canonical text instead");
+	});
+
 	it("fails closed before dispatch when a conflict path escapes the workspace", async () => {
 		const workspaceDir = makeWorkspace();
 		const run = registerHarness();

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ import {
   replacementArtifact,
   replacementDeclaration,
   writeReplacementProofFixture,
+  writeSyntheticReplacementProofFixture,
 } from "./production-replacement-proof.test-helpers.js";
 import { getRepoTaskStateTransitionBlocker } from "./repo-tasks-domain.js";
 
@@ -47,8 +48,10 @@ describe("production replacement completion", () => {
 
   function initializeAndTrackProof(projectDir: string): void {
     writeFileSync(join(projectDir, ".gitignore"), ".kota/\nnode_modules/\n");
+    symlinkSync(join(process.cwd(), "node_modules"), join(projectDir, "node_modules"), "dir");
+    writeFileSync(join(projectDir, "package.json"), JSON.stringify({ name: "proof-fixture" }));
     execFileSync("git", ["init", "-q"], { cwd: projectDir });
-    execFileSync("git", ["add", "src"], { cwd: projectDir });
+    execFileSync("git", ["add", "package.json", "src"], { cwd: projectDir });
     execFileSync("git", ["add", "-f", REPLACEMENT_EVIDENCE_PATH], { cwd: projectDir });
   }
 
@@ -174,6 +177,21 @@ describe("production replacement completion", () => {
     })).toEqual({
       ok: false,
       error: expect.stringContaining("declared production tests failed"),
+    });
+  });
+
+  it("rejects passing assertions that import but never exercise declared entrypoints", () => {
+    const projectDir = project();
+    writeSyntheticReplacementProofFixture(projectDir);
+    initializeAndTrackProof(projectDir);
+
+    expect(enforceProductionReplacementCompletion({
+      raw: replacementDeclaration(),
+      taskId: REPLACEMENT_TASK_ID,
+      projectDir,
+    })).toEqual({
+      ok: false,
+      error: expect.stringContaining("assertion-scoped runtime coverage"),
     });
   });
 

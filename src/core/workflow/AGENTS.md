@@ -15,10 +15,8 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
 - Cross-run retries replay ordinary completed steps. A successful top-level code
   step marked `rerunOnRetry` re-executes with every following step because its
   output or mutation is current-run-owned; workspace or runtime resource updates
-  still restart the workflow because their execution context is source-run-owned.
-  Explicit resume remains a separate operator-selected checkpoint operation.
-- Dirty recovery pauses dispatch and prepends recovery work without discarding
-  durable queued runs; a restart must preserve keyed redrives and pending work.
+  still restart because their context is source-run-owned; explicit resume is a separate operator checkpoint.
+- Dirty recovery pauses dispatch and prepends recovery work while preserving durable queued runs, keyed redrives, and pending work across restarts.
 - On reload, revalidate pending automatic work against the enabled definition,
   payload contract, and admission watermark; preserve explicit control/resume work.
 - A restart step is terminal. `allowPostRestartEmits` permits only pure emit

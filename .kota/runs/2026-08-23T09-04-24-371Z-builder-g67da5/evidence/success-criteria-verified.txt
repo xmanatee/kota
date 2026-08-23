@@ -1,0 +1,3 @@
+1. Verified production-replacement bindings now require V8 precise-coverage execution of every declared entrypoint during the isolated assertion lifecycle; collection-time transforms are no longer accepted as provenance.
+2. Verified the focused regression passes: assertions that import both declared entrypoints but never invoke them are rejected with an assertion-scoped runtime coverage error, while real live and restart assertions remain accepted.
+3. Verified the task is in done state with its final commands recorded; the focused 4-file/9-test run, typecheck, build, lint, and hygiene all passed.

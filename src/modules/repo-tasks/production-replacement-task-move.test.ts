@@ -125,7 +125,7 @@ describe("production replacement task transitions", () => {
     expect(existsSync(doingPath)).toBe(true);
     writeSyntheticReplacementProofFixture(projectDir);
     expect(() => moveTaskById(projectDir, REPLACEMENT_TASK_ID, "done")).toThrow(
-      /did not execute declared production entrypoint/,
+      /did not exercise declared production entrypoint.*assertion-scoped runtime coverage/,
     );
     expect(existsSync(doingPath)).toBe(true);
     writeReplacementProofFixture(projectDir);

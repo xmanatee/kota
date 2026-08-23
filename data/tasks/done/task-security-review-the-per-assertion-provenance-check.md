@@ -1,13 +1,13 @@
 ---
 id: task-security-review-the-per-assertion-provenance-check
 title: Security review: The per-assertion provenance check mistakes Vite transformation during test-file collection for execution by the selected assertion. A passing vacuous assertion can include unused top-level imports of every declared entrypoint; Vitest transforms those imports before applying the test-name filter, satisfying the transform-set check without exercising the claimed production ingress or retired boundary.
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: The per-assertion provenance check mistakes Vite transformation during test-file collection for execution by the selected assertion. A passing vacuous assertion can include unused top-level imports of every declared entrypoint; Vitest transforms those imports before applying the test-name filter, satisfying the transform-set check without exercising the claimed production ingress or retired boundary.
 created_at: 2026-08-23T07:37:13.533Z
-updated_at: 2026-08-23T07:37:13.533Z
+updated_at: 2026-08-23T09:20:20.568Z
 ---
 
 ## Problem
@@ -111,3 +111,8 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Final Verification
+
+- `pnpm test src/modules/repo-tasks/production-replacement-completion.test.ts src/modules/repo-tasks/production-replacement-task-move.test.ts src/modules/repo-tasks/production-replacement-vitest-paths.test.ts src/strict-types-policy.integration.test.ts` — 4 files and 9 tests passed.
+- `pnpm typecheck`, `pnpm build`, `pnpm lint`, and `pnpm hygiene` passed.

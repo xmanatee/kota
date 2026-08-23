@@ -49,8 +49,9 @@ served at `/api/tasks`.
   negative retired-path result to exact assertions plus the entrypoints each
   assertion exercises. The domain names the declared Vitest files directly
   inside the contained-workspace sandbox, reruns every bound assertion in
-  isolation, and requires Vitest's transform trace to observe its
-  declared production entrypoints. It rejects `done/` when a package script
+  isolation, and starts V8 precise coverage only after test-file
+  collection so the assertion lifecycle must execute its declared production
+  entrypoints. It rejects `done/` when a package script
   bypasses the declared files, an optimistic artifact names an assertion that
   did not pass, or a synthetic assertion never reaches production code. The
   artifact path is the screened, tracked projection under

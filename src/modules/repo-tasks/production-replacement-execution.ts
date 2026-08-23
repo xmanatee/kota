@@ -1,17 +1,19 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AvailableContainedWorkspaceSandbox,
   resolveContainedWorkspaceSandbox,
 } from "#core/agent-harness/task-probe-sandbox.js";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import {
+  type AssertionCoverageHarness,
+  readAssertionCoveragePaths,
+  writeAssertionCoverageHarness,
+} from "./production-replacement-assertion-coverage.js";
 import type { ProductionReplacementArtifact } from "./production-replacement-evidence.js";
 import type { ProductionReplacementDeclaration } from "./production-replacement-proof.js";
-import {
-  collectTransformedRepoPaths,
-  vitestRepoPath,
-} from "./production-replacement-vitest-paths.js";
+import { vitestRepoPath } from "./production-replacement-vitest-paths.js";
 
 type VitestJsonReport = {
   success: boolean;
@@ -29,9 +31,15 @@ type VitestExecution =
   | {
     ok: true;
     report: VitestJsonReport;
-    transformedPaths: Set<string>;
+    assertionCoveragePaths: Set<string> | null;
   }
   | { ok: false; error: string };
+
+type SandboxedVitestEnvelope = {
+  schemaVersion?: number;
+  report?: string;
+  assertionCoverage?: string | null;
+};
 
 function exactStringSet(actual: readonly string[], expected: readonly string[]): boolean {
   return actual.length === expected.length &&
@@ -39,15 +47,91 @@ function exactStringSet(actual: readonly string[], expected: readonly string[]):
     actual.every((value) => expected.includes(value));
 }
 
+function writeSandboxedVitestRunner(args: {
+  projectDir: string;
+  testArgs: readonly string[];
+  outputFile: string;
+  runnerFile: string;
+  sandbox: AvailableContainedWorkspaceSandbox;
+  coverageHarness?: AssertionCoverageHarness;
+}): void {
+  const vitestArgs = [
+    "exec",
+    "vitest",
+    "run",
+    ...args.testArgs,
+    ...(args.coverageHarness === undefined
+      ? []
+      : [`--config=${args.coverageHarness.configFile}`]),
+    "--configLoader=runner",
+    "--reporter=json",
+    `--outputFile=${args.outputFile}`,
+  ];
+  const assertionCoverageFile = args.coverageHarness?.observationFile ?? null;
+  writeFileSync(
+    args.runnerFile,
+    `import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const execution = spawnSync(
+  ${JSON.stringify(args.sandbox.probeExecutable)},
+  ${JSON.stringify(vitestArgs)},
+  {
+    cwd: ${JSON.stringify(args.projectDir)},
+    encoding: "utf-8",
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 30 * 60 * 1000,
+    maxBuffer: 20 * 1024 * 1024,
+  },
+);
+if (execution.error || execution.status !== 0) {
+  const detail = [
+    execution.error?.message ?? "",
+    execution.stderr,
+    execution.stdout,
+  ].filter((value) => value.length > 0).join("\\n").trim();
+  process.stderr.write(detail);
+  process.exit(execution.status ?? 1);
+}
+try {
+  process.stdout.write(JSON.stringify({
+    schemaVersion: 1,
+    report: readFileSync(${JSON.stringify(args.outputFile)}, "utf-8"),
+    assertionCoverage: ${assertionCoverageFile === null
+      ? "null"
+      : `readFileSync(${JSON.stringify(assertionCoverageFile)}, "utf-8")`},
+  }));
+} catch (error) {
+  process.stderr.write(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
+`,
+    { mode: 0o600 },
+  );
+}
+
 function executeVitest(args: {
   projectDir: string;
   testArgs: string[];
   runtimeHome: string;
   sandbox: AvailableContainedWorkspaceSandbox;
+  outputFile: string;
+  coverageHarness?: AssertionCoverageHarness;
 }): VitestExecution {
+  const runnerFile = `${args.outputFile}.runner.mjs`;
+  writeSandboxedVitestRunner({
+    projectDir: args.projectDir,
+    testArgs: args.testArgs,
+    outputFile: args.outputFile,
+    runnerFile,
+    sandbox: args.sandbox,
+    coverageHarness: args.coverageHarness,
+  });
   const launch = buildProductionReplacementVitestLaunch(
     args.sandbox,
     args.testArgs,
+    runnerFile,
   );
   const execution = spawnSync(
     launch.command,
@@ -75,11 +159,32 @@ function executeVitest(args: {
     };
   }
   try {
-    return {
-      ok: true,
-      report: JSON.parse(execution.stdout) as VitestJsonReport,
-      transformedPaths: collectTransformedRepoPaths(args.projectDir, execution.stderr),
-    };
+    const envelope = JSON.parse(execution.stdout) as SandboxedVitestEnvelope;
+    if (envelope.schemaVersion !== 1 || typeof envelope.report !== "string") {
+      throw new Error("sandbox did not return a valid Vitest result envelope");
+    }
+    const report = JSON.parse(envelope.report) as VitestJsonReport;
+    if (args.coverageHarness === undefined) {
+      return { ok: true, report, assertionCoveragePaths: null };
+    }
+    if (typeof envelope.assertionCoverage !== "string") {
+      return {
+        ok: false,
+        error: "assertion-scoped runtime coverage is unreadable: sandbox did not return an observation",
+      };
+    }
+    writeFileSync(
+      args.coverageHarness.observationFile,
+      envelope.assertionCoverage,
+      { encoding: "utf-8", mode: 0o600 },
+    );
+    const coverage = readAssertionCoveragePaths({
+      projectDir: args.projectDir,
+      observationFile: args.coverageHarness.observationFile,
+    });
+    return coverage.ok
+      ? { ok: true, report, assertionCoveragePaths: coverage.paths }
+      : coverage;
   } catch (error) {
     return {
       ok: false,
@@ -105,6 +210,7 @@ export function buildProductionReplacementTestEnvironment(
 export function buildProductionReplacementVitestLaunch(
   sandbox: AvailableContainedWorkspaceSandbox,
   testArgs: readonly string[],
+  sandboxRunnerFile?: string,
 ): { command: string; args: string[] } {
   return {
     command: sandbox.command,
@@ -112,11 +218,15 @@ export function buildProductionReplacementVitestLaunch(
       ...sandbox.prefixArgs,
       sandbox.probeExecutable,
       "exec",
-      "vitest",
-      "run",
-      ...testArgs,
-      "--configLoader=runner",
-      "--reporter=json",
+      ...(sandboxRunnerFile === undefined
+        ? [
+            "vitest",
+            "run",
+            ...testArgs,
+            "--configLoader=runner",
+            "--reporter=json",
+          ]
+        : ["node", sandboxRunnerFile]),
     ],
   };
 }
@@ -182,7 +292,7 @@ function escapeRegex(value: string): string {
 
 function validateBindingProvenance(args: {
   report: VitestJsonReport;
-  transformedPaths: Set<string>;
+  assertionCoveragePaths: Set<string>;
   projectDir: string;
   path: string;
   name: string;
@@ -214,11 +324,11 @@ function validateBindingProvenance(args: {
     return `isolated production assertion ${JSON.stringify(args.name)} did not pass exactly once in ${args.path}`;
   }
   const missingEntrypoint = args.entrypoints.find(
-    (entrypoint) => !args.transformedPaths.has(entrypoint),
+    (entrypoint) => !args.assertionCoveragePaths.has(entrypoint),
   );
   return missingEntrypoint === undefined
     ? null
-    : `assertion ${JSON.stringify(args.name)} in ${args.path} did not execute declared production entrypoint ${missingEntrypoint}; transformed: ${[...args.transformedPaths].join(", ")}`;
+    : `assertion ${JSON.stringify(args.name)} in ${args.path} did not exercise declared production entrypoint ${missingEntrypoint} during assertion-scoped runtime coverage; observed: ${[...args.assertionCoveragePaths].join(", ")}`;
 }
 
 export function runProductionReplacementTests(args: {
@@ -229,6 +339,7 @@ export function runProductionReplacementTests(args: {
   const runtimeDir = join(args.projectDir, ".kota");
   mkdirSync(runtimeDir, { recursive: true });
   const executionDir = mkdtempSync(join(runtimeDir, "production-replacement-proof-"));
+  const outputFile = join(executionDir, "vitest-report.json");
   try {
     const sandbox = resolveContainedWorkspaceSandbox(
       args.projectDir,
@@ -242,6 +353,7 @@ export function runProductionReplacementTests(args: {
       testArgs: args.declaration.productionTests,
       runtimeHome: executionDir,
       sandbox,
+      outputFile,
     });
     if (!fullExecution.ok) return fullExecution.error;
     const reportError = validateExecutionReport(
@@ -273,7 +385,13 @@ export function runProductionReplacementTests(args: {
       }
       boundAssertions.set(key, existing);
     }
+    let index = 0;
     for (const binding of boundAssertions.values()) {
+      const coverageHarness = writeAssertionCoverageHarness({
+        projectDir: args.projectDir,
+        executionDir,
+        index,
+      });
       const isolatedExecution = executeVitest({
         projectDir: args.projectDir,
         testArgs: [
@@ -283,11 +401,17 @@ export function runProductionReplacementTests(args: {
         ],
         runtimeHome: executionDir,
         sandbox,
+        outputFile: join(executionDir, `binding-${index}.json`),
+        coverageHarness,
       });
+      index += 1;
       if (!isolatedExecution.ok) return isolatedExecution.error;
+      if (isolatedExecution.assertionCoveragePaths === null) {
+        return "isolated production assertion did not produce assertion-scoped runtime coverage";
+      }
       const provenanceError = validateBindingProvenance({
         report: isolatedExecution.report,
-        transformedPaths: isolatedExecution.transformedPaths,
+        assertionCoveragePaths: isolatedExecution.assertionCoveragePaths,
         projectDir: args.projectDir,
         path: binding.path,
         name: binding.name,

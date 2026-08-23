@@ -116,11 +116,11 @@ daemon/runtime primitives and belong in `src/core/`.
   canonical composition roots, observes traffic at the new owner, and shows
   the retired boundary is unreachable. Each claimed effect is bound to an exact
   passing assertion from the declared production test execution. Each binding
-  is rerun alone and must produce runtime transform provenance for its declared
-  non-test production entrypoints; hand-authored pass flags and assertion names
-  that never load production code are not evidence. Focused component tests
-  remain useful but cannot substitute for adoption proof at the assembly
-  boundary.
+  is rerun alone and must produce assertion-scoped runtime coverage for its
+  declared non-test production entrypoints; hand-authored pass flags and
+  assertion names that never load production code are not evidence. Focused
+  component tests remain useful but cannot substitute for adoption proof at
+  the assembly boundary.
 - Autonomy uses the same `agent`, `workflow`, and `module` model as everything
   else. Do not add a second public automation engine beside workflows.
 - Prefer one daemon control protocol over platform-specific side channels.
