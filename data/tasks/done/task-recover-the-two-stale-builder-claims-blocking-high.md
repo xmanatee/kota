@@ -1,14 +1,14 @@
 ---
 id: task-recover-the-two-stale-builder-claims-blocking-high
 title: Recover the preserved daemon-control builder through native-harness conflict resolution
-status: ready
+status: done
 priority: p0
 area: autonomy
 task_class: Platform
 depends_on: [task-keep-daemon-control-api-responsive-during-workflow]
 summary: Complete the single builder recovery path so a Codex native-tool continuation can resolve bounded textual conflicts, verify the preserved implementation, and integrate the current daemon-control branch without discarding work.
 created_at: 2026-08-13T15:51:09.264Z
-updated_at: 2026-08-23T15:12:20.746Z
+updated_at: 2026-08-23T15:15:34.262Z
 ---
 
 ## Problem
@@ -114,9 +114,12 @@ the fixture's physical Git directory while allowing the exact conflict path.
 The trusted-host verification on 2026-08-23 executed that exact shipped-Codex
 fixture successfully; all 85 tests across the 15 changed behavioral suites
 passed without skips.
-It continues through canonical reconciliation, the normal final merge gate,
-claim release, worktree cleanup, and an empty recovery projection. This run
-still cannot use code that has not yet been committed and reloaded to reconcile
-the live daemon-control lineage. The task remains blocked until that
-runtime-owned transition completes, without claiming the live result
-prematurely.
+The preserved implementation was reconciled and integrated through merge commit
+`75b5fd7e9d432add361bb6604b5665d6e490127c`. The canonical recovery command then
+superseded the pending claim with that commit as evidence, and the worktree
+lifecycle removed the clean physical worktree, branch, lock, runtime-resource
+lease, and nonterminal metadata. After the repaired runtime was loaded,
+`workflow state-recovery list --json` reported no unresolved claim and no stale
+worktree for this lineage. The full suite passed with 12,980 tests successful
+and 14 skipped, followed by successful build, lint, hygiene, task validation,
+workflow validation, UI-binding validation, and diff checks.
