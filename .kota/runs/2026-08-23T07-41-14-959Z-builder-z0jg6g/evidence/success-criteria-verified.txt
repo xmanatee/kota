@@ -3,3 +3,5 @@
 3. Verified data/tasks/done/task-security-review-moving-a-production-replacement-ta.md has status done and its Acceptance Evidence records the focused Vitest, typecheck, and lint commands.
 
 Broad-suite note: `pnpm test` reached 12,698 passing tests but could not complete in the managed tool sandbox; 223 unrelated tests were blocked by the non-searchable temporary-root ancestor, denied loopback listeners, or the policy-protected Telegram `.env.example`.
+
+Post-check repair: the builder guidance was reduced to 99 lines without dropping its recovery or containment rules; `pnpm test src/docs-surface.test.ts src/modules/autonomy/workflows/builder/repair-checks.test.ts` passed 14 tests, `pnpm validate-tasks` passed, and direct terminal-task detection resolved the claimed task from its changed `done/` record.

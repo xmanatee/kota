@@ -8,18 +8,14 @@
   Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
   a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
 - Bounded recovery may resolve text conflicts and accept canonical destructive
-  paths only by keeping those paths absent. Other structural and binary
-  conflicts remain preserved for review.
+  paths only by keeping them absent; preserve other structural and binary conflicts for review.
 - A structured semantic `needs-review` judgment may guide one remaining bounded resolver attempt; preserve invalid or exhausted reviews for review.
-- Recovery scanning decides whether to emit an automatic continuation. Once a
-  recovery event is queued, its exact task/worktree target governs consumption;
-  a redrive may follow persisted `retryOf` lineage to the current claim owner,
-  but unrelated ownership changes fail closed. Do not reapply the producer's
-  automatic-attempt gate in the builder.
+- Recovery scanning decides whether to emit an automatic continuation. Once queued, its exact task/worktree target governs consumption;
+  a redrive may follow persisted `retryOf` lineage to the current claim owner. Unrelated ownership changes fail closed.
+  Do not reapply the producer's automatic-attempt gate in the builder.
 - Prefer validation rails over hardcoded pre-agent task moves or scope policing.
-- A clean timeout or exhausted repair reserves the task claim for decomposer
-  disposition. Builder must not reclaim that task while decomposition is
-  pending; ordinary failures still release clean claims normally.
+- A clean timeout or exhausted repair reserves the task claim for decomposer disposition.
+  Builder must not reclaim it while decomposition is pending; ordinary failures still release clean claims normally.
 - Long-running harness readiness runs before task claim acquisition; unverifiable unattended renewal leaves the task and worktree untouched.
 - Source-changing commits request daemon restart before emitting the build-committed handoff. The paused runtime persists that handoff so consumers evaluate it only after loading the committed definitions; task-only commits keep the immediate path.
 ## Success Criteria
@@ -78,11 +74,9 @@ an optional runtime probe the critic runs before judging.
   critic only runs a probe whose parsed command and timeout match the task
   file's declaration in `git HEAD`; otherwise it records a rejected
   `runtime-probe.json` and fails before execution.
-- Probes run only after a live, fail-closed check; Git-HEAD authenticates the
-  predicate, not execution. Linux requires Bubblewrap mount/network/IPC/PID
-  namespaces and teardown plus a non-piped `core_pattern` and hard-zero core
-  limit; pipe-handler and non-Linux hosts record `not-executed`. A tmpfs overlay
-  holds writes; outside-name inodes freeze and pathname IPC/device inodes reject.
+- Probes run only after a live, fail-closed check; Git-HEAD authenticates the predicate, not execution.
+  Linux requires Bubblewrap mount/network/IPC/PID namespaces, teardown, a non-piped `core_pattern`, and a hard-zero core limit;
+  pipe-handler and non-Linux hosts record `not-executed`. A tmpfs overlay holds writes; outside-name inodes freeze and pathname IPC/device inodes reject.
 - The probe's `runtime-probe.json` is projected from the builder evidence source
   into typed run evidence, committed, and threaded into the critic's prompt as critical
   unless the probe itself is miscalibrated.
