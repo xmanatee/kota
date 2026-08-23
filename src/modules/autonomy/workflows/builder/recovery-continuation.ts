@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type ClaimTaskAttempt,
   compareQueueTaskCandidates,
@@ -163,12 +164,59 @@ function requestedBuilderRecovery(
   ) {
     return [];
   }
+  const retryOf = ctx.trigger.payload.retryOf;
   return listRecoveryClaims(ctx.projectDir).filter((candidate) =>
     candidate.claim.taskId === taskId &&
-    candidate.claim.runId === sourceRunId &&
     candidate.claim.worktreeRunId === worktreeRunId &&
-    preservedBuilderWorkspaceDir(candidate) === workspaceDir
+    preservedBuilderWorkspaceDir(candidate) === workspaceDir &&
+    (
+      candidate.claim.runId === sourceRunId ||
+      retryLineageContainsClaimOwner(
+        ctx.projectDir,
+        typeof retryOf === "string" ? retryOf : null,
+        candidate.claim.runId,
+      )
+    )
   );
+}
+
+function retryLineageContainsClaimOwner(
+  projectDir: string,
+  retryOf: string | null,
+  claimRunId: string,
+): boolean {
+  let currentRunId = retryOf;
+  const visited = new Set<string>();
+  while (currentRunId !== null) {
+    validateWorkflowRunId(currentRunId, "Builder recovery retry lineage");
+    if (currentRunId === claimRunId) return true;
+    if (visited.has(currentRunId)) {
+      throw new Error(
+        `Builder recovery retry lineage contains a cycle at ${currentRunId}`,
+      );
+    }
+    visited.add(currentRunId);
+    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      join(projectDir, ".kota", "runs", currentRunId, "metadata.json"),
+    );
+    if (metadata === null) {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} is unavailable`,
+      );
+    }
+    if (metadata.id !== currentRunId || metadata.workflow !== "builder") {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} is not valid builder metadata`,
+      );
+    }
+    if (metadata.retryOf !== undefined && typeof metadata.retryOf !== "string") {
+      throw new Error(
+        `Builder recovery retry lineage run ${currentRunId} has an invalid retryOf`,
+      );
+    }
+    currentRunId = metadata.retryOf ?? null;
+  }
+  return false;
 }
 
 function continuedClaimResult(

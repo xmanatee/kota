@@ -205,6 +205,79 @@ describe("builder preserved-work continuation", () => {
     expect(result.steps.build.status).toBe("skipped");
   });
 
+  it("continues a claim owner proven by the recovery retry lineage", async () => {
+    const projectDir = makeWorkflowProject(makeEmptySnapshot());
+    const taskId = "task-claimed";
+    const claimRunId = "run-current-claim-owner";
+    const failedRedriveRunId = "run-failed-redrive";
+    const worktreeRunId = "run-preserved-worktree";
+    const workspaceDir = `${projectDir}/.worktrees/${taskId}-${worktreeRunId}`;
+    const failedRedriveDir = join(
+      projectDir,
+      ".kota",
+      "runs",
+      failedRedriveRunId,
+    );
+    mkdirSync(failedRedriveDir, { recursive: true });
+    writeFileSync(
+      join(failedRedriveDir, "metadata.json"),
+      JSON.stringify({
+        id: failedRedriveRunId,
+        workflow: "builder",
+        retryOf: claimRunId,
+      }),
+    );
+    const recovery = await import(
+      "#modules/autonomy/workflow-state-recovery-claims.js"
+    );
+    vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
+      preservedRecoveryCandidate({
+        projectDir,
+        taskId,
+        claimRunId,
+        worktreeRunId,
+        workspaceDir,
+      }),
+    ]);
+
+    const result = claimPendingBuilderRecovery({
+      projectDir,
+      trigger: {
+        event: "autonomy.builder.recovery.requested",
+        schemaRef: null,
+        payload: {
+          taskId,
+          sourceRunId: "run-original-request",
+          worktreeRunId,
+          workspaceDir,
+          retryOf: failedRedriveRunId,
+        },
+      },
+      workflow: {
+        name: "builder",
+        definitionPath: "test",
+        runId: "run-current-redrive",
+        runDir: ".kota/runs/run-current-redrive",
+        runDirPath: `${projectDir}/.kota/runs/run-current-redrive`,
+      },
+    });
+
+    expect(result).toMatchObject({
+      claimed: true,
+      taskId,
+      claim: { runId: "run-current-redrive" },
+      recoveryPath: "continued-preserved-claim",
+    });
+    const claims = await import("#modules/autonomy/task-claims.js");
+    expect(claims.continueTaskClaim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId,
+        sourceRunId: claimRunId,
+        runId: "run-current-redrive",
+      }),
+    );
+  });
+
   it("keeps preserved claims out of ordinary queue dispatch", async () => {
     const projectDir = makeWorkflowProject(makeSnapshot(1, 0));
     const recovery = await import(
