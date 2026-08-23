@@ -1,14 +1,14 @@
 ---
 id: task-render-shared-ui-surfaces-in-android-mobile
 title: Render shared UI surfaces in Android mobile
-status: backlog
+status: ready
 priority: p1
 area: client
 task_class: Product
 depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Make the React Native Android client render daemon-owned ui.surface.v1 semantics while native iOS remains owned by the Apple client.
 created_at: 2026-07-31T16:00:57.533Z
-updated_at: 2026-07-31T16:00:57.533Z
+updated_at: 2026-08-23T04:27:16.585Z
 ---
 
 ## Problem
