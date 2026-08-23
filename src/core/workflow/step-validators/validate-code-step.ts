@@ -24,6 +24,7 @@ export function validateCodeStep(
   options: {
     allowWorkspaceDirUpdate?: boolean;
     allowRuntimeResourcesUpdate?: boolean;
+    allowRerunOnRetry?: boolean;
   } = {},
   validationOptions: WorkflowValidationOptions = {},
   workflowName = "<unresolved>",
@@ -66,6 +67,17 @@ export function validateCodeStep(
       definitionPath,
     );
   }
+  const rerunOnRetry = expectOptionalBoolean(
+    step.rerunOnRetry,
+    `${stepLabel}.rerunOnRetry`,
+    definitionPath,
+  );
+  if (rerunOnRetry === true && options.allowRerunOnRetry === false) {
+    throw new WorkflowDefinitionError(
+      `${stepLabel}.rerunOnRetry is only supported on top-level code steps`,
+      definitionPath,
+    );
+  }
 
   const resolveAgentContract = expectOptionalFunction(
     step.resolveAgentContract,
@@ -81,6 +93,7 @@ export function validateCodeStep(
     ...(updatesRuntimeResources !== undefined
       ? { updatesRuntimeResources }
       : {}),
+    ...(rerunOnRetry !== undefined ? { rerunOnRetry } : {}),
     ...validateProgressStepTimeouts(step, stepLabel, definitionPath),
     when: expectOptionalFunction(
       step.when,

@@ -83,6 +83,7 @@ export function validateForeachStep(
         {
           allowWorkspaceDirUpdate: false,
           allowRuntimeResourcesUpdate: false,
+          allowRerunOnRetry: false,
         },
         options,
         workflowName,

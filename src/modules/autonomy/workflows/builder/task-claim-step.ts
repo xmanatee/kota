@@ -59,6 +59,7 @@ export function createClaimTaskStep(
   return typedCodeStep<QueueTaskClaimResult>({
     id: "claim-task",
     type: "code",
+    rerunOnRetry: true,
     when: (ctx) => {
       if (ctx.trigger.event === "runtime.recovered") return false;
       if (ctx.trigger.event === BUILDER_RECOVERY_EVENT) return true;

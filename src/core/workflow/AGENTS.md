@@ -14,9 +14,11 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
   in payload metadata and must not replace the semantic event.
 - Keep validation, retries, timeouts, dispatch windows, truncation, and
   notification suppression in typed code and tests, not field catalogs in docs.
-- Cross-run retries may replay ordinary completed steps, but workspace or runtime
-  resource updates restart the workflow and stay with the source run. Explicit
-  resume remains a separate operator-selected checkpoint operation.
+- Cross-run retries replay ordinary completed steps. A successful top-level code
+  step marked `rerunOnRetry` re-executes with every following step because its
+  output or mutation is current-run-owned; workspace or runtime resource updates
+  still restart the workflow because their execution context is source-run-owned.
+  Explicit resume remains a separate operator-selected checkpoint operation.
 - Dirty recovery pauses dispatch and prepends recovery work without discarding
   durable queued runs; a restart must preserve keyed redrives and pending work.
 - On reload, revalidate pending automatic work against the enabled definition,

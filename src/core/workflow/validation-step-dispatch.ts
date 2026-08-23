@@ -39,8 +39,11 @@ export function validateStep(
   moduleRoot: string,
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
-  allowWorkspaceDirUpdate = true,
-  allowRuntimeResourcesUpdate = true,
+  codeStepPlacement: {
+    allowWorkspaceDirUpdate?: boolean;
+    allowRuntimeResourcesUpdate?: boolean;
+    allowRerunOnRetry?: boolean;
+  } = {},
   stepLabel = `steps[${index}]`,
   workflowName = "<unresolved>",
 ): WorkflowStep {
@@ -69,8 +72,7 @@ export function validateStep(
   }
   if (step.type === "code") {
     return validateCodeStep(step, definitionPath, index, stepLabel, {
-      allowWorkspaceDirUpdate,
-      allowRuntimeResourcesUpdate,
+      ...codeStepPlacement,
     }, options, workflowName);
   }
   if (step.type === "parallel") {
@@ -103,8 +105,11 @@ export function validateStep(
           root,
           armDefault,
           options,
-          false,
-          true,
+          {
+            allowWorkspaceDirUpdate: false,
+            allowRuntimeResourcesUpdate: true,
+            allowRerunOnRetry: false,
+          },
           armStepLabel,
           workflowName,
         ),
