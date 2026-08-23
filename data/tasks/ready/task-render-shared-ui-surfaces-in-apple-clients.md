@@ -1,14 +1,14 @@
 ---
 id: task-render-shared-ui-surfaces-in-apple-clients
 title: Render shared UI surfaces in Apple clients
-status: backlog
+status: ready
 priority: p1
 area: client
 task_class: Product
 depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Make the shared macOS and iOS SwiftUI client render daemon-owned ui.surface.v1 semantics through native components.
 created_at: 2026-07-31T16:00:56.522Z
-updated_at: 2026-07-31T16:00:56.522Z
+updated_at: 2026-08-23T04:27:16.407Z
 ---
 
 ## Problem
