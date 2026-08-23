@@ -10,6 +10,8 @@
 - Bounded recovery may resolve text conflicts and accept canonical destructive
   paths only by keeping those paths absent. Other structural and binary
   conflicts remain preserved for review.
+- A structured semantic `needs-review` judgment may guide one remaining bounded
+  resolver attempt; invalid or exhausted reviews remain preserved for review.
 - Recovery scanning decides whether to emit an automatic continuation. Once a
   recovery event is queued, its exact task/worktree target governs consumption;
   a redrive may follow persisted `retryOf` lineage to the current claim owner,

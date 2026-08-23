@@ -8,6 +8,7 @@ import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
 import { readDirtyState } from "./worktree-lifecycle-support.js";
 import type { AutomationWorktreeSelector } from "./worktree-lifecycle-types.js";
 import {
+	boundedSemanticReviewRetry,
 	captureMergeIndexSnapshot,
 	commitResolvedMerge,
 	stageConflictPaths,
@@ -35,6 +36,7 @@ import {
 import type {
 	MergeAutomationWorktreeInput,
 	MergeGateConflict,
+	MergeGateResolutionReview,
 	MergeGateResult,
 	MergeGateValidation,
 } from "./worktree-merge-gate-types.js";
@@ -77,6 +79,7 @@ async function resolveBoundedConflicts(
 	}
 	let validation: MergeGateValidation | null = null;
 	let conflicts = input.conflicts;
+	let previousReview: MergeGateResolutionReview | undefined;
 	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 		const beforeResolver = captureMergeIndexSnapshot(input.workspaceDir);
 		const resolution = await input.resolver({
@@ -95,8 +98,33 @@ async function resolveBoundedConflicts(
 			attempt,
 			conflicts,
 			previousValidation: validation,
+			...(previousReview !== undefined ? { previousReview } : {}),
 		});
 		if (!resolution.resolved) {
+			const reviewRetry = boundedSemanticReviewRetry({
+				workspaceDir: input.workspaceDir,
+				beforeResolver,
+				allowedConflictPaths: conflicts.map((conflict) => conflict.path),
+				resolution,
+				attempt,
+				maxAttempts,
+			});
+			if (reviewRetry.kind === "blocked") {
+				return pendingBlocked(selector, {
+					branch: input.branch,
+					baseCommit: input.baseCommit,
+					canonicalHeadCommit: input.canonicalHeadCommit,
+					headCommit: currentHead(input.workspaceDir),
+					reason: reviewRetry.violation.reason,
+					conflicts: reviewRetry.violation.conflicts,
+					resolutionAttempts: attempt,
+					validation: null,
+				});
+			}
+			if (reviewRetry.kind === "retry") {
+				previousReview = reviewRetry.review;
+				continue;
+			}
 			return pending(selector, {
 				branch: input.branch,
 				baseCommit: input.baseCommit,

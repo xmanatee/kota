@@ -7,6 +7,7 @@ import type {
 	AutomationWorktreeSelector,
 } from "./worktree-lifecycle-types.js";
 import {
+	boundedSemanticReviewRetry,
 	captureMergeIndexSnapshot,
 	commitResolvedMerge,
 	stageConflictPaths,
@@ -20,7 +21,10 @@ import {
 	runGit,
 	runValidation,
 } from "./worktree-merge-gate-support.js";
-import type { MergeGateResolver } from "./worktree-merge-gate-types.js";
+import type {
+	MergeGateResolutionReview,
+	MergeGateResolver,
+} from "./worktree-merge-gate-types.js";
 
 export type CheckpointAndReconcileAutomationWorktreeInput =
 	AutomationWorktreeSelector & {
@@ -198,6 +202,7 @@ export async function resolveReconciliationConflicts(
 	let conflicts = initialConflicts;
 	let validations: AutomationWorktreeCanonicalValidation[] = [];
 	let previousValidation: AutomationWorktreeCanonicalValidation | null = null;
+	let previousReview: MergeGateResolutionReview | undefined;
 	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 		const beforeResolver = captureMergeIndexSnapshot(workspaceDir);
 		const resolution = await input.resolver({
@@ -216,8 +221,32 @@ export async function resolveReconciliationConflicts(
 			attempt,
 			conflicts,
 			previousValidation,
+			...(previousReview !== undefined ? { previousReview } : {}),
 		});
 		if (!resolution.resolved) {
+			const reviewRetry = boundedSemanticReviewRetry({
+				workspaceDir,
+				beforeResolver,
+				allowedConflictPaths: conflicts.map((conflict) => conflict.path),
+				resolution,
+				attempt,
+				maxAttempts,
+			});
+			if (reviewRetry.kind === "blocked") {
+				return {
+					ready: false,
+					record: blockReconciliation(
+						input,
+						record,
+						reviewRetry.violation.reason,
+						reviewRetry.violation.conflicts,
+					),
+				};
+			}
+			if (reviewRetry.kind === "retry") {
+				previousReview = reviewRetry.review;
+				continue;
+			}
 			return {
 				ready: false,
 				record: blockReconciliation(

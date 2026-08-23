@@ -16,6 +16,16 @@ export type MergeGateValidation = {
 	passed: boolean;
 };
 
+export type MergeGateResolutionReview = {
+	summary: string;
+	taskScopeJustification: string;
+	pathJudgments: Array<{
+		path: string;
+		decision: "preserve-branch" | "accept-canonical" | "combine";
+		rationale: string;
+	}>;
+};
+
 export type MergeGateMetrics = {
 	waitMs: number;
 	mergeDurationMs: number;
@@ -36,11 +46,13 @@ export type MergeGateResolverRequest = {
 	attempt: number;
 	conflicts: MergeGateConflict[];
 	previousValidation: MergeGateValidation | null;
+	previousReview?: MergeGateResolutionReview;
 };
 
 export type MergeGateResolverResult = {
 	resolved: boolean;
 	summary: string;
+	reviewFeedback?: MergeGateResolutionReview;
 };
 
 export type MergeGateResolver = (request: MergeGateResolverRequest) => Promise<MergeGateResolverResult> | MergeGateResolverResult;

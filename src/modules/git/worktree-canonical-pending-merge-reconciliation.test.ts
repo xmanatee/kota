@@ -13,6 +13,7 @@ import {
 	inspectAutomationWorktree,
 	markAutomationWorktreePendingMerge,
 } from "./worktree-lifecycle.js";
+import { semanticReviewFeedback } from "./worktree-merge-gate-test-support.js";
 
 describe("pending-merge canonical reconciliation", () => {
 	it("resolves an existing runtime-owned text conflict before reconciling the latest canonical head", async () => {
@@ -70,6 +71,50 @@ describe("pending-merge canonical reconciliation", () => {
 		expect(
 			git(created.workspaceDir, ["merge-base", "--is-ancestor", latestCanonicalHead, "HEAD"]),
 		).toBe("");
+	});
+
+	it("uses semantic review feedback for the remaining preserved-recovery attempt", async () => {
+		const created = reconciliationFixture("pending-semantic-review", {
+			"settings.txt": "value=base\n",
+		});
+		write(created.workspaceDir, "settings.txt", "value=branch\n");
+		commit(created.workspaceDir, "branch setting");
+		write(created.projectDir, "settings.txt", "value=canonical\n");
+		const canonicalHead = commit(created.projectDir, "canonical setting");
+		expect(() =>
+			git(created.workspaceDir, ["merge", "--no-ff", "--no-commit", canonicalHead]),
+		).toThrow();
+		markAutomationWorktreePendingMerge(created, "semantic review fixture");
+		let attempts = 0;
+		const { input } = reconciliationInput(created, {
+			resolver: (request) => {
+				attempts += 1;
+				if (attempts === 1) {
+					write(request.workspaceDir, "settings.txt", "value=unscoped\n");
+					return {
+						resolved: false,
+						summary: "unrelated branch rewrite",
+						reviewFeedback: semanticReviewFeedback("settings.txt"),
+					};
+				}
+				expect(request.previousReview?.summary).toBe("accept canonical text");
+				write(request.workspaceDir, "settings.txt", "value=canonical\n");
+				return { resolved: true, summary: "accepted canonical text" };
+			},
+			maxResolutionAttempts: 2,
+		});
+
+		const result = await checkpointAndReconcileAutomationWorktree(input);
+
+		expect(result).toMatchObject({
+			phase: "ready-to-resume",
+			disposition: "ready-to-resume",
+			integratedCanonicalHeadCommit: canonicalHead,
+		});
+		expect(attempts).toBe(2);
+		expect(readFileSync(join(created.workspaceDir, "settings.txt"), "utf8")).toBe(
+			"value=canonical\n",
+		);
 	});
 
 	it("holds a pending merge when the resolver changes an unrelated path", async () => {

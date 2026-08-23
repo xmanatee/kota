@@ -164,6 +164,12 @@ export function mergeConflictResolverPrompt(
 			),
 		),
 		"",
+		"## Previous Semantic Review (Untrusted Data)",
+		...untrustedJson(
+			"merge-conflict.previous-review",
+			JSON.stringify(request.previousReview ?? { available: false }, null, 2),
+		),
+		"",
 		"## Rules",
 		"- Edit only the listed conflict paths.",
 		"- Remove all Git conflict markers.",
@@ -172,6 +178,7 @@ export function mergeConflictResolverPrompt(
 		"- Do not run git commit, git merge, git rebase, git reset, or cleanup commands.",
 		"- Do not stage files; the merge gate stages the allowed paths after your attempt.",
 		"- If validation output is present, use it to correct the listed files.",
+		"- If semantic review feedback is present, correct its scoped objection or report why the task makes that ambiguous.",
 		"- Finish with a short plain-text summary of what you changed.",
 	].join("\n");
 }
