@@ -147,6 +147,7 @@ describe("preserved worktree canonical reconciliation", () => {
 		write(created.workspaceDir, "src/preserved.ts", "export const preserved = 2;\n");
 		write(created.projectDir, "src/canonical.ts", "export const canonical = true;\n");
 		const canonicalHead = commit(created.projectDir, "canonical change");
+		const branchHead = git(created.workspaceDir, ["rev-parse", "HEAD"]);
 		const { input, phases } = reconciliationInput(created, {
 			validationCommands: [[process.execPath, "-e", "process.exit(23)"]],
 		});
@@ -157,15 +158,20 @@ describe("preserved worktree canonical reconciliation", () => {
 			phase: "conflict-blocked",
 			disposition: "needs-review",
 			canonicalHeadCommit: canonicalHead,
-			integratedCanonicalHeadCommit: canonicalHead,
+			integratedCanonicalHeadCommit: null,
 			branchBehindAtResume: null,
 			validations: [{ exitCode: 23, passed: false }],
 			reason: expect.stringContaining("canonical reconciliation validation failed"),
 		});
 		expect(phases.at(-1)).toBe("conflict-blocked");
-		expect(
+		expect(git(created.workspaceDir, ["rev-parse", "HEAD"])).toBe(
+			result.checkpointCommit,
+		);
+		expect(git(created.workspaceDir, ["rev-parse", "HEAD"])).not.toBe(branchHead);
+		expect(() =>
 			git(created.workspaceDir, ["merge-base", "--is-ancestor", canonicalHead, "HEAD"]),
-		).toBe("");
+		).toThrow();
+		expect(git(created.workspaceDir, ["rev-parse", "MERGE_HEAD"])).toBe(canonicalHead);
 		expect(inspectAutomationWorktree(created).metadata).toMatchObject({
 			state: "pending-merge",
 			canonicalReconciliation: {

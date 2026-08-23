@@ -95,11 +95,14 @@ export function validateAndFastForwardCanonical(
 		baseCommit: string;
 		canonicalHeadCommit: string;
 		validationCommand: readonly string[] | undefined;
+		validation?: MergeGateResult["validation"];
 		resolutionAttempts: number;
 	},
 ): MergeGateResult {
 	const workspaceDir = readMetadata(selector).workspaceDir;
-	const validation = runValidation(workspaceDir, input.validationCommand);
+	const validation = input.validation === undefined
+		? runValidation(workspaceDir, input.validationCommand)
+		: input.validation;
 	const headCommit = currentHead(workspaceDir);
 	if (validation && !validation.passed) {
 		return pending(selector, {

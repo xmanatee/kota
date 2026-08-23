@@ -1,13 +1,14 @@
 ---
 id: task-recover-the-two-stale-builder-claims-blocking-high
 title: Recover the preserved daemon-control builder through native-harness conflict resolution
-status: ready
+status: blocked
 priority: p0
 area: autonomy
 task_class: Platform
+depends_on: [task-keep-daemon-control-api-responsive-during-workflow]
 summary: Complete the single builder recovery path so a Codex native-tool continuation can resolve bounded textual conflicts, verify the preserved implementation, and integrate the current daemon-control branch without discarding work.
 created_at: 2026-08-13T15:51:09.264Z
-updated_at: 2026-08-16T08:41:27.748Z
+updated_at: 2026-08-23T03:16:13.000Z
 ---
 
 ## Problem
@@ -93,3 +94,29 @@ Canonical autonomy recovery and responsive daemon control.
   verification commands, merge commit, claim transition, and worktree cleanup.
 - A negative native-harness fixture proves that an unrelated edit or ambiguous
   conflict is preserved as `needs-review` and never staged.
+
+## Unblock Precondition
+
+```
+kind: task-done
+ref: task-keep-daemon-control-api-responsive-during-workflow
+```
+
+## Status (2026-08-16 builder)
+
+The native-tool recovery mechanism now has a production-shaped lifecycle
+fixture that starts from the continued pending-merge claim shape, survives the
+prior finalizer's generic retry bound, resolves and reviews the conflict,
+validates while the index is still unmerged, and only then permits runtime
+staging and commit. A separate shipped-Codex fixture has no inherited-sandbox
+fallback: it passes only when `codex sandbox -P kota-native` denies writes to
+the fixture's physical Git directory while allowing the exact conflict path.
+The trusted-host verification on 2026-08-23 executed that exact shipped-Codex
+fixture successfully; all 85 tests across the 15 changed behavioral suites
+passed without skips.
+It continues through canonical reconciliation, the normal final merge gate,
+claim release, worktree cleanup, and an empty recovery projection. This run
+still cannot use code that has not yet been committed and reloaded to reconcile
+the live daemon-control lineage. The task remains blocked until that
+runtime-owned transition completes, without claiming the live result
+prematurely.

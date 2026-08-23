@@ -11,7 +11,10 @@ import {
 	validateResolvedMergeBoundary,
 } from "./worktree-merge-gate-finalize.js";
 import {
+	canonicalConflictDiff,
 	classifyConflicts,
+	conflictMarkerConflicts,
+	currentHead,
 	runGit,
 	runValidation,
 } from "./worktree-merge-gate-support.js";
@@ -160,6 +163,7 @@ export async function resolveReconciliationConflicts(
 	record: AutomationWorktreeCanonicalReconciliation,
 	workspaceDir: string,
 	branch: string,
+	canonicalHeadCommit: string,
 	initialConflicts: AutomationWorktreeCanonicalConflict[],
 ): Promise<
 	| { ready: true; record: AutomationWorktreeCanonicalReconciliation }
@@ -178,33 +182,41 @@ export async function resolveReconciliationConflicts(
 		};
 	}
 	let conflicts = initialConflicts;
+	let validations: AutomationWorktreeCanonicalValidation[] = [];
+	let previousValidation: AutomationWorktreeCanonicalValidation | null = null;
 	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 		const beforeResolver = captureMergeIndexSnapshot(workspaceDir);
 		const resolution = await input.resolver({
+			taskId: input.taskId,
 			workspaceDir,
+			branch,
+			baseCommit: record.originalBaseCommit,
+			canonicalHeadCommit,
+			headCommit: currentHead(workspaceDir),
+			canonicalDiff: canonicalConflictDiff(
+				workspaceDir,
+				record.originalBaseCommit,
+				canonicalHeadCommit,
+				conflicts,
+			),
 			attempt,
 			conflicts,
-			previousValidation: null,
+			previousValidation,
 		});
 		if (!resolution.resolved) {
 			return {
 				ready: false,
 				record: blockReconciliation(
 					input,
-					record,
+					{ ...record, validations },
 					resolution.summary || "merge resolver did not resolve conflicts",
 					conflicts,
 				),
 			};
 		}
-		const unresolvedMarkers = stageConflictPaths(workspaceDir, conflicts);
+		const unresolvedMarkers = conflictMarkerConflicts(workspaceDir, conflicts);
 		if (unresolvedMarkers.length > 0) {
 			conflicts = unresolvedMarkers;
-			continue;
-		}
-		const remaining = classifyConflicts(workspaceDir);
-		if (remaining.length > 0) {
-			conflicts = remaining;
 			continue;
 		}
 		const boundaryViolation = validateResolvedMergeBoundary(workspaceDir, {
@@ -241,6 +253,30 @@ export async function resolveReconciliationConflicts(
 				),
 			};
 		}
+		validations = runReconciliationValidations(workspaceDir, input.validationCommands);
+		const failedValidation = validations.find((validation) => !validation.passed);
+		if (failedValidation) {
+			previousValidation = failedValidation;
+			if (attempt < maxAttempts) continue;
+			const exitCode = failedValidation.exitCode === null
+				? "unknown exit"
+				: `exit ${failedValidation.exitCode}`;
+			return {
+				ready: false,
+				record: blockReconciliation(
+					input,
+					{ ...record, validations },
+					`canonical reconciliation validation failed: ${failedValidation.command.join(" ")} (${exitCode})`,
+					[],
+				),
+			};
+		}
+		stageConflictPaths(workspaceDir, conflicts);
+		const remaining = classifyConflicts(workspaceDir);
+		if (remaining.length > 0) {
+			conflicts = remaining;
+			continue;
+		}
 		const committed = commitResolvedMerge(workspaceDir, branch);
 		if (!committed.ok) {
 			return {
@@ -248,7 +284,7 @@ export async function resolveReconciliationConflicts(
 				record: blockReconciliation(input, record, committed.reason, []),
 			};
 		}
-		return { ready: true, record };
+		return { ready: true, record: { ...record, validations } };
 	}
 	return {
 		ready: false,

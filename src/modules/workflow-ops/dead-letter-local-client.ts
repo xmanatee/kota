@@ -1,9 +1,4 @@
-import { join } from "node:path";
 import { deadLetterStoreForProject } from "#core/daemon/dead-letter-queue.js";
-import {
-  EventedDeadLetterQueueStore,
-  moduleDeadLetterChangedPublisher,
-} from "#core/daemon/dead-letter-queue-events.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { buildDeadLetterWorkflowTrigger } from "#core/workflow/dead-letter-redrive.js";
 import { formatRunId } from "#core/workflow/run-io.js";
@@ -20,14 +15,6 @@ type LocalDeadLetterClient = Pick<
   | "redriveDeadLetter"
   | "exportDeadLetterDiagnostics"
 >;
-
-function eventedStore(ctx: ModuleContext): EventedDeadLetterQueueStore {
-  return new EventedDeadLetterQueueStore(
-    join(ctx.cwd, ".kota", "dead-letter-queue"),
-    undefined,
-    moduleDeadLetterChangedPublisher(ctx.cwd, ctx.events),
-  );
-}
 
 export function buildLocalDeadLetterClient(
   ctx: ModuleContext,
@@ -50,11 +37,11 @@ export function buildLocalDeadLetterClient(
       return item ? { found: true, item } : { found: false };
     },
     async dismissDeadLetter(id, reason) {
-      const item = eventedStore(ctx).dismiss(id, reason);
+      const item = deadLetterStoreForProject(ctx.cwd).dismiss(id, reason);
       return item ? { ok: true, item } : { ok: false, reason: "not_found" };
     },
     async redriveDeadLetter(id, options) {
-      const dlq = eventedStore(ctx);
+      const dlq = deadLetterStoreForProject(ctx.cwd);
       const item = dlq.get(id);
       if (!item) return { ok: false, reason: "not_found" };
       if (item.status !== "open") {

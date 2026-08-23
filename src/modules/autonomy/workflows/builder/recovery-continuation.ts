@@ -31,6 +31,10 @@ export type BuilderRecoveryDispatchResult = {
 function preservedBuilderWorkspaceDir(
   candidate: WorkflowStateRecoveryClaim,
 ): string | null {
+  const recoverableOwnerRun =
+    candidate.claim.status === "pending-merge" ||
+    candidate.ownerRunStatus === "failed" ||
+    candidate.ownerRunStatus === "interrupted";
   if (
     candidate.claim.workflowId === "builder" &&
     candidate.recommendedAction.kind === "needs-review" &&
@@ -38,8 +42,7 @@ function preservedBuilderWorkspaceDir(
     (candidate.worktree.dirtyState === "dirty" ||
       candidate.worktree.dirtyState === "conflicted") &&
     candidate.worktree.workspaceDir !== null &&
-    (candidate.ownerRunStatus === "failed" ||
-      candidate.ownerRunStatus === "interrupted")
+    recoverableOwnerRun
   ) {
     return candidate.worktree.workspaceDir;
   }
@@ -51,7 +54,13 @@ function needsRuntimeRecoveryRequest(
   candidate: WorkflowStateRecoveryClaim,
 ): boolean {
   if (preservedBuilderWorkspaceDir(candidate) === null) return false;
+  if (
+    candidate.worktree.canonicalReconciliation?.disposition === "needs-review"
+  ) {
+    return false;
+  }
   if (candidate.claim.runId === candidate.claim.worktreeRunId) return true;
+  if (candidate.claim.status === "pending-merge") return true;
   const finalizer = readOptionalJsonFile<{ recoveryRequested?: boolean }>(
     join(
       projectDir,

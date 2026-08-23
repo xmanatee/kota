@@ -13,6 +13,7 @@ import {
   type ClaimTaskAttempt,
   type QueueTaskClaimResult,
 } from "./task-claim-types.js";
+import { compareAutonomyTasks } from "./task-ranking.js";
 
 export { updateTaskClaimCanonicalReconciliation } from "./task-claim-canonical-reconciliation.js";
 export {
@@ -59,26 +60,11 @@ export {
   type TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
 
-const PRIORITY_RANK = new Map([
-  ["p0", 0],
-  ["p1", 1],
-  ["p2", 2],
-  ["p3", 3],
-]);
-
-function priorityRank(priority: string): number {
-  return PRIORITY_RANK.get(priority) ?? 99;
-}
-
 function compareCandidateTasks(a: RepoTaskFullRecord, b: RepoTaskFullRecord): number {
   const stateRank = (task: RepoTaskFullRecord) => (task.state === "doing" ? 0 : 1);
   const byState = stateRank(a) - stateRank(b);
   if (byState !== 0) return byState;
-  const byPriority = priorityRank(a.priority) - priorityRank(b.priority);
-  if (byPriority !== 0) return byPriority;
-  const byUpdated = a.updatedAt.localeCompare(b.updatedAt);
-  if (byUpdated !== 0) return byUpdated;
-  return a.id.localeCompare(b.id);
+  return compareAutonomyTasks(a, b);
 }
 
 function assertTaskFileStillMatches(

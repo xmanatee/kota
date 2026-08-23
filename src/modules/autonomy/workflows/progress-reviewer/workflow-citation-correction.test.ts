@@ -18,9 +18,9 @@ import {
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
 
-const SYNTHETIC_UNKNOWN_EVIDENCE_IDS = [
-  "dead-letter:dlq-synthetic-unknown-a",
-  "dead-letter:dlq-synthetic-unknown-b",
+const OBSERVED_UNKNOWN_EVIDENCE_IDS = [
+  "dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83",
+  "scope:8nrg1m:dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83",
 ] as const;
 
 vi.mock("#core/util/repo-worktree.js", async () => {
@@ -149,7 +149,7 @@ describe("progress-reviewer citation correction", () => {
             summary: "Unknown citations must be corrected before actions run.",
             priority: "p1",
             area: "autonomy",
-            evidenceIds: [...SYNTHETIC_UNKNOWN_EVIDENCE_IDS],
+            evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
             acceptanceEvidence: "The corrected workflow run cites the packet.",
           }] : [],
         },
@@ -170,8 +170,8 @@ describe("progress-reviewer citation correction", () => {
     expect(result.metadata.status).toBe("success");
     expect(attempts).toBe(2);
     expect(prompts[1]).toContain("Previous structured output failed workflow validation");
-    expect(prompts[1]).toContain(SYNTHETIC_UNKNOWN_EVIDENCE_IDS[0]);
-    expect(prompts[1]).toContain(SYNTHETIC_UNKNOWN_EVIDENCE_IDS[1]);
+    expect(prompts[1]).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[0]);
+    expect(prompts[1]).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[1]);
     const review = result.metadata.steps.find((step) => step.id === "review-evidence");
     expect(review?.output).toEqual(expect.objectContaining({
       findings: expect.objectContaining({
@@ -201,14 +201,14 @@ describe("progress-reviewer citation correction", () => {
           summary: "This action remains ungrounded after bounded correction.",
           priority: "p1",
           area: "autonomy",
-          evidenceIds: [...SYNTHETIC_UNKNOWN_EVIDENCE_IDS],
+          evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
           acceptanceEvidence: "This malformed action is never applied.",
         }] },
         ownerQuestions: [{
           topicKey: "citation-contract-exhausted-question",
           question: "Do not enqueue this malformed owner question?",
           reason: "Its citations are not present in the packet.",
-          evidenceIds: [...SYNTHETIC_UNKNOWN_EVIDENCE_IDS],
+          evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
         }],
       });
       return {
@@ -236,7 +236,7 @@ describe("progress-reviewer citation correction", () => {
       "utf-8",
     );
     expect(diagnostic).toContain("unknown evidence id");
-    expect(diagnostic).toContain(SYNTHETIC_UNKNOWN_EVIDENCE_IDS[0]);
-    expect(diagnostic).toContain(SYNTHETIC_UNKNOWN_EVIDENCE_IDS[1]);
+    expect(diagnostic).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[0]);
+    expect(diagnostic).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[1]);
   });
 });

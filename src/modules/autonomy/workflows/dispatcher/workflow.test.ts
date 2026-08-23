@@ -21,6 +21,7 @@ function taskFixture(
     dependsOn?: string[];
     resources?: string[];
     marker?: string;
+    priority?: "p0" | "p1" | "p2" | "p3";
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
   } = {},
 ): string {
@@ -29,7 +30,7 @@ function taskFixture(
     `id: ${id}`,
     `title: ${id}`,
     `status: ${state}`,
-    "priority: p2",
+    `priority: ${options.priority ?? "p2"}`,
     "area: modules",
     ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     `summary: ${id} summary`,
@@ -146,6 +147,44 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
+  });
+
+  it("promotes a better backlog frontier before dispatching the builder", async () => {
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-platform-ready.md"),
+      taskFixture("task-platform-ready", "ready", {
+        priority: "p2",
+        taskClass: "Platform",
+      }),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "backlog", "task-product-backlog.md"),
+      taskFixture("task-product-backlog", "backlog", {
+        priority: "p1",
+        taskClass: "Product",
+      }),
+    );
+
+    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const result = await harness.run();
+
+    const output = result.steps["assess-and-dispatch"].output as Record<
+      string,
+      unknown
+    >;
+    expect(output.actionableCount).toBe(1);
+    expect(output.promotionFrontier).toMatchObject({
+      incumbentTaskId: "task-platform-ready",
+      improved: true,
+    });
+    expect(
+      result.emitted.some(
+        (event) => event.event === "autonomy.queue.needs-promotion",
+      ),
+    ).toBe(true);
+    expect(
+      result.emitted.some((event) => event.event === "autonomy.queue.available"),
+    ).toBe(false);
   });
 
   it("does not treat ready work with unfinished hard dependencies as actionable", async () => {

@@ -1,3 +1,4 @@
+import { checkpointPreservedAutomationWorktree } from "./worktree-canonical-reconciliation-checkpoint.js";
 import {
 	blockReconciliation,
 	boundedActualConflicts,
@@ -5,18 +6,13 @@ import {
 	type CheckpointAndReconcileAutomationWorktreeInput,
 	canonicalDestructivePaths,
 	changedPaths,
-	reconciliationTimestamp,
 	resolveReconciliationConflicts,
 	resurrectedDestructivePaths,
 	runReconciliationValidations,
 	updateReconciliationRecord,
 } from "./worktree-canonical-reconciliation-support.js";
-import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
 import { readDirtyState } from "./worktree-lifecycle-support.js";
-import type {
-	AutomationWorktreeCanonicalReconciliation,
-	AutomationWorktreeSelector,
-} from "./worktree-lifecycle-types.js";
+import type { AutomationWorktreeCanonicalReconciliation } from "./worktree-lifecycle-types.js";
 import { commitResolvedMerge } from "./worktree-merge-gate-finalize.js";
 import {
 	acquireMergeGateLock,
@@ -34,110 +30,16 @@ export type { CheckpointAndReconcileAutomationWorktreeInput } from "./worktree-c
 export async function checkpointAndReconcileAutomationWorktree(
 	input: CheckpointAndReconcileAutomationWorktreeInput,
 ): Promise<AutomationWorktreeCanonicalReconciliation> {
-	const selector: AutomationWorktreeSelector = {
-		projectDir: input.projectDir,
-		taskId: input.taskId,
-		runId: input.runId,
-	};
-	const inspection = inspectAutomationWorktree(selector);
-	const workspaceDir = inspection.metadata.workspaceDir;
-	let record: AutomationWorktreeCanonicalReconciliation = {
-		phase: "checkpointing",
-		disposition: "pending",
-		originalBaseCommit: inspection.metadata.baseCommit,
-		checkpointCommit: null,
-		canonicalHeadCommit: currentHead(input.projectDir),
-		integratedCanonicalHeadCommit: null,
-		branchBehindAtStart: null,
-		branchBehindAtResume: null,
-		overlappingPaths: [],
-		canonicalDestructivePaths: [],
-		conflicts: [],
-		validations: [],
-		reason: null,
-		artifactPath: input.artifactPath,
-		updatedAt: reconciliationTimestamp(),
-	};
-	input.onProgress(record);
-
-	if (!inspection.exists) {
-		return blockReconciliation(input, record, "preserved worktree path is missing");
-	}
-	if (inspection.dirty.conflicted) {
-		return blockReconciliation(
-			input,
-			record,
-			"preserved worktree was already conflicted before checkpointing",
-		);
-	}
-	if (!inspection.dirty.dirty) {
-		return blockReconciliation(input, record, "preserved worktree has no changes to checkpoint");
-	}
-
-	const staged = runGit(workspaceDir, ["add", "-A", "--", "."]);
-	if (!staged.ok) {
-		return blockReconciliation(
-			input,
-			record,
-			staged.stderr || staged.stdout || "failed to stage preserved work checkpoint",
-		);
-	}
-	const checkpoint = runGit(workspaceDir, [
-		"commit",
-		"--quiet",
-		"-m",
-		`Checkpoint preserved builder work for ${input.recoveryRunId}`,
-	]);
-	if (!checkpoint.ok) {
-		return blockReconciliation(
-			input,
-			record,
-			checkpoint.stderr || checkpoint.stdout || "failed to commit preserved work checkpoint",
-		);
-	}
-	const checkpointCommit = currentHead(workspaceDir);
-	if (readDirtyState(workspaceDir).dirty) {
-		return blockReconciliation(input, record, "preserved worktree remained dirty after checkpoint commit");
-	}
-	let preservedPaths: string[];
-	try {
-		preservedPaths = changedPaths(
-			workspaceDir,
-			inspection.metadata.baseCommit,
-			checkpointCommit,
-		);
-		const checkpointCanonicalHead = currentHead(input.projectDir);
-		const checkpointCanonicalPaths = changedPaths(
-			workspaceDir,
-			inspection.metadata.baseCommit,
-			checkpointCanonicalHead,
-		);
-		const checkpointCanonicalPathSet = new Set(checkpointCanonicalPaths);
-		record = updateReconciliationRecord(input, record, {
-			phase: "reconciling-canonical",
-			checkpointCommit,
-			canonicalHeadCommit: checkpointCanonicalHead,
-			branchBehindAtStart: branchBehind(
-				workspaceDir,
-				checkpointCommit,
-				checkpointCanonicalHead,
-			),
-			overlappingPaths: preservedPaths.filter((path) =>
-				checkpointCanonicalPathSet.has(path),
-			),
-			canonicalDestructivePaths: canonicalDestructivePaths(
-				workspaceDir,
-				inspection.metadata.baseCommit,
-				checkpointCanonicalHead,
-			),
-		});
-	} catch (error) {
-		return blockReconciliation(
-			input,
-			{ ...record, checkpointCommit },
-			error instanceof Error ? error.message : String(error),
-		);
-	}
+	const prepared = checkpointPreservedAutomationWorktree(input);
+	if (!prepared.ready) return prepared.record;
+	const {
+		inspection,
+		workspaceDir,
+		checkpointCommit,
+		preservedPaths,
+		existingMergeHead,
+	} = prepared;
+	let record = prepared.record;
 
 	const lock = await acquireMergeGateLock({
 		projectDir: input.projectDir,
@@ -151,6 +53,7 @@ export async function checkpointAndReconcileAutomationWorktree(
 
 	try {
 		const canonicalHeadCommit = currentHead(input.projectDir);
+		let validatedCurrentTree = false;
 		if (canonicalHeadCommit !== record.canonicalHeadCommit) {
 			const canonicalPaths = changedPaths(
 				workspaceDir,
@@ -185,8 +88,48 @@ export async function checkpointAndReconcileAutomationWorktree(
 				`canonical checkout is dirty before recovery reconciliation: ${canonicalDirty.entries.join(", ")}`,
 			);
 		}
+		if (existingMergeHead !== null) {
+			const pendingCanonicalHead = existingMergeHead;
+			if (!isAncestor(workspaceDir, pendingCanonicalHead, canonicalHeadCommit)) {
+				return blockReconciliation(
+					input,
+					record,
+					"pending merge head is not an ancestor of the current canonical head",
+				);
+			}
+			const conflicts = boundedActualConflicts(
+				classifyConflicts(workspaceDir),
+				new Set(destructivePaths),
+			);
+			if (conflicts.length === 0) {
+				return blockReconciliation(
+					input,
+					record,
+					"pending merge has no classified conflict paths",
+				);
+			}
+			if (conflicts.some((conflict) => conflict.kind !== "text")) {
+				return blockReconciliation(
+					input,
+					record,
+					"pending canonical merge contains binary, generated, deletion, rename, or high-risk conflicts",
+					conflicts,
+				);
+			}
+			const resolution = await resolveReconciliationConflicts(
+				input,
+				record,
+				workspaceDir,
+				inspection.branch,
+				pendingCanonicalHead,
+				conflicts,
+			);
+			if (!resolution.ready) return resolution.record;
+			record = resolution.record;
+			validatedCurrentTree = true;
+		}
 
-		if (!isAncestor(workspaceDir, canonicalHeadCommit, checkpointCommit)) {
+		if (!isAncestor(workspaceDir, canonicalHeadCommit, currentHead(workspaceDir))) {
 			const merge = runGit(workspaceDir, [
 				"merge",
 				"--no-ff",
@@ -218,10 +161,12 @@ export async function checkpointAndReconcileAutomationWorktree(
 					record,
 					workspaceDir,
 					inspection.branch,
+					canonicalHeadCommit,
 					conflicts,
 				);
 				if (!resolution.ready) return resolution.record;
 				record = resolution.record;
+				validatedCurrentTree = true;
 			} else {
 				const resurrected = resurrectedDestructivePaths(workspaceDir, destructivePaths);
 				if (resurrected.length > 0) {
@@ -236,12 +181,44 @@ export async function checkpointAndReconcileAutomationWorktree(
 						})),
 					);
 				}
+				const validations = runReconciliationValidations(
+					workspaceDir,
+					input.validationCommands,
+				);
+				const failedValidation = validations.find((validation) => !validation.passed);
+				if (failedValidation) {
+					const exitCode = failedValidation.exitCode === null
+						? "unknown exit"
+						: `exit ${failedValidation.exitCode}`;
+					return blockReconciliation(
+						input,
+						{ ...record, validations },
+						`canonical reconciliation validation failed: ${failedValidation.command.join(" ")} (${exitCode})`,
+						[],
+					);
+				}
 				const committed = commitResolvedMerge(workspaceDir, inspection.branch);
 				if (!committed.ok) return blockReconciliation(input, record, committed.reason);
+				record = { ...record, validations };
+				validatedCurrentTree = true;
 			}
 		}
 
-		const validations = runReconciliationValidations(workspaceDir, input.validationCommands);
+		const validations = validatedCurrentTree
+			? record.validations
+			: runReconciliationValidations(workspaceDir, input.validationCommands);
+		const failedValidation = validations.find((validation) => !validation.passed);
+		if (failedValidation) {
+			const exitCode = failedValidation.exitCode === null
+				? "unknown exit"
+				: `exit ${failedValidation.exitCode}`;
+			return blockReconciliation(
+				input,
+				{ ...record, validations },
+				`canonical reconciliation validation failed: ${failedValidation.command.join(" ")} (${exitCode})`,
+				[],
+			);
+		}
 		const latestCanonicalHead = currentHead(input.projectDir);
 		if (latestCanonicalHead !== canonicalHeadCommit) {
 			return blockReconciliation(
@@ -261,21 +238,6 @@ export async function checkpointAndReconcileAutomationWorktree(
 				input,
 				{ ...record, validations },
 				"reconciled worktree still trails the captured canonical head",
-			);
-		}
-		const failedValidation = validations.find((validation) => !validation.passed);
-		if (failedValidation) {
-			const exitCode = failedValidation.exitCode === null
-				? "unknown exit"
-				: `exit ${failedValidation.exitCode}`;
-			return blockReconciliation(
-				input,
-				{
-					...record,
-					integratedCanonicalHeadCommit: canonicalHeadCommit,
-					validations,
-				},
-				`canonical reconciliation validation failed: ${failedValidation.command.join(" ")} (${exitCode})`,
 			);
 		}
 		return updateReconciliationRecord(input, record, {

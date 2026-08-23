@@ -2,7 +2,6 @@ import {
   archiveClaim,
   archiveClaimIfUnchanged,
   buildClaim,
-  continueClaimIfUnchanged,
   inspectTaskClaim,
   inspectTaskClaimWithOwnerRun,
   readActiveTaskClaim,
@@ -12,7 +11,6 @@ import {
 import {
   type ClaimTaskAttempt,
   type ClaimTaskInput,
-  type ContinueTaskClaimInput,
   skippedTaskClaimRecoveryPath,
   type TaskClaim,
   type TaskClaimInspection,
@@ -21,6 +19,8 @@ import {
   type TaskClaimTerminalResult,
   type TaskClaimWorkspaceInput,
 } from "./task-claim-types.js";
+
+export { continueTaskClaim } from "./task-claim-continuation.js";
 
 function sameWorkflowRun(existing: TaskClaim, input: ClaimTaskInput): boolean {
   return existing.taskId === input.taskId &&
@@ -86,7 +86,8 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
   const claim = buildClaim(input, now);
   try {
     writeClaim(input.projectDir, claim, "wx");
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     const conflict = readActiveTaskClaim(input.projectDir, input.taskId);
     const inspection = conflict ? inspectTaskClaimWithOwnerRun(input.projectDir, conflict, path, now) : null;
     return skippedAttempt(input.taskId, conflict, inspection, "write-conflict", "claim write lost an atomic race");
@@ -106,73 +107,6 @@ export function claimTask(input: ClaimTaskInput): ClaimTaskAttempt {
     recoveryStatus: "agent-running",
     safeToRetry: false,
     recoveryPath,
-    reason: null,
-  };
-}
-
-export function continueTaskClaim(
-  input: ContinueTaskClaimInput,
-): ClaimTaskAttempt {
-  const path = taskClaimPath(input.projectDir, input.taskId);
-  const current = readActiveTaskClaim(input.projectDir, input.taskId);
-  if (!current) {
-    return skippedAttempt(
-      input.taskId,
-      null,
-      null,
-      "write-conflict",
-      "preserved task claim no longer exists",
-    );
-  }
-  const inspection = inspectTaskClaimWithOwnerRun(
-    input.projectDir,
-    current,
-    path,
-    input.now,
-  );
-  if (
-    current.runId !== input.sourceRunId ||
-    current.workflowId !== input.workflowId
-  ) {
-    return skippedAttempt(
-      input.taskId,
-      current,
-      inspection,
-      "write-conflict",
-      `claim belongs to ${current.workflowId}/${current.runId}`,
-    );
-  }
-  if (inspection.recoveryStatus !== "stale") {
-    return skippedAttempt(
-      input.taskId,
-      current,
-      inspection,
-      "skipped-active-claim",
-      `claim is ${inspection.recoveryStatus}, not a terminal preserved claim`,
-    );
-  }
-
-  const continued = continueClaimIfUnchanged(
-    input.projectDir,
-    current,
-    input,
-  );
-  if (!continued) {
-    return skippedAttempt(
-      input.taskId,
-      readActiveTaskClaim(input.projectDir, input.taskId),
-      null,
-      "write-conflict",
-      "claim changed during recovery continuation",
-    );
-  }
-  return {
-    claimed: true,
-    taskId: input.taskId,
-    claim: continued,
-    recoveryStatus: "agent-running",
-    safeToRetry: false,
-    recoveryPath: "continued-preserved-claim",
     reason: null,
   };
 }

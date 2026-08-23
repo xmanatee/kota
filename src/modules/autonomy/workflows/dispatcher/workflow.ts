@@ -3,6 +3,7 @@ import {
   getClaimAwareRepoTaskQueueSnapshot,
   isThinClaimAwareDispatchableQueue,
 } from "#modules/autonomy/queue-availability.js";
+import { buildPromotionRationale } from "../backlog-promoter/promotion.js";
 import {
   BUILDER_RECOVERY_EVENT,
   requestPendingBuilderRecoveries,
@@ -46,6 +47,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir);
         const researchRetryAvailability = inspectResearchRetryAvailability(projectDir);
         const securityReviewDue = inspectSecurityReviewDue(projectDir);
+        const promotionRationale = buildPromotionRationale(projectDir);
         const progressBoundary = inspectProgressSemanticBoundary({ projectDir });
         const scopeBoundary = scopePolicySnapshot
           ? inspectScopeSemanticBoundary({ projectDir, scopePolicySnapshot })
@@ -70,12 +72,15 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         // task snapshot says at least one backlog task can actually be promoted.
         // Strategic anchors, blocked tails, and Meta tasks missing a
         // Product/Safety link are open records, not dispatchable work.
-        const queueActionable = queue.actionableCount > 0;
+        const recoveryRequested = builderRecovery.requested.length > 0;
         const queueNeedsPromotion =
-          queue.actionableCount === 0 && queue.promotableBacklogCount > 0;
+          !recoveryRequested && promotionRationale.selected.length > 0;
+        const queueActionable =
+          !recoveryRequested && !queueNeedsPromotion && queue.actionableCount > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
-        const queueThin = isThinClaimAwareDispatchableQueue(queue);
+        const queueThin =
+          !recoveryRequested && isThinClaimAwareDispatchableQueue(queue);
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
@@ -163,6 +168,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
           claimBlockedTasks: queue.claimBlockedTasks,
           promotableBacklogCount: queue.promotableBacklogCount,
+          promotionFrontier: promotionRationale.frontier,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           builderRecoveryCandidateCount: builderRecovery.candidateCount,

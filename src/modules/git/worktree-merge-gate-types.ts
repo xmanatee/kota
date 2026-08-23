@@ -26,7 +26,13 @@ export type MergeGateMetrics = {
 };
 
 export type MergeGateResolverRequest = {
+	taskId: string;
 	workspaceDir: string;
+	branch: string;
+	baseCommit: string;
+	canonicalHeadCommit: string;
+	headCommit: string;
+	canonicalDiff: string;
 	attempt: number;
 	conflicts: MergeGateConflict[];
 	previousValidation: MergeGateValidation | null;

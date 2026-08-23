@@ -69,6 +69,31 @@ function continuedRecoveryCandidate(projectDir: string): WorkflowStateRecoveryCl
 }
 
 describe("builder recovery continuation bounds", () => {
+	it("requests unresolved pending merge after the prior continuation declined a generic retry", () => {
+		const projectDir = mkdtempSync(join(tmpdir(), "builder-pending-merge-recovery-"));
+		tempDirs.push(projectDir);
+		const runDir = join(projectDir, ".kota", "runs", "recovery-run");
+		mkdirSync(runDir, { recursive: true });
+		writeFileSync(
+			join(runDir, "terminal-worktree-finalizer.json"),
+			JSON.stringify({
+				recoveryRequested: false,
+				recoveryAction: { kind: "state-recovery-required" },
+			}),
+			"utf8",
+		);
+		const candidate = continuedRecoveryCandidate(projectDir);
+		candidate.claim.status = "pending-merge";
+		candidate.recoveryStatus = "pending-merge";
+		candidate.ownerRunStatus = "success";
+		candidate.worktree.state = "pending-merge";
+		candidate.worktree.dirtyState = "conflicted";
+		candidate.worktree.dirtyEntries = ["UU src/shared.ts"];
+		listRecoveryClaims.mockReturnValue([candidate]);
+
+		expect(listPendingBuilderRecoveries(projectDir)).toEqual([candidate]);
+	});
+
   it("does not requeue a continuation after its finalizer requires state recovery", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-bound-"));
     tempDirs.push(projectDir);

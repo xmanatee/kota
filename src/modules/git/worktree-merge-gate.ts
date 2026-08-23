@@ -16,7 +16,9 @@ import {
 import { finishCleanMerge, pendingBlocked } from "./worktree-merge-gate-results.js";
 import {
 	abortMerge,
+	canonicalConflictDiff,
 	classifyConflicts,
+	conflictMarkerConflicts,
 	currentHead,
 	DEFAULT_MAX_RESOLUTION_ATTEMPTS,
 	isAncestor,
@@ -71,7 +73,18 @@ async function resolveTextConflicts(
 	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
 		const beforeResolver = captureMergeIndexSnapshot(input.workspaceDir);
 		const resolution = await input.resolver({
+			taskId: selector.taskId,
 			workspaceDir: input.workspaceDir,
+			branch: input.branch,
+			baseCommit: input.baseCommit,
+			canonicalHeadCommit: input.canonicalHeadCommit,
+			headCommit: currentHead(input.workspaceDir),
+			canonicalDiff: canonicalConflictDiff(
+				input.workspaceDir,
+				input.baseCommit,
+				input.canonicalHeadCommit,
+				conflicts,
+			),
 			attempt,
 			conflicts,
 			previousValidation: validation,
@@ -88,34 +101,36 @@ async function resolveTextConflicts(
 				validation,
 			});
 		}
-		const unresolvedMarkers = stageConflictPaths(input.workspaceDir, conflicts);
+		const unresolvedMarkers = conflictMarkerConflicts(input.workspaceDir, conflicts);
 		if (unresolvedMarkers.length > 0) {
 			conflicts = unresolvedMarkers;
 			validation = runValidation(input.workspaceDir, input.validationCommand);
 			continue;
 		}
-		const remaining = classifyConflicts(input.workspaceDir);
-		if (remaining.length > 0) conflicts = remaining;
-		if (remaining.length === 0) {
-			const boundaryViolation = validateResolvedMergeBoundary(input.workspaceDir, {
-				beforeResolver,
-				allowedConflictPaths: conflicts.map((conflict) => conflict.path),
+		const boundaryViolation = validateResolvedMergeBoundary(input.workspaceDir, {
+			beforeResolver,
+			allowedConflictPaths: conflicts.map((conflict) => conflict.path),
+		});
+		if (boundaryViolation) {
+			return pendingBlocked(selector, {
+				branch: input.branch,
+				baseCommit: input.baseCommit,
+				canonicalHeadCommit: input.canonicalHeadCommit,
+				headCommit: currentHead(input.workspaceDir),
+				reason: boundaryViolation.reason,
+				conflicts: boundaryViolation.conflicts,
+				resolutionAttempts: attempt,
+				validation: null,
 			});
-			if (boundaryViolation) {
-				return pendingBlocked(selector, {
-					branch: input.branch,
-					baseCommit: input.baseCommit,
-					canonicalHeadCommit: input.canonicalHeadCommit,
-					headCommit: currentHead(input.workspaceDir),
-					reason: boundaryViolation.reason,
-					conflicts: boundaryViolation.conflicts,
-					resolutionAttempts: attempt,
-					validation: null,
-				});
-			}
 		}
 		validation = runValidation(input.workspaceDir, input.validationCommand);
-		if (remaining.length === 0 && (!validation || validation.passed)) {
+		if (!validation || validation.passed) {
+			stageConflictPaths(input.workspaceDir, conflicts);
+			const remaining = classifyConflicts(input.workspaceDir);
+			if (remaining.length > 0) {
+				conflicts = remaining;
+				continue;
+			}
 			const commit = commitResolvedMerge(input.workspaceDir, input.branch);
 			if (!commit.ok) {
 				return pendingBlocked(selector, {
@@ -134,6 +149,7 @@ async function resolveTextConflicts(
 				baseCommit: input.baseCommit,
 				canonicalHeadCommit: input.canonicalHeadCommit,
 				validationCommand: input.validationCommand,
+				validation,
 				resolutionAttempts: attempt,
 			});
 		}
@@ -162,18 +178,18 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 	const baseCommit = metadata.baseCommit;
 	const workspaceDir = metadata.workspaceDir;
 	const canonicalHeadCommit = currentHead(selector.projectDir);
-	const workspaceHeadCommit = currentHead(workspaceDir);
-	const canonicalDirty = readDirtyState(selector.projectDir);
 
 	if (!inspection.exists) {
 		return pendingBlocked(selector, {
 			branch,
 			baseCommit,
 			canonicalHeadCommit,
-			headCommit: workspaceHeadCommit,
+			headCommit: inspection.headCommit,
 			reason: "worktree path is missing",
 		});
 	}
+	const workspaceHeadCommit = currentHead(workspaceDir);
+	const canonicalDirty = readDirtyState(selector.projectDir);
 	if (canonicalDirty.trackedDirty || canonicalDirty.untracked) {
 		return pendingBlocked(selector, {
 			branch,
@@ -211,7 +227,7 @@ async function mergeAutomationWorktreeUnlocked(input: MergeAutomationWorktreeInp
 					baseCommit,
 					canonicalHeadCommit,
 					headCommit: currentHead(workspaceDir),
-					reason: "merge contains binary, generated, or high-risk conflicts",
+					reason: "merge contains binary, generated, deletion, rename, or high-risk conflicts",
 					conflicts,
 				});
 			}
