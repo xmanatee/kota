@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
@@ -15,6 +15,13 @@ import {
   makeWorkflowProject,
   resetBuilderWorkflowMocks,
 } from "./workflow-test-support.js";
+
+const CITED_APPLE_TASK_ID =
+  "task-render-shared-ui-surfaces-in-apple-clients";
+const CITED_FAILED_CONTINUATION_RUN_ID =
+  "2026-08-23T17-26-21-807Z-builder-8knpd4";
+const CITED_PRESERVED_WORKTREE_RUN_ID =
+  "2026-08-23T15-12-13-058Z-builder-s82ppl";
 
 function preservedRecoveryCandidate(input: {
   projectDir: string;
@@ -67,6 +74,28 @@ function preservedRecoveryCandidate(input: {
   };
 }
 
+function writeIncompletePreservedEvidence(
+  workspaceDir: string,
+  runId: string,
+): string {
+  const agentRunDir = join(
+    workspaceDir,
+    ".kota",
+    "builder-evidence",
+    runId,
+  );
+  mkdirSync(agentRunDir, { recursive: true });
+  writeFileSync(
+    join(agentRunDir, "success-criteria.txt"),
+    "1. Finish preserved work.\n",
+  );
+  writeFileSync(
+    join(agentRunDir, "evidence-manifest.json"),
+    '{"schemaVersion":1,"artifacts":[]}\n',
+  );
+  return agentRunDir;
+}
+
 describe("builder preserved-work continuation", () => {
   beforeEach(async () => {
     await resetBuilderWorkflowMocks();
@@ -85,17 +114,76 @@ describe("builder preserved-work continuation", () => {
     },
   ])("finishes preserved work through $label", async ({ event, boundedContinuation }) => {
     const projectDir = makeWorkflowProject(makeEmptySnapshot());
-    const taskId = "task-claimed";
-    const worktreeRunId = "run-failed";
-    const claimRunId = boundedContinuation ? "run-failed-continuation" : worktreeRunId;
+    const taskId = CITED_APPLE_TASK_ID;
+    const worktreeRunId = CITED_PRESERVED_WORKTREE_RUN_ID;
+    const claimRunId = boundedContinuation
+      ? `${CITED_FAILED_CONTINUATION_RUN_ID}-redrive`
+      : CITED_FAILED_CONTINUATION_RUN_ID;
     const workspaceDir = `${projectDir}/.worktrees/${taskId}-${worktreeRunId}`;
+    const agentRunDir = writeIncompletePreservedEvidence(
+      workspaceDir,
+      worktreeRunId,
+    );
     const recovery = await import(
       "#modules/autonomy/workflow-state-recovery-claims.js"
     );
-    const preservedEvidence = await import("./preserved-evidence.js");
-    vi.mocked(
-      preservedEvidence.findPreservedBuilderEvidenceRunId,
-    ).mockReturnValue(worktreeRunId);
+    const claims = await import("#modules/autonomy/task-claims.js");
+    vi.mocked(claims.continueTaskClaim).mockImplementationOnce((input) => ({
+      claimed: true,
+      taskId,
+      claim: {
+        schemaVersion: 2,
+        taskId,
+        taskState: "ready",
+        taskFile: {
+          path: `data/tasks/ready/${taskId}.md`,
+          snapshot: {
+            dev: 1,
+            ino: 1,
+            size: 1,
+            mtimeMs: 1,
+            ctimeMs: 1,
+          },
+        },
+        runId: input.runId,
+        worktreeRunId,
+        workflowId: "builder",
+        owner: "workflow:builder",
+        workspaceDir,
+        branch: `kota/task/${taskId}/${worktreeRunId}`,
+        baseCommit: "abc1234",
+        leaseMs: 25_200_000,
+        leaseAcquiredAt: "2026-06-27T00:00:00.000Z",
+        leaseExpiresAt: "2026-06-27T07:00:00.000Z",
+        createdAt: "2026-06-27T00:00:00.000Z",
+        updatedAt: "2026-06-27T00:00:01.000Z",
+        status: "active",
+        evidence: input.evidence,
+      },
+      recoveryStatus: "agent-running",
+      safeToRetry: false,
+      recoveryPath: "continued-preserved-claim",
+      reason: null,
+    }));
+    const agentWriteScope = await import(
+      "#core/workflow/steps/agent-write-scope.js"
+    );
+    vi.mocked(agentWriteScope.listWorkflowMutatedPaths).mockReturnValue([
+      `data/tasks/done/${taskId}.md`,
+    ]);
+    const runSummary = await import("./run-summary.js");
+    vi.mocked(runSummary.findTerminalTaskInChangedFiles).mockReturnValue({
+      taskId,
+      taskTitle: "Render shared UI surfaces in Apple clients",
+    });
+    vi.mocked(runSummary.findTerminalTasksInChangedFiles).mockReturnValue([
+      {
+        file: `data/tasks/done/${taskId}.md`,
+        taskId,
+        taskTitle: "Render shared UI surfaces in Apple clients",
+        becameTerminal: true,
+      },
+    ]);
     vi.mocked(recovery.listRecoveryClaims).mockReturnValue([
       preservedRecoveryCandidate({
         projectDir,
@@ -156,6 +244,11 @@ describe("builder preserved-work continuation", () => {
         agentRunDir: `${workspaceDir}/.kota/builder-evidence/${worktreeRunId}`,
       },
     });
+    expect(result.steps.build.status).toBe("success");
+    expect(existsSync(join(agentRunDir, "success-criteria-verified.txt"))).toBe(
+      false,
+    );
+    expect(existsSync(join(agentRunDir, "commit-message.txt"))).toBe(false);
     expect(result.steps["merge-gate"].output).toMatchObject({
       status: "merged",
       runId: worktreeRunId,

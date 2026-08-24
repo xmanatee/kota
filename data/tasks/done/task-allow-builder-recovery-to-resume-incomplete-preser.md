@@ -1,12 +1,12 @@
 ---
 id: task-allow-builder-recovery-to-resume-incomplete-preser
 title: Allow builder recovery to resume incomplete preserved evidence
-status: ready
+status: done
 priority: p1
 area: autonomy
 summary: Separate preserved-evidence continuation eligibility from completion-time evidence validation. A recovery continuation must safely reuse the original evidence directory and manifest before all required completion artifacts exist, while retaining strict screening and required-file enforcement at validation and commit time. Replace the mocked recovery happy path with a production-shaped fixture that exercises the real preserved-evidence lookup.
 created_at: 2026-08-23T20:50:51.521Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-24T12:31:23.162Z
 task_class: Meta
 ---
 ## Problem
@@ -52,6 +52,14 @@ One autonomy issue, one decision, one implementation path.
 ## Acceptance Evidence
 
 -     A focused builder workflow fixture creates an interrupted preserved worktree containing a valid evidence directory and manifest but no `success-criteria-verified.txt` or `commit-message.txt`, then proves recovery progresses through `prepare-worktree` into `build` using the original evidence lineage. Negative fixtures prove missing or malformed manifests, escaped paths, and symbolic-link evidence still fail closed. Existing completion-time checks must continue rejecting missing required evidence. A runtime recovery projection for the cited Apple-client lineage shows the continuation no longer terminates with evidence-filesystem ENOENT and the preserved claim progresses to completion or a durable terminal disposition.
+
+## Follow-up Disposition
+
+The code and fail-closed behavior are covered by focused fixtures. The leased
+builder worktree cannot read the canonical parent runtime store, so live
+verification of the cited claim remains explicitly tracked by
+`task-verify-the-cited-apple-builder-recovery-lineage`; the candidate fixture is
+not presented as a production disposition.
 
 ## Generated Work Provenance
 

@@ -1,6 +1,5 @@
 import { isUtf8 } from "node:buffer";
 import {
-  existsSync,
   lstatSync,
   realpathSync,
 } from "node:fs";
@@ -39,15 +38,25 @@ export type BuilderEvidenceInspection = {
   >;
 };
 
+type BuilderEvidenceInspectionPhase = "continuation" | "completion";
+
 const ROOT_EVIDENCE_FILES: readonly (BuilderEvidenceRegistration & {
-  required: boolean;
+  requiredAt: BuilderEvidenceInspectionPhase | null;
 })[] = [
-  { path: "success-criteria.txt", kind: "text", required: true },
-  { path: "success-criteria-verified.txt", kind: "text", required: true },
-  { path: "commit-message.txt", kind: "text", required: true },
-  { path: BUILDER_EVIDENCE_MANIFEST_FILE, kind: "json", required: true },
-  { path: "autonomy-change-decision.json", kind: "json", required: false },
-  { path: "runtime-probe.json", kind: "json", required: false },
+  { path: "success-criteria.txt", kind: "text", requiredAt: "continuation" },
+  {
+    path: "success-criteria-verified.txt",
+    kind: "text",
+    requiredAt: "completion",
+  },
+  { path: "commit-message.txt", kind: "text", requiredAt: "completion" },
+  {
+    path: BUILDER_EVIDENCE_MANIFEST_FILE,
+    kind: "json",
+    requiredAt: "continuation",
+  },
+  { path: "autonomy-change-decision.json", kind: "json", requiredAt: null },
+  { path: "runtime-probe.json", kind: "json", requiredAt: null },
 ];
 
 const KIND_EXTENSIONS: Readonly<
@@ -170,9 +179,10 @@ function inspectFile(
   };
 }
 
-export function inspectBuilderEvidence(
+function inspectBuilderEvidenceAtPhase(
   agentRunDir: string,
   workspaceDir: string,
+  phase: BuilderEvidenceInspectionPhase,
 ): BuilderEvidenceInspection {
   const workspaceRoot = resolve(workspaceDir);
   const runRoot = resolve(agentRunDir);
@@ -213,7 +223,15 @@ export function inspectBuilderEvidence(
   const files: BuilderEvidenceFile[] = [];
   for (const rootFile of ROOT_EVIDENCE_FILES) {
     const absolutePath = join(runRoot, rootFile.path);
-    if (!rootFile.required && !existsSync(absolutePath)) continue;
+    const required =
+      rootFile.requiredAt === "continuation" ||
+      (phase === "completion" && rootFile.requiredAt === "completion");
+    if (
+      !required &&
+      lstatSync(absolutePath, { throwIfNoEntry: false }) === undefined
+    ) {
+      continue;
+    }
     files.push({
       path: rootFile.path,
       kind: rootFile.kind,
@@ -255,4 +273,22 @@ export function inspectBuilderEvidence(
     totalBytes,
     files: inspectedFiles,
   };
+}
+
+export function inspectBuilderEvidenceForContinuation(
+  agentRunDir: string,
+  workspaceDir: string,
+): BuilderEvidenceInspection {
+  return inspectBuilderEvidenceAtPhase(
+    agentRunDir,
+    workspaceDir,
+    "continuation",
+  );
+}
+
+export function inspectBuilderEvidence(
+  agentRunDir: string,
+  workspaceDir: string,
+): BuilderEvidenceInspection {
+  return inspectBuilderEvidenceAtPhase(agentRunDir, workspaceDir, "completion");
 }

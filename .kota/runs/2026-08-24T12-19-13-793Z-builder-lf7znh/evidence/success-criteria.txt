@@ -1,0 +1,3 @@
+1. Recovery continuation accepts a valid, incomplete preserved builder evidence lineage, reuses its original manifest and run id, and reaches the build step without requiring completion-only verification or commit artifacts.
+2. Missing or malformed manifests, escaped artifact paths, and symbolic-link evidence still fail closed, while terminal validation and commit paths continue requiring every completion artifact.
+3. Focused workflow evidence and a recovery projection resolve the cited durable issue with an inspectable observation showing that incomplete preserved evidence no longer fails during prepare-worktree with an evidence-filesystem ENOENT.

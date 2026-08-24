@@ -1,4 +1,5 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type AgentHarness,
@@ -91,6 +92,21 @@ describe("builder preserved-work canonical reconciliation", () => {
     const taskId = "task-claimed";
     const runId = "run-failed";
     const workspaceDir = `${projectDir}/.worktrees/${taskId}-${runId}`;
+    const agentRunDir = join(
+      workspaceDir,
+      ".kota",
+      "builder-evidence",
+      runId,
+    );
+    mkdirSync(agentRunDir, { recursive: true });
+    writeFileSync(
+      join(agentRunDir, "success-criteria.txt"),
+      "1. Reconcile preserved work.\n",
+    );
+    writeFileSync(
+      join(agentRunDir, "evidence-manifest.json"),
+      '{"schemaVersion":1,"artifacts":[]}\n',
+    );
     const recovery = await import(
       "#modules/autonomy/workflow-state-recovery-claims.js"
     );
