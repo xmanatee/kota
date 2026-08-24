@@ -7,9 +7,9 @@ area: security
 task_class: Safety
 summary: Stable-finding deduplication trusts task-authored identity metadata and treats terminal tasks as canonical update targets. A confirmed recurring security issue can therefore be merged into a done or dropped task without returning it to the actionable queue, suppressing remediation.
 created_at: 2026-08-24T08:21:59.670Z
-updated_at: 2026-08-24T08:21:59.670Z
+updated_at: 2026-08-24T09:45:42.905Z
 security_finding_key: sha256:b6ae91a788b8bb9cd6c4255d03384b059e6925c9e82daec1c766173b5808eff6
-security_review_runs: [2026-08-24T02-28-34-718Z-security-review-qly4j5]
+security_review_runs: [2026-08-24T02-28-34-718Z-security-review-qly4j5, 2026-08-24T08-14-17-227Z-security-review-snv5un]
 ---
 
 ## Problem
@@ -24,7 +24,7 @@ claim:
 
 ## Desired Outcome
 
-> Treat repository task identity fields as untrusted comparison hints, binding canonical security-finding identity to daemon-owned workflow provenance. When current revalidation confirms a finding whose task is terminal, reopen it through the task domain or create a new actionable follow-up instead of preserving the terminal state. Add regression coverage for forged identity fields, legacy body markers, and confirmed recurrences against done or dropped tasks.
+> Treat repository task identity fields as untrusted comparison hints and bind canonical security-finding identity to daemon-owned workflow provenance. When revalidation confirms a finding whose task is terminal, reopen it through the task domain or create a new actionable follow-up. Add regression coverage for forged identity fields, legacy body markers, and confirmed recurrences against done or dropped tasks.
 
 ## Constraints
 
@@ -44,13 +44,14 @@ Created by security-review workflow run 2026-08-24T02-28-34-718Z-security-review
 Confirmed by security-review workflow runs:
 
 - 2026-08-24T02-28-34-718Z-security-review-qly4j5
+- 2026-08-24T08-14-17-227Z-security-review-snv5un
 
 finding id: security-review-terminal-task-dedup-suppresses-recurrence
 candidate id: auth-approval-boundary:src/modules/autonomy/workflows/security-review/security-review-tasks.ts:121
 verdict: confirmed
 rationale:
 
-> Deduplication searches every task state using task-controlled security_finding_key fields or legacy body markers, then selects a canonical match without excluding done or dropped tasks. The update path preserves the matched task's state and path. Focused regression coverage explicitly proves that a newly confirmed recurrence updates a done task, leaves status done, and creates no ready follow-up; the test passes.
+> The resolver scans tasks in every state and accepts task-authored security_finding_key or legacy body markers as identity. Canonical selection does not exclude terminal states, and task creation preserves the selected path and target.state, leaving recurring confirmed findings in done or dropped. The focused regression test passed and explicitly asserts that a matched done task remains done with no ready replacement.
 
 Evidence:
 
@@ -68,11 +69,23 @@ excerpt:
 
 > return listFullRepoTasks(projectDir).flatMap((task) => {
 >   const file = readVerifiedRepoTaskFile(projectDir, task.state, task.id);
->   ...
->   if (record.attrs[SECURITY_FINDING_KEY_ATTR] === args.key) return [record];
->   const legacy = legacyFindingIdentity(record.body);
 
 Evidence 2:
+
+
+
+path: src/modules/autonomy/workflows/security-review/security-review-task-identity.ts
+
+line: 87
+
+excerpt:
+
+
+
+> if (record.attrs[SECURITY_FINDING_KEY_ATTR] === args.key) return [record];
+> const legacy = legacyFindingIdentity(record.body);
+
+Evidence 3:
 
 
 
@@ -86,7 +99,7 @@ excerpt:
 
 > const canonical = matches.filter((task) => !task.superseded);
 
-Evidence 3:
+Evidence 4:
 
 
 
@@ -102,7 +115,7 @@ excerpt:
 >   ? { kind: "update" as const, ...canonical }
 >   : nextAvailableSecurityFindingTaskTarget(projectDir, args.baseId);
 
-Evidence 4:
+Evidence 5:
 
 
 
@@ -119,22 +132,6 @@ excerpt:
 >   id: target.id,
 >   title: `Security review: ${safeClaim}`,
 >   status: target.state,
-
-Evidence 5:
-
-
-
-path: src/modules/autonomy/workflows/security-review/workflow-task-identity.test-cases.ts
-
-line: 27
-
-excerpt:
-
-
-
-> it("updates a terminal task with new provenance instead of creating a duplicate ready task", () => {
->   ...
->   expect(terminalAttrs.status).toBe("done");
 
 ## Initiative
 
