@@ -1,21 +1,27 @@
 ---
 id: task-coordinate-write-scope-attribution-across-canonica
 title: Coordinate write-scope attribution across canonical workspace writers
-status: ready
+status: backlog
 priority: p1
 area: autonomy
 summary: Extend canonical workspace coordination beyond the in-process agent-run limiter so security-review and other scoped agents cannot be blamed for mutations made concurrently by another KOTA or native-CLI writer. Preserve fail-closed detection for genuine out-of-scope agent edits, then resolve the cited dead letter and restore the interrupted security review.
 created_at: 2026-08-24T02:32:46.069Z
-updated_at: 2026-08-24T02:32:46.069Z
+updated_at: 2026-08-24T03:03:39.437Z
 task_class: Meta
+depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
 ---
 ## Problem
 
-    Extend canonical workspace coordination beyond the in-process agent-run limiter so security-review and other scoped agents cannot be blamed for mutations made concurrently by another KOTA or native-CLI writer. Preserve fail-closed detection for genuine out-of-scope agent edits, then resolve the cited dead letter and restore the interrupted security review.
+Security review and other scoped agents can be blamed for mutations made by a
+concurrent KOTA or native-CLI workspace writer because write ownership is not
+carried through one canonical authority boundary.
 
 ## Desired Outcome
 
-Resolve autonomy issue autonomy-issue-b814699e74ca9d6922a2 at semantic revision 1.
+One canonical workspace-writer coordination boundary serializes or attributes
+mutations across workflow and native writers. Scoped enforcement evaluates
+only agent-owned changes while genuine out-of-scope agent writes still fail
+closed with inspectable provenance.
 
 ## Constraints
 

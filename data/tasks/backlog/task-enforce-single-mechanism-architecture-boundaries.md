@@ -5,10 +5,10 @@ status: backlog
 priority: p2
 area: architecture
 task_class: Platform
-depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra, task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-apple-clients, task-render-shared-ui-surfaces-in-android-mobile, task-complete-the-terminal-project-to-scope-migration, task-make-taskclaim-the-sole-active-work-authority, task-generate-all-thin-client-daemon-contract-bindings, task-report-and-validate-codex-harness-capabilities-tru, task-rewrite-mcp-client-orchestration-into-focused-prot, task-rewrite-module-manifests-into-focused-owned-projec, task-separate-task-queue-structure-from-autonomy-govern, task-rewrite-dead-letter-handling-into-focused-lifecycl, task-split-client-state-into-generated-transport-and-do, task-add-one-policy-aware-outbound-http-transport, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable, task-prove-self-service-external-scope-onboarding-end-t]
+depends_on: [task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-android-mobile, task-rewrite-mcp-client-orchestration-into-focused-prot, task-rewrite-module-manifests-into-focused-owned-projec, task-separate-task-queue-structure-from-autonomy-govern, task-rewrite-dead-letter-handling-into-focused-lifecycl, task-split-client-state-into-generated-transport-and-do, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable, task-prove-self-service-external-scope-onboarding-end-t]
 summary: Add deterministic architecture checks that prevent UI, contract, HTTP, browser, and registration bypasses from returning.
 created_at: 2026-07-31T16:01:02.631Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

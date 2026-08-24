@@ -5,10 +5,10 @@ status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-depends_on: [task-complete-the-terminal-project-to-scope-migration, task-generate-client-bindings-from-the-daemon-ui-contra]
+depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Extend the canonical contract generator across daemon endpoints and remove hand-maintained TypeScript and Swift decoder mirrors.
 created_at: 2026-07-31T16:00:58.607Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

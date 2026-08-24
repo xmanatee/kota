@@ -4,9 +4,10 @@ title: Add cross-preset runtime parity gate
 status: blocked
 priority: p2
 area: architecture
+task_class: Platform
 summary: Add a single test target that boots the daemon under each shipped preset and runs an operator-shaped scenario (boot, single-turn, tool-use, capture, workflow agent step, autonomy turn) so cross-preset parity is verifiable, not nominal.
 created_at: 2026-05-07T23:36:27.797Z
-updated_at: 2026-06-15T00:00:00.000Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem
@@ -104,8 +105,8 @@ Concretely:
 - The test accepts harness-managed-auth presets and detects missing env vars
   for env-auth presets as a single per-preset preflight failure rather than a
   flaky individual test.
-- Test infrastructure under `src/eval-harness/` or
-  `src/modules/eval-harness/` records the run artifacts for each
+- Test infrastructure under `src/modules/eval-harness/` records the run
+  artifacts for each
   preset under `.kota/runs/<run-id>/preset-parity/<preset-id>/` so
   a failed run produces a postmortem-grade transcript.
 - CI either runs all three presets when env vars are configured, or

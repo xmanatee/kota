@@ -5,10 +5,10 @@ status: backlog
 priority: p1
 area: client
 task_class: Product
-depends_on: [task-add-one-transactional-external-scope-onboarding-se, task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
+depends_on: [task-add-one-transactional-external-scope-onboarding-se]
 summary: Add one semantic onboarding surface and generated client actions for inspecting, configuring, adding, and removing directory scopes.
 created_at: 2026-07-31T16:12:55.650Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

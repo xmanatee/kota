@@ -4,9 +4,10 @@ title: Review owner captured automated research and MiMo links
 status: blocked
 priority: p2
 area: research
+task_class: Meta
 summary: Read and disposition the owner-captured 2026-06-10 bare links on automated AI research, OpenAI ONA, and Xiaomi MiMo for KOTA relevance without inferring from unread sources.
 created_at: 2026-06-13T00:16:08.543Z
-updated_at: 2026-06-20T20:59:59.863Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

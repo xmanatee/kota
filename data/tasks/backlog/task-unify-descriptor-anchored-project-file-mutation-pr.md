@@ -1,13 +1,14 @@
 ---
 id: task-unify-descriptor-anchored-project-file-mutation-pr
-title: Unify descriptor-anchored project file mutation primitives
+title: Unify descriptor-anchored filesystem mutation primitives
 status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-summary: Replace duplicated task-claim and repo-task no-follow filesystem implementations with one audited descriptor-anchored primitive owned by the core filesystem boundary.
+depends_on: [task-security-review-when-persistprofile-is-enabled-imp]
+summary: Replace duplicated task-claim, repo-task, and browser-profile no-follow filesystem implementations with one audited descriptor-anchored primitive owned by the core filesystem boundary.
 created_at: 2026-08-13T10:15:23.613Z
-updated_at: 2026-08-13T10:15:23.613Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem
@@ -18,15 +19,18 @@ Recent security repairs independently introduced
 primitives: descriptor-anchored directory traversal, identity comparison,
 optional `lstat`, `O_NOFOLLOW` capability checks, refusal serialization, and
 isolated helper execution. Their domain operations differ, but duplicating the
-security boundary creates two implementations to audit and allows fixes for
-path races or platform behavior to drift.
+security boundary creates multiple implementations to audit and allows fixes
+for path races or platform behavior to drift. Browser profile persistence now
+adds a third descriptor-anchored consumer that must converge on the same
+low-level owner after its active security repair lands.
 
 ## Desired Outcome
 
 Own descriptor-anchored, no-follow filesystem traversal and primitive file
-operations in one core boundary. Task claims and repository task mutations
-compose their domain-specific operations on that boundary without sharing
-domain lifecycle state or weakening fail-closed behavior.
+operations in one core boundary. Task claims, repository task mutations, and
+browser profile persistence compose their domain-specific operations on that
+boundary without sharing domain lifecycle state or weakening fail-closed
+behavior.
 
 ## Constraints
 
@@ -42,11 +46,12 @@ domain lifecycle state or weakening fail-closed behavior.
 
 ## Done When
 
-- Claims and repo-task mutations import or generate their low-level operations
-  from one owner, with no copied implementations of identity, no-follow open,
-  anchored traversal, or helper response handling.
-- Existing direct-leaf, parent-symlink, replacement-race, and cross-project
-  scenarios exercise both consumers through the shared boundary.
+- Claims, repo-task mutations, and browser profile persistence import or
+  generate their low-level operations from one owner, with no copied
+  implementations of identity, no-follow open, anchored traversal, or helper
+  response handling.
+- Existing direct-leaf, parent-symlink, replacement-race, and cross-scope
+  scenarios exercise all three consumers through the shared boundary.
 - Platform capability rejection is tested once at the shared boundary while
   each domain retains focused lifecycle behavior coverage.
 - Source and duplication scans show the superseded common-source mechanisms
@@ -65,6 +70,6 @@ One audited filesystem authority boundary.
 
 ## Acceptance Evidence
 
-- Focused shared-boundary and two-consumer race/symlink fixture transcript.
+- Focused shared-boundary and three-consumer race/symlink fixture transcript.
 - Before/after structural search or duplication report naming the removed
   implementations and the single surviving owner.

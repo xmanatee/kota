@@ -4,9 +4,10 @@ title: Capture an end-to-end coding-task parity artifact under .kota/runs/ for e
 status: blocked
 priority: p2
 area: architecture
+task_class: Platform
 summary: Produce a run-dir artifact that shows KOTA completing a representative coding task end-to-end under each registered agent harness, recording any capability gap vs running the harness directly.
 created_at: 2026-04-22T20:27:49.498Z
-updated_at: 2026-05-07T12:27:35.000Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

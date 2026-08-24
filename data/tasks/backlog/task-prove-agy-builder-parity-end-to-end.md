@@ -5,10 +5,10 @@ status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-depends_on: [task-validate-agy-model-routing-against-long-horizon-co, task-recover-agy-builder-completion-reliability-from-th]
+depends_on: [task-execute-agy-model-benchmark-and-document-routing-d, task-recover-agy-builder-completion-reliability-from-th]
 summary: Run a representative KOTA builder task through AGY with inspectable planning, edits, verification, commit, task transition, and cleanup evidence.
 created_at: 2026-08-07T01:04:38.779Z
-updated_at: 2026-08-07T01:04:38.779Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem
@@ -59,6 +59,11 @@ configured model string appears in a banner or source object.
 
 Owner direction on 2026-08-07: end-to-end AGY builder parity is unproven and
 must be thoroughly checked before a continuous AGY daemon is trusted.
+
+The original routing-validation predecessor was deliberately decomposed and
+dropped. The hard edge now targets its terminal benchmark-and-routing
+successor, so future validation fails if an open task ever points at a dropped
+predecessor again.
 
 This is a focused unblocker for AGY. It complements rather than duplicates
 `task-add-cross-preset-runtime-parity-gate` and

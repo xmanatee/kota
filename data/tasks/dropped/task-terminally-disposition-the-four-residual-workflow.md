@@ -1,14 +1,14 @@
 ---
 id: task-terminally-disposition-the-four-residual-workflow
 title: Terminally disposition the six current workflow dead letters
-status: backlog
+status: dropped
 priority: p1
 area: platform
 task_class: Platform
 depends_on: [task-recover-the-two-stale-builder-claims-blocking-high]
-summary: Verify and terminally disposition the six currently open workflow-dispatch dead letters through the canonical daemon-owned DLQ mechanism after the preserved daemon-control branch is recovered.
+summary: Historical six-record DLQ cleanup whose exact records were already dismissed through the canonical runtime and no longer represent open work.
 created_at: 2026-08-13T17:38:05.815Z
-updated_at: 2026-08-16T08:41:33.053Z
+updated_at: 2026-08-24T03:03:45.906Z
 ---
 
 ## Problem
@@ -96,3 +96,12 @@ Canonical workflow failure disposition.
 - Before/after canonical DLQ projections and the six-record decision artifact.
 - Focused source-guard, terminal mutation, restart, and recovery-projection
   fixtures through the production daemon client.
+
+## Disposition
+
+Dropped on 2026-08-24 after canonical DLQ inspection confirmed that all six
+named records are already terminally dismissed. The currently open DLQ records
+have different identities and dedicated owners, so reusing this task would
+silently mutate its evidence contract and duplicate live recovery work. The
+historical mappings remain here for audit; no compatibility scrubber or
+replacement six-record task is retained.

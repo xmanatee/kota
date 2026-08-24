@@ -4,9 +4,10 @@ title: Disposition retained evaluator calibration contradictions
 status: backlog
 priority: p1
 area: autonomy
+task_class: Meta
 summary: Preserve run-level identities for the three accepted low-sample evaluator contradictions and give each weak-evidence verdict a durable disposition.
 created_at: 2026-08-13T21:43:07.182Z
-updated_at: 2026-08-13T21:43:07.182Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

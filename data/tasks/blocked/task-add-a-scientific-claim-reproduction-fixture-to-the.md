@@ -4,9 +4,10 @@ title: Add a scientific-claim reproduction fixture to the eval harness
 status: blocked
 priority: p2
 area: modules
+task_class: Meta
 summary: Seed an eval-harness fixture where the builder reconstructs a small underspecified computational workflow from a paper-like claim, executes deterministic evidence, and records whether the claim is supported or refuted.
 created_at: 2026-05-27T08:12:34.216Z
-updated_at: 2026-07-24T23:41:15.979Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

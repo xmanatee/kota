@@ -5,10 +5,10 @@ status: backlog
 priority: p2
 area: client
 task_class: Platform
-depends_on: [task-complete-the-terminal-project-to-scope-migration, task-generate-all-thin-client-daemon-contract-bindings]
+depends_on: [task-generate-all-thin-client-daemon-contract-bindings]
 summary: Replace oversized client application-state objects with generated wire contracts and focused scope, task, session, setup, and UI stores.
 created_at: 2026-08-24T02:13:50.623Z
-updated_at: 2026-08-24T02:13:50.623Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

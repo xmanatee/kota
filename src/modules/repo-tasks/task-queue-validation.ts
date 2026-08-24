@@ -34,7 +34,9 @@ import {
   TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
 import {
+  findDroppedTaskDependencyIds,
   findDuplicateTaskDependencyIds,
+  findRedundantTaskDependencyIds,
   parseTaskDependencyIds,
   TASK_DEPENDENCIES_FIELD,
 } from "./task-dependencies.js";
@@ -336,6 +338,12 @@ function hasSubstantiveSection(raw: string, heading: string): boolean {
     return false;
   }
   return section.replace(/[-*\s]/g, "").length >= 12;
+}
+
+function hasGeneratedDesiredOutcomePlaceholder(raw: string): boolean {
+  const desiredOutcome = extractSection(raw, "Desired Outcome");
+  return desiredOutcome !== null &&
+    /^Resolve autonomy issue \S+ at semantic revision \S+\.$/.test(desiredOutcome);
 }
 
 function listDuplicateFanOutConsolidationRows(raw: string): string[] {
@@ -798,6 +806,15 @@ export function validateTaskQueue(
     }
 
     const taskClass = readTaskClass(attrs);
+    if (isOpenTaskState(entry.state) && taskClass === null) {
+      findings.push({
+        code: "open-task-missing-class",
+        severity: "error",
+        message: `${entry.path} is open work but does not declare task_class. ` +
+          `Classify it as one of ${TASK_CLASSES.join(", ")} so queue ordering and governance do not silently treat it as unclassified.`,
+        paths: [entry.path],
+      });
+    }
     if (taskClass !== null && !(TASK_CLASSES as readonly string[]).includes(taskClass)) {
       findings.push({
         code: "task-invalid-class",
@@ -862,6 +879,16 @@ export function validateTaskQueue(
     }
 
     if (isOpenTaskState(entry.state)) {
+      if (hasGeneratedDesiredOutcomePlaceholder(entry.raw)) {
+        findings.push({
+          code: "open-task-placeholder-outcome",
+          severity: "error",
+          message: `${entry.path} still uses the generated autonomy-issue placeholder as its Desired Outcome. ` +
+            "Replace it with the concrete behavior or operator result the builder must establish.",
+          paths: [entry.path],
+        });
+      }
+
       for (const section of ACTIVE_REQUIRED_SECTIONS) {
         if (!entry.raw.includes(section)) {
           findings.push({
@@ -1058,6 +1085,9 @@ export function validateTaskQueue(
   }
 
   const knownTaskIds = new Set(seenTaskStates.keys());
+  const stateByTaskId = new Map(
+    entries.map((entry) => [entry.taskId, entry.state] as const),
+  );
   for (const [taskId, dependencies] of dependencyGraph) {
     for (const dependency of dependencies) {
       if (knownTaskIds.has(dependency)) continue;
@@ -1078,6 +1108,40 @@ export function validateTaskQueue(
       severity: "error",
       message: `Task dependency cycle detected: ${cycle.join(" -> ")}`,
     });
+  }
+
+  for (const entry of entries) {
+    if (!isOpenTaskState(entry.state)) continue;
+    const dependencies = dependencyGraph.get(entry.taskId) ?? [];
+    const droppedDependencies = findDroppedTaskDependencyIds(
+      dependencies,
+      stateByTaskId,
+    );
+    if (droppedDependencies.length > 0) {
+      findings.push({
+        code: "task-dependency-dropped",
+        severity: "error",
+        message: `${entry.path} depends on dropped predecessor task id(s): ${droppedDependencies.join(", ")}. ` +
+          "Replace each edge with the accepted successor task or remove the obsolete work.",
+        paths: [entry.path],
+      });
+    }
+
+    if (!cycle) {
+      const redundantDependencies = findRedundantTaskDependencyIds(
+        entry.taskId,
+        dependencyGraph,
+      );
+      if (redundantDependencies.length > 0) {
+        findings.push({
+          code: "task-dependency-redundant",
+          severity: "error",
+          message: `${entry.path} repeats predecessor edge(s) already implied transitively: ${redundantDependencies.join(", ")}. ` +
+            "Keep only the immediate dependency boundary so sequencing has one canonical representation.",
+          paths: [entry.path],
+        });
+      }
+    }
   }
 
   const maxDoing = options.maxDoing ?? 1;

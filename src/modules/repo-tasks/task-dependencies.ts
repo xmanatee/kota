@@ -55,3 +55,41 @@ export function findUnfinishedTaskDependencies(
 ): string[] {
   return dependencies.filter((dependency) => stateByTaskId.get(dependency) !== "done");
 }
+
+export function findDroppedTaskDependencyIds(
+  dependencies: readonly string[],
+  stateByTaskId: ReadonlyMap<string, string>,
+): string[] {
+  return dependencies
+    .filter((dependency) => stateByTaskId.get(dependency) === "dropped")
+    .sort();
+}
+
+function isTaskDependencyReachable(
+  targetTaskId: string,
+  fromTaskId: string,
+  graph: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  const pending = [...(graph.get(fromTaskId) ?? [])];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const dependency = pending.pop();
+    if (!dependency || visited.has(dependency)) continue;
+    if (dependency === targetTaskId) return true;
+    visited.add(dependency);
+    pending.push(...(graph.get(dependency) ?? []));
+  }
+  return false;
+}
+
+export function findRedundantTaskDependencyIds(
+  taskId: string,
+  graph: ReadonlyMap<string, readonly string[]>,
+): string[] {
+  const directDependencies = [...new Set(graph.get(taskId) ?? [])];
+  return directDependencies
+    .filter((candidate) => directDependencies.some(
+      (other) => other !== candidate && isTaskDependencyReachable(candidate, other, graph),
+    ))
+    .sort();
+}

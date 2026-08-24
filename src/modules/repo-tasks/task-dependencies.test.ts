@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  findDroppedTaskDependencyIds,
   findDuplicateTaskDependencyIds,
+  findRedundantTaskDependencyIds,
   findUnfinishedTaskDependencies,
   parseTaskDependencyIds,
   readTaskDependencyIds,
@@ -51,5 +53,24 @@ describe("task dependencies", () => {
     expect(
       findUnfinishedTaskDependencies(["task-a", "task-b", "task-missing"], states),
     ).toEqual(["task-b", "task-missing"]);
+  });
+
+  it("identifies dropped predecessors and direct edges already implied transitively", () => {
+    const states = new Map([
+      ["task-dropped", "dropped"],
+      ["task-live", "done"],
+    ]);
+    expect(
+      findDroppedTaskDependencyIds(["task-dropped", "task-live"], states),
+    ).toEqual(["task-dropped"]);
+
+    const graph = new Map<string, readonly string[]>([
+      ["task-dependent", ["task-direct", "task-transitive"]],
+      ["task-direct", ["task-transitive"]],
+      ["task-transitive", []],
+    ]);
+    expect(findRedundantTaskDependencyIds("task-dependent", graph)).toEqual([
+      "task-transitive",
+    ]);
   });
 });

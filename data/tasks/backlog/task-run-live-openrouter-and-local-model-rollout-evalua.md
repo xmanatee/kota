@@ -5,10 +5,10 @@ status: backlog
 priority: p1
 area: modules
 task_class: Platform
-depends_on: [task-add-openrouter-model-capability-catalog-and-candid, task-make-openai-compatible-model-clients-honor-model-s, task-route-openai-tools-through-the-kota-tool-runner-wi, task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har, task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
+depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 summary: Use the completed parity surfaces to run GLM, Kimi, DeepSeek, Qwen, MiniMax, MiMo, and local-model candidates against Codex baselines and select supported tiers from recorded evidence.
 created_at: 2026-06-25T14:23:32.342Z
-updated_at: 2026-06-25T14:23:32.342Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem

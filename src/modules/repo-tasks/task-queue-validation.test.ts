@@ -41,7 +41,11 @@ function writeTask(
   mkdirSync(dir, { recursive: true });
   const title = overrides.title ?? taskId;
   const priority = overrides.priority ?? "p2";
-  const openQualitySections = ["ready", "backlog", "doing", "blocked"].includes(state)
+  const isOpen = ["ready", "backlog", "doing", "blocked"].includes(state);
+  const taskClass = overrides.task_class === undefined
+    ? (isOpen ? "Platform" : undefined)
+    : overrides.task_class;
+  const openQualitySections = isOpen
     ? `
 ## Source / Intent
 
@@ -69,7 +73,7 @@ created_at: ${overrides.created_at ?? "2026-03-28T00:00:00Z"}
 updated_at: ${overrides.updated_at ?? "2026-03-28T00:00:00Z"}
 ${overrides.depends_on ? `depends_on: ${overrides.depends_on}\n` : ""}
 ${overrides.anchor ? `anchor: ${overrides.anchor}\n` : ""}
-${overrides.task_class ? `task_class: ${overrides.task_class}\n` : ""}
+${taskClass ? `task_class: ${taskClass}\n` : ""}
 ---
 
 ## Problem
@@ -78,7 +82,7 @@ Problem.
 
 ## Desired Outcome
 
-Outcome.
+${overrides.desired_outcome ?? "Outcome."}
 
 ## Constraints
 
@@ -232,6 +236,12 @@ describe("task queue validation", () => {
     expect(result.findings.some((f) => f.code === "task-invalid-class")).toBe(true);
   });
 
+  it("requires every open task to declare its task class", () => {
+    writeTask(projectDir, "backlog", "task-missing-class", { task_class: "" });
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "open-task-missing-class")).toBe(true);
+  });
+
   it("requires actionable Meta tasks to name the Product or Safety blocker they close", () => {
     writeTask(projectDir, "ready", "task-meta-no-link", { task_class: "Meta" });
     const result = validateTaskQueue(projectDir);
@@ -335,8 +345,9 @@ Product blocker: task-make-bare-kota-launch-the-full-daemon-backed-cli-c.
   });
 
   it("rejects hard task dependency cycles", () => {
+    writeTask(projectDir, "dropped", "task-dropped", { status: "dropped" });
     writeTask(projectDir, "ready", "task-a", {
-      depends_on: "[task-b]",
+      depends_on: "[task-b, task-dropped]",
     });
     writeTask(projectDir, "backlog", "task-b", {
       depends_on: "[task-c]",
@@ -354,6 +365,36 @@ Product blocker: task-make-bare-kota-launch-the-full-daemon-backed-cli-c.
     expect(finding?.message).toMatch(/task-a/);
     expect(finding?.message).toMatch(/task-b/);
     expect(finding?.message).toMatch(/task-c/);
+    expect(result.findings.some((f) => f.code === "task-dependency-dropped")).toBe(true);
+  });
+
+  it("rejects dropped predecessors and redundant transitive dependency edges on open tasks", () => {
+    writeTask(projectDir, "dropped", "task-dropped", { status: "dropped" });
+    writeTask(projectDir, "done", "task-transitive", { status: "done" });
+    writeTask(projectDir, "backlog", "task-direct", {
+      depends_on: "[task-transitive]",
+    });
+    writeTask(projectDir, "backlog", "task-dependent", {
+      depends_on: "[task-dropped, task-direct, task-transitive]",
+    });
+    execSync("git add data && git commit -m init", {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "task-dependency-dropped")).toBe(true);
+    expect(result.findings.some((f) => f.code === "task-dependency-redundant")).toBe(true);
+  });
+
+  it("rejects generated placeholder text as an open task desired outcome", () => {
+    writeTask(projectDir, "ready", "task-placeholder-outcome", {
+      desired_outcome:
+        "Resolve autonomy issue issue-123 at semantic revision revision-456.",
+    });
+
+    const result = validateTaskQueue(projectDir);
+    expect(result.findings.some((f) => f.code === "open-task-placeholder-outcome")).toBe(true);
   });
 
   it("requires task-done blocked preconditions to match the canonical dependency edge", () => {

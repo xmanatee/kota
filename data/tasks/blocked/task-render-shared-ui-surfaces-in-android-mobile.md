@@ -5,10 +5,10 @@ status: blocked
 priority: p1
 area: client
 task_class: Product
-depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
+depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Make the React Native Android client render daemon-owned ui.surface.v1 semantics while native iOS remains owned by the Apple client.
 created_at: 2026-07-31T16:00:57.533Z
-updated_at: 2026-08-23T19:34:45.935Z
+updated_at: 2026-08-24T03:03:20.000Z
 ---
 
 ## Problem
@@ -94,6 +94,10 @@ kind: operator-capture
 path: .kota/runs/android-shared-ui-emulator-capture/capture-manifest.json
 description: trusted Android host capture — run `pnpm --dir clients/mobile evidence:android-server -- --bundle ../../.kota/runs/2026-08-02T18-10-55-229Z-builder-di3zdv/evidence/artifacts/captured-ui-surface-bundle.json --token kota-android-evidence`, run `adb reverse tcp:8765 tcp:8765`, launch the production app with `pnpm --dir clients/mobile android`, configure `http://127.0.0.1:8765` plus token `kota-android-evidence`, and capture emulator PNGs or a screencast showing Status, Approvals, and Setup from that exact bundle; write capture-manifest.json with the server-reported SHA-256, capture filenames, emulator/device identity, and the statement that the production AppNavigator/DaemonProvider path was used
 ```
+
+Capture must use the terminal scope-identity contract after
+`task-complete-the-terminal-project-to-scope-migration`; legacy project-shaped
+requests or fixtures do not satisfy the precondition.
 
 ## Status (2026-08-23 builder repair)
 

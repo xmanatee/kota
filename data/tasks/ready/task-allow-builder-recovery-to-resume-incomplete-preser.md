@@ -6,16 +6,21 @@ priority: p1
 area: autonomy
 summary: Separate preserved-evidence continuation eligibility from completion-time evidence validation. A recovery continuation must safely reuse the original evidence directory and manifest before all required completion artifacts exist, while retaining strict screening and required-file enforcement at validation and commit time. Replace the mocked recovery happy path with a production-shaped fixture that exercises the real preserved-evidence lookup.
 created_at: 2026-08-23T20:50:51.521Z
-updated_at: 2026-08-23T20:50:51.521Z
+updated_at: 2026-08-24T03:03:20.000Z
 task_class: Meta
 ---
 ## Problem
 
-    Separate preserved-evidence continuation eligibility from completion-time evidence validation. A recovery continuation must safely reuse the original evidence directory and manifest before all required completion artifacts exist, while retaining strict screening and required-file enforcement at validation and commit time. Replace the mocked recovery happy path with a production-shaped fixture that exercises the real preserved-evidence lookup.
+Preserved-evidence lookup incorrectly applies completion-time validation before
+a recovery continuation runs, so a valid interrupted lineage without its final
+verification and commit artifacts fails before it can resume.
 
 ## Desired Outcome
 
-Resolve autonomy issue autonomy-issue-4bb0f021759db9660e18 at semantic revision 1.
+Recovery distinguishes continuation eligibility from terminal completion
+validation: it safely resumes valid incomplete evidence with the original
+manifest and run lineage, then enforces every required completion artifact at
+validation and commit time.
 
 ## Constraints
 

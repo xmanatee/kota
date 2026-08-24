@@ -12,16 +12,20 @@ State and priority are separate concepts. Priority describes importance; state d
   the schema boundary.
 - Use `depends_on: [task-id, ...]` frontmatter for hard predecessor task
   edges. This is the canonical dependency representation; do not encode hard
-  ordering only in prose.
+  ordering only in prose. Open tasks may depend only on existing non-dropped
+  tasks and must name immediate predecessors only; do not repeat an edge that
+  is already implied transitively through another predecessor.
 - If a blocked task uses an `## Unblock Precondition` of `kind: task-done`,
   its `depends_on` list must be exactly the same task id.
 - Tasks describe what must become true and why it matters; builders own the
   plan. Runtime replacements follow the proof contract in the repo-tasks module.
-- New strategic tasks may set `task_class: Product`, `Safety`, `Platform`, or
-  `Meta` in frontmatter. Product is owner-visible capability or UX; Safety is
+- Every open task sets `task_class: Product`, `Safety`, `Platform`, or `Meta`
+  in frontmatter. Product is owner-visible capability or UX; Safety is
   security, credential, permission, policy, or destructive-action risk;
   Platform is enabling architecture/runtime/protocol work; Meta is work on the
   autonomous process, evaluators, repair loops, prompts, or queue machinery.
+- Replace generated autonomy-issue placeholder text with a concrete behavioral
+  `## Desired Outcome` before the proposal enters the open queue.
 - Preserve owner wording, runtime evidence, research source, and urgency in
   `## Source / Intent`; do not normalize away the reason the task exists.
 - `## Acceptance Evidence` names the transcript, screenshot, fixture, command,
