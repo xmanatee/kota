@@ -261,5 +261,26 @@ export function validateAgentStep(
     }
   }
 
+  const continuation = validatedStep.repairLoop?.continuation;
+  if (continuation?.resolveAgentContract !== undefined) {
+    const continuationLabel = `${stepLabel}.repairLoop.continuation`;
+    try {
+      const contract = continuation.resolveAgentContract(validatedStep);
+      if (hasAgentHarness(contract.harness)) {
+        resolveStaticWorkflowAgentRunContract({
+          step: contract,
+          harness: resolveAgentHarness(contract.harness),
+          source: `workflow:${workflowName}/${continuationLabel}`,
+        });
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new WorkflowDefinitionError(
+        `workflow "${workflowName}" ${continuationLabel} resolved judge run contract is incompatible: ${detail}`,
+        definitionPath,
+      );
+    }
+  }
+
   return validatedStep;
 }

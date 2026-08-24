@@ -2,6 +2,7 @@ import type {
 	GitJsonObject,
 	GitJsonValue,
 } from "./worktree-lifecycle-support.js";
+import { isGitAncestor } from "./worktree-lifecycle-support.js";
 import type {
 	AutomationWorktreeCanonicalConflict,
 	AutomationWorktreeCanonicalReconciliation,
@@ -98,5 +99,28 @@ export function isAutomationWorktreeCanonicalReconciliation(
 		isNullableString(value.reason) &&
 		typeof value.artifactPath === "string" &&
 		typeof value.updatedAt === "string"
+	);
+}
+
+export function hasReusableCanonicalCheckpoint(
+	value: ReconciliationJsonValue | undefined,
+	workspaceDir: string,
+	headCommit: string,
+): value is AutomationWorktreeCanonicalReconciliation & {
+	checkpointCommit: string;
+	integratedCanonicalHeadCommit: string;
+} {
+	return (
+		value !== undefined &&
+		isAutomationWorktreeCanonicalReconciliation(value) &&
+		value.disposition === "ready-to-resume" &&
+		typeof value.checkpointCommit === "string" &&
+		typeof value.integratedCanonicalHeadCommit === "string" &&
+		isGitAncestor(workspaceDir, value.checkpointCommit, headCommit) &&
+		isGitAncestor(
+			workspaceDir,
+			value.integratedCanonicalHeadCommit,
+			headCommit,
+		)
 	);
 }

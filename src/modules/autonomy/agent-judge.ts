@@ -24,6 +24,8 @@ export type AgentJudgeConfig = {
   harness: string;
   maxRetries?: number;
   retryBaseDelayMs?: number;
+  /** Optional typed response decoder for non-critic judge protocols. */
+  validateResponse?: (text: string) => void;
 };
 
 const DEFAULT_MAX_RETRIES = 3;
@@ -122,7 +124,7 @@ export async function invokeAgentJudge(
 
     if (!response.isError) {
       try {
-        parseVerdict(response.text);
+        validateJudgeResponse(response.text, config);
         return response;
       } catch (error) {
         lastError = new Error(
@@ -137,7 +139,7 @@ export async function invokeAgentJudge(
     // emitted text before deciding whether to retry — an agent that hit
     // max_turns may still have produced a valid JSON verdict before bailing.
     if (response.text.trim()) {
-      if (isParseableVerdict(response.text)) {
+      if (isParseableJudgeResponse(response.text, config)) {
         return response;
       }
     }
@@ -162,10 +164,21 @@ export async function invokeAgentJudge(
   throw lastError!;
 }
 
-function isParseableVerdict(text: string): boolean {
+function validateJudgeResponse(text: string, config: AgentJudgeConfig): void {
+  if (config.validateResponse !== undefined) {
+    config.validateResponse(text);
+    return;
+  }
+  parseVerdict(text);
+}
+
+function isParseableJudgeResponse(
+  text: string,
+  config: AgentJudgeConfig,
+): boolean {
   let parseable = true;
   try {
-    parseVerdict(text);
+    validateJudgeResponse(text, config);
   } catch {
     parseable = false;
   }

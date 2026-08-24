@@ -7,6 +7,7 @@
 - Give preserved work one automatic continuation only after its complete visible work is checkpointed on the existing branch and the merge-gate-serialized canonical head is reconciled.
   Keep original-base provenance; unresolved overlap stays checkpointed and claim-held for review. Productive work is governed by trusted progress;
   a continuation that fails or stops reporting progress preserves the worktree for typed state-recovery review.
+- Repeated repair, scope growth, unresolved criteria, or a better queue frontier creates a semantic continuation boundary. One capable authority chooses `continue`, `decompose`, `preserve-yield`, or `needs-owner` from the task, diff, verification trajectory, failures, criteria, and queue. Time, cost, tokens, turns, fixed repair counts, and churn within a judged reason never create a boundary. Yield only after a resumable checkpoint; checkpoint failure stays failed, dirty, and claim-held.
 - Bounded recovery may resolve text conflicts and accept canonical destructive
   paths only by keeping them absent; preserve other structural and binary conflicts for review.
 - A structured semantic `needs-review` judgment may guide one remaining bounded resolver attempt; preserve invalid or exhausted reviews for review.
@@ -41,7 +42,7 @@ Number each criterion at column 0 (`1.`, `2.`, ...), one per Done-When item.
 The repair check counts numbered items only; column-0 bullets (`- `/`* `) and
 prose are treated as notes, so `Design notes` or `Known limitations` sections
 do not inflate the criterion count. Match the numbered-item count between the
-two files.
+  two files and prefix unresolved evidence with `Not verified:` so continuation packets do not present an addressed blocker as a completed criterion.
 
 Keep completion reviewable. When external resources or runtime behavior matter,
 leave enough ordinary context for later verification. If a required resource

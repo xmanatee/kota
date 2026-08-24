@@ -1,5 +1,3 @@
-import type { AgentDef } from "#core/agents/agent-types.js";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -26,6 +24,7 @@ import {
   createPullRequest,
   createTaskBranch,
 } from "./branch-per-task.js";
+import { builderAgent } from "./builder-agent.js";
 import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
 import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
@@ -33,10 +32,10 @@ import {
   claimedTaskConsistencySucceeded,
   createClaimedTaskConsistencyStep,
 } from "./claimed-task-consistency-step.js";
+import { builderContinuationController } from "./continuation-controller.js";
 import {
   createCleanupAutomationWorktreeStep,
   createMergeGateStep,
-  mergeGateSucceeded,
 } from "./merge-gate-step.js";
 import { createBuilderParallelMetricsStep } from "./parallel-metrics-step.js";
 import {
@@ -67,18 +66,10 @@ import {
   createReleaseTaskClaimStep,
 } from "./task-claim-step.js";
 import { finalizeBuilderTerminalWorktree } from "./terminal-worktree-finalizer.js";
+import { builderCommitPublished } from "./workflow-policy.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
-export const agent: AgentDef = {
-  name: "builder",
-  role: "Ship one cohesive improvement per run by resuming, pulling, or promoting one normalized task.",
-  promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
-  ...AUTONOMY_AGENT_DEFAULTS,
-  skills: "all",
-  // Builder ships arbitrary code changes — its scope is explicitly
-  // unrestricted rather than absence-means-unlimited.
-  writeScope: [],
-};
+export { builderAgent as agent };
 
 const claimTaskStep = createClaimTaskStep(inspectReadyQueue);
 const prepareWorktreeStep = createPrepareBuilderWorktreeStep(claimTaskStep);
@@ -89,12 +80,6 @@ const mergeGateStep = createMergeGateStep();
 const cleanupAutomationWorktreeStep = createCleanupAutomationWorktreeStep();
 const cleanupBuilderRuntimeResourcesStep = createCleanupBuilderRuntimeResourcesStep();
 const builderParallelMetricsStep = createBuilderParallelMetricsStep();
-
-function builderCommitPublished(ctx: WorkflowStepContext): boolean {
-  if (!stepCommitted("commit")(ctx)) return false;
-  const workspace = ctx.stepOutputs["prepare-worktree"] as BuilderWorkspaceResult | undefined;
-  return workspace?.enabled !== true || mergeGateSucceeded(ctx);
-}
 
 const builderWorkflow: WorkflowDefinitionInput = {
   name: "builder",
@@ -149,8 +134,8 @@ const builderWorkflow: WorkflowDefinitionInput = {
     {
       id: "build",
       type: "agent",
-      agentName: agent.name,
-      promptPath: agent.promptPath,
+      agentName: builderAgent.name,
+      promptPath: builderAgent.promptPath,
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: null,
@@ -174,6 +159,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       },
       repairLoop: {
         checks: builderRepairChecks(),
+        continuation: builderContinuationController,
       },
     },
     typedCodeStep<BranchStepResult>({

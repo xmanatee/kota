@@ -135,7 +135,12 @@ export type RuntimeBusEvents = {
     projectId: ProjectId;
     workflow: string;
     runId: string;
-    status: "success" | "failed" | "interrupted" | "completed-with-warnings";
+    status:
+      | "success"
+      | "failed"
+      | "yielded"
+      | "interrupted"
+      | "completed-with-warnings";
     triggerEvent: string;
     durationMs: number;
     definitionPath: string;
@@ -174,7 +179,7 @@ export type RuntimeBusEvents = {
     runId: string;
     stepId: string;
     stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval" | "await-event";
-    status: "success" | "failed" | "skipped";
+    status: "success" | "failed" | "yielded" | "skipped";
     durationMs: number;
     activeDurationMs?: number;
     hostSuspendedMs?: number;

@@ -75,9 +75,10 @@ function writeTask(
   projectDir: string,
   id: string,
   taskClass: "Safety" | "Platform" | "Meta",
-  priority: "p1" | "p2",
+  priority: "p0" | "p1" | "p2",
+  status: "doing" | "ready" = "ready",
 ): void {
-  const dir = join(projectDir, "data", "tasks", "ready");
+  const dir = join(projectDir, "data", "tasks", status);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${id}.md`),
@@ -85,7 +86,7 @@ function writeTask(
       "---",
       `id: ${id}`,
       `title: ${id}`,
-      "status: ready",
+      `status: ${status}`,
       `priority: ${priority}`,
       "area: core",
       `task_class: ${taskClass}`,
@@ -147,6 +148,61 @@ describe("builder recovery continuation bounds", () => {
     expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
   });
 
+  it("keeps a deliberate yield eligible for dispatcher-ranked recovery", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-priority-yield-"));
+    tempDirs.push(projectDir);
+    const runDir = join(projectDir, ".kota", "runs", "recovery-run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "terminal-worktree-finalizer.json"),
+      JSON.stringify({
+        recoveryRequested: true,
+        continuationDecision: "preserve-yield",
+        recoveryAction: { kind: "priority-yield" },
+      }),
+      "utf8",
+    );
+    const candidate = continuedRecoveryCandidate(projectDir);
+    candidate.worktree.dirtyState = "clean";
+    candidate.worktree.uniqueCommits = ["checkpoint123"];
+    candidate.worktree.uniqueCommitCount = 1;
+    candidate.worktree.canonicalReconciliation = {
+      phase: "ready-to-resume",
+      disposition: "ready-to-resume",
+      originalBaseCommit: "base123",
+      checkpointCommit: "checkpoint123",
+      canonicalHeadCommit: "canonical123",
+      integratedCanonicalHeadCommit: "integrated123",
+      conflicts: [],
+      validations: [],
+      artifactPath: join(runDir, "builder-yield-checkpoint.json"),
+    } as unknown as NonNullable<
+      typeof candidate.worktree.canonicalReconciliation
+    >;
+    listRecoveryClaims.mockReturnValue([candidate]);
+
+    expect(listPendingBuilderRecoveries(projectDir)).toEqual([candidate]);
+  });
+
+  it("holds needs-owner work out of automatic recovery", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-needs-owner-"));
+    tempDirs.push(projectDir);
+    const runDir = join(projectDir, ".kota", "runs", "recovery-run");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "terminal-worktree-finalizer.json"),
+      JSON.stringify({
+        recoveryRequested: false,
+        continuationDecision: "needs-owner",
+        recoveryAction: { kind: "owner-decision-required" },
+      }),
+      "utf8",
+    );
+    listRecoveryClaims.mockReturnValue([continuedRecoveryCandidate(projectDir)]);
+
+    expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
+  });
+
   it("defers recovery behind a higher-ranked claimable task", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "builder-recovery-frontier-"));
     tempDirs.push(projectDir);
@@ -156,6 +212,21 @@ describe("builder recovery continuation bounds", () => {
     const result = inspectPendingBuilderRecoveriesInWorker({ projectDir });
 
     expect(result).toEqual({ candidateCount: 1, requested: [] });
+  });
+
+  it("lets newly proven P0 Safety work outrank a yielded doing task", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-priority-yield-frontier-"));
+    tempDirs.push(projectDir);
+    writeTask(projectDir, "task-one", "Platform", "p1", "doing");
+    writeTask(projectDir, "task-safety", "Safety", "p0");
+    const candidate = continuedRecoveryCandidate(projectDir);
+    candidate.claim.taskState = "doing";
+    listRecoveryClaims.mockReturnValue([candidate]);
+
+    expect(inspectPendingBuilderRecoveriesInWorker({ projectDir })).toEqual({
+      candidateCount: 1,
+      requested: [],
+    });
   });
 
   it("requests recovery when it outranks the claimable frontier", () => {

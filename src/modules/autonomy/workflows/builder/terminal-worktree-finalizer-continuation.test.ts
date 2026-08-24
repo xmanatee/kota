@@ -117,6 +117,35 @@ function continuedFinalizerInput(): WorkflowTerminalFinalizerInput {
   return input;
 }
 
+function setContinuationDecision(
+  input: WorkflowTerminalFinalizerInput,
+  decision: "decompose" | "preserve-yield" | "needs-owner",
+): void {
+  if (decision === "preserve-yield") {
+    input.metadata.status = "yielded";
+  }
+  input.metadata.steps.push({
+    id: "build",
+    type: "agent",
+    status: decision === "preserve-yield" ? "yielded" : "failed",
+    ...(decision === "decompose"
+      ? { errorKind: "repair-decompose" as const }
+      : decision === "needs-owner"
+        ? { errorKind: "repair-needs-owner" as const }
+        : {}),
+    output: {
+      continuationDecisions: [
+        {
+          decision,
+          evidenceKey: `${decision}-boundary`,
+          summary: `${decision} summary`,
+          nextAction: `${decision} next action`,
+        },
+      ],
+    },
+  } as WorkflowTerminalFinalizerInput["metadata"]["steps"][number]);
+}
+
 function mockPreservedWorktree(input: {
   claimRunId: string;
   dirtyState: "dirty" | "conflicted";
@@ -210,6 +239,40 @@ describe("finalizeBuilderTerminalWorktree continuations", () => {
       blockers: ["worktree has conflicted paths"],
       recoveryRequested: false,
     });
+  });
+
+  it("preserves a deliberate yield without immediately reclaiming the agent slot", async () => {
+    mockPreservedWorktree({
+      claimRunId: "builder-run",
+      dirtyState: "dirty",
+      blocker: "worktree has checkpointed changes",
+    });
+    const input = finalizerInput();
+    setContinuationDecision(input, "preserve-yield");
+
+    await finalizeBuilderTerminalWorktree(input);
+
+    expect(input.emit).not.toHaveBeenCalled();
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(
+            input.projectDir,
+            input.metadata.runDir,
+            "terminal-worktree-finalizer.json",
+          ),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      removed: false,
+      recoveryRequested: true,
+      continuationDecision: "preserve-yield",
+      claimDisposition: "preserved",
+      recoveryAction: { kind: "priority-yield" },
+    });
+    expect(markTaskClaimPendingDecomposition).not.toHaveBeenCalled();
+    expect(releaseTaskClaim).not.toHaveBeenCalled();
   });
 
   it("retries a continuation only after a classified provider failure", async () => {

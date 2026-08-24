@@ -80,6 +80,7 @@ vi.mock("./decomposition-actions.js", () => ({
   applyDecompositionPlan: vi.fn((args: { taskId: string }) => ({
     taskId: args.taskId,
     subtaskIds: ["task-scoped-subtask"],
+    mutatedTaskPaths: ["data/tasks/ready/task-scoped-subtask.md"],
   })),
 }));
 
@@ -188,6 +189,7 @@ const DECOMPOSITION_PLAN: DecompositionPlan = {
       sourceIntent: "Builder repair exhaustion requires a smaller execution unit.",
       initiative: "Reliable autonomous task execution.",
       acceptanceEvidence: ["A focused regression or runtime artifact proves completion."],
+      reuseTaskId: null,
       dependsOn: [],
     },
   ],

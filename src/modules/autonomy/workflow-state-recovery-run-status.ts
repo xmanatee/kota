@@ -14,9 +14,10 @@ type OwnerRunMetadataProjection = {
 function isOwnerRunStatus(value: string | undefined): value is OwnerRunStatus {
 	return (
 		value === "running" ||
-		value === "success" ||
-		value === "failed" ||
-		value === "interrupted" ||
+			value === "success" ||
+			value === "failed" ||
+			value === "yielded" ||
+			value === "interrupted" ||
 		value === "completed-with-warnings"
 	);
 }

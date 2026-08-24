@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 import type { CodeStepOutputValidator } from "#core/workflow/step-input-code.js";
+import { REPO_TASK_ID_PATTERN } from "#modules/repo-tasks/task-id.js";
 
 const taskClassValues = ["Product", "Safety", "Platform", "Meta"] as const;
 const priorityValues = ["p0", "p1", "p2", "p3"] as const;
@@ -19,6 +20,7 @@ const decompositionSubtaskSchema = z.object({
   sourceIntent: nonBlankString,
   initiative: nonBlankString,
   acceptanceEvidence: z.array(nonBlankString).min(1),
+  reuseTaskId: z.string().trim().regex(REPO_TASK_ID_PATTERN).nullable(),
   dependsOn: z.array(z.number().int().nonnegative()),
 }).strict();
 
@@ -91,6 +93,7 @@ const subtaskOutputSchema = {
     "sourceIntent",
     "initiative",
     "acceptanceEvidence",
+    "reuseTaskId",
     "dependsOn",
   ],
   additionalProperties: false,
@@ -107,6 +110,12 @@ const subtaskOutputSchema = {
     sourceIntent: { type: "string", minLength: 1 },
     initiative: { type: "string", minLength: 1 },
     acceptanceEvidence: stringArraySchema,
+    reuseTaskId: {
+      type: ["string", "null"],
+      pattern: REPO_TASK_ID_PATTERN.source,
+      description:
+        "Open semantically equivalent task to reuse, or null only when no open task covers this slice.",
+    },
     dependsOn: {
       type: "array",
       items: { type: "number", minimum: 0 },

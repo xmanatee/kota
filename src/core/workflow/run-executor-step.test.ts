@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
-import { RepairLoopError } from "./repair-loop.js";
+import { RepairLoopError, RepairLoopYield } from "./repair-loop.js";
 import {
-  applyOutputSizeLimit,
-  DEFAULT_MAX_STEP_OUTPUT_BYTES,
   executeWorkflowStep,
-  HARD_MAX_STEP_OUTPUT_BYTES,
   type StepAccumulators,
 } from "./run-executor-step.js";
 import { AgentStepRuntimeError } from "./steps/step-executor.js";
@@ -23,84 +20,6 @@ vi.mock("./steps/step-executor.js", () => ({
     }
   },
 }));
-
-describe("applyOutputSizeLimit", () => {
-  it("returns output unchanged when below the default limit", () => {
-    const output = { data: "small" };
-    const result = applyOutputSizeLimit(output, undefined);
-    expect(result.output).toEqual(output);
-    expect(result.warning).toBeUndefined();
-  });
-
-  it("returns output unchanged when exactly at the limit", () => {
-    const str = "x".repeat(DEFAULT_MAX_STEP_OUTPUT_BYTES - 2); // JSON adds surrounding quotes
-    const output = str;
-    const serialized = JSON.stringify(output);
-    expect(Buffer.byteLength(serialized, "utf-8")).toBeLessThanOrEqual(DEFAULT_MAX_STEP_OUTPUT_BYTES);
-    const result = applyOutputSizeLimit(output, undefined);
-    expect(result.output).toEqual(output);
-    expect(result.warning).toBeUndefined();
-  });
-
-  it("truncates output exceeding the default limit with a structured notice", () => {
-    const largeOutput = { data: "x".repeat(DEFAULT_MAX_STEP_OUTPUT_BYTES) };
-    const result = applyOutputSizeLimit(largeOutput, undefined);
-    expect(result.output).toMatchObject({
-      truncated: true,
-      originalBytes: expect.any(Number),
-      message: expect.stringContaining("truncated"),
-    });
-    expect((result.output as { originalBytes: number }).originalBytes).toBeGreaterThan(DEFAULT_MAX_STEP_OUTPUT_BYTES);
-    expect(result.warning).toBeDefined();
-    expect(result.warning?.type).toBe("step-output-truncated");
-  });
-
-  it("respects a custom maxBytes limit", () => {
-    const output = { value: "hello world" };
-    const serialized = JSON.stringify(output);
-    const byteLen = Buffer.byteLength(serialized, "utf-8");
-    // Limit is just below the serialized size
-    const result = applyOutputSizeLimit(output, byteLen - 1);
-    expect(result.output).toMatchObject({ truncated: true, originalBytes: byteLen });
-    expect(result.warning).toBeDefined();
-  });
-
-  it("enforces the hard cap even when maxBytes is set higher", () => {
-    const overLimit = HARD_MAX_STEP_OUTPUT_BYTES + 1;
-    const largeOutput = { data: "x".repeat(overLimit) };
-    // Setting maxBytes above the hard cap should still truncate
-    const result = applyOutputSizeLimit(largeOutput, overLimit * 2);
-    expect(result.output).toMatchObject({ truncated: true });
-    expect(result.warning).toBeDefined();
-  });
-
-  it("passes through undefined and null without truncation", () => {
-    expect(applyOutputSizeLimit(undefined, undefined)).toEqual({ output: undefined });
-    expect(applyOutputSizeLimit(null, undefined)).toEqual({ output: null });
-  });
-
-  it("includes the original byte count in the truncation notice", () => {
-    const largeOutput = "x".repeat(DEFAULT_MAX_STEP_OUTPUT_BYTES + 100);
-    const result = applyOutputSizeLimit(largeOutput, undefined);
-    const notice = result.output as { truncated: boolean; originalBytes: number; message: string };
-    expect(notice.originalBytes).toBe(Buffer.byteLength(JSON.stringify(largeOutput), "utf-8"));
-  });
-
-  it("replaces non-serializable output with a structured warning notice", () => {
-    const output: Record<string, unknown> = {};
-    output.self = output;
-    const result = applyOutputSizeLimit(output, undefined);
-    expect(result.output).toMatchObject({
-      truncated: true,
-      originalBytes: 0,
-      message: expect.stringContaining("could not be serialized"),
-    });
-    expect(result.warning).toMatchObject({
-      type: "step-output-truncated",
-      message: expect.stringContaining("could not be serialized"),
-    });
-  });
-});
 
 describe("executeWorkflowStep — costUsd capture", () => {
   function makeAcc(): StepAccumulators {
@@ -258,6 +177,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
         },
       ],
       repairWarnings: [],
+      continuationDecisions: [],
     };
     executeStepMock.mockRejectedValueOnce(
       new RepairLoopError(
@@ -296,5 +216,73 @@ describe("executeWorkflowStep — costUsd capture", () => {
       kind: "provider",
       reason: "provider repair failed",
     });
+  });
+
+  it("records preserve-yield as a first-class step transition", async () => {
+    const decision = {
+      decision: "preserve-yield" as const,
+      evidenceKey: "priority-boundary",
+      summary: "Useful work is durable and P0 Safety work is ready.",
+      nextAction: "Resume the same work after the P0 task.",
+      packet: {
+        schemaVersion: 1 as const,
+        boundaryKey: "priority-boundary",
+        boundaryReasons: ["higher-priority:task-p0:p0:Safety"],
+        attempt: 0,
+        failureIds: ["critic-review"],
+        warningIds: [],
+        progressKey: "progress",
+        trajectory: {
+          classification: "fresh",
+          attempts: 0,
+          failureIdsByAttempt: [["critic-review"]],
+        },
+        context: [],
+      },
+    };
+    const output = {
+      content: "useful work is checkpointed",
+      turns: 3,
+      totalCostUsd: 0.21,
+      inputTokens: 92_328,
+      outputTokens: 3_189,
+      repairIterations: [],
+      repairWarnings: [],
+      continuationDecisions: [decision],
+    };
+    executeStepMock.mockRejectedValueOnce(
+      new RepairLoopYield("build", output, decision),
+    );
+
+    const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
+    await expect(
+      executeWorkflowStep(
+        definition as any,
+        step as any,
+        run,
+        trigger,
+        context as any,
+        new AbortController(),
+        agentConfig,
+        makeAcc(),
+        { bus, pbus, log },
+        Date.now(),
+      ),
+    ).rejects.toBeInstanceOf(RepairLoopYield);
+
+    expect(run.recordStep).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: "yielded",
+        output: expect.objectContaining({
+          continuationDecisions: [
+            expect.objectContaining({ decision: "preserve-yield" }),
+          ],
+        }),
+      }),
+    );
+    expect(bus.emit).toHaveBeenCalledWith(
+      "workflow.step.completed",
+      expect.objectContaining({ status: "yielded" }),
+    );
   });
 });

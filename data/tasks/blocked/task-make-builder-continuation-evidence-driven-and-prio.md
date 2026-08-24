@@ -1,13 +1,13 @@
 ---
 id: task-make-builder-continuation-evidence-driven-and-prio
 title: Make builder continuation evidence driven and priority aware
-status: ready
+status: blocked
 priority: p1
 area: autonomy
 task_class: Meta
 summary: Replace unlimited changing repair loops with an evidence-backed continuation decision that preserves productive work, yields safely when higher-priority work appears, and never relies on a blind timeout or cost cap.
 created_at: 2026-08-16T08:35:37.163Z
-updated_at: 2026-08-16T08:36:30.000Z
+updated_at: 2026-08-23T22:50:45.000Z
 ---
 
 ## Problem
@@ -99,3 +99,43 @@ protecting valuable in-progress implementation from forced termination.
   yielded/resumed runs, task outcomes, and duplicate work before and after.
 - Focused lifecycle artifacts for normal completion, converging continuation,
   preserve-yield-resume, decomposition, and checkpoint failure.
+
+## Unblock Precondition
+
+```
+kind: operator-capture
+path: .kota/runs/builder-continuation-production-replay/
+description: trusted-host canonical runtime capture — export the latest 200 workflow runs with builder step metadata and the exact 2026-08-13 through 2026-08-15 records underlying the 9.0-hour, 9.6-hour, and 6.5-hour observations; retain run ids, task ids, workflow and agent-step durations, repair iterations and check outputs, continuation or recovery lineage, task outcomes, and commit ids; replay the three long trajectories through the candidate at their first genuinely new evidence boundary; then capture an after-window comparison of builder agent-hours, repair iterations, yielded/resumed runs, task outcomes, and duplicate task/commit work under this path
+```
+
+## Status (2026-08-23 builder repair)
+
+The typed continuation authority and real preserve-yield lifecycle are
+implemented and focused tests pass. Stable semantic reason keys suppress
+attempt, progress-key, diff, verification, and irrelevant queue churn after a
+boundary has been judged. Convergence is measured against the immediately
+preceding failure set, so early shrinkage followed by a changing diff with one
+persistent failure opens a stalled-changing boundary instead of resetting the
+rail forever; a changed reason such as a newly better queue frontier opens the
+next boundary. A production-path fixture proves the
+controller-owned checkpoint, first-class yielded run status, P0 Safety handoff,
+same-claim/worktree/diff/evidence resume, checkpoint reuse without a duplicate
+checkpoint commit, and a failed checkpoint that remains failed, dirty, and
+claim-held rather than becoming a priority yield.
+
+The decompose disposition now requires each semantic slice to explicitly create
+or reuse a reviewer-confirmed open task. The canonical mutation path propagates
+the parent's hard dependencies through created and reused slices, preserves
+existing reused-task acceptance evidence, records reuse provenance, and commits
+only paths it actually creates or updates. A focused lifecycle fixture proves a
+semantically equivalent task is reused rather than duplicated and that both
+parent and intra-plan dependencies survive the replacement graph.
+
+The repository contains an integrity-checked 200-row workflow-completion
+capture with 13 builder runs and 9.067539 workflow wall hours. That capture
+does not contain builder agent-step duration, repair iterations, claimed task
+ids, task dispositions, or commit lineage. This leased worktree also cannot
+read the canonical run store holding the three long trajectories. The prior
+duration-labelled synthetic arrays have therefore been removed from the
+historical replay claim, and promotion remains blocked until the operator
+capture above supplies the missing source records.

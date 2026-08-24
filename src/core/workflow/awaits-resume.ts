@@ -138,7 +138,7 @@ function isOriginRunResolved(
   const run = store.getRun(runId);
   if (!run) return "missing";
   if (run.status === "interrupted") return "interrupted";
-  // success / failed / completed-with-warnings / running — already past the await
+  // success / failed / yielded / completed-with-warnings / running — already past the await
   // or still actively waiting. Either way, restart should not double-resume.
   return "live";
 }

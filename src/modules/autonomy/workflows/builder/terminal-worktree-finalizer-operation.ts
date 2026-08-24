@@ -1,6 +1,9 @@
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import type {
+  WorkflowRepairContinuationDecisionKind,
+  WorkflowRunMetadata,
+} from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffKind } from "#core/workflow/trigger-types.js";
 import { classifyBuilderFailureForDecomposition } from "#modules/autonomy/builder-failure-classification.js";
 import {
@@ -19,6 +22,13 @@ import {
   builderRecoveryRequestForCandidate,
 } from "./recovery-continuation.js";
 import { releaseBuilderPortRange } from "./runtime-resource-ports.js";
+import {
+  type BuilderTerminalClaimDisposition,
+  type BuilderTerminalRecoveryAction,
+  builderStateRecoveryAction,
+  builderTerminalRecoveryAction,
+  continuationDecisionFromMetadata,
+} from "./terminal-worktree-finalizer-decision.js";
 
 export type BuilderTerminalWorktreeFinalizerArtifact = {
   attempted: boolean;
@@ -31,37 +41,11 @@ export type BuilderTerminalWorktreeFinalizerArtifact = {
   portLeaseReleased: boolean;
   portLeaseError: string | null;
   recoveryRequested: boolean;
+  continuationDecision: WorkflowRepairContinuationDecisionKind | null;
   claimDisposition: BuilderTerminalClaimDisposition;
   recoveryAction: BuilderTerminalRecoveryAction;
   artifactPath: string;
 };
-
-type BuilderTerminalClaimDisposition =
-  | "preserved"
-  | "pending-decomposition"
-  | "released"
-  | "already-absent"
-  | "conflict";
-
-type BuilderTerminalRecoveryAction =
-  | {
-      kind: "none";
-      reason: string;
-    }
-  | {
-      kind: "continuation-requested";
-      reason: string;
-    }
-  | {
-      kind: "decomposition-pending";
-      reason: string;
-    }
-  | {
-      kind: "state-recovery-required";
-      reason: string;
-      inspectCommand: string;
-      resolveCommand: string;
-    };
 
 export type BuilderTerminalWorktreeOperationInput = {
   projectDir: string;
@@ -84,60 +68,6 @@ function writeArtifact(
   artifact: BuilderTerminalWorktreeFinalizerArtifact,
 ): void {
   writeJsonFileAtomic(artifact.artifactPath, artifact);
-}
-
-function stateRecoveryAction(
-  taskId: string,
-  reason: string,
-): BuilderTerminalRecoveryAction {
-  return {
-    kind: "state-recovery-required",
-    reason,
-    inspectCommand: "pnpm kota workflow state-recovery list",
-    resolveCommand:
-      `pnpm kota workflow state-recovery resolve ${taskId} ` +
-      '--action <release|supersede> --reason "<reason>"',
-  };
-}
-
-function recoveryActionFor(
-  triggerEvent: string,
-  taskId: string,
-  removed: boolean,
-  recoveryRequested: boolean,
-  claimDisposition: BuilderTerminalClaimDisposition,
-): BuilderTerminalRecoveryAction {
-  if (claimDisposition === "conflict") {
-    return stateRecoveryAction(
-      taskId,
-      "terminal builder worktree was removed but its task claim changed ownership",
-    );
-  }
-  if (claimDisposition === "pending-decomposition") {
-    return {
-      kind: "decomposition-pending",
-      reason: "exhausted builder task is reserved until decomposer dispositions it",
-    };
-  }
-  if (removed) {
-    return { kind: "none", reason: "terminal builder worktree was removed" };
-  }
-  if (recoveryRequested) {
-    return {
-      kind: "continuation-requested",
-      reason: "one automatic preserved-work continuation was requested",
-    };
-  }
-  if (triggerEvent !== BUILDER_RECOVERY_EVENT) {
-    return {
-      kind: "none",
-      reason: "terminal builder worktree awaits the normal recovery scan",
-    };
-  }
-  return stateRecoveryAction(
-    taskId,
-    "preserved builder continuation needs recovery review",
-  );
 }
 
 export async function runBuilderTerminalWorktreeFinalizerInWorker(
@@ -173,19 +103,39 @@ export async function runBuilderTerminalWorktreeFinalizerInWorker(
       input.projectDir,
       input.workspace.taskId,
     );
+    const continuationDecision = continuationDecisionFromMetadata(input.metadata);
     const retryContinuation =
       input.triggerEvent !== BUILDER_RECOVERY_EVENT ||
       input.agentFailureKind !== undefined;
+    const automaticContinuationAllowed =
+      continuationDecision === null && retryContinuation;
     const recoveryRequested =
       !removed &&
-      retryContinuation &&
+      (automaticContinuationAllowed || continuationDecision === "preserve-yield") &&
       candidate?.claim.runId === input.metadata.id &&
       candidate.recommendedAction.kind === "needs-review";
     let claimDisposition: BuilderTerminalClaimDisposition = "preserved";
-    if (removed) {
-      const decompositionFailure = classifyBuilderFailureForDecomposition(
-        input.metadata,
-      );
+    const decompositionFailure = classifyBuilderFailureForDecomposition(
+      input.metadata,
+    );
+    if (!removed && decompositionFailure) {
+      const claimResult = markTaskClaimPendingDecomposition({
+        projectDir: input.projectDir,
+        taskId: input.workspace.taskId,
+        runId: input.metadata.id,
+        workflowId: input.metadata.workflow,
+        evidence: `terminal builder run ${input.metadata.id} ${decompositionFailure}; preserved work awaits decomposer disposition`,
+      });
+      claimDisposition = claimResult.changed
+        ? "pending-decomposition"
+        : claimResult.safeToRetry
+          ? "already-absent"
+          : "conflict";
+      if (claimDisposition === "pending-decomposition") {
+        reason =
+          "terminal builder worktree was preserved and its task is awaiting decomposition";
+      }
+    } else if (removed) {
       const claimResult = (decompositionFailure
         ? markTaskClaimPendingDecomposition
         : releaseTaskClaim)({
@@ -231,8 +181,10 @@ export async function runBuilderTerminalWorktreeFinalizerInWorker(
     }
 
     const recoveryRequest =
-      recoveryRequested && candidate
-        ? builderRecoveryRequestForCandidate(candidate)
+      recoveryRequested &&
+      continuationDecision !== "preserve-yield" &&
+      candidate
+        ? builderRecoveryRequestForCandidate(input.projectDir, candidate)
         : null;
     writeArtifact({
       attempted: true,
@@ -245,14 +197,16 @@ export async function runBuilderTerminalWorktreeFinalizerInWorker(
       portLeaseReleased,
       portLeaseError,
       recoveryRequested,
+      continuationDecision,
       claimDisposition,
-      recoveryAction: recoveryActionFor(
-        input.triggerEvent,
-        input.workspace.taskId,
+      recoveryAction: builderTerminalRecoveryAction({
+        triggerEvent: input.triggerEvent,
+        taskId: input.workspace.taskId,
         removed,
         recoveryRequested,
         claimDisposition,
-      ),
+        continuationDecision,
+      }),
       artifactPath: input.artifactPath,
     });
     return { recoveryRequest, logMessages };
@@ -269,8 +223,9 @@ export async function runBuilderTerminalWorktreeFinalizerInWorker(
       portLeaseReleased: false,
       portLeaseError: null,
       recoveryRequested: false,
+      continuationDecision: continuationDecisionFromMetadata(input.metadata),
       claimDisposition: "preserved",
-      recoveryAction: stateRecoveryAction(
+      recoveryAction: builderStateRecoveryAction(
         input.workspace.taskId,
         "builder terminal finalizer failed before it could reconcile preserved work",
       ),

@@ -1,6 +1,7 @@
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
 import type {
+  WorkflowRepairContinuationDecision,
   WorkflowRepairErrorKind,
   WorkflowStepErrorKind,
 } from "./run-types.js";
@@ -34,12 +35,31 @@ export type RepairLoopFailureOutput = {
   sessionId?: string;
   repairIterations: RepairIteration[];
   repairWarnings: RepairCheckResult[];
+  continuationDecisions: WorkflowRepairContinuationDecision[];
 };
 
 export type ScopedRepairAgent = {
   agentName: string;
   writeScope: AgentWriteScope;
 };
+
+/**
+ * A deliberate repair-loop handoff after the owning controller has made the
+ * current work durable. The workflow executor records this as `yielded`, not
+ * as an error, interruption, or successful completion.
+ */
+export class RepairLoopYield extends Error {
+  constructor(
+    readonly stepId: string,
+    readonly output: RepairLoopFailureOutput,
+    readonly decision: WorkflowRepairContinuationDecision,
+  ) {
+    super(
+      `Repair continuation decision for step "${stepId}": preserve-yield — ${decision.summary}`,
+    );
+    this.name = "RepairLoopYield";
+  }
+}
 
 export class RepairLoopError extends Error {
   [AGENT_STEP_RUNTIME_ERROR]: boolean;

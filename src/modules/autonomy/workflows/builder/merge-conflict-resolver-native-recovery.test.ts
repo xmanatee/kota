@@ -139,7 +139,7 @@ describe("native merge-conflict recovery", () => {
 			trigger: {
 				event: "autonomy.builder.recovery.requested",
 				schemaRef: null,
-				payload: builderRecoveryRequestForCandidate(candidate),
+				payload: builderRecoveryRequestForCandidate(projectDir, candidate),
 			},
 			workflow: {
 				name: "builder",

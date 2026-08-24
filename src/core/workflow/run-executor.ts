@@ -13,11 +13,13 @@ import {
   buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
+import { RepairLoopYield } from "./repair-loop.js";
 import type { RunExecutorDeps } from "./run-executor-deps.js";
 import { executeGroupStep } from "./run-executor-groups.js";
 import { replayRunRuntimeState, updateRunRuntimeStateFromStep } from "./run-executor-runtime-state.js";
 import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
+import { finishYieldedWorkflowRun } from "./run-executor-yield.js";
 import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning } from "./run-types.js";
 import { createAgentRunLimiter } from "./steps/agent-run-limiter.js";
 import { createStepContext } from "./steps/step-context.js";
@@ -254,6 +256,11 @@ export function executeWorkflowRun(
       };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+      if (err instanceof RepairLoopYield) {
+        return finishYieldedWorkflowRun({
+          definition, signal: err, run, runTimeout, startedAt, deps,
+        });
+      }
       if (!agentBackoff && err instanceof AgentStepRuntimeError) {
         agentBackoff = workflowAgentBackoffSignalFromError(err);
       }

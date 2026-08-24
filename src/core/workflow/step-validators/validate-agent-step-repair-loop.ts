@@ -1,4 +1,5 @@
 import type {
+  WorkflowRepairContinuationController,
   WorkflowRepairLoopConfig,
   WorkflowStepContext,
   WorkflowValueResolver,
@@ -106,5 +107,33 @@ export function validateRepairLoop(
       ) as WorkflowValueResolver<RepairLoopRecord>,
     };
   });
-  return { checks, maxRepairAttempts };
+  let continuation: WorkflowRepairContinuationController | undefined;
+  if (value.continuation !== undefined) {
+    if (!isPlainObject(value.continuation)) {
+      throw new WorkflowDefinitionError(
+        `${field}.continuation must be an object`,
+        definitionPath,
+      );
+    }
+    const evaluate = expectOptionalFunction(
+      value.continuation.evaluate,
+      `${field}.continuation.evaluate`,
+      definitionPath,
+    );
+    if (!evaluate) {
+      throw new WorkflowDefinitionError(
+        `${field}.continuation.evaluate must be a function`,
+        definitionPath,
+      );
+    }
+    continuation = {
+      evaluate: evaluate as WorkflowRepairContinuationController["evaluate"],
+      resolveAgentContract: expectOptionalFunction(
+        value.continuation.resolveAgentContract,
+        `${field}.continuation.resolveAgentContract`,
+        definitionPath,
+      ) as WorkflowRepairContinuationController["resolveAgentContract"],
+    };
+  }
+  return { checks, maxRepairAttempts, continuation };
 }

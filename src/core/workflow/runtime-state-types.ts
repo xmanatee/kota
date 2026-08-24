@@ -8,15 +8,18 @@ import type {
 export type WorkflowRunStatus =
   | "success"
   | "failed"
+  | "yielded"
   | "interrupted"
   | "completed-with-warnings";
 
-export type WorkflowStepStatus = "success" | "failed" | "skipped";
+export type WorkflowStepStatus = "success" | "failed" | "yielded" | "skipped";
 
 export type WorkflowStepTimeoutErrorKind = "idle-timeout" | "step-timeout";
 export type WorkflowRepairErrorKind =
   | "repair-no-progress"
-  | "repair-attempts-exhausted";
+  | "repair-attempts-exhausted"
+  | "repair-decompose"
+  | "repair-needs-owner";
 export type WorkflowStepErrorKind =
   | WorkflowStepTimeoutErrorKind
   | WorkflowRepairErrorKind
@@ -31,7 +34,12 @@ export function isWorkflowStepTimeoutErrorKind(
 export function isWorkflowRepairErrorKind(
   kind: WorkflowStepErrorKind | undefined,
 ): kind is WorkflowRepairErrorKind {
-  return kind === "repair-no-progress" || kind === "repair-attempts-exhausted";
+  return (
+    kind === "repair-no-progress" ||
+    kind === "repair-attempts-exhausted" ||
+    kind === "repair-decompose" ||
+    kind === "repair-needs-owner"
+  );
 }
 
 export type WorkflowStepSkipReasonKind =

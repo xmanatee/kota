@@ -14,7 +14,7 @@ const SUBTASK_ID = "task-subtask";
 
 function writeTask(
   projectDir: string,
-  state: "ready" | "dropped",
+  state: "backlog" | "ready" | "dropped",
   id: string,
   body: string,
 ): void {
@@ -66,7 +66,7 @@ describe("checkDecompositionApplied", () => {
     ]);
 
     expect(checkDecompositionApplied(projectDir, ORIGINAL_ID)).toBe(
-      `OK: dropped ${ORIGINAL_ID} and prepared 1 ready subtask(s)`,
+      `OK: dropped ${ORIGINAL_ID} and linked 1 active subtask(s)`,
     );
   });
 
@@ -85,7 +85,24 @@ describe("checkDecompositionApplied", () => {
     ]);
 
     expect(checkDecompositionApplied(projectDir, ORIGINAL_ID)).toBe(
-      `OK: dropped ${ORIGINAL_ID} and prepared 1 ready subtask(s)`,
+      `OK: dropped ${ORIGINAL_ID} and linked 1 active subtask(s)`,
+    );
+  });
+
+  it("accepts an unchanged reused task in another open state", () => {
+    writeTask(
+      projectDir,
+      "dropped",
+      ORIGINAL_ID,
+      `## Decomposed\n\n- ${SUBTASK_ID}`,
+    );
+    writeTask(projectDir, "backlog", SUBTASK_ID, "## Problem\n\nExisting slice.");
+    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
+      `data/tasks/dropped/${ORIGINAL_ID}.md`,
+    ]);
+
+    expect(checkDecompositionApplied(projectDir, ORIGINAL_ID, [])).toBe(
+      `OK: dropped ${ORIGINAL_ID} and linked 1 active subtask(s)`,
     );
   });
 
@@ -114,7 +131,7 @@ describe("checkDecompositionApplied", () => {
     );
 
     expect(() => checkDecompositionApplied(projectDir, ORIGINAL_ID)).toThrow(
-      `Decomposed subtasks must exist in ready: ${SUBTASK_ID}`,
+      `Decomposed subtasks must exist in an open task state: ${SUBTASK_ID}`,
     );
   });
 

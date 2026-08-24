@@ -111,13 +111,14 @@ function isOwnerRunStatus(value: KotaJsonValue | undefined): value is OwnerRunSt
     value === "running" ||
     value === "success" ||
     value === "failed" ||
+    value === "yielded" ||
     value === "interrupted" ||
     value === "completed-with-warnings"
   );
 }
 
-function isUnsuccessfulTerminalRunStatus(value: OwnerRunStatus): boolean {
-  return value === "failed" || value === "interrupted";
+function isInactiveTerminalRunStatus(value: OwnerRunStatus): boolean {
+  return value === "failed" || value === "yielded" || value === "interrupted";
 }
 
 function readOwnerRunStatus(projectDir: string, claim: TaskClaim): OwnerRunStatus | null {
@@ -412,7 +413,7 @@ export function inspectTaskClaimWithOwnerRun(
   let inspection = inspectTaskClaim(claim, path, now);
   if (inspection.recoveryStatus === "agent-running") {
     const ownerRunStatus = readOwnerRunStatus(projectDir, claim);
-    if (ownerRunStatus !== null && isUnsuccessfulTerminalRunStatus(ownerRunStatus)) {
+    if (ownerRunStatus !== null && isInactiveTerminalRunStatus(ownerRunStatus)) {
       inspection = { claim, path, recoveryStatus: "stale", safeToRetry: true };
     }
   }

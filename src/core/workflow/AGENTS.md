@@ -25,6 +25,7 @@ Owns workflow definitions, validation, execution, repair loops, and persisted ru
   between trusted progress signals: code heartbeats or typed agent messages.
 - Agent steps receive a thin runtime envelope; expose prior output only when normal repo context and tools cannot recover it cheaply.
 - Repair-loop output accumulates initial and repair token usage, including on terminal failure, so run accounting reflects consumed quota.
+- Long-running repair policy plugs into the repair loop through one typed continuation controller. Controllers judge semantic evidence boundaries, persist their packet and decision in step output, and return `continue`, `decompose`, `preserve-yield`, or `needs-owner`; unchanged evidence is not a new judgment boundary. A durable `preserve-yield` ends the step and run with the first-class `yielded` status, never a failure or interruption.
 
 ## Per-Concern Validation Split
 `validation.ts` only orchestrates; put rules in the sibling owning dispatch,

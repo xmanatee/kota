@@ -24,6 +24,7 @@ const TERMINAL_FAILURE_STATUSES = new Set<OwnerRunStatus>([
   "failed",
   "interrupted",
 ]);
+const TERMINAL_YIELD_STATUSES = new Set<OwnerRunStatus>(["yielded"]);
 
 function canonicalReconciliationProjection(
   metadata: AutomationWorktreeMetadata,
@@ -272,6 +273,14 @@ export function recommendedActionFor(
     return {
       kind: "supersede",
       reason: "owner run ended unsuccessfully and no unresolved merge blocker is visible",
+    };
+  }
+
+  if (TERMINAL_YIELD_STATUSES.has(ownerRunStatus as OwnerRunStatus)) {
+    return {
+      kind: "needs-review",
+      reason:
+        "owner run yielded deliberately with a durable checkpoint; dispatcher priority governs resumption",
     };
   }
 

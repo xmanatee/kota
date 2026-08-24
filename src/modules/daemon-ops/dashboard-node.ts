@@ -36,6 +36,8 @@ function statusRunText(status: WorkflowRunStatus): StatusTextRole {
 			return { text: "success", role: "success" };
 		case "failed":
 			return { text: "failed", role: "error" };
+		case "yielded":
+			return { text: "yielded", role: "warn" };
 		case "interrupted":
 			return { text: "interrupted", role: "warn" };
 		case "completed-with-warnings":

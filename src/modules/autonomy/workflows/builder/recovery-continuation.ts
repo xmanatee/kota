@@ -5,7 +5,6 @@ import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   type ClaimTaskAttempt,
-  compareQueueTaskCandidates,
   continueTaskClaim,
   DEFAULT_TASK_CLAIM_LEASE_MS,
   listClaimableQueueTaskCandidates,
@@ -13,73 +12,29 @@ import {
   type QueueTaskClaimResult,
   type TaskClaim,
 } from "#modules/autonomy/task-claims.js";
+import { compareAutonomyTasks } from "#modules/autonomy/task-ranking.js";
 import { listRecoveryClaims } from "#modules/autonomy/workflow-state-recovery-claims.js";
 import {
   listFullRepoTasks,
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { WorkflowStateRecoveryClaim } from "#modules/workflow-ops/state-recovery-provider.js";
+import {
+  type BuilderRecoveryRequest,
+  builderRecoveryRequestForCandidate,
+  needsRuntimeRecoveryRequest,
+  preservedBuilderWorkspaceDir,
+} from "./recovery-continuation-candidate.js";
 
 export const BUILDER_RECOVERY_EVENT = "autonomy.builder.recovery.requested";
 
-export type BuilderRecoveryRequest = {
-  taskId: string;
-  sourceRunId: string;
-  worktreeRunId: string;
-  workspaceDir: string;
-  idempotencyKey: string;
-  reason: string;
-};
+export type { BuilderRecoveryRequest };
+export { builderRecoveryRequestForCandidate };
 
 export type BuilderRecoveryDispatchResult = {
   candidateCount: number;
   requested: BuilderRecoveryRequest[];
 };
-
-function preservedBuilderWorkspaceDir(
-  candidate: WorkflowStateRecoveryClaim,
-): string | null {
-  const recoverableOwnerRun =
-    candidate.claim.status === "pending-merge" ||
-    candidate.ownerRunStatus === "failed" ||
-    candidate.ownerRunStatus === "interrupted";
-  if (
-    candidate.claim.workflowId === "builder" &&
-    candidate.recommendedAction.kind === "needs-review" &&
-    candidate.worktree.found &&
-    (candidate.worktree.dirtyState === "dirty" ||
-      candidate.worktree.dirtyState === "conflicted") &&
-    candidate.worktree.workspaceDir !== null &&
-    recoverableOwnerRun
-  ) {
-    return candidate.worktree.workspaceDir;
-  }
-  return null;
-}
-
-function needsRuntimeRecoveryRequest(
-  projectDir: string,
-  candidate: WorkflowStateRecoveryClaim,
-): boolean {
-  if (preservedBuilderWorkspaceDir(candidate) === null) return false;
-  if (
-    candidate.worktree.canonicalReconciliation?.disposition === "needs-review"
-  ) {
-    return false;
-  }
-  if (candidate.claim.runId === candidate.claim.worktreeRunId) return true;
-  if (candidate.claim.status === "pending-merge") return true;
-  const finalizer = readOptionalJsonFile<{ recoveryRequested?: boolean }>(
-    join(
-      projectDir,
-      ".kota",
-      "runs",
-      candidate.claim.runId,
-      "terminal-worktree-finalizer.json",
-    ),
-  );
-  return finalizer === null || finalizer.recoveryRequested === true;
-}
 
 export function listPendingBuilderRecoveries(
   projectDir: string,
@@ -92,25 +47,6 @@ export function listPendingBuilderRecoveries(
         ? byUpdated
         : a.claim.taskId.localeCompare(b.claim.taskId);
     });
-}
-
-export function builderRecoveryRequestForCandidate(
-  candidate: WorkflowStateRecoveryClaim,
-): BuilderRecoveryRequest {
-  const workspaceDir = preservedBuilderWorkspaceDir(candidate);
-  if (workspaceDir === null) {
-    throw new Error(
-      `Task ${candidate.claim.taskId} is not a terminal preserved builder candidate`,
-    );
-  }
-  return {
-    taskId: candidate.claim.taskId,
-    sourceRunId: candidate.claim.runId,
-    worktreeRunId: candidate.claim.worktreeRunId,
-    workspaceDir,
-    idempotencyKey: `builder-recovery:${candidate.claim.runId}`,
-    reason: `preserved builder work from ${candidate.claim.runId} requires recovery`,
-  };
 }
 
 export function emitBuilderRecoveryRequest(
@@ -136,15 +72,15 @@ export function inspectPendingBuilderRecoveriesInWorker(input: {
       (entry): entry is { candidate: WorkflowStateRecoveryClaim; task: RepoTaskFullRecord } =>
         entry.task !== undefined,
     )
-    .sort((a, b) => compareQueueTaskCandidates(a.task, b.task));
+    .sort((a, b) => compareAutonomyTasks(a.task, b.task));
   const recoveryTaskIds = new Set(candidates.map((candidate) => candidate.claim.taskId));
   const queueFrontier = listClaimableQueueTaskCandidates(input.projectDir).find(
     (task) => !recoveryTaskIds.has(task.id),
   );
   const selected = rankedCandidates[0];
   const requested = selected &&
-      (!queueFrontier || compareQueueTaskCandidates(selected.task, queueFrontier) <= 0)
-    ? [builderRecoveryRequestForCandidate(selected.candidate)]
+      (!queueFrontier || compareAutonomyTasks(selected.task, queueFrontier) <= 0)
+    ? [builderRecoveryRequestForCandidate(input.projectDir, selected.candidate)]
     : [];
   return { candidateCount: candidates.length, requested };
 }
@@ -172,7 +108,7 @@ function requestedBuilderRecovery(
   return listRecoveryClaims(ctx.projectDir).filter((candidate) =>
     candidate.claim.taskId === taskId &&
     candidate.claim.worktreeRunId === worktreeRunId &&
-    preservedBuilderWorkspaceDir(candidate) === workspaceDir &&
+    preservedBuilderWorkspaceDir(ctx.projectDir, candidate) === workspaceDir &&
     (
       candidate.claim.runId === sourceRunId ||
       retryLineageContainsClaimOwner(
