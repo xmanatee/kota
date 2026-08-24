@@ -75,6 +75,7 @@ export async function reconcilePreservedBuilderWorkspace(
 				signal: ctx.signal,
 			}),
 			maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
+			signal: ctx.signal,
 			onProgress: (record) =>
 				ctx.runBlocking(persistPreservedCanonicalReconciliationOperation, {
 					projectDir: ctx.projectDir,

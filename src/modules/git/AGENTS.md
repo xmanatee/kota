@@ -26,6 +26,9 @@ This directory owns the `git` capability pack — version control operations wit
   stay review-only.
 - Structured semantic conflict feedback can guide another already-budgeted
   bounded attempt; it never expands paths, attempts, or merge authority.
+- Merge-gate contention waits cancelably and is never classified as a semantic
+  conflict. Lock ownership is token-bound, and locks owned by dead processes
+  are reclaimed before another canonical integration begins.
 
 ## Boundaries
 

@@ -19,7 +19,7 @@ export type CheckpointAndReconcileAutomationWorktreeInput =
 		validationCommands: readonly (readonly string[])[];
 		resolver?: MergeGateResolver;
 		maxResolutionAttempts?: number;
-		lockTimeoutMs?: number;
+		signal?: AbortSignal;
 		onProgress: (
 			record: AutomationWorktreeCanonicalReconciliation,
 		) => void | Promise<void>;

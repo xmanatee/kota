@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { createAutomationWorktree } from "./worktree-lifecycle.js";
 import { mergeAutomationWorktree } from "./worktree-merge-gate.js";
+import {
+	acquireMergeGateLock,
+	releaseMergeGateLock,
+} from "./worktree-merge-gate-lock.js";
 
 const repos: string[] = [];
 
@@ -94,4 +98,66 @@ describe("automation worktree merge gate lock", () => {
 		expect(Math.max(...results.map((result) => result.metrics.waitMs))).toBeGreaterThan(0);
 		expect(results.every((result) => result.metrics.serializedByLock)).toBe(true);
 	});
+
+	it("cancels a queued owner without converting contention into merge state", async () => {
+		const repo = initRepo("cancel-waiter");
+		const owner = await acquireMergeGateLock({
+			projectDir: repo,
+			taskId: "task-owner",
+			runId: "run-owner",
+		});
+		const controller = new AbortController();
+		const waiting = acquireMergeGateLock({
+			projectDir: repo,
+			taskId: "task-waiter",
+			runId: "run-waiter",
+			signal: controller.signal,
+		});
+		controller.abort(new Error("fixture cancelled"));
+
+		await expect(waiting).rejects.toThrow("fixture cancelled");
+		await releaseMergeGateLock(repo, owner.ownerId);
+	});
+
+	it("reclaims a lock whose owning process is gone", async () => {
+		const repo = initRepo("stale-owner");
+		const lockPath = join(repo, ".kota", "worktrees", "merge-gate.lock");
+		execFileSync("mkdir", ["-p", lockPath]);
+		writeFileSync(
+			join(lockPath, "owner.json"),
+			`${JSON.stringify({
+				schemaVersion: 1,
+				ownerId: "dead-owner",
+				pid: 2_147_483_647,
+				taskId: "task-dead",
+				runId: "run-dead",
+				acquiredAt: new Date().toISOString(),
+			})}\n`,
+			"utf8",
+		);
+
+		const owner = await acquireMergeGateLock({
+			projectDir: repo,
+			taskId: "task-live",
+			runId: "run-live",
+		});
+
+		expect(owner.waitMs).toBeGreaterThanOrEqual(0);
+		await releaseMergeGateLock(repo, owner.ownerId);
+	});
+
+	it("rejects release by a run that does not own the lock", async () => {
+		const repo = initRepo("owner-token");
+		const owner = await acquireMergeGateLock({
+			projectDir: repo,
+			taskId: "task-owner",
+			runId: "run-owner",
+		});
+
+		await expect(releaseMergeGateLock(repo, "different-owner")).rejects.toThrow(
+			"ownership changed",
+		);
+		await releaseMergeGateLock(repo, owner.ownerId);
+	});
+
 });

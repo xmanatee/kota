@@ -19,7 +19,6 @@ import {
   runReconciliationValidations,
   updateReconciliationRecord,
 } from "./worktree-canonical-reconciliation-support.js";
-import { inspectAutomationWorktree } from "./worktree-lifecycle.js";
 import { readDirtyState } from "./worktree-lifecycle-support.js";
 import type {
   AutomationWorktreeCanonicalConflict,
@@ -544,30 +543,6 @@ export function blockCanonicalResolutionInWorker(input: {
   );
 }
 
-export function blockedCanonicalReconciliationInWorker(input: {
-  operation: CanonicalReconciliationOperationInput;
-  reason: string;
-}): AutomationWorktreeCanonicalReconciliation {
-  const inspection = inspectAutomationWorktree(input.operation);
-  return {
-    phase: "conflict-blocked",
-    disposition: "needs-review",
-    originalBaseCommit: inspection.metadata.baseCommit,
-    checkpointCommit: null,
-    canonicalHeadCommit: currentHead(input.operation.projectDir),
-    integratedCanonicalHeadCommit: null,
-    branchBehindAtStart: null,
-    branchBehindAtResume: null,
-    overlappingPaths: [],
-    canonicalDestructivePaths: [],
-    conflicts: [],
-    validations: [],
-    reason: input.reason,
-    artifactPath: input.operation.artifactPath,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 export const prepareCanonicalReconciliationOperation =
   defineWorkflowBlockingOperation<
     CanonicalReconciliationOperationInput,
@@ -588,9 +563,3 @@ export const blockCanonicalResolutionOperation =
     { state: CanonicalReconciliationResolutionState; reason: string },
     CanonicalReconciliationPhaseResult
   >(import.meta.url, "blockCanonicalResolutionInWorker");
-
-export const blockedCanonicalReconciliationOperation =
-  defineWorkflowBlockingOperation<
-    { operation: CanonicalReconciliationOperationInput; reason: string },
-    AutomationWorktreeCanonicalReconciliation
-  >(import.meta.url, "blockedCanonicalReconciliationInWorker");

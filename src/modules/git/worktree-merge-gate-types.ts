@@ -80,5 +80,5 @@ export type MergeAutomationWorktreeInput = AutomationWorktreeSelector & {
 	validationCommand?: readonly string[];
 	resolver?: MergeGateResolver;
 	maxResolutionAttempts?: number;
-	lockTimeoutMs?: number;
+	signal?: AbortSignal;
 };

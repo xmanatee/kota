@@ -91,6 +91,7 @@ export function createMergeGateStep(): TypedCodeStepInput<MergeGateResult> {
 						signal: ctx.signal,
 					}),
 					maxResolutionAttempts: MERGE_CONFLICT_RESOLUTION_ATTEMPTS,
+					signal: ctx.signal,
 				},
 				ctx,
 			);

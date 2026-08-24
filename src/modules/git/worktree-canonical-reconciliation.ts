@@ -5,7 +5,6 @@ import {
 import type { CanonicalReconciliationOperationInput } from "./worktree-canonical-reconciliation-operation-types.js";
 import {
   blockCanonicalResolutionOperation,
-  blockedCanonicalReconciliationOperation,
   continueCanonicalReconciliationOperation,
   prepareCanonicalReconciliationOperation,
 } from "./worktree-canonical-reconciliation-operations.js";
@@ -47,16 +46,8 @@ export async function checkpointAndReconcileAutomationWorktree(
     projectDir: input.projectDir,
     taskId: input.taskId,
     runId: input.runId,
-    timeoutMs: input.lockTimeoutMs,
+    signal: input.signal,
   });
-  if (!lock.acquired) {
-    const blocked = await runner.runBlocking(
-      blockedCanonicalReconciliationOperation,
-      { operation, reason: lock.reason },
-    );
-    await input.onProgress(blocked);
-    return blocked;
-  }
 
   try {
     let phase = await runner.runBlocking(
@@ -84,6 +75,6 @@ export async function checkpointAndReconcileAutomationWorktree(
     }
     return phase.record;
   } finally {
-    await releaseMergeGateLock(input.projectDir);
+    await releaseMergeGateLock(input.projectDir, lock.ownerId);
   }
 }

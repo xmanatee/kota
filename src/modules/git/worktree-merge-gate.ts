@@ -12,7 +12,6 @@ import type {
   MergeGateResolutionState,
 } from "./worktree-merge-gate-operation-types.js";
 import {
-  mergeGateLockFailureOperation,
   writeMergeGateMetricsOperation,
 } from "./worktree-merge-gate-operations.js";
 import { prepareMergeAutomationWorktreeOperation } from "./worktree-merge-gate-prepare-operation.js";
@@ -44,11 +43,6 @@ type MergeGatePhaseRunner = {
     state: MergeGateResolutionState;
     resolution: MergeGateResolverResult;
   }) => Promise<MergeGatePhaseResult>;
-  lockFailure: (input: {
-    selector: Pick<MergeAutomationWorktreeInput, "projectDir" | "taskId" | "runId">;
-    reason: string;
-    waitMs: number;
-  }) => Promise<MergeGateResult>;
   writeMetrics: (input: {
     result: MergeGateResult;
     waitMs: number;
@@ -69,8 +63,6 @@ function workerPhaseRunner(
       runner.runBlocking(prepareMergeAutomationWorktreeOperation, input),
     continueResolution: (input) =>
       runner.runBlocking(continueMergeAutomationWorktreeOperation, input),
-    lockFailure: (input) =>
-      runner.runBlocking(mergeGateLockFailureOperation, input),
     writeMetrics: (input) =>
       runner.runBlocking(writeMergeGateMetricsOperation, input),
   };
@@ -87,15 +79,8 @@ async function coordinateMergeAutomationWorktree(
   };
   const lock = await acquireMergeGateLock({
     ...selector,
-    timeoutMs: input.lockTimeoutMs,
+    signal: input.signal,
   });
-  if (!lock.acquired) {
-    return runner.lockFailure({
-      selector,
-      reason: lock.reason,
-      waitMs: lock.waitMs,
-    });
-  }
 
   const mergeStartedAt = Date.now();
   try {
@@ -122,7 +107,7 @@ async function coordinateMergeAutomationWorktree(
       mergeDurationMs: Date.now() - mergeStartedAt,
     });
   } finally {
-    await releaseMergeGateLock(input.projectDir);
+    await releaseMergeGateLock(input.projectDir, lock.ownerId);
   }
 }
 
