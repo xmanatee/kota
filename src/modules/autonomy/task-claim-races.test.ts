@@ -90,31 +90,39 @@ describe("task claim race leases", () => {
     );
   });
 
-  it("claims different dependency-clear tasks when selectors race across the queue", async () => {
-    writeTask(projectDir, "ready", "task-alpha", "2026-06-27T00:00:00.000Z");
-    writeTask(projectDir, "ready", "task-beta", "2026-06-27T00:01:00.000Z");
+  it("claims distinct dependency-clear tasks across a four-way queue race", async () => {
+    const taskIds = ["task-alpha", "task-beta", "task-gamma", "task-delta"];
+    for (const [index, taskId] of taskIds.entries()) {
+      writeTask(
+        projectDir,
+        "ready",
+        taskId,
+        `2026-06-27T00:0${index}:00.000Z`,
+      );
+    }
     const now = new Date("2026-06-27T01:00:00.000Z");
     const barrier = makeClaimRaceBarrier(projectDir, "queue-selectors");
 
-    const [first, second] = await runConcurrentClaimWorkers<QueueTaskClaimResult>([
-      {
-        ...queueInput(projectDir, "run-a", now),
+    const results = await runConcurrentClaimWorkers<QueueTaskClaimResult>(
+      ["run-a", "run-b", "run-c", "run-d"].map((runId) => ({
+        ...queueInput(projectDir, runId, now),
         ...barrier,
-        operation: "claim-next",
-        workerId: "run-a",
+        operation: "claim-next" as const,
+        workerId: runId,
         now: now.toISOString(),
-      },
-      {
-        ...queueInput(projectDir, "run-b", now),
-        ...barrier,
-        operation: "claim-next",
-        workerId: "run-b",
-        now: now.toISOString(),
-      },
-    ]);
+      })),
+    );
 
-    expect(new Set([first.taskId, second.taskId])).toEqual(new Set(["task-alpha", "task-beta"]));
-    expect([...first.skipped, ...second.skipped].map((attempt) => attempt.taskId)).toContain("task-alpha");
-    expect(listTaskClaimInspections(projectDir, now).filter((claim) => !claim.safeToRetry)).toHaveLength(2);
+    expect(new Set(results.map((result) => result.taskId))).toEqual(
+      new Set(taskIds),
+    );
+    expect(
+      results.flatMap((result) => result.skipped).map((attempt) => attempt.taskId),
+    ).toContain("task-alpha");
+    expect(
+      listTaskClaimInspections(projectDir, now).filter(
+        (claim) => !claim.safeToRetry,
+      ),
+    ).toHaveLength(4);
   });
 });

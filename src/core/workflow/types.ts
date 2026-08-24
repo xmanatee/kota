@@ -55,7 +55,8 @@ export type WorkflowDefinitionInput = {
   /**
    * Maximum active runs for this workflow name. Defaults to 1 so workflows
    * stay serialized unless they deliberately opt in. A resolver may inspect
-   * project config when the safe cap depends on module-owned runtime posture.
+   * project config and the resolved concurrency-group capacity when the safe
+   * cap depends on runtime posture.
    */
   maxConcurrentRuns?:
     | number
@@ -131,6 +132,8 @@ export type WorkflowConcurrencyInput = {
   projectDir: string;
   config?: KotaConfig;
   workflowName: string;
+  /** Resolved capacity of this workflow's concurrency group. */
+  concurrencyLimit: number;
 };
 
 export type WorkflowDispatchBurstInput = WorkflowConcurrencyInput & {

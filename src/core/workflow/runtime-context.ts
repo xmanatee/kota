@@ -19,6 +19,7 @@ import {
   maybeStartNext,
   type WorkflowActiveRunReservation,
 } from "./runtime-dispatch.js";
+import { concurrencyLimitForDefinition } from "./runtime-dispatch-concurrency.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
 import {
   type AgentRunLimiter,
@@ -132,6 +133,8 @@ export function createWorkflowRuntimeContext(
     getScopeId: () => ctx.pbus.getScopeId(),
     getActiveBackoff: () => backoff.getActive(),
     workflowUsesAgent,
+    concurrencyLimit: (definition) =>
+      concurrencyLimitForDefinition(ctx, definition),
     isActiveRun: (name) =>
       [...ctx.activeRuns.values()].some((run) => run.workflowName === name),
     activeRunCount: (name) =>

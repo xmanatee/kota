@@ -52,49 +52,46 @@ afterEach(() => {
 describe("automation worktree merge gate lock", () => {
 	it("serializes concurrent disjoint merges through the merge gate lock", async () => {
 		const repo = initRepo("parallel-clean");
-		const first = createAutomationWorktree({
-			projectDir: repo,
-			taskId: "task-a",
-			runId: "run-a",
-			workflowId: "builder",
-			owner: "test-owner",
-		});
-		const second = createAutomationWorktree({
-			projectDir: repo,
-			taskId: "task-b",
-			runId: "run-b",
-			workflowId: "builder",
-			owner: "test-owner",
-		});
-		commitFile(first.metadata.workspaceDir, "a.txt", "a\n", "add a");
-		commitFile(second.metadata.workspaceDir, "b.txt", "b\n", "add b");
+		const worktrees = ["a", "b", "c", "d"].map((suffix) =>
+			createAutomationWorktree({
+				projectDir: repo,
+				taskId: `task-${suffix}`,
+				runId: `run-${suffix}`,
+				workflowId: "builder",
+				owner: "test-owner",
+			}),
+		);
+		for (const [index, worktree] of worktrees.entries()) {
+			const suffix = String.fromCharCode("a".charCodeAt(0) + index);
+			commitFile(
+				worktree.metadata.workspaceDir,
+				`${suffix}.txt`,
+				`${suffix}\n`,
+				`add ${suffix}`,
+			);
+		}
 		const slowValidation = [
 			"node",
 			"-e",
 			"Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 80); process.exit(0)",
 		];
 
-		const [firstResult, secondResult] = await Promise.all([
-			mergeAutomationWorktree({
-				projectDir: repo,
-				taskId: first.metadata.taskId,
-				runId: first.metadata.runId,
-				validationCommand: slowValidation,
-			}),
-			mergeAutomationWorktree({
-				projectDir: repo,
-				taskId: second.metadata.taskId,
-				runId: second.metadata.runId,
-				validationCommand: slowValidation,
-			}),
-		]);
+		const results = await Promise.all(
+			worktrees.map((worktree) =>
+				mergeAutomationWorktree({
+					projectDir: repo,
+					taskId: worktree.metadata.taskId,
+					runId: worktree.metadata.runId,
+					validationCommand: slowValidation,
+				}),
+			),
+		);
 
-		expect(firstResult.status).toBe("merged");
-		expect(secondResult.status).toBe("merged");
-		expect(readFileSync(join(repo, "a.txt"), "utf8")).toBe("a\n");
-		expect(readFileSync(join(repo, "b.txt"), "utf8")).toBe("b\n");
-		expect(Math.max(firstResult.metrics.waitMs, secondResult.metrics.waitMs)).toBeGreaterThan(0);
-		expect(firstResult.metrics.serializedByLock).toBe(true);
-		expect(secondResult.metrics.serializedByLock).toBe(true);
+		expect(results.every((result) => result.status === "merged")).toBe(true);
+		for (const suffix of ["a", "b", "c", "d"]) {
+			expect(readFileSync(join(repo, `${suffix}.txt`), "utf8")).toBe(`${suffix}\n`);
+		}
+		expect(Math.max(...results.map((result) => result.metrics.waitMs))).toBeGreaterThan(0);
+		expect(results.every((result) => result.metrics.serializedByLock)).toBe(true);
 	});
 });

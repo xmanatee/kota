@@ -26,7 +26,7 @@ import {
   createPullRequest,
   createTaskBranch,
 } from "./branch-per-task.js";
-import { builderMaxConcurrentRunsFromConfig } from "./builder-config.js";
+import { builderWorktreeModeEnabledFromConfig } from "./builder-config.js";
 import {
   CLAIMED_TASK_CONSISTENCY_STEP_ID,
   type ClaimedTaskConsistencyResult,
@@ -103,10 +103,12 @@ const builderWorkflow: WorkflowDefinitionInput = {
   recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
   terminalFinalizer: finalizeBuilderTerminalWorktree,
-  maxConcurrentRuns: ({ config }) =>
-    builderMaxConcurrentRunsFromConfig(config),
-  dispatchBurst: ({ config, trigger }) => {
-    const maxRuns = builderMaxConcurrentRunsFromConfig(config);
+  maxConcurrentRuns: ({ config, concurrencyLimit }) =>
+    builderWorktreeModeEnabledFromConfig(config) ? concurrencyLimit : 1,
+  dispatchBurst: ({ config, concurrencyLimit, trigger }) => {
+    const maxRuns = builderWorktreeModeEnabledFromConfig(config)
+      ? concurrencyLimit
+      : 1;
     const actionableCount = trigger.payload?.actionableCount;
     if (typeof actionableCount !== "number") return 1;
     if (!Number.isFinite(actionableCount) || actionableCount < 1) return 1;

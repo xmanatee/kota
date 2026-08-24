@@ -64,43 +64,39 @@ describe("builder runtime resource assignment", () => {
     expect(profile.env.KOTA_RUN_DIR).toBe(profile.agentRunDir);
   });
 
-  it("assigns deterministic non-overlapping profiles for concurrent task runs", async () => {
+  it("assigns isolated profiles across four concurrent task runs", async () => {
     const projectDir = tempProject("profiles");
-    const alphaWorkspace = join(projectDir, "worktrees", "alpha");
-    const betaWorkspace = join(projectDir, "worktrees", "beta");
-    const alphaRunDir = join(projectDir, ".kota", "runs", "run-a");
-    const betaRunDir = join(projectDir, ".kota", "runs", "run-b");
+    const runs = ["alpha", "beta", "gamma", "delta"].map((suffix, index) => ({
+      taskId: `task-${suffix}`,
+      runId: `run-${index + 1}`,
+      workspaceDir: join(projectDir, "worktrees", suffix),
+      runDirPath: join(projectDir, ".kota", "runs", `run-${index + 1}`),
+    }));
+    const profiles = await Promise.all(
+      runs.map((run) => assignBuilderRuntimeResources({ projectDir, ...run })),
+    );
 
-    const [alpha, beta] = await Promise.all([
-      assignBuilderRuntimeResources({
-        projectDir,
-        taskId: "task-alpha",
-        runId: "run-a",
-        workspaceDir: alphaWorkspace,
-        runDirPath: alphaRunDir,
-      }),
-      assignBuilderRuntimeResources({
-        projectDir,
-        taskId: "task-beta",
-        runId: "run-b",
-        workspaceDir: betaWorkspace,
-        runDirPath: betaRunDir,
-      }),
-    ]);
+    expect(new Set(profiles.map((profile) => profile.profileId)).size).toBe(4);
+    for (let left = 0; left < profiles.length; left += 1) {
+      for (let right = left + 1; right < profiles.length; right += 1) {
+        expect(rangesOverlap(profiles[left]!.ports, profiles[right]!.ports)).toBe(
+          false,
+        );
+      }
+    }
 
-    expect(alpha.profileId).toBe("task-alpha:run-a");
-    expect(beta.profileId).toBe("task-beta:run-b");
-    expect(alpha.ports).toEqual({
-      ...deterministicBuilderPortRange("task-alpha", "run-a"),
-    });
-    expect(beta.ports).toEqual({
-      ...deterministicBuilderPortRange("task-beta", "run-b"),
-    });
-    expect(rangesOverlap(alpha.ports, beta.ports)).toBe(false);
-    expect(alpha.tempRoot).toBe(join(alphaWorkspace, ".kota", "tmp", "run-a"));
-    expect(beta.tempRoot).toBe(join(betaWorkspace, ".kota", "tmp", "run-b"));
-    expect(alpha.agentRunDir).toBe(join(alphaWorkspace, ".kota", "builder-evidence", "run-a"));
-    expect(beta.agentRunDir).toBe(join(betaWorkspace, ".kota", "builder-evidence", "run-b"));
+    const alpha = profiles[0]!;
+    const beta = profiles[1]!;
+    const alphaWorkspace = runs[0]!.workspaceDir;
+    const betaWorkspace = runs[1]!.workspaceDir;
+    expect(alpha.tempRoot).toBe(join(alphaWorkspace, ".kota", "tmp", "run-1"));
+    expect(beta.tempRoot).toBe(join(betaWorkspace, ".kota", "tmp", "run-2"));
+    expect(alpha.agentRunDir).toBe(
+      join(alphaWorkspace, ".kota", "builder-evidence", "run-1"),
+    );
+    expect(beta.agentRunDir).toBe(
+      join(betaWorkspace, ".kota", "builder-evidence", "run-2"),
+    );
     expect(alpha.artifactRoot).toBe(
       join(alpha.agentRunDir, "artifacts"),
     );
@@ -118,10 +114,11 @@ describe("builder runtime resource assignment", () => {
       status: "skipped",
       reason: "no-package-json",
     });
-    expect(existsSync(alpha.artifactPath)).toBe(true);
-    expect(existsSync(beta.artifactPath)).toBe(true);
+    expect(profiles.every((profile) => existsSync(profile.artifactPath))).toBe(
+      true,
+    );
     expect(JSON.parse(readFileSync(alpha.artifactPath, "utf8"))).toMatchObject({
-      profileId: "task-alpha:run-a",
+      profileId: "task-alpha:run-1",
       projectDir,
       agentRunDir: alpha.agentRunDir,
       ports: { start: alpha.ports.start, end: alpha.ports.end },

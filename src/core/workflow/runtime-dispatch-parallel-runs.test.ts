@@ -58,7 +58,7 @@ describe("runtime parallel same-workflow dispatch", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("dispatches two runs of one opted-in workflow from one burst trigger", async () => {
+  it("dispatches the resolved concurrency-group capacity from one burst trigger", async () => {
     const bus = new EventBus();
     let active = 0;
     let maxActive = 0;
@@ -68,14 +68,14 @@ describe("runtime parallel same-workflow dispatch", () => {
       bus,
       projectDir,
       idleIntervalMs: 60_000,
-      codeConcurrency: 2,
+      codeConcurrency: 4,
       workflows: [
         {
           name: "parallel-worker",
           definitionPath: "src/core/workflow/runtime-dispatch-parallel-runs.test.ts",
           moduleRoot: process.cwd(),
-          maxConcurrentRuns: 2,
-          dispatchBurst: 2,
+          maxConcurrentRuns: ({ concurrencyLimit }) => concurrencyLimit,
+          dispatchBurst: ({ concurrencyLimit }) => concurrencyLimit,
           triggers: [{ event: "work.available", cooldownMs: 0 }],
           steps: [
             {
@@ -96,12 +96,14 @@ describe("runtime parallel same-workflow dispatch", () => {
 
     runtime.start();
     try {
-      bus.emit("work.available", { actionableCount: 2 });
+      bus.emit("work.available", { actionableCount: 4 });
       await waitUntil(
-        () => maxActive === 2,
-        "Timed out waiting for two same-workflow runs to dispatch",
+        () => maxActive === 4,
+        "Timed out waiting for four same-workflow runs to dispatch",
       );
       expect(runtime.getState().activeRuns?.map((run) => run.workflow).sort()).toEqual([
+        "parallel-worker",
+        "parallel-worker",
         "parallel-worker",
         "parallel-worker",
       ]);
@@ -110,8 +112,8 @@ describe("runtime parallel same-workflow dispatch", () => {
       await runtime.stop();
     }
 
-    expect(maxActive).toBe(2);
-    expect(countWorkflowRuns(projectDir, "parallel-worker")).toBe(2);
+    expect(maxActive).toBe(4);
+    expect(countWorkflowRuns(projectDir, "parallel-worker")).toBe(4);
   });
 
   it("keeps burst-triggered same-workflow runs serialized without maxConcurrentRuns", async () => {

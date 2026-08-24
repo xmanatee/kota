@@ -33,7 +33,7 @@ describe("builder workflow queue gating", () => {
     });
   });
 
-  it("uses worktree-backed dispatch by default with an explicit opt-out", () => {
+  it("scales worktree-backed dispatch to the resolved agent capacity", () => {
     const maxConcurrentRuns = builderWorkflow.maxConcurrentRuns;
     const dispatchBurst = builderWorkflow.dispatchBurst;
     if (typeof maxConcurrentRuns !== "function") {
@@ -46,21 +46,42 @@ describe("builder workflow queue gating", () => {
     const base = {
       projectDir: "/repo",
       workflowName: "builder",
+      concurrencyLimit: 4,
       trigger: {
         event: "autonomy.queue.available",
         schemaRef: null,
-        payload: { actionableCount: 3 },
+        payload: { actionableCount: 6 },
       },
     };
 
-    expect(maxConcurrentRuns({ ...base, config: undefined })).toBe(2);
-    expect(dispatchBurst({ ...base, config: undefined })).toBe(2);
-    expect(maxConcurrentRuns({ ...base, config: { modules: {} } })).toBe(2);
-    expect(dispatchBurst({ ...base, config: { modules: {} } })).toBe(2);
-    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
-    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: true } } } })).toBe(2);
-    expect(maxConcurrentRuns({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
-    expect(dispatchBurst({ ...base, config: { modules: { builder: { branchPerTask: false } } } })).toBe(1);
+    expect(maxConcurrentRuns({ ...base, config: undefined })).toBe(4);
+    expect(dispatchBurst({ ...base, config: undefined })).toBe(4);
+    expect(
+      maxConcurrentRuns({
+        ...base,
+        concurrencyLimit: 7,
+        config: { modules: { builder: { branchPerTask: true } } },
+      }),
+    ).toBe(7);
+    expect(
+      dispatchBurst({
+        ...base,
+        concurrencyLimit: 7,
+        config: { modules: { builder: { branchPerTask: true } } },
+      }),
+    ).toBe(6);
+    expect(
+      maxConcurrentRuns({
+        ...base,
+        config: { modules: { builder: { branchPerTask: false } } },
+      }),
+    ).toBe(1);
+    expect(
+      dispatchBurst({
+        ...base,
+        config: { modules: { builder: { branchPerTask: false } } },
+      }),
+    ).toBe(1);
   });
 
   it("skips build when worktree is dirty", async () => {

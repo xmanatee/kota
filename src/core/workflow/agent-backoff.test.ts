@@ -34,6 +34,7 @@ describe("AgentBackoffManager", () => {
       getScopeId: () => "test-scope",
       getActiveBackoff: () => manager.getActive(),
       workflowUsesAgent: () => true,
+      concurrencyLimit: () => 1,
       isActiveRun: () => false,
       getDefinitions: () => [definition],
       log: (message) => logs.push(message),

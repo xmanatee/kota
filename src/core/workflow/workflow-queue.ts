@@ -34,6 +34,7 @@ export type WorkflowQueueManagerConfig = {
   getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
   workflowUsesAgent: (definition: WorkflowDefinition) => boolean;
+  concurrencyLimit: (definition: WorkflowDefinition) => number;
   isActiveRun: (workflowName: string) => boolean;
   activeRunCount?: (workflowName: string) => number;
   getDefinitions: () => WorkflowDefinition[];
@@ -171,6 +172,7 @@ export class WorkflowQueueManager {
             trigger: item.trigger,
             projectDir: this.config.projectDir ?? process.cwd(),
             config: this.config.getConfig?.(),
+            concurrencyLimit: this.config.concurrencyLimit(definition),
           }),
         )
       ) {
@@ -229,6 +231,7 @@ export class WorkflowQueueManager {
       trigger,
       projectDir: this.config.projectDir ?? process.cwd(),
       config: this.config.getConfig?.(),
+      concurrencyLimit: this.config.concurrencyLimit(definition),
     });
     const queueEveryDelivery = triggerConfig.queueMode === "all";
     const explicitlyKeyed = hasExplicitWorkflowDispatchKey(trigger);

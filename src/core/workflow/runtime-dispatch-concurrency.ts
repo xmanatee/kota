@@ -23,6 +23,16 @@ function getConcurrencyGroup(definition: WorkflowDefinition): string {
   return workflowUsesAgent(definition) ? "agent" : "code";
 }
 
+export function concurrencyLimitForDefinition(
+  state: Pick<WorkflowDispatchConcurrencyState, "agentConcurrency" | "codeConcurrency">,
+  definition: WorkflowDefinition,
+): number {
+  const group = getConcurrencyGroup(definition);
+  if (group === "agent") return state.agentConcurrency;
+  if (group === "code") return state.codeConcurrency;
+  return 1;
+}
+
 function usesAgentGroup(definition: WorkflowDefinition): boolean {
   return getConcurrencyGroup(definition) === "agent";
 }
@@ -76,6 +86,7 @@ function maxConcurrentRunsForWorkflow(
           projectDir: state.projectDir,
           config: state.config,
           workflowName: definition.name,
+          concurrencyLimit: concurrencyLimitForDefinition(state, definition),
         })
       : resolver;
   if (raw === undefined) return 1;
@@ -100,7 +111,6 @@ export function canDispatchDefinition(
     return false;
   }
   const group = getConcurrencyGroup(definition);
-  let limit: number;
   if (workflowUsesAgent(definition) && hasActiveExclusiveAgentSlot(state)) {
     return false;
   }
@@ -108,11 +118,9 @@ export function canDispatchDefinition(
     if (requiresExclusiveAgentSlot(definition)) {
       return activeAgentWorkflowCount(state) === 0;
     }
-    limit = state.agentConcurrency;
-  } else if (group === "code") {
-    limit = state.codeConcurrency;
-  } else {
-    limit = 1;
   }
-  return activeCountForGroup(state, group) < limit;
+  return (
+    activeCountForGroup(state, group) <
+    concurrencyLimitForDefinition(state, definition)
+  );
 }

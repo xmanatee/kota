@@ -9,6 +9,7 @@ export function resolveWorkflowDispatchBurst(input: {
   trigger: WorkflowRunTrigger;
   projectDir: string;
   config: KotaConfig | undefined;
+  concurrencyLimit: number;
 }): number {
   const resolver = input.definition.dispatchBurst;
   const raw =
@@ -17,6 +18,7 @@ export function resolveWorkflowDispatchBurst(input: {
           projectDir: input.projectDir,
           config: input.config,
           workflowName: input.definition.name,
+          concurrencyLimit: input.concurrencyLimit,
           trigger: input.trigger,
         })
       : resolver;
