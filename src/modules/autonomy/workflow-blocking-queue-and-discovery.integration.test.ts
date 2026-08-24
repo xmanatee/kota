@@ -214,6 +214,7 @@ describe("queue and discovery blocking operations", () => {
                 sourceIntent: "Recover an exhausted builder task without blocking control.",
                 initiative: "Responsive daemon control.",
                 acceptanceEvidence: ["Focused worker integration output."],
+                reuseTaskId: null,
                 dependsOn: [],
               },
             ],
@@ -252,6 +253,9 @@ describe("queue and discovery blocking operations", () => {
       expect(decomposition).toEqual({
         taskId: "task-worker-decomposition",
         subtaskIds: ["task-worker-decomposition-slice"],
+        mutatedTaskPaths: [
+          "data/tasks/ready/task-worker-decomposition-slice.md",
+        ],
       });
       expect(
         existsSync(

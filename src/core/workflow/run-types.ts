@@ -11,6 +11,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
+import type { WorkflowRepairContinuationController } from "./repair-loop-continuation.js";
 import type {
   WorkflowRunStatus,
   WorkflowRuntimeState,
@@ -26,6 +27,7 @@ import type {
 } from "./step-types.js";
 import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
 
+export type * from "./repair-loop-continuation.js";
 export * from "./runtime-state-types.js";
 
 export type WorkflowContextInfo = {
@@ -234,6 +236,8 @@ export type WorkflowRepairLoopConfig = {
   checks: WorkflowRepairCheck[];
   /** Optional operational stop. Omit for quality-first repair until checks pass or the step aborts. */
   maxRepairAttempts?: number;
+  /** Evidence-bound authority for long or expanding repair trajectories. */
+  continuation?: WorkflowRepairContinuationController;
 };
 
 export type WorkflowRunExecutionResult = {

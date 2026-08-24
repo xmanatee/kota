@@ -51,9 +51,10 @@ guessing.
   declare that command as a Runtime Probe instead. See `data/tasks/AGENTS.md`
   for accepted artifact kinds per surface.
 - Use `pnpm kota task move <id> <state>` for every task state transition.
-- Before stopping, run the narrowest validation that proves the change, and
-  broaden it when the touched behavior warrants more coverage. Fix failures
-  before stopping. Do not duplicate the workflow repair
-  loop's broad gates once narrow proof is sufficient.
+- Before stopping, run targeted validation that proves the changed behavior.
+  Broaden targeted coverage when the touched surface warrants it and fix every
+  failure you observe. Do not run the full `pnpm test` suite inside the agent;
+  the serialized merge gate runs the authoritative broad validation once,
+  after reconciling the branch with the latest canonical head.
 - Leave the task state aligned with reality.
 - Then follow the workflow finish protocol.

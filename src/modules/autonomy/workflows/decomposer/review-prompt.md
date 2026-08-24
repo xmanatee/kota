@@ -8,6 +8,13 @@ desired outcome, constraints, and Safety or Product intent. Reject plans that
 substitute a related but different bug, infer work from the task id alone,
 drop a required outcome, or add unrelated architecture work.
 
+Inspect the open task queue before approving. Reject any proposed creation
+whose intent or acceptance evidence is already covered by an open task. For
+every non-null `reuseTaskId`, verify that the target is open and semantically
+covers the proposed slice; reject id-only or partial matches. Also reject a
+plan that drops a parent dependency or acceptance outcome. The mutation step
+propagates parent dependency ids after approval.
+
 Judge only the parent-task snapshot and the `decompose` output. Return the
 required JSON object with `decision`, `rationale`, and concrete `issues`. Use an
 empty `issues` array only for an approval.

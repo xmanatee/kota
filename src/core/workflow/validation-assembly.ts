@@ -164,6 +164,7 @@ export function assembleWorkflowDefinition(
           const selfMatches = [
             "success",
             "failed",
+            "yielded",
             "interrupted",
             "completed-with-warnings",
           ].some((status) =>

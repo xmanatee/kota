@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Scheduler } from "#core/daemon/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
@@ -45,15 +45,20 @@ describe("Daemon runtime state", () => {
       ],
     });
     const startPromise = daemon.start();
-    await wait(80);
-
-    const state = daemon.getDashboardSnapshot();
-    expect(state.completedRuns).toBeGreaterThanOrEqual(1);
-    expect(state.lastCompletedWorkflow).toBe("builder");
-    expect(state.lastCompletedStatus).toBe("success");
-
-    await daemon.stop();
-    await startPromise;
+    try {
+      await vi.waitFor(
+        () => {
+          const state = daemon.getDashboardSnapshot();
+          expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+          expect(state.lastCompletedWorkflow).toBe("builder");
+          expect(state.lastCompletedStatus).toBe("success");
+        },
+        { interval: 20, timeout: 10_000 },
+      );
+    } finally {
+      await daemon.stop();
+      await startPromise;
+    }
   });
 
   it("handles scheduled notification items when they fire", async () => {

@@ -39,7 +39,7 @@ export type EvidenceProvenanceExpectation = {
 type RequiredStringResult = { ok: true; value: string } | { ok: false; reason: string };
 
 const WORKFLOW_RUN_STATUSES = new Set([
-  "success", "failed", "interrupted", "completed-with-warnings", "running",
+  "success", "failed", "yielded", "interrupted", "completed-with-warnings", "running",
 ]);
 
 const EVIDENCE_ARTIFACT_TYPES = new Set<EvidenceArtifactType>([

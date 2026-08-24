@@ -92,7 +92,11 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
   type: "code",
   when: stepSucceeded("write-commit-message"),
   validate: (raw) =>
-    expectStructuredOutput<AppliedDecomposition>(raw, ["taskId", "subtaskIds"]),
+    expectStructuredOutput<AppliedDecomposition>(raw, [
+      "taskId",
+      "subtaskIds",
+      "mutatedTaskPaths",
+    ]),
   run: (ctx) => {
     const assessment = assessFailure.outputRequired(ctx);
     if (!assessment.shouldDecompose) {
@@ -121,7 +125,7 @@ function decompositionCommitPathPolicy(
     paths: [
       assessment.taskPath,
       `data/tasks/dropped/${assessment.taskId}.md`,
-      ...applied.subtaskIds.map((id) => `data/tasks/ready/${id}.md`),
+      ...applied.mutatedTaskPaths,
     ],
   };
 }

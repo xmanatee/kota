@@ -4,7 +4,6 @@ import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { AUTONOMY_CHANGE_DECISION_CHECK_ID } from "#modules/autonomy/autonomy-change-decision.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { OBSERVABILITY_OBLIGATION_WARNING_TYPE } from "#modules/autonomy/observability-obligation.js";
-import { AUTONOMY_FULL_TEST_TIMEOUT_MS } from "#modules/autonomy/shared.js";
 import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import { SOURCE_FILE_SIZE_SEVERE_TYPE } from "#modules/autonomy/source-size-escalation.js";
 import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
@@ -189,16 +188,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
           "pnpm run lint",
           { signal: ctx.signal },
         ),
-    },
-    {
-      id: "test",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) => checkPackageScript(
-        workflowWorkspaceDir(ctx),
-        "pnpm test",
-        { timeoutMs: AUTONOMY_FULL_TEST_TIMEOUT_MS, signal: ctx.signal },
-      ),
     },
     {
       id: "mobile-typecheck",

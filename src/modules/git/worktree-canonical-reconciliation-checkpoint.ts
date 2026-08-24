@@ -1,3 +1,4 @@
+import { hasReusableCanonicalCheckpoint } from "./worktree-canonical-reconciliation-record.js";
 import {
 	blockReconciliation,
 	branchBehind,
@@ -53,6 +54,14 @@ export function checkpointPreservedAutomationWorktree(
 	const existingMergeHeadResult = inspection.dirty.conflicted
 		? runGit(workspaceDir, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])
 		: null;
+	const existingHeadCommit = currentHead(workspaceDir);
+	const reusableCheckpoint = hasReusableCanonicalCheckpoint(
+		inspection.metadata.canonicalReconciliation,
+		workspaceDir,
+		existingHeadCommit,
+	)
+		? inspection.metadata.canonicalReconciliation.checkpointCommit
+		: null;
 	if (
 		inspection.dirty.conflicted &&
 		(inspection.metadata.state !== "pending-merge" || !existingMergeHeadResult?.ok)
@@ -66,7 +75,7 @@ export function checkpointPreservedAutomationWorktree(
 			),
 		};
 	}
-	if (!inspection.dirty.dirty) {
+	if (!inspection.dirty.dirty && reusableCheckpoint === null) {
 		return {
 			ready: false as const,
 			record: blockReconciliation(
@@ -77,8 +86,8 @@ export function checkpointPreservedAutomationWorktree(
 		};
 	}
 
-	let checkpointCommit = currentHead(workspaceDir);
-	if (existingMergeHeadResult === null) {
+	let checkpointCommit = reusableCheckpoint ?? existingHeadCommit;
+	if (existingMergeHeadResult === null && reusableCheckpoint === null) {
 		const staged = runGit(workspaceDir, ["add", "-A", "--", "."]);
 		if (!staged.ok) {
 			return {

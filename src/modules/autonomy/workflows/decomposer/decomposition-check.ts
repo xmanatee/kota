@@ -9,7 +9,11 @@ import { extractRepoTaskIds } from "#modules/repo-tasks/task-id.js";
 
 const DECOMPOSED_SECTION = "Decomposed";
 
-export function checkDecompositionApplied(projectDir: string, taskId: string): string {
+export function checkDecompositionApplied(
+  projectDir: string,
+  taskId: string,
+  mutatedSubtaskPaths?: readonly string[],
+): string {
   const tasks = listFullRepoTasks(projectDir);
   const original = tasks.find((task) => task.id === taskId);
   if (!original || original.state !== "dropped") {
@@ -34,20 +38,25 @@ export function checkDecompositionApplied(projectDir: string, taskId: string): s
     throw new Error(`## Decomposed for ${taskId} must name at least one subtask`);
   }
 
-  const readyTaskIds = new Set(
-    tasks.filter((task) => task.state === "ready").map((task) => task.id),
+  const activeTasks = new Map(
+    tasks
+      .filter((task) => task.state !== "done" && task.state !== "dropped")
+      .map((task) => [task.id, task]),
   );
-  const missingReadyTasks = subtaskIds.filter((id) => !readyTaskIds.has(id));
-  if (missingReadyTasks.length > 0) {
+  const missingActiveTasks = subtaskIds.filter((id) => !activeTasks.has(id));
+  if (missingActiveTasks.length > 0) {
     throw new Error(
-      `Decomposed subtasks must exist in ready: ${missingReadyTasks.join(", ")}`,
+      `Decomposed subtasks must exist in an open task state: ${missingActiveTasks.join(", ")}`,
     );
   }
 
   const mutatedPaths = new Set(listWorkflowMutatedPaths(projectDir));
   const requiredPaths = [
     join(REPO_TASKS_DIR, "dropped", `${taskId}.md`),
-    ...subtaskIds.map((id) => join(REPO_TASKS_DIR, "ready", `${id}.md`)),
+    ...(mutatedSubtaskPaths ?? subtaskIds.map((id) => {
+      const task = activeTasks.get(id)!;
+      return join(REPO_TASKS_DIR, task.state, `${id}.md`);
+    })),
   ];
   const unchangedPaths = requiredPaths.filter((path) => !mutatedPaths.has(path));
   if (unchangedPaths.length > 0) {
@@ -56,5 +65,5 @@ export function checkDecompositionApplied(projectDir: string, taskId: string): s
     );
   }
 
-  return `OK: dropped ${taskId} and prepared ${subtaskIds.length} ready subtask(s)`;
+  return `OK: dropped ${taskId} and linked ${subtaskIds.length} active subtask(s)`;
 }

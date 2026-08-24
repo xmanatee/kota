@@ -23,17 +23,22 @@ split or sharpen it only where real conceptual seams exist.
 - Preserve the original task's Product/Safety urgency in the resulting
   sequence; create Meta repair subtasks only when they close a visible Product,
   Safety, or runtime blocker.
+- Inspect open tasks across `data/tasks/` for semantic overlap before proposing
+  each slice. Set `reuseTaskId` to the equivalent open task when its intent and
+  acceptance evidence cover the slice; set it to `null` only when no open task
+  does. Never use id similarity alone as proof of equivalence.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.
 - Express dependencies as zero-based indexes into earlier entries in
-  `subtasks`; never depend on the same or a later entry.
+  `subtasks`; never depend on the same or a later entry. The mutation step also
+  carries every hard dependency from the parent task into each resulting task.
 - Fill every required task field with concrete implementation intent and
   acceptance evidence. Do not return markdown task files or shell commands.
 
 ## Output
 
 Return one JSON object with `rationale` and a non-empty `subtasks` array matching
-the supplied schema. The workflow deterministically creates those ready tasks,
-records their dependencies, annotates the original with `## Decomposed`, and
-moves it to `dropped/` through the canonical repo-task APIs only after an
+the supplied schema. The workflow deterministically creates or reuses those
+tasks, records their dependencies, annotates the original with `## Decomposed`,
+and moves it to `dropped/` through the canonical repo-task APIs only after an
 independent semantic review approves alignment with the original task.

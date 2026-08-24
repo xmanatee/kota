@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { runProcessGroupCommandSync } from "#modules/execution/process-group-command.js";
 import {
 	markAutomationWorktreeMerged,
 	markAutomationWorktreePendingMerge,
@@ -20,6 +21,7 @@ import type {
 
 export const DEFAULT_MAX_RESOLUTION_ATTEMPTS = 2;
 const TAIL_LIMIT = 6000;
+const DEFAULT_MERGE_GATE_VALIDATION_TIMEOUT_MS = 30 * 60 * 1000;
 
 function tail(value: string): string {
 	return value.length <= TAIL_LIMIT ? value : value.slice(value.length - TAIL_LIMIT);
@@ -75,22 +77,28 @@ export function canonicalConflictDiff(
 	return result.stdout || "(canonical side has no textual diff for the conflict paths)";
 }
 
-export function runValidation(workspaceDir: string, command: readonly string[] | undefined): MergeGateValidation | null {
+export function runValidation(
+	workspaceDir: string,
+	command: readonly string[] | undefined,
+	timeoutMs = DEFAULT_MERGE_GATE_VALIDATION_TIMEOUT_MS,
+): MergeGateValidation | null {
 	if (!command || command.length === 0) return null;
 	const [executable, ...args] = command;
 	if (!executable) return null;
-	const result = spawnSync(executable, args, {
+	const result = runProcessGroupCommandSync({
+		command: executable,
+		args,
 		cwd: workspaceDir,
 		env: withProtectedGitBareRepositoryEnv(),
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "pipe"],
+		timeoutMs,
+		outputLimit: TAIL_LIMIT,
 	});
 	return {
 		command: [...command],
-		exitCode: result.status,
+		exitCode: result.exitCode,
 		stdoutTail: tail(result.stdout),
 		stderrTail: tail(result.stderr),
-		passed: result.status === 0,
+		passed: result.exitCode === 0,
 	};
 }
 

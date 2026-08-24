@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { hasReusableCanonicalCheckpoint } from "./worktree-canonical-reconciliation-record.js";
 import {
 	assertCanonicalCheckoutReady,
 	comparablePath,
@@ -58,7 +59,13 @@ import type {
 	WorktreePushState,
 } from "./worktree-lifecycle-types.js";
 
-const WORKFLOW_TERMINAL_STATUSES = new Set(["success", "failed", "interrupted", "completed-with-warnings"]);
+const WORKFLOW_TERMINAL_STATUSES = new Set([
+	"success",
+	"failed",
+	"yielded",
+	"interrupted",
+	"completed-with-warnings",
+]);
 
 export type DisposedAutomationWorktreeResult = {
 	removed: boolean;
@@ -227,7 +234,14 @@ export function continueAutomationWorktree(
 	if (before.runState === "active") {
 		throw new Error(`Cannot continue active automation worktree ${selector.taskId}/${selector.runId}`);
 	}
-	if (!before.dirty.dirty) {
+	if (
+		!before.dirty.dirty &&
+		!hasReusableCanonicalCheckpoint(
+			before.metadata.canonicalReconciliation,
+			before.metadata.workspaceDir,
+			before.headCommit,
+		)
+	) {
 		throw new Error(`Cannot continue clean automation worktree ${selector.taskId}/${selector.runId}`);
 	}
 	git(selector.projectDir, [

@@ -61,6 +61,19 @@ function gitStatus(cwd: string, args: string[]): number {
 	return result.status ?? 1;
 }
 
+export function isGitAncestor(
+	cwd: string,
+	ancestor: string,
+	descendant: string,
+): boolean {
+	return gitStatus(cwd, [
+		"merge-base",
+		"--is-ancestor",
+		ancestor,
+		descendant,
+	]) === 0;
+}
+
 export function readDirtyState(repoDir: string): WorktreeDirtyState {
 	const output = git(repoDir, ["status", "--porcelain=v1", "--untracked-files=all"]);
 	const entries = output ? output.split("\n").map((line) => line.trimEnd()) : [];

@@ -25,7 +25,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
@@ -235,17 +235,10 @@ describe("daemon runtime module load", () => {
       expect(runtimeScopeProvider?.resolve(scopeId)).toEqual(
         expect.objectContaining({ ok: true }),
       );
-      const decisionObserved = new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error("timed out waiting for scoped autonomy issue decision")),
-          3000,
-        );
-        eventBus.on(autonomyIssueDecisionRequested, (payload) => {
-          decisions.push(payload);
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
+      const stopDecisionObservation = eventBus.on(
+        autonomyIssueDecisionRequested,
+        (payload) => decisions.push(payload),
+      );
       new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
         workflow: "builder",
         runId: "daemon-runtime-event-run",
@@ -261,7 +254,14 @@ describe("daemon runtime module load", () => {
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
-      await decisionObserved;
+      try {
+        await vi.waitFor(() => expect(decisions).toHaveLength(1), {
+          interval: 20,
+          timeout: 10_000,
+        });
+      } finally {
+        stopDecisionObservation();
+      }
       expect(decisions).toEqual([
         expect.objectContaining({ scopeId, projectId: scopeId }),
       ]);

@@ -55,7 +55,6 @@ describe("builder workflow prompt and repair checks", () => {
         "task-queue-valid",
         "typecheck",
         "lint",
-        "test",
       ];
       const checks = new Map(builderRepairChecks().map((check) => [check.id, check]));
       for (const id of packageCheckIds) {
@@ -69,6 +68,12 @@ describe("builder workflow prompt and repair checks", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("leaves the broad test suite to the serialized merge gate", () => {
+    expect(builderRepairChecks().map((check) => check.id)).not.toContain("test");
+    expect(promptContent).toMatch(/merge gate runs the authoritative broad validation/i);
+    expect(promptContent).toMatch(/do not run the full `pnpm test` suite/i);
   });
 
   it("skips mobile typecheck when dependencies are absent and mobile files are unchanged", async () => {

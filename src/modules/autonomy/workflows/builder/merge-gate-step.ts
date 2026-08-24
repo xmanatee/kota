@@ -25,8 +25,6 @@ import { builderWorktreeRunId } from "./workspace.js";
 const MERGE_GATE_VALIDATION_COMMAND = [
 	"pnpm",
 	"test",
-	"src/modules/git",
-	"src/modules/autonomy/workflows/builder",
 ];
 
 function preparedWorktree(ctx: Pick<WorkflowStepContext, "stepOutputs">): BuilderWorkspaceResult | undefined {

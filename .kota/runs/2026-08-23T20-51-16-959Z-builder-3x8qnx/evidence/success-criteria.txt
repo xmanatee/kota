@@ -1,0 +1,6 @@
+1. Builder run metadata exposes one concise evidence packet and a validated continuation decision of continue, decompose, preserve-yield, or needs-owner.
+2. Fresh verification progress completes without an additional continuation judge call or lifecycle transition.
+3. Historical 9.0-hour, 9.6-hour, and 6.5-hour trajectories replay to the first new decision boundary, while unchanged evidence is a no-op.
+4. A production-path fixture proves preserve-yield releases capacity and resumes the same task, worktree, claim, diff, and evidence lineage without duplicate commits or tasks.
+5. Fixtures distinguish changing but unproductive repair for decomposition or preservation from changing and converging repair that continues.
+6. Operator status and run artifacts explain continuation and yield decisions and distinguish them from failure, interruption, and pending merge.

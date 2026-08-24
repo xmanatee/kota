@@ -101,7 +101,7 @@ describe("builder workflow worktree mode", () => {
         projectDir,
         taskId: "task-claimed",
         runId: "harness-run-id",
-        validationCommand: ["pnpm", "test", "src/modules/git", "src/modules/autonomy/workflows/builder"],
+        validationCommand: ["pnpm", "test"],
         resolver: expect.any(Function),
         maxResolutionAttempts: 2,
       }),
