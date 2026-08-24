@@ -143,9 +143,52 @@ describe("builder recovery continuation bounds", () => {
     candidate.worktree.uniqueCommits = ["checkpoint123"];
     candidate.worktree.uniqueCommitCount = 1;
     candidate.worktree.branchAhead = 1;
+    candidate.worktree.canonicalReconciliation = {
+      phase: "conflict-blocked",
+      disposition: "needs-review",
+      originalBaseCommit: "abc123",
+      checkpointCommit: "checkpoint123",
+      canonicalHeadCommit: "canonical123",
+      integratedCanonicalHeadCommit: null,
+      branchBehindAtStart: 1,
+      branchBehindAtResume: null,
+      overlappingPaths: [],
+      canonicalDestructivePaths: [],
+      conflicts: [],
+      validations: [],
+      reason: "canonical checkout was dirty",
+      artifactPath: join(projectDir, "reconciliation.json"),
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    };
     listRecoveryClaims.mockReturnValue([candidate]);
 
     expect(listPendingBuilderRecoveries(projectDir)).toEqual([candidate]);
+  });
+
+  it("keeps a clean pending merge with recorded conflicts review-only", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "builder-conflicted-pending-merge-"));
+    tempDirs.push(projectDir);
+    const candidate = continuedRecoveryCandidate(projectDir);
+    candidate.claim.status = "pending-merge";
+    candidate.recoveryStatus = "pending-merge";
+    candidate.ownerRunStatus = "success";
+    candidate.worktree.state = "pending-merge";
+    candidate.worktree.dirtyState = "clean";
+    candidate.worktree.dirtyEntries = [];
+    candidate.worktree.uniqueCommits = ["checkpoint123"];
+    candidate.worktree.uniqueCommitCount = 1;
+    candidate.worktree.canonicalReconciliation = {
+      disposition: "needs-review",
+      conflicts: [
+        { path: "src/shared.ts", kind: "text", reason: "unresolved conflict" },
+      ],
+      canonicalDestructivePaths: [],
+    } as unknown as NonNullable<
+      typeof candidate.worktree.canonicalReconciliation
+    >;
+    listRecoveryClaims.mockReturnValue([candidate]);
+
+    expect(listPendingBuilderRecoveries(projectDir)).toEqual([]);
   });
 
   it("does not requeue a continuation after its finalizer requires state recovery", () => {

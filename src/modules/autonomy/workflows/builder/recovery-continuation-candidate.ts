@@ -31,6 +31,29 @@ function readTerminalContinuation(
   );
 }
 
+function isCommittedPendingMerge(
+  candidate: WorkflowStateRecoveryClaim,
+): boolean {
+  return (
+    candidate.claim.status === "pending-merge" &&
+    candidate.worktree.state === "pending-merge" &&
+    candidate.worktree.dirtyState === "clean" &&
+    candidate.worktree.uniqueCommitCount > 0
+  );
+}
+
+function isRetryableCommittedPendingMerge(
+  candidate: WorkflowStateRecoveryClaim,
+): boolean {
+  if (!isCommittedPendingMerge(candidate)) return false;
+  const reconciliation = candidate.worktree.canonicalReconciliation;
+  return (
+    reconciliation === undefined ||
+    (reconciliation.conflicts.length === 0 &&
+      reconciliation.canonicalDestructivePaths.length === 0)
+  );
+}
+
 export function preservedBuilderWorkspaceDir(
   projectDir: string,
   candidate: WorkflowStateRecoveryClaim,
@@ -46,10 +69,7 @@ export function preservedBuilderWorkspaceDir(
     candidate.worktree.uniqueCommitCount > 0 &&
 		candidate.worktree.canonicalReconciliation?.disposition ===
 			"ready-to-resume";
-	const committedPendingMerge =
-		candidate.claim.status === "pending-merge" &&
-		candidate.worktree.state === "pending-merge" &&
-		candidate.worktree.uniqueCommitCount > 0;
+	const committedPendingMerge = isRetryableCommittedPendingMerge(candidate);
   if (
     candidate.claim.workflowId === "builder" &&
     candidate.recommendedAction.kind === "needs-review" &&
@@ -72,7 +92,8 @@ export function needsRuntimeRecoveryRequest(
 ): boolean {
   if (preservedBuilderWorkspaceDir(projectDir, candidate) === null) return false;
   if (
-    candidate.worktree.canonicalReconciliation?.disposition === "needs-review"
+    candidate.worktree.canonicalReconciliation?.disposition === "needs-review" &&
+    !isRetryableCommittedPendingMerge(candidate)
   ) {
     return false;
   }

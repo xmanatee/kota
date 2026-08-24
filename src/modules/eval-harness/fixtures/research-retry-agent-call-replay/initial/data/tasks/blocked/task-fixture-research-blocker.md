@@ -4,6 +4,7 @@ title: Fixture-only research blocker for research-retry replay coverage
 status: blocked
 priority: p3
 area: research
+task_class: Meta
 summary: Synthetic blocked task with a plain-http resource so research-retry inspect-candidates selects it under a hermetic capability profile (no Playwright, no auth profile) and the replay adapter exercises the agent step end-to-end.
 created_at: 2026-04-23T00:00:00.000Z
 updated_at: 2026-04-23T00:00:00.000Z

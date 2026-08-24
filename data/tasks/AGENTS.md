@@ -10,11 +10,9 @@ State and priority are separate concepts. Priority describes importance; state d
 
 - Use `pnpm kota task create` to scaffold tasks. The scaffold and validator are
   the schema boundary.
-- Use `depends_on: [task-id, ...]` frontmatter for hard predecessor task
-  edges. This is the canonical dependency representation; do not encode hard
-  ordering only in prose. Open tasks may depend only on existing non-dropped
-  tasks and must name immediate predecessors only; do not repeat an edge that
-  is already implied transitively through another predecessor.
+- Use `depends_on: [task-id, ...]` as the canonical hard-predecessor representation;
+  do not encode hard ordering only in prose. Open tasks may name only existing,
+  non-dropped immediate predecessors; omit transitively implied edges.
 - If a blocked task uses an `## Unblock Precondition` of `kind: task-done`,
   its `depends_on` list must be exactly the same task id.
 - Tasks describe what must become true and why it matters; builders own the
@@ -31,9 +29,8 @@ State and priority are separate concepts. Priority describes importance; state d
 - `## Acceptance Evidence` names the transcript, screenshot, fixture, command,
   artifact, or demo that proves the task's outcome. User-facing CLI/UI work
   needs rendered-output evidence, not only implementation tests.
-- Keep required research links and source-to-decision refs visible in `## Source
-  / Intent` or decision sections when central. Cite existing watchlist refs,
-  not copied metadata; if source access fails, record the blocker honestly.
+- Keep central research and decision refs visible in `## Source / Intent` or decision
+  sections. Cite watchlist refs instead of copied metadata; record access blockers.
 
 ## Strategic Anchor Tasks
 
@@ -95,10 +92,9 @@ those.
   initiative it enables.
 - Owner-facing regressions, broken operator output, repeated expensive
   failures, and stale blocked owner requests are strong queue-shaping signals.
-- P1 Product and Safety work outranks Meta/repair work unless the runtime is
-  broken. A ready/doing `task_class: Meta` task must include a
-  `## Product / Safety Link` section naming the Product or Safety blocker it
-  closes; otherwise it belongs outside the actionable queue.
+- P1 Product and Safety work outranks Meta/repair work unless the runtime is broken.
+  Actionable Meta tasks must name the Product or Safety blocker they close in
+  `## Product / Safety Link`; otherwise they belong outside the actionable queue.
 - Use `pnpm kota task move <id> <state>` to move tasks between state directories. The move command owns lifecycle metadata and file movement.
 - Before finishing, ensure task validation would pass: unique ids, tracked task
   files, no stale deletes, and matching status/directories.

@@ -146,6 +146,7 @@ const autonomyModule: KotaModule = {
     "git",
     "inbound-signals",
     "repo-ai-checks",
+    "execution",
   ],
   events: [
     progressReviewRequested,

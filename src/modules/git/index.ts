@@ -82,6 +82,7 @@ const gitModule: KotaModule = {
   name: "git",
   version: "1.0.0",
   description: "Git version control tool with safety guardrails",
+  dependencies: ["execution"],
   manifest: {
     schemaVersion: 1,
     capabilities: [
