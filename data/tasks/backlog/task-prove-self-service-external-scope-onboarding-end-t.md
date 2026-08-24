@@ -8,12 +8,12 @@ task_class: Product
 depends_on: [task-replace-legacy-kota-init-with-scope-onboarding, task-expose-add-scope-through-the-shared-operator-surfa, task-activate-continuous-improvement-for-newly-onboarde]
 summary: Demonstrate live onboarding, autonomous progress, restart recovery, isolation, and safe removal for external code and non-code scopes.
 created_at: 2026-07-31T16:12:58.650Z
-updated_at: 2026-07-31T16:12:58.650Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
 
-Earlier external-project and multi-scope tasks proved programmatic daemon
+Earlier external-scope and multi-scope tasks proved programmatic daemon
 configuration and isolated fixture workflows. They did not prove the owner
 journey requested here: add a previously unknown folder through an operator
 surface, configure it, see autonomous progress without restart, recover it
@@ -38,8 +38,8 @@ restart recovery, drain/remove, and preservation of the target directories.
 ## Constraints
 
 - Exercise production daemon routes, client contract, onboarding service,
-  registries, and existing workflows. Do not inject `DaemonConfig.projects`
-  or call internal factories directly in place of the operator flow.
+  registries, and existing workflows. Do not inject daemon startup scopes or
+  call internal factories directly in place of the operator flow.
 - Keep target fixtures outside the KOTA repository and give each distinct
   runtime/task/run state.
 - Do not count a task created without later dispatch eligibility, a scheduled
@@ -47,7 +47,7 @@ restart recovery, drain/remove, and preservation of the target directories.
 - Include negative paths for duplicate/symlink identity, missing setup,
   malicious repo-local config, active-work removal, failed apply/retry, and
   restart during onboarding.
-- Verify no project data, trust, policy, worktree, claim, event, or backoff
+- Verify no scope data, trust, policy, worktree, claim, event, or backoff
   crosses scope boundaries.
 
 ## Done When
@@ -69,7 +69,7 @@ restart recovery, drain/remove, and preservation of the target directories.
 Owner request on 2026-07-31: make adding other folders convenient and make
 automated continuous improvement actually begin there. This closure task is
 needed because prior `task-prove-external-project-autonomy-with-end-to-end-fi`
-proved only a daemon booted directly with an external `projectDir`.
+proved only a daemon booted directly with an external directory.
 
 ## Initiative
 

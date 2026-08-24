@@ -1,13 +1,14 @@
 ---
 id: task-security-review-builder-recovery-now-treats-retryo
-title: Security review: Builder recovery now treats retryOf links read from ordinary .kota/runs metadata as authorization to bypass the exact sourceRunId ownership check. Security-review agents can write that entire directory, while the lineage reader verifies only id and workflow fields. A compromised agent can forge a link to the current claim owner so that an unrelated stale redrive transfers the preserved builder claim and resumes autonomous mutation of its worktree.
-status: ready
-priority: p2
+title: Bind builder recovery to daemon-owned claim provenance
+status: backlog
+priority: p1
 area: security
 task_class: Safety
-summary: Builder recovery now treats retryOf links read from ordinary .kota/runs metadata as authorization to bypass the exact sourceRunId ownership check. Security-review agents can write that entire directory, while the lineage reader verifies only id and workflow fields. A compromised agent can forge a link to the current claim owner so that an unrelated stale redrive transfers the preserved builder claim and resumes autonomous mutation of its worktree.
+depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
+summary: Resolve retry lineage and claim transfer through daemon-owned provenance so agent-authored run metadata cannot authorize recovery.
 created_at: 2026-08-23T08:53:17.291Z
-updated_at: 2026-08-23T08:53:17.291Z
+updated_at: 2026-08-24T02:20:01.720Z
 ---
 
 ## Problem

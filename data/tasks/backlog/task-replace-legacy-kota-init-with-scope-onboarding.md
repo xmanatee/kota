@@ -8,7 +8,7 @@ task_class: Platform
 depends_on: [task-add-one-transactional-external-scope-onboarding-se]
 summary: Remove the unread kota.config.ts scaffold path and make all initialization delegate to the canonical scope onboarding service.
 created_at: 2026-07-31T16:12:53.613Z
-updated_at: 2026-07-31T16:12:53.613Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
@@ -20,15 +20,15 @@ and runtime directories directly, outside the scope registry, trust, policy,
 setup, and readiness mechanisms.
 
 Keeping it would make a new onboarding flow immediately ambiguous: `kota init`
-and Add Scope could produce different project state and neither would be the
+and Add Scope could produce different scope state and neither would be the
 obvious correct path.
 
 ## Desired Outcome
 
-Remove the obsolete scaffold implementation and make local initialization a
-thin client of the canonical onboarding service. Preserve a discoverable CLI
-entrypoint only if it is useful, but it must inspect/plan/apply the same
-operation as every other client and print the same readiness semantics.
+Remove the obsolete scaffold implementation and the `kota init` command. The
+only CLI onboarding entrypoint is `kota scope add <directory>`, a thin client
+of the canonical inspect/plan/apply onboarding service with the same readiness
+semantics as every other client.
 
 ## Constraints
 
@@ -44,8 +44,8 @@ operation as every other client and print the same readiness semantics.
 ## Done When
 
 - `kota.config.ts` is absent from production setup code and user guidance.
-- `kota init`, or its explicit replacement, delegates to onboarding
-  inspect/plan/apply and cannot create an unregistered divergent scaffold.
+- `kota init` is absent and `kota scope add` delegates to onboarding
+  inspect/plan/apply without an alias or divergent scaffold.
 - Existing, empty, partially initialized, and already registered directories
   produce deterministic plans without data loss.
 - A source search finds one implementation of task/runtime project scaffolding

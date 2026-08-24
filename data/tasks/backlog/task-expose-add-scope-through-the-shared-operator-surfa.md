@@ -8,14 +8,14 @@ task_class: Product
 depends_on: [task-add-one-transactional-external-scope-onboarding-se, task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Add one semantic onboarding surface and generated client actions for inspecting, configuring, adding, and removing directory scopes.
 created_at: 2026-07-31T16:12:55.650Z
-updated_at: 2026-07-31T16:12:55.650Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
 
 Operator clients can list and select known scopes, but none can add one. The
-CLI only exposes `project ls/use`, and the daemon API only exposes read routes
-plus active selection. Implementing bespoke forms and commands now would
+CLI lacks a complete scope lifecycle, and the daemon API only exposes read
+routes plus active selection. Implementing bespoke forms and commands now would
 repeat onboarding semantics across terminal, web, mobile, and Apple clients.
 
 ## Desired Outcome
@@ -26,9 +26,8 @@ setup gaps, apply progress, readiness, retry/cancel, and safe remove actions.
 All clients invoke generated bindings for the same daemon actions.
 
 Provide `kota scope inspect|add|status|remove` as a terminal client of those
-same operations. Keep `project ls/use` only if it remains required compatibility
-language for selecting an existing directory scope; do not duplicate lifecycle
-semantics there.
+same operations. Selection and listing also use the canonical `scope` command;
+the retired `project` command is absent rather than retained as an alias.
 
 ## Constraints
 

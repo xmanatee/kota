@@ -2,13 +2,13 @@
 id: task-generate-all-thin-client-daemon-contract-bindings
 title: Generate all thin-client daemon contract bindings
 status: backlog
-priority: p2
+priority: p1
 area: architecture
 task_class: Platform
-depends_on: [task-generate-client-bindings-from-the-daemon-ui-contra]
+depends_on: [task-complete-the-terminal-project-to-scope-migration, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Extend the canonical contract generator across daemon endpoints and remove hand-maintained TypeScript and Swift decoder mirrors.
 created_at: 2026-07-31T16:00:58.607Z
-updated_at: 2026-07-31T16:00:58.607Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
@@ -23,8 +23,9 @@ but the protocol still has several authored implementations.
 
 Extend the proven UI binding generator to every shared daemon endpoint so each
 wire shape is authored once and emitted into strict TypeScript and Swift
-bindings. Keep fixtures as behavioral examples, not as a substitute source of
-schema truth.
+bindings. Generate the typed `KotaClient` namespace aggregate outside neutral
+core from those module-owned contracts. Keep fixtures as behavioral examples,
+not as a substitute source of schema truth.
 
 ## Constraints
 
@@ -34,6 +35,9 @@ schema truth.
   wire envelopes, discriminators, nullability, and decode validation.
 - Generated files/resources may exist per build system but must be regenerated
   deterministically and marked non-authoritative.
+- Core retains only transport, authentication, event subscription, and generic
+  namespace-registration protocols; it must not import module-owned client
+  contracts through an exception allowlist.
 - Do not change the public daemon API or add a second version solely to make
   generation easier.
 
@@ -45,6 +49,8 @@ schema truth.
   wire types are removed or replaced entirely by generated output.
 - Adding/changing a route contract updates one source and stale client output
   fails the generation check.
+- The generated client aggregate replaces the hand-authored core namespace
+  array, and the `#modules/*` core import exception is deleted.
 - Strict negative conformance cases remain for unknown reasons, sources,
   targets, and every discriminated response family.
 

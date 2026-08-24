@@ -1,13 +1,13 @@
 ---
 id: task-security-review-prepare-review-input-contains-proj
-title: Security review: prepare-review-input contains project-controlled task titles and external event payload summaries but is exposed without exposedOutputTrust: "untrusted". The prompt builder consequently emits it as an ordinary step block without injection detection, boundary escaping, or an untrusted-content envelope, allowing hostile channel or task text to influence the autonomous reviewer that proposes durable tasks and owner questions.
+title: Treat progress-review evidence as untrusted input
 status: ready
-priority: p2
+priority: p1
 area: security
 task_class: Safety
-summary: prepare-review-input contains project-controlled task titles and external event payload summaries but is exposed without exposedOutputTrust: "untrusted". The prompt builder consequently emits it as an ordinary step block without injection detection, boundary escaping, or an untrusted-content envelope, allowing hostile channel or task text to influence the autonomous reviewer that proposes durable tasks and owner questions.
+summary: Screen and envelope scope-controlled tasks and external event summaries before exposing them to the autonomous progress reviewer.
 created_at: 2026-08-15T08:13:58.119Z
-updated_at: 2026-08-15T08:13:58.119Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem

@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the decomposed initiative to give every cross-client and integration capability one canonical declaration and execution path.
 created_at: 2026-07-31T16:01:03.656Z
-updated_at: 2026-07-31T16:01:03.656Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
@@ -43,7 +43,9 @@ derived implementations, not independent sources of truth.
   browser automation, semantic UI is not native visual styling, and module
   registration is not client rendering.
 - Preserve the already-canonical `browser`, module loader/tool registry,
-  command catalog, `KotaClient`, and terminal rendering ownership models.
+  command catalog, and terminal rendering ownership models. Replace the
+  hand-authored core `KotaClient` aggregate with generated module-owned client
+  contracts; do not preserve its core import exception.
 - Prefer typed protocols, generated bindings, module contributions, and
   deterministic fitness checks over a new recurring audit agent.
 

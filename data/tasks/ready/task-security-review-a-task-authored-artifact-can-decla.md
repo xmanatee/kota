@@ -1,13 +1,13 @@
 ---
 id: task-security-review-a-task-authored-artifact-can-decla
-title: Security review: A task-authored artifact can declare an unbounded number of unique assertion bindings. The authenticated task-move route processes them synchronously, spawning one blocking Vitest run per binding with an individual 30-minute timeout and no aggregate deadline, allowing queue mutation to stall the daemon event loop for an effectively unbounded period.
+title: Bound production replacement assertion execution
 status: ready
-priority: p2
+priority: p1
 area: security
 task_class: Safety
-summary: A task-authored artifact can declare an unbounded number of unique assertion bindings. The authenticated task-move route processes them synchronously, spawning one blocking Vitest run per binding with an individual 30-minute timeout and no aggregate deadline, allowing queue mutation to stall the daemon event loop for an effectively unbounded period.
+summary: Bound assertion cardinality, aggregate runtime, resources, and daemon blocking before task-authored replacement proof can execute.
 created_at: 2026-08-23T07:37:13.619Z
-updated_at: 2026-08-23T07:37:13.619Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem

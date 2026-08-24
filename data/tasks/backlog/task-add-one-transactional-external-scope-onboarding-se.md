@@ -5,10 +5,10 @@ status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-depends_on: [task-make-directory-scope-registration-a-live-daemon-li, task-make-scope-trust-and-policy-operator-mutable]
+depends_on: [task-complete-the-terminal-project-to-scope-migration, task-make-directory-scope-registration-a-live-daemon-li, task-make-scope-trust-and-policy-operator-mutable]
 summary: Create the sole inspect-plan-apply onboarding transaction for validating, configuring, registering, and activating a directory scope.
 created_at: 2026-07-31T16:12:51.436Z
-updated_at: 2026-07-31T16:12:51.436Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
@@ -16,7 +16,7 @@ updated_at: 2026-07-31T16:12:51.436Z
 KOTA's underlying external-scope, trust, setup, policy, and continuous
 improvement capabilities are separate low-level mechanisms. There is no single
 operation that tells an operator what a selected folder needs, records their
-choices, prepares only the missing project state, registers the runtime, and
+choices, prepares only the missing scope state, registers the runtime, and
 reports whether autonomous work is actually ready.
 
 Adding routes or client-specific setup scripts directly would recreate this
@@ -32,7 +32,7 @@ phases:
   state, trust, policy, local guidance, setup gaps, and whether it is already
   registered.
 - `plan` validates operator choices and returns the exact machine-owned and
-  project-owned changes, permissions, blockers, and initial automation mode.
+  scope-owned changes, permissions, blockers, and initial automation mode.
 - `apply` executes the accepted plan transactionally, registers the scope,
   initializes only required files, and returns one readiness projection.
 
@@ -41,17 +41,17 @@ plan returns the same scope rather than creating duplicate state.
 
 ## Constraints
 
-- This service is the only onboarding orchestrator. CLI, daemon routes, UI,
-  and `kota init` delegate to it rather than composing lifecycle/config/setup
-  calls independently.
-- Reuse `ScopeRegistry`, `ProjectRuntimeRegistry`, scope policy, project trust,
-  setup requirements, repo-task scaffolding, and `scope-improver`; do not add a
-  new project type, setup framework, task store, or automation loop.
+- This service is the only onboarding orchestrator. CLI, daemon routes, and UI
+  delegate to it rather than composing lifecycle/config/setup calls
+  independently.
+- Reuse `ScopeRegistry`, the canonical scope runtime host, scope policy, scope
+  trust, setup requirements, repo-task scaffolding, and `scope-improver`; do
+  not add a new scope category, setup framework, task store, or automation loop.
 - Do not infer elevated trust or autonomous write permission. The default plan
   is untrusted, inspect/propose-only, with no autonomous write paths.
 - Separate inspection from mutation. Merely selecting or inspecting a folder
   must not write files, trust it, start workflows, or register it.
-- Project-owned writes are declared in the plan and applied atomically where
+- Scope-owned writes are declared in the plan and applied atomically where
   possible. A failure returns a durable incomplete disposition and leaves no
   live runtime claiming readiness.
 - Support valid non-Git/non-code directories; report capability-specific
@@ -85,7 +85,7 @@ Self-service external scope onboarding.
 ## Acceptance Evidence
 
 - Inspect/plan/apply fixtures for an existing Git repository, an empty
-  directory, an already registered scope, an untrusted project config, and an
+  directory, an already registered scope, an untrusted scope config, and an
   apply failure followed by successful retry.
 - A transaction artifact records the accepted plan, mutations, final scope id,
   readiness, and provenance without secrets.

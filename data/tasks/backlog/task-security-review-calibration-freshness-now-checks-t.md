@@ -1,13 +1,14 @@
 ---
 id: task-security-review-calibration-freshness-now-checks-t
-title: Security review: Calibration freshness now checks that metadata.json, the calibration step record, and evaluator-calibration.json agree, but all three remain inside the broadly agent-writable .kota/runs/ tree. File consistency is therefore treated as authenticity: an agent permitted to write run artifacts can still create or replace a mutually consistent builder-shaped bundle and supply a descendant sourceRevision, causing the calibration monitor to accept agent-authored evidence as a runtime-authored successful builder run and recreate the closed repair task.
-status: ready
-priority: p2
+title: Authenticate calibration freshness through daemon-owned provenance
+status: backlog
+priority: p1
 area: security
 task_class: Safety
-summary: Calibration freshness now checks that metadata.json, the calibration step record, and evaluator-calibration.json agree, but all three remain inside the broadly agent-writable .kota/runs/ tree. File consistency is therefore treated as authenticity: an agent permitted to write run artifacts can still create or replace a mutually consistent builder-shaped bundle and supply a descendant sourceRevision, causing the calibration monitor to accept agent-authored evidence as a runtime-authored successful builder run and recreate the closed repair task.
+depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
+summary: Require daemon-authored run provenance for calibration freshness so mutually consistent agent files cannot recreate repair work.
 created_at: 2026-08-16T10:05:44.234Z
-updated_at: 2026-08-16T10:05:44.234Z
+updated_at: 2026-08-24T02:20:03.179Z
 ---
 
 ## Problem

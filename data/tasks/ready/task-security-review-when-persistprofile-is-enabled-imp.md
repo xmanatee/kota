@@ -1,13 +1,13 @@
 ---
 id: task-security-review-when-persistprofile-is-enabled-imp
-title: Security review: When persistProfile is enabled, implicit browser-session teardown performs a fire-and-forget host write to the canonical profile path. Browser tools expose only external or daemon effects, while workflow agents are attributed against their workspace. A same-scope symlink-escaping profile path can therefore cause an untracked write outside the agent's declared write scope after harness execution returns.
+title: Constrain browser profile persistence to the agent write scope
 status: ready
-priority: p2
+priority: p1
 area: security
 task_class: Safety
-summary: When persistProfile is enabled, implicit browser-session teardown performs a fire-and-forget host write to the canonical profile path. Browser tools expose only external or daemon effects, while workflow agents are attributed against their workspace. A same-scope symlink-escaping profile path can therefore cause an untracked write outside the agent's declared write scope after harness execution returns.
+summary: Await browser profile persistence, declare its filesystem effect, and reject targets that escape the effective agent write scope through symlinks or canonical paths.
 created_at: 2026-08-15T18:12:16.685Z
-updated_at: 2026-08-15T18:12:16.685Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem

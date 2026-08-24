@@ -5,10 +5,10 @@ status: backlog
 priority: p2
 area: architecture
 task_class: Platform
-depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra, task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-apple-clients, task-render-shared-ui-surfaces-in-android-mobile, task-generate-all-thin-client-daemon-contract-bindings, task-add-one-policy-aware-outbound-http-transport, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable, task-prove-self-service-external-scope-onboarding-end-t]
+depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra, task-render-shared-ui-surfaces-in-the-web-client, task-render-shared-ui-surfaces-in-apple-clients, task-render-shared-ui-surfaces-in-android-mobile, task-complete-the-terminal-project-to-scope-migration, task-make-taskclaim-the-sole-active-work-authority, task-generate-all-thin-client-daemon-contract-bindings, task-report-and-validate-codex-harness-capabilities-tru, task-rewrite-mcp-client-orchestration-into-focused-prot, task-rewrite-module-manifests-into-focused-owned-projec, task-separate-task-queue-structure-from-autonomy-govern, task-rewrite-dead-letter-handling-into-focused-lifecycl, task-split-client-state-into-generated-transport-and-do, task-add-one-policy-aware-outbound-http-transport, task-migrate-integrations-to-the-outbound-http-transpor, task-make-remote-task-provider-mutations-durable, task-prove-self-service-external-scope-onboarding-end-t]
 summary: Add deterministic architecture checks that prevent UI, contract, HTTP, browser, and registration bypasses from returning.
 created_at: 2026-07-31T16:01:02.631Z
-updated_at: 2026-07-31T16:16:36.000Z
+updated_at: 2026-08-24T02:26:39.000Z
 ---
 
 ## Problem
@@ -22,10 +22,11 @@ accepted as complete.
 ## Desired Outcome
 
 Add a small set of deterministic architecture fitness checks derived from the
-completed canonical boundaries. They should fail on a second semantic UI
-catalog, authored client wire mirror, disallowed raw fetch, Playwright outside
-the browser module, direct tool/module registration bypass, alternate
-slash-command catalog, or a second scope registry/onboarding/init path.
+completed canonical boundaries. They should fail on KOTA-owned project-as-scope
+identity, persisted `doing`, a core-to-module client import, a second semantic
+UI catalog, authored client wire mirror, disallowed raw fetch, Playwright
+outside the browser module, direct tool/module registration bypass, alternate
+slash-command catalog, or a second scope registry/onboarding path.
 
 ## Constraints
 
@@ -34,6 +35,8 @@ slash-command catalog, or a second scope registry/onboarding/init path.
 - Prefer import/manifest/schema ownership checks over brittle keyword bans.
 - Keep necessary platform renderers, generated artifacts, low-level transport
   adapters, fixtures, and test doubles distinguishable from authored sources.
+- Allow external protocol/version compatibility only inside its owning adapter;
+  do not encode KOTA-owned compatibility exceptions or broad keyword allowlists.
 - Do not add a recurring AI reviewer or another architecture catalog. Use
   existing module manifests, generated-contract metadata, and focused
   deterministic checks as the source of evidence.
@@ -41,12 +44,14 @@ slash-command catalog, or a second scope registry/onboarding/init path.
 
 ## Done When
 
-- One focused architecture-check entry point verifies UI contribution/client
-  ownership, generated contract provenance, HTTP/browser ownership, and
+- One focused architecture-check entry point verifies scope identity, task
+  execution authority, core dependency direction, UI/client ownership,
+  generated contract provenance, HTTP/browser ownership, and
   module/tool/command/scope-onboarding registration paths.
 - Deliberate violations in each boundary fail with actionable diagnostics.
-- Existing duplicate/copy allowlists and stale prose conventions are removed
-  or rewritten to point at the executable boundary.
+- Existing duplicate/copy/import allowlists, KOTA-owned compatibility paths,
+  and stale prose conventions are removed or rewritten to point at the
+  executable boundary.
 - The check is included in the existing repo AI/validation surface rather than
   introduced as a separate workflow family.
 

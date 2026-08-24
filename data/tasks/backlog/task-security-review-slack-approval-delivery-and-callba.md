@@ -1,13 +1,14 @@
 ---
 id: task-security-review-slack-approval-delivery-and-callba
-title: Security review: Slack approval delivery and callbacks discard the approval event's project identity and use the unscoped active approvals client. A project-selection change or collision between the eight-character approval IDs can therefore surface or reject an approval belonging to another hosted scope; rejection is not protected by a review digest.
-status: ready
-priority: p2
+title: Bind Slack approval delivery and callbacks to scope and digest
+status: backlog
+priority: p1
 area: security
 task_class: Safety
-summary: Slack approval delivery and callbacks discard the approval event's project identity and use the unscoped active approvals client. A project-selection change or collision between the eight-character approval IDs can therefore surface or reject an approval belonging to another hosted scope; rejection is not protected by a review digest.
+depends_on: [task-complete-the-terminal-project-to-scope-migration]
+summary: Persist scope identity with Slack approval messages and verify scope, full approval ID, message binding, action, and digest for approve and reject.
 created_at: 2026-08-15T04:06:48.982Z
-updated_at: 2026-08-15T04:06:48.982Z
+updated_at: 2026-08-24T02:20:04.654Z
 ---
 
 ## Problem
@@ -22,7 +23,11 @@ claim:
 
 ## Desired Outcome
 
-> Resolve event delivery through client.forProject(payload.projectId), persist projectId with the Slack channel/message binding, and use that same scoped client for callbacks. Bind both approve and reject actions to the project, message, approval ID, and review digest, failing closed on any mismatch.
+> Resolve event delivery through `client.forScope(payload.scopeId)`, persist
+> `scopeId` with the Slack channel/message binding, and use that same scoped
+> client for callbacks. Bind both approve and reject actions to the scope,
+> message, full approval ID, action, and review digest, failing closed on any
+> mismatch.
 
 ## Constraints
 

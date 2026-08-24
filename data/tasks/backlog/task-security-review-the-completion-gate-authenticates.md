@@ -1,13 +1,14 @@
 ---
 id: task-security-review-the-completion-gate-authenticates
-title: Security review: The completion gate authenticates only the evidence JSON against Git. Declared tests and production entrypoints merely need to exist as regular files in the current working tree, so ignored or untracked files can satisfy the proof and then be absent from the terminal commit or a clean checkout while the task remains durably marked done.
-status: ready
-priority: p2
+title: Bind production replacement proof to committed Git blobs
+status: backlog
+priority: p1
 area: security
 task_class: Safety
-summary: The completion gate authenticates only the evidence JSON against Git. Declared tests and production entrypoints merely need to exist as regular files in the current working tree, so ignored or untracked files can satisfy the proof and then be absent from the terminal commit or a clean checkout while the task remains durably marked done.
+depends_on: [task-security-review-a-task-authored-artifact-can-decla]
+summary: Execute replacement proof from an isolated Git snapshot and require the terminal commit to contain the exact tested entrypoint and test blobs.
 created_at: 2026-08-23T07:37:13.578Z
-updated_at: 2026-08-23T07:37:13.578Z
+updated_at: 2026-08-24T02:20:06.079Z
 ---
 
 ## Problem
