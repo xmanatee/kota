@@ -1,12 +1,12 @@
 ---
 id: task-coordinate-write-scope-attribution-across-canonica
 title: Coordinate write-scope attribution across canonical workspace writers
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 summary: Extend canonical workspace coordination beyond the in-process agent-run limiter so security-review and other scoped agents cannot be blamed for mutations made concurrently by another KOTA or native-CLI writer. Preserve fail-closed detection for genuine out-of-scope agent edits, then resolve the cited dead letter and restore the interrupted security review.
 created_at: 2026-08-24T02:32:46.069Z
-updated_at: 2026-08-24T03:03:39.437Z
+updated_at: 2026-08-26T23:42:20.330Z
 task_class: Meta
 depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
 ---
