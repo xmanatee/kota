@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/testing-api.js";
+import {
+  WorkflowScenarioDriver,
+  type WorkflowScenarioOptions,
+} from "#core/workflow/testing/testing-api.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   computeResourceFingerprint,
   renderRetryMarker,
@@ -72,7 +76,9 @@ describe("dispatcher workflow", () => {
     mkdirSync(join(workspaceRoot, "data", "tasks", "done"), { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "tasks", "dropped"), { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
-    mkdirSync(join(workspaceRoot, ".git"), { recursive: true });
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+    commitAll("scenario baseline");
   });
 
   afterEach(() => {
@@ -94,18 +100,30 @@ describe("dispatcher workflow", () => {
   }
 
   function commitAll(message: string): string {
-    git(["add", "."]);
-    git([
-      "-c",
-      "user.email=kota@example.test",
-      "-c",
-      "user.name=KOTA Test",
-      "commit",
-      "--no-gpg-sign",
-      "-m",
-      message,
-    ]);
+    git(["add", "-A"]);
+    if (git(["diff", "--cached", "--name-only"]) !== "") {
+      git([
+        "-c",
+        "user.email=kota@example.test",
+        "-c",
+        "user.name=KOTA Test",
+        "commit",
+        "--no-gpg-sign",
+        "-m",
+        message,
+      ]);
+    }
     return git(["rev-parse", "HEAD"]);
+  }
+
+  async function runDispatcherScenario(
+    options: Omit<WorkflowScenarioOptions, "workspaceRoot"> = {},
+  ) {
+    commitAll("scenario input");
+    return new WorkflowScenarioDriver(dispatcherWorkflow, {
+      ...options,
+      workspaceRoot,
+    }).run();
   }
 
   function writeSecurityReviewEvidence(args: {
@@ -146,8 +164,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "ready", "task-bar.md"),
       taskFixture("task-bar", "ready"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(2);
@@ -188,8 +205,7 @@ describe("dispatcher workflow", () => {
       }),
     );
 
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<
       string,
@@ -219,8 +235,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-enabler.md"),
       taskFixture("task-enabler", "backlog"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
@@ -245,8 +260,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
       taskFixture("task-enabler", "backlog").replace("status: backlog", "status: done"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.actionableCount).toBe(1);
@@ -256,8 +270,7 @@ describe("dispatcher workflow", () => {
 
   it("emits autonomy.inbox.available when inbox has items", async () => {
     writeFileSync(join(workspaceRoot, "data", "inbox", "idea.md"), "Some idea\n");
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.inboxCount).toBe(1);
@@ -265,8 +278,7 @@ describe("dispatcher workflow", () => {
   });
 
   it("emits autonomy.queue.empty when nothing to do", async () => {
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
@@ -290,8 +302,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "blocked", "task-enabler.md"),
       taskFixture("task-enabler", "blocked"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const dependencyBlockedTasks = [
       {
@@ -326,8 +337,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
       taskFixture("task-foo", "backlog"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(1);
@@ -345,8 +355,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-anchor.md"),
       taskFixture("task-anchor", "backlog", { anchor: true }),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(0);
@@ -366,8 +375,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "blocked", "task-foo.md"),
       taskFixture("task-foo", "blocked"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(0);
@@ -384,8 +392,7 @@ describe("dispatcher workflow", () => {
         resources: ["https://example.com/research-note"],
       }),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
@@ -405,8 +412,6 @@ describe("dispatcher workflow", () => {
   });
 
   it("emits security-review due when security-sensitive source changed since review", async () => {
-    rmSync(join(workspaceRoot, ".git"), { recursive: true, force: true });
-    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeSecurityReviewEvidence({
@@ -427,8 +432,9 @@ describe("dispatcher workflow", () => {
     );
     commitAll("touch registry installer execution");
 
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario({
+      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
+    });
 
     const dueEvent = result.emitted.find((event) => event.event === "autonomy.security-review.due");
     expect(dueEvent?.payload).toMatchObject({
@@ -455,8 +461,6 @@ describe("dispatcher workflow", () => {
   });
 
   it("emits one scope review only for a changed content/policy fingerprint", async () => {
-    rmSync(join(workspaceRoot, ".git"), { recursive: true, force: true });
-    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     writeProjectFile(".gitignore", ".kota/\n");
     writeProjectFile("AGENTS.md", "# Scope\n\n- Initial policy.\n");
     commitAll("initial scope policy");
@@ -485,11 +489,10 @@ describe("dispatcher workflow", () => {
       1,
     );
 
-    const first = await new WorkflowTestHarness(dispatcherWorkflow, {
-      workspaceRoot,
+    const first = await runDispatcherScenario({
       scopePolicySnapshot: changedScopePolicySnapshot,
-      contextOverrides: { state },
-    }).run();
+      ports: { state },
+    });
 
     const evidenceEvent = first.emitted.find(
       (event) => event.event === scopeImprovementChanged.name,
@@ -508,11 +511,10 @@ describe("dispatcher workflow", () => {
       shouldEmit: true,
     });
 
-    const second = await new WorkflowTestHarness(dispatcherWorkflow, {
-      workspaceRoot,
+    const second = await runDispatcherScenario({
       scopePolicySnapshot: changedScopePolicySnapshot,
-      contextOverrides: { state },
-    }).run();
+      ports: { state },
+    });
 
     expect(
       second.emitted.some(
@@ -533,8 +535,7 @@ describe("dispatcher workflow", () => {
         resources: ["https://x.com/example/status/12345"],
       }),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.researchRetryCandidateCount).toBe(1);
@@ -555,8 +556,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "blocked", "task-research.md"),
       taskFixture("task-research", "blocked", { resources, marker }),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.researchRetryCandidateCount).toBe(1);
@@ -572,8 +572,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
       taskFixture("task-foo", "backlog"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(1);
@@ -592,8 +591,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-bar.md"),
       taskFixture("task-bar", "backlog"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
   });
@@ -611,8 +609,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "backlog", "task-c.md"),
       taskFixture("task-c", "backlog"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
   });
@@ -622,8 +619,7 @@ describe("dispatcher workflow", () => {
       join(workspaceRoot, "data", "tasks", "doing", "task-foo.md"),
       taskFixture("task-foo", "doing"),
     );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.pullableCount).toBe(1);
@@ -638,8 +634,7 @@ describe("dispatcher workflow", () => {
       taskFixture("task-bar", "ready"),
     );
     writeFileSync(join(workspaceRoot, "data", "inbox", "idea.md"), "Some idea\n");
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
-    const result = await harness.run();
+    const result = await runDispatcherScenario();
 
     const emittedEvents = result.emitted.map((e) => e.event);
     expect(emittedEvents).toContain("autonomy.queue.available");

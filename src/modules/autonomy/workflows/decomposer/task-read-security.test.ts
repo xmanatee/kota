@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import decomposerWorkflow from "./workflow.js";
 import {
   FAILED_RUN_ID,
@@ -30,6 +31,28 @@ function project(prefix: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), prefix));
   roots.push(workspaceRoot);
   return workspaceRoot;
+}
+
+function commitScenarioInput(workspaceRoot: string): void {
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA test"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "scenario input"], {
+    cwd: workspaceRoot,
+  });
+}
+
+async function runScenario(workspaceRoot: string) {
+  commitScenarioInput(workspaceRoot);
+  return new WorkflowScenarioDriver(decomposerWorkflow, {
+    workspaceRoot,
+    trigger: failedBuilderTrigger(),
+  }).run();
 }
 
 afterEach(() => {
@@ -56,7 +79,7 @@ describe("decomposer task read security", () => {
       },
     ],
   ])("rejects %s", async (_label, payload) => {
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+    const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload },
     }).run();
 
@@ -81,10 +104,7 @@ describe("decomposer task read security", () => {
     } as WorkflowRunMetadata;
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      workspaceRoot,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toContain(
@@ -104,10 +124,7 @@ describe("decomposer task read security", () => {
     };
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      workspaceRoot,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toContain(
@@ -141,10 +158,7 @@ describe("decomposer task read security", () => {
     );
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      workspaceRoot,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toMatch(/symbolic[- ]link/i);

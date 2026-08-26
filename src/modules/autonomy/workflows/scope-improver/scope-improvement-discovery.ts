@@ -98,9 +98,10 @@ export function collectScopeImprovementInputs(args: {
   }
   const payload = args.trigger.payload as ScopeImprovementRequest;
   const computedFingerprint = computeScopeContentFingerprint(
-    scopeRoot,
+    args.workspaceRoot,
     args.scopePolicySnapshot.policy,
     stateDir,
+    scopeRoot,
   );
   const automatic = payload.automatic === true;
   // Automatic requests are latest-only semantic inputs. Re-read their
@@ -113,7 +114,7 @@ export function collectScopeImprovementInputs(args: {
     ? computedFingerprint.refs
     : changedFiles(args.trigger);
   const files = evidenceRefs.filter((ref) => !isScopePolicyEvidenceRef(ref));
-  const instructions = readInstructions(scopeRoot, files);
+  const instructions = readInstructions(args.workspaceRoot, files);
   const evidence: ScopeImprovementEvidence[] = [
     ...instructions.map((item) => ({
       id: `instruction:${item.path}`,

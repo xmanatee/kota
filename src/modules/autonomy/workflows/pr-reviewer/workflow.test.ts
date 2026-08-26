@@ -3,7 +3,7 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { buildAgentPrompt } from "#core/workflow/steps/step-executor-agent-prompt.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import type { GitHubWebhookActorIntegrity } from "#modules/github-webhook/events.js";
@@ -121,7 +121,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when action is not opened or synchronize", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "closed" }),
     });
 
@@ -137,7 +137,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when action is labeled (non-reviewable)", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "labeled" }),
     });
 
@@ -148,7 +148,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when headBranch is null", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ headBranch: null }),
     });
 
@@ -159,7 +159,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when the head SHA is missing", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ headSha: null }),
     });
 
@@ -173,7 +173,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when PR is from a fork", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ isFork: true }),
     });
 
@@ -188,12 +188,12 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("skips low-trust same-repository PRs before review", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: "low_trust_actor",
         actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
       }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -212,7 +212,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips configured blocked actors before review", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: "blocked_actor",
         actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
@@ -229,7 +229,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when actor integrity metadata is missing", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ actorIntegrity: null, actorIntegrityReason: null }),
     });
 
@@ -244,12 +244,13 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("reviews a synchronize event without imposing a branch naming convention", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "synchronize" }),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         review: reviewDraft(),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -270,12 +271,13 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("reviews an opened trusted same-repository PR", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         review: reviewDraft(),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -318,12 +320,13 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("emits workflow.pr.review.posted after successful review", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         review: reviewDraft(),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -341,12 +344,13 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("fails malformed review output before any GitHub comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         review: reviewDraft({ recommendation: "maybe" }),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -356,7 +360,9 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(result.status).toBe("failed");
     expect(result.steps.review.status).toBe("failed");
     expect(result.steps.review.output).toBeUndefined();
-    expect(result.steps.review.error).toContain("recommendation must be approve or request-changes");
+    expect(result.steps.review.error).toContain(
+      'payload.recommendation: expected one of "approve" | "request-changes"',
+    );
     expect(result.steps["prepare-comment"]).toBeUndefined();
     expect(result.steps["post-comment"]).toBeUndefined();
     expect(tools.calls).toEqual([]);
@@ -364,12 +370,12 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("fails empty review output before any GitHub comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      stepOutputs: {
         review: reviewDraft({ body: "   " }),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -388,12 +394,12 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   it("blocks suspected tokens from review output before persisting the agent body or writing a GitHub comment", async () => {
     const tools = toolSpy();
     const token = `${"ghp"}_${"A".repeat(36)}`;
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      stepOutputs: {
         review: reviewDraft({ body: `This should never be posted: ${token}` }),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -412,15 +418,16 @@ describe("pr-reviewer workflow — assess-pr step", () => {
 
   it("bounds oversized review text before posting one GitHub comment", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         review: reviewDraft({
           recommendation: "request-changes",
           body: `Blocking issue:\n\n${"x".repeat(5_000)}`,
         }),
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -437,7 +444,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("does not emit when review is skipped", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "closed" }),
     });
 
@@ -448,7 +455,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
   });
 
   it("skips when explicit fork status is missing", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(prReviewerWorkflow, {
       trigger: makeTrigger({ isFork: null }),
     });
 

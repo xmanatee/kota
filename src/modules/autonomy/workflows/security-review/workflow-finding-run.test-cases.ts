@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import type {
@@ -85,10 +85,10 @@ export function describeSecurityReviewFindingRunTests(
         summary: "Confirmed fetch issue; rejected secret false positive.",
       };
 
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
-        stepMocks: {
+        stepOutputs: {
           "investigate-candidates": investigation,
           "revalidate-findings": revalidation,
         },
@@ -106,13 +106,13 @@ export function describeSecurityReviewFindingRunTests(
       if (!createdTaskId) throw new Error("security-review did not create its confirmed finding");
       expect(
         readFileSync(
-          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-revalidation.json"),
+          join(result.runDirPath, "security-review-revalidation.json"),
           "utf-8",
         ),
       ).toContain("rejected-secret");
       const preflight = JSON.parse(
         readFileSync(
-          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-preflight.json"),
+          join(result.runDirPath, "security-review-preflight.json"),
           "utf-8",
         ),
       ) as {
@@ -190,10 +190,10 @@ export function describeSecurityReviewFindingRunTests(
         summary: "Confirmed fetch issue.",
       };
 
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
-        stepMocks: {
+        stepOutputs: {
           "investigate-candidates": investigation,
           "revalidate-findings": revalidation,
         },
@@ -204,7 +204,7 @@ export function describeSecurityReviewFindingRunTests(
       expect(result.status).toBe("failed");
       const preflight = JSON.parse(
         readFileSync(
-          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-preflight.json"),
+          join(result.runDirPath, "security-review-preflight.json"),
           "utf-8",
         ),
       ) as {
@@ -275,10 +275,10 @@ export function describeSecurityReviewFindingRunTests(
         summary: "Confirmed fetch issue.",
       };
 
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
-        stepMocks: {
+        stepOutputs: {
           "investigate-candidates": investigation,
           "revalidate-findings": revalidation,
         },

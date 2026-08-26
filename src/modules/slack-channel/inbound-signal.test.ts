@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type InboundSignalReceivedPayload,
@@ -229,7 +229,7 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
       },
     });
 
-    const harness = new WorkflowTestHarness(slackSignalProbeWorkflow, {
+    const harness = new WorkflowScenarioDriver(slackSignalProbeWorkflow, {
       trigger: queued[0],
     });
     const result = await harness.run();

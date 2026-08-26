@@ -94,6 +94,10 @@ export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
+  execFileSync("git", ["add", "-A"], { cwd: dir });
+  execFileSync("git", ["commit", "--quiet", "-m", "scenario baseline"], {
+    cwd: dir,
+  });
   return dir;
 }
 
@@ -172,7 +176,7 @@ export function commitProgressReviewFixture(
   committedAt: string,
 ): string {
   execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
-  execFileSync("git", ["commit", "--quiet", "-m", message], {
+  execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", message], {
     cwd: workspaceRoot,
     env: {
       ...process.env,

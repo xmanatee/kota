@@ -78,6 +78,8 @@ export type CalibrationRepairProposal =
 
 export type CalibrationRepairContext = {
   workspaceRoot: string;
+  /** Host-owned state directory; defaults to `<workspaceRoot>/.kota`. */
+  stateDir?: string;
   decisionReason: string;
   driftKinds: readonly CalibrationDriftKind[];
   aggregate: EvaluatorCalibrationAggregate;
@@ -134,6 +136,7 @@ export async function proposeCalibrationRepair(
       previousTaskPath,
       CALIBRATION_REPAIR_TASK_ID,
       runCommand,
+      join(ctx.stateDir ?? join(ctx.workspaceRoot, ".kota"), "runs"),
     );
     if (freshness.status !== "descendant-observed") {
       const evidenceReason =

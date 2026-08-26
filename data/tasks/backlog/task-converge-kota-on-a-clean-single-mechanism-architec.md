@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T10:35:47.000Z
+updated_at: 2026-08-26T13:12:01.000Z
 ---
 
 ## Problem
@@ -66,7 +66,7 @@ executor are dropped with dispositions.
 - [x] Stage 7 — establish one authored daemon/client contract graph.
 - [x] Stage 8 — narrow client ports and client-side owners.
 - [x] Stage 9 — make runtime lifecycle host-owned.
-- [ ] Stage 10 — replace shadow runtimes with production drivers.
+- [x] Stage 10 — replace shadow runtimes with production drivers.
 - [ ] Stage 11 — correct transport, capability, and mutation ports.
 - [ ] Stage 12 — normalize persistence and typed projections.
 - [ ] Stage 13 — decompose remaining mixed owners by responsibility.
@@ -307,6 +307,33 @@ state, with disposing one leaving the other active. Lint, both TypeScript
 projects, task validation, diff checks, 129 focused lifecycle checks, and the
 279-test changed-owner set passed. The latter includes production workflow
 trial execution and module activation behavior in parallel.
+
+## Stage 10 Result
+
+Workflow scenarios now pass definitions through the production validator,
+executor, sandbox manager, run store, approval queue, event bus, agent resolver,
+tool runner, and command boundary. Scenario code supplies only declared external
+inputs and does not interpret code, branch, parallel, foreach, approval, tool,
+agent, restart, retry, or skip semantics. Module lifecycle scenarios use the
+production `ModuleLoader`, including its exact disposable activation instance.
+
+The test-owned workflow interpreter, its execution-state/result model, seven
+interpreter and self-test files, `ModuleTestHarness`, duplicated approval-step
+fixtures, and the global HTTP protocol emulator were deleted. The latter
+removes 811 lines of Node prototype patches, global fetch bridging, loopback
+probing, and private availability flags. Real socket behavior now has an
+explicit `network` Vitest project; route-focused suites use the production
+request handler and typed ports. Production scope/workspace separation was
+also corrected where real scenarios exposed canonical identity or durable
+state being read from an isolated checkout.
+
+The stage removed 2,574 net lines. Both TypeScript projects, production build,
+generated binding freshness, repository lint, task validation, diff checks,
+35 workflow scenario files with 289 tests, the 11-file real-network project
+with 45 passing tests and one intentional environment skip, and all 44 changed
+test files with 307 tests passed. Repository inspection found no active shadow
+workflow/module runtime, loopback protocol patch, fetch bridge, or private
+loopback flag.
 
 ## Finding Ownership
 

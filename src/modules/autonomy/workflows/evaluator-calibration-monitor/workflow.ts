@@ -67,6 +67,7 @@ const proposeRepair = typedCodeStep<ProposeResult>({
     const proposal = await proposeCalibrationRepair(
       {
         workspaceRoot: ctx.workspaceRoot,
+        stateDir: ctx.stateDir,
         decisionReason: inspection.reason,
         driftKinds: inspection.driftKinds,
         aggregate: inspection.aggregate,
@@ -94,6 +95,7 @@ const applyRepair = typedCodeStep<ApplyResult>({
       proposal: proposeRepair.outputRequired(ctx).proposal,
       context: {
         workspaceRoot: ctx.workspaceRoot,
+        stateDir: ctx.stateDir,
         decisionReason: inspection.reason,
         driftKinds: inspection.driftKinds,
         aggregate: inspection.aggregate,

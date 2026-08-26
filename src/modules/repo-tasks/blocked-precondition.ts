@@ -488,8 +488,16 @@ export function upsertOperatorCaptureInstructedMarker(
 
 export type EvaluationContext = {
   workspaceRoot: string;
+  /** Canonical scope root for runtime-owned `.kota` evidence. */
+  scopeRoot?: string;
   taskBody: string;
 };
+
+function preconditionPathRoot(ctx: EvaluationContext, path: string): string {
+  return path === ".kota" || path.startsWith(".kota/")
+    ? ctx.scopeRoot ?? ctx.workspaceRoot
+    : ctx.workspaceRoot;
+}
 
 /**
  * Evaluate whether a precondition is satisfied right now against repo state.
@@ -534,7 +542,9 @@ export function evaluateBlockedPrecondition(
       const kind = precondition.probe.slice(0, colon);
       const arg = precondition.probe.slice(colon + 1).trim();
       if (kind === "storageState") {
-        const absolute = isAbsolute(arg) ? arg : resolve(ctx.workspaceRoot, arg);
+        const absolute = isAbsolute(arg)
+          ? arg
+          : resolve(preconditionPathRoot(ctx, arg), arg);
         return fileExists(absolute)
           ? { satisfied: true, reason: `storage-state file exists at ${arg}` }
           : { satisfied: false, reason: `storage-state file missing at ${arg}` };
@@ -555,7 +565,10 @@ export function evaluateBlockedPrecondition(
       };
     }
     case "operator-capture": {
-      const evaluation = evaluateOperatorCapturePath(ctx.workspaceRoot, precondition.path);
+      const evaluation = evaluateOperatorCapturePath(
+        preconditionPathRoot(ctx, precondition.path),
+        precondition.path,
+      );
       if (evaluation.status === "complete") {
         return { satisfied: true, reason: evaluation.reason };
       }

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { AwaitEventStepOutput } from "#core/workflow/steps/step-executor-await-event.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
 import {
   BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
@@ -39,16 +39,6 @@ function ownerQuestionQueue(answer: string) {
     },
     get: (id: string): PendingOwnerQuestion | null =>
       stored && stored.id === id ? { ...stored, status: "answered", answer } : null,
-  };
-}
-
-function awaitAnswered(): AwaitEventStepOutput {
-  return {
-    kind: "event",
-    event: "owner.question.resolved",
-    matchField: "id",
-    matchValue: "q-owner-decision",
-    payload: { id: "q-owner-decision", answered: true },
   };
 }
 
@@ -87,6 +77,7 @@ function projectFixture(): { workspaceRoot: string; taskPath: string } {
     join(workspaceRoot, "package.json"),
     JSON.stringify({ scripts: { "validate-tasks": "true" } }),
   );
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     const dir = join(workspaceRoot, "data", "tasks", state);
     mkdirSync(dir, { recursive: true });
@@ -128,15 +119,16 @@ async function resolveOwnerDecision(
   answer: string,
 ): Promise<BlockedOwnerDecisionResolution> {
   await useOwnerAnswer(answer);
-  const requestRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+  const requestRun = await new WorkflowScenarioDriver(blockedPromoterWorkflow, {
     trigger: { event: "autonomy.queue.available", payload: {} },
     workspaceRoot,
+    ports: { runCommand: successfulWorkflowCommandRun },
   }).run();
   const request = requestRun.emitted.find(
     (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   )?.payload as BlockedOwnerDecisionRequest | undefined;
   if (!request) throw new Error("blocked promoter did not emit an owner request");
-  const followUp = await new WorkflowTestHarness(
+  const followUp = await new WorkflowScenarioDriver(
     blockedPromoterOwnerDecisionWorkflow,
     {
       trigger: {
@@ -144,9 +136,11 @@ async function resolveOwnerDecision(
         payload: request,
       },
       workspaceRoot,
-      stepMocks: {
-        "blocked-promoter-owner-decision-wait": awaitAnswered(),
-      },
+      events: [{
+        afterStep: "blocked-promoter-owner-decision-wait",
+        event: "owner.question.resolved",
+        payload: { id: "q-owner-decision", answered: true, answer },
+      }],
     },
   ).run();
   const resolution = followUp.emitted.find(
@@ -174,22 +168,32 @@ describe("blocked-promoter owner-decision authorization", () => {
   it.each(["yes", "approve"])(
     "keeps a negatively phrased task blocked after ambiguous '%s'",
     async (answer) => {
-      const { workspaceRoot, taskPath } = projectFixture();
+      const { workspaceRoot } = projectFixture();
       const resolution = await resolveOwnerDecision(workspaceRoot, answer);
-      const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+      const result = await new WorkflowScenarioDriver(blockedPromoterWorkflow, {
         trigger: {
           event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
           payload: resolution,
         },
         workspaceRoot,
+        ports: { runCommand: successfulWorkflowCommandRun },
       }).run();
 
       expect(result.status).toBe("success");
       expect(result.steps["promote-after-approval"].status).toBe("skipped");
-      const after = readFileSync(taskPath, "utf-8");
+      const after = readFileSync(
+        join(result.workspaceDir, "data", "tasks", "blocked", "task-owner-decision.md"),
+        "utf-8",
+      );
       expect(after).toContain("blocked-promoter-asked: slot=remain-blocked");
       expect(after).not.toContain("blocked-promoter-resolved");
-      expect(existsSync(taskPath)).toBe(true);
+      expect(existsSync(join(
+        result.workspaceDir,
+        "data",
+        "tasks",
+        "blocked",
+        "task-owner-decision.md",
+      ))).toBe(true);
     },
   );
 
@@ -197,19 +201,27 @@ describe("blocked-promoter owner-decision authorization", () => {
     const { workspaceRoot, taskPath } = projectFixture();
     const resolution = await resolveOwnerDecision(workspaceRoot, "unblock");
     writeFileSync(taskPath, taskBody("Which variant should we pick?"));
-    const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+    execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "--quiet", "-m", "change precondition"], {
+      cwd: workspaceRoot,
+    });
+    const result = await new WorkflowScenarioDriver(blockedPromoterWorkflow, {
       trigger: {
         event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
         payload: resolution,
       },
       workspaceRoot,
+      ports: { runCommand: successfulWorkflowCommandRun },
     }).run();
 
     expect(result.status).toBe("failed");
     expect(result.steps["apply-ask-outcome"].error).toContain(
       "precondition changed while awaiting an answer",
     );
-    const after = readFileSync(taskPath, "utf-8");
+    const after = readFileSync(
+      join(result.workspaceDir, "data", "tasks", "blocked", "task-owner-decision.md"),
+      "utf-8",
+    );
     expect(after).not.toContain("blocked-promoter-asked");
     expect(after).not.toContain("blocked-promoter-resolved");
   });

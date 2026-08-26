@@ -93,6 +93,7 @@ export type DeterministicPromotionResult = {
  */
 export function promoteSatisfiedBlockedTasks(
   workspaceRoot: string,
+  scopeRoot: string = workspaceRoot,
 ): DeterministicPromotionResult {
   const records = listBlockedTasksWithPreconditions(workspaceRoot);
   const promotions: MoveTaskResult[] = [];
@@ -101,6 +102,7 @@ export function promoteSatisfiedBlockedTasks(
     if (waitingOn.length > 0) continue;
     const evaluation = evaluateBlockedPrecondition(record.precondition, {
       workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     if (!evaluation.satisfied) continue;
@@ -298,12 +300,14 @@ export function listOperatorCaptureInstructCandidates(
   records: BlockedTaskRecord[],
   workspaceRoot: string,
   nowMs: number,
+  scopeRoot: string = workspaceRoot,
 ): OperatorCaptureInstructCandidate[] {
   const candidates: OperatorCaptureInstructCandidate[] = [];
   for (const record of records) {
     if (record.precondition.kind !== "operator-capture") continue;
     const evaluation = evaluateBlockedPrecondition(record.precondition, {
       workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     if (evaluation.satisfied) continue;
@@ -473,6 +477,7 @@ export function classifyBlockedActions(
   records: BlockedTaskRecord[],
   workspaceRoot: string,
   nowMs: number,
+  scopeRoot: string = workspaceRoot,
 ): BlockerAction[] {
   const actions: BlockerAction[] = [];
   for (const record of records) {
@@ -493,6 +498,7 @@ export function classifyBlockedActions(
     }
     const eval_ = evaluateBlockedPrecondition(record.precondition, {
       workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     switch (record.precondition.kind) {

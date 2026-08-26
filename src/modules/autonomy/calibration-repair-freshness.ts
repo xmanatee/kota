@@ -71,6 +71,7 @@ export async function inspectCalibrationRepairFreshness(
   repairedTaskPath: string,
   repairTaskId: string,
   runCommand: WorkflowCommandRunner,
+  runsDir = join(workspaceRoot, ".kota", "runs"),
 ): Promise<CalibrationRepairFreshness> {
   const repairRevision = await gitOutput(
     workspaceRoot,
@@ -81,7 +82,6 @@ export async function inspectCalibrationRepairFreshness(
     return { status: "untracked-repair" };
   }
 
-  const runsDir = join(workspaceRoot, ".kota", "runs");
   const runsStats = lstatSync(runsDir, { throwIfNoEntry: false });
   if (
     runsStats?.isDirectory() &&

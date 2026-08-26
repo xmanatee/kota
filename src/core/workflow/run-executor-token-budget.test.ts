@@ -74,7 +74,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -133,7 +133,7 @@ describe("workflow agent token budget", () => {
   it("shares a config token-budget ledger across agent steps in one run", async () => {
     const harness = "workflow-run-scoped-token-budget";
     const executedSteps: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       executedSteps.push(options.workflowContext?.stepId ?? "unknown");
       return {
         text: "done",

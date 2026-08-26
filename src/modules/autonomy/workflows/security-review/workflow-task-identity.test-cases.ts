@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
@@ -139,10 +139,10 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
 }): Promise<void> {
   const taskPath = join(args.fixture.workspaceRoot, "data/tasks/ready", `${args.taskId}.md`);
   const taskBeforeReplay = readFileSync(taskPath, "utf-8");
-  const replay = await new WorkflowTestHarness(args.workflow, {
+  const replay = await new WorkflowScenarioDriver(args.workflow, {
     workspaceRoot: args.fixture.workspaceRoot,
     trigger: { event: "autonomy.security-review.requested", payload: {} },
-    stepMocks: {
+    stepOutputs: {
       "investigate-candidates": args.investigation,
       "revalidate-findings": args.revalidation,
     },
@@ -157,7 +157,7 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   expect(readFileSync(taskPath, "utf-8")).toBe(taskBeforeReplay);
   const replayOutcome = JSON.parse(
     readFileSync(
-      join(args.fixture.workspaceRoot, ".kota/runs/harness/security-review-outcome.json"),
+      join(replay.runDirPath, "security-review-outcome.json"),
       "utf-8",
     ),
   ) as { outcome: string; reason: string };

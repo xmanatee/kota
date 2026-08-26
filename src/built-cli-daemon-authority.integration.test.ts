@@ -8,7 +8,6 @@ import {
   fetchAuthorized,
   pollControlFile,
   pollControlFileReplacement,
-  realLoopbackAvailable,
   waitForExit,
 } from "#core/daemon/built-cli-daemon-test-support.integration.js";
 import {
@@ -31,7 +30,7 @@ beforeAll(() => {
   }
 });
 
-describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () => {
+describe("built CLI live trust revocation", () => {
   let child: ChildProcess | null = null;
   let scopeRoot = "";
 

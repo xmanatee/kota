@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   createNativeAgentInvalidationLifecycle,
-  resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -67,7 +66,10 @@ export async function executeRepairAgentIteration(
     contextStartDir,
     agentConfig.scopeRoot,
   );
-  const harness = resolveAgentHarness(step.harness);
+  const harness = agentConfig.resolveAgentHarness?.(step.harness);
+  if (harness === undefined) {
+    throw new Error(`Repair iteration has no harness resolver for "${step.harness}"`);
+  }
   const repairSessionId = harness.unsupportedRunOptions?.some(
     (entry) => entry.runOption === "resumeSessionId",
   )

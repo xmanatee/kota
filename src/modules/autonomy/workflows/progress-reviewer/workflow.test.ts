@@ -35,7 +35,7 @@ import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.
 import { safeJsonStringify } from "#core/workflow/run-io.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -84,17 +84,6 @@ import {
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
-      "#core/util/repo-worktree.js",
-    );
-  return {
-    ...actual,
-    getRepoWorktreeStatus: vi.fn(),
-  };
-});
 
 const readFixture = readProgressReviewFixture;
 
@@ -329,27 +318,13 @@ function parseReviewInputFromAgentPrompt(
   return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
 }
 
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
 describe("progress-reviewer workflow", () => {
   const scopeRoots: string[] = [];
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
-    await mockCleanWorktree();
   });
 
   afterEach(() => {
@@ -428,14 +403,19 @@ describe("progress-reviewer workflow", () => {
       "success",
       "2026-06-04T11:20:00.000Z",
     );
+    commitProgressReviewFixture(
+      workspaceRoot,
+      "prepare coding review fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": readFixture("autonomous-coding-review"),
       },
     });
@@ -446,7 +426,7 @@ describe("progress-reviewer workflow", () => {
     expect(result.steps["apply-actions"].status).toBe("success");
     expect(result.steps["write-commit-message"].status).toBe("skipped");
     expect(result.steps["validate-changes"].status).toBe("skipped");
-    const artifactPath = join(workspaceRoot, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { scope: { scopeId: string }; runs: Array<{ workflow: string }>; tasks: Array<{ taskId: string }> };
       reviewInput: { evidence: Array<{ id: string }> };
@@ -571,8 +551,13 @@ describe("progress-reviewer workflow", () => {
       "success",
       "2026-06-04T11:20:00.000Z",
     );
+    commitProgressReviewFixture(
+      workspaceRoot,
+      "prepare explicit review fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
       trigger: {
         event: progressReviewRequested.name,
@@ -582,7 +567,7 @@ describe("progress-reviewer workflow", () => {
           reason: "operator requested a milestone review",
         },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": readFixture("autonomous-coding-review"),
       },
     });
@@ -590,7 +575,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    const artifactPath = join(workspaceRoot, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { triggerKind: string; triggerEvent: string };
     };
@@ -630,15 +615,28 @@ describe("progress-reviewer workflow", () => {
         { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
+    commitProgressReviewFixture(
+      scopeARoot,
+      "prepare global scope a fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
+    commitProgressReviewFixture(
+      scopeBRoot,
+      "prepare global scope b fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot: scopeARoot,
+      ports: {
+        runCommand: createWorkflowCommandRunner({ cwd: scopeARoot }),
+      },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
         payload: { scopeId: GLOBAL_SCOPE_ID, reason: "operator global review" },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": reviewOutput({
           verdict: "on-track",
           summary: "Scheduled global review includes both configured scopes.",
@@ -662,7 +660,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    const artifactPath = join(scopeARoot, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: {
         triggerKind: string;
@@ -783,9 +781,10 @@ describe("progress-reviewer workflow", () => {
     const review = readFixture("channel-processing-review");
     review.ownerQuestions = [];
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
-      contextOverrides: {
+      workspaceDir: workspaceRoot,
+      ports: {
         runCommand: async (input) => ({
           command: input.command,
           args: input.args ?? [],
@@ -805,7 +804,7 @@ describe("progress-reviewer workflow", () => {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": review,
       },
     });
@@ -837,13 +836,14 @@ describe("progress-reviewer workflow", () => {
       summary: "The model rephrased the same evidence-backed proposal.",
       howWeWillKnow: "The same evidence would support a differently worded check.",
     };
-    const repeated = await new WorkflowTestHarness(progressReviewerWorkflow, {
+    const repeated = await new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
+      workspaceDir: workspaceRoot,
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": repeatedReview,
       },
     }).run();

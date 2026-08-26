@@ -33,8 +33,12 @@ export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
       "ownerAsk",
       "actions",
     ]),
-  run: ({ workspaceRoot, runBlocking }) =>
-    runBlocking(inspectBlockedOperation, { workspaceRoot, nowMs: Date.now() }),
+  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
+    runBlocking(inspectBlockedOperation, {
+      workspaceRoot,
+      scopeRoot,
+      nowMs: Date.now(),
+    }),
 });
 
 type DeterministicPromotion = { promotions: MoveTaskResult[] };
@@ -48,8 +52,8 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   },
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ workspaceRoot, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot }),
+  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
+    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot, scopeRoot }),
 });
 
 export function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
@@ -113,8 +117,8 @@ export const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
     (applyOutcome.output(ctx) ?? []).some((application) => application.kind === "resolved"),
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ workspaceRoot, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot }),
+  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
+    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot, scopeRoot }),
 });
 
 export const instructOperatorCapture = typedCodeStep<{
@@ -131,9 +135,10 @@ export const instructOperatorCapture = typedCodeStep<{
     expectStructuredOutput<{ instructions: OperatorCaptureInstruction[] }>(raw, [
       "instructions",
     ]),
-  run: ({ workspaceRoot, runBlocking }) =>
+  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
     runBlocking(instructOperatorCaptureOperation, {
       workspaceRoot,
+      scopeRoot,
       nowMs: Date.now(),
     }),
 });

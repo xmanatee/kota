@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdtempSync,
@@ -8,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
   RUNTIME_HEALTH_AUDIT_ARTIFACT,
@@ -42,6 +43,16 @@ describe("autonomy-health-reviewer workflow", () => {
 
   beforeEach(() => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "kota-health-reviewer-workflow-"));
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    execFileSync("git", ["config", "user.email", "test@example.com"], {
+      cwd: workspaceRoot,
+    });
+    execFileSync("git", ["config", "user.name", "KOTA test"], {
+      cwd: workspaceRoot,
+    });
+    execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "baseline"], {
+      cwd: workspaceRoot,
+    });
   });
 
   afterEach(() => {
@@ -120,7 +131,7 @@ describe("autonomy-health-reviewer workflow", () => {
   });
 
   it("writes the full runtime audit artifact before review uses compact output", async () => {
-    const harness = new WorkflowTestHarness(autonomyHealthReviewerWorkflow, {
+    const harness = new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
       workspaceRoot,
       trigger: {
         event: "autonomy.runtime-health.audit.scheduled",
@@ -136,7 +147,7 @@ describe("autonomy-health-reviewer workflow", () => {
     expect(result.status).toBe("success");
     expect(output).not.toHaveProperty("audit");
     expect(output.artifactPath).toBe(
-      join(workspaceRoot, ".kota", "runs", "harness", RUNTIME_HEALTH_AUDIT_ARTIFACT),
+      join(result.runDirPath, RUNTIME_HEALTH_AUDIT_ARTIFACT),
     );
     expect(existsSync(output.artifactPath)).toBe(true);
     const artifact = JSON.parse(

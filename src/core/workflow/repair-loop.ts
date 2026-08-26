@@ -1,4 +1,3 @@
-import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import {
   agentRunDirWriteScopes,
@@ -70,7 +69,10 @@ export async function runAgentRepairLoop(
   let lastContent = typeof base.content === "string" ? base.content : "";
   let warnings = [] as RepairCheckResult[];
   const trajectoryMessages = [...initialResult.trajectoryMessages];
-  const resolvedHarness = resolveAgentHarness(step.harness);
+  const resolvedHarness = agentConfig.resolveAgentHarness?.(step.harness);
+  if (resolvedHarness === undefined) {
+    throw new Error(`Agent repair loop has no harness resolver for "${step.harness}"`);
+  }
   const scopedAgent = resolveScopedRepairAgent(step, agentConfig);
   const workspaceDir = context.workspaceRoot;
   const agentRunDir = resolveAgentRunDir({

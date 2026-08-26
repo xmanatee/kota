@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_FILE,
@@ -133,7 +133,7 @@ describe("durable autonomy issue projection", () => {
       { delivery: "on-run-success", stepId: "publish:test" },
     );
 
-    const result = await new WorkflowTestHarness(materializationWorkflow, {
+    const result = await new WorkflowScenarioDriver(materializationWorkflow, {
       workspaceRoot,
       trigger: {
         event: AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
@@ -143,7 +143,7 @@ describe("durable autonomy issue projection", () => {
           stateRevision: 1,
         },
       },
-      contextOverrides: { state },
+      ports: { state },
     }).run();
     expect(result.status).toBe("success");
     expect(readAutonomyIssueProjection(workspaceRoot)).toEqual(next);

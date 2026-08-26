@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkflowBranchStepInput } from "../step-input-control-flow.js";
-import { WorkflowTestHarness } from "../testing/index.js";
+import { WorkflowScenarioDriver } from "../testing/index.js";
 import type { WorkflowDefinitionInput } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
@@ -13,9 +13,9 @@ function makeWorkflow(steps: WorkflowDefinitionInput["steps"]): WorkflowDefiniti
   };
 }
 
-describe("branch step – WorkflowTestHarness", () => {
+describe("branch step – WorkflowScenarioDriver", () => {
   it("runs ifTrue steps when condition is true", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "my-branch",
@@ -36,11 +36,11 @@ describe("branch step – WorkflowTestHarness", () => {
     expect(result.steps["my-branch"].output).toMatchObject({ arm: "ifTrue" });
     expect(result.steps["true-step"].status).toBe("success");
     expect(result.steps["true-step"].output).toBe("true-output");
-    expect(result.steps["false-step"].status).toBe("skipped");
+    expect(result.steps["false-step"]).toBeUndefined();
   });
 
   it("runs ifFalse steps when condition is false", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "my-branch",
@@ -59,11 +59,11 @@ describe("branch step – WorkflowTestHarness", () => {
     expect(result.status).toBe("success");
     expect(result.steps["my-branch"].output).toMatchObject({ arm: "ifFalse" });
     expect(result.steps["false-step"].status).toBe("success");
-    expect(result.steps["true-step"].status).toBe("skipped");
+    expect(result.steps["true-step"]).toBeUndefined();
   });
 
   it("succeeds with no-op when ifFalse is omitted and condition is false", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "my-branch",
@@ -79,11 +79,11 @@ describe("branch step – WorkflowTestHarness", () => {
     expect(result.status).toBe("success");
     expect(result.steps["my-branch"].status).toBe("success");
     expect(result.steps["my-branch"].output).toMatchObject({ arm: "ifFalse", steps: 0 });
-    expect(result.steps["true-step"].status).toBe("skipped");
+    expect(result.steps["true-step"]).toBeUndefined();
   });
 
   it("skips branch when outer when predicate returns false", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "my-branch",
@@ -97,12 +97,11 @@ describe("branch step – WorkflowTestHarness", () => {
     const result = await harness.run();
     expect(result.status).toBe("success");
     expect(result.steps["my-branch"].status).toBe("skipped");
-    expect(result.steps["true-step"]?.status).toBe("skipped");
-    expect(result.steps["true-step"]?.skipReason).toEqual({ kind: "parent-skipped" });
+    expect(result.steps["true-step"]).toBeUndefined();
   });
 
   it("propagates condition error as step failure", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "my-branch",
@@ -119,7 +118,7 @@ describe("branch step – WorkflowTestHarness", () => {
   });
 
   it("supports nested branch steps", async () => {
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "outer",
@@ -143,13 +142,13 @@ describe("branch step – WorkflowTestHarness", () => {
     expect(result.steps.outer.output).toMatchObject({ arm: "ifTrue" });
     expect(result.steps.inner.output).toMatchObject({ arm: "ifFalse" });
     expect(result.steps["inner-false"].output).toBe("b");
-    expect(result.steps["inner-true"].status).toBe("skipped");
-    expect(result.steps["outer-false"].status).toBe("skipped");
+    expect(result.steps["inner-true"]).toBeUndefined();
+    expect(result.steps["outer-false"]).toBeUndefined();
   });
 
   it("downstream steps can access branch arm step outputs", async () => {
     let capturedOutput: unknown;
-    const harness = new WorkflowTestHarness(
+    const harness = new WorkflowScenarioDriver(
       makeWorkflow([
         {
           id: "branch",

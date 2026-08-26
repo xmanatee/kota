@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,8 +7,8 @@ import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowStepErrorKind } from "#core/workflow/run-types.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
-  type HarnessOptions,
-  WorkflowTestHarness,
+  WorkflowScenarioDriver,
+  type WorkflowScenarioOptions,
 } from "#core/workflow/testing/index.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 import decomposerWorkflow, { agent } from "./workflow.js";
@@ -55,8 +56,23 @@ const DECOMPOSITION_REVIEW = {
 
 function project(): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-decomposer-workflow-"));
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA test"], {
+    cwd: workspaceRoot,
+  });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
   roots.push(workspaceRoot);
   return workspaceRoot;
+}
+
+function commitScenarioInput(workspaceRoot: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "scenario input"], {
+    cwd: workspaceRoot,
+  });
 }
 
 function failureFixture(
@@ -78,8 +94,8 @@ function failureFixture(
 }
 
 function decomposeStepMocks(
-  extra: NonNullable<HarnessOptions["stepMocks"]> = {},
-): NonNullable<HarnessOptions["stepMocks"]> {
+  extra: NonNullable<WorkflowScenarioOptions["stepOutputs"]> = {},
+): NonNullable<WorkflowScenarioOptions["stepOutputs"]> {
   return {
     decompose: DECOMPOSITION_PLAN,
     "review-decomposition": DECOMPOSITION_REVIEW,
@@ -89,13 +105,14 @@ function decomposeStepMocks(
 
 async function runFixture(
   fixture: ReturnType<typeof failureFixture>,
-  stepMocks = decomposeStepMocks(),
+  stepOutputs = decomposeStepMocks(),
 ) {
-  return new WorkflowTestHarness(decomposerWorkflow, {
+  commitScenarioInput(fixture.workspaceRoot);
+  return new WorkflowScenarioDriver(decomposerWorkflow, {
     workspaceRoot: fixture.workspaceRoot,
     trigger: fixture.trigger,
-    stepMocks,
-    contextOverrides: { runCommand: successfulWorkflowCommandRun },
+    stepOutputs,
+    ports: { runCommand: successfulWorkflowCommandRun },
   }).run();
 }
 
@@ -334,20 +351,24 @@ describe("decomposer workflow", () => {
   it("rechecks the immutable task contract immediately before mutation", async () => {
     const fixture = failureFixture("step-timeout");
     const { applyDecompositionPlan } = await import("./decomposition-actions.js");
-    const result = await runFixture(
-      fixture,
-      decomposeStepMocks({
-        "review-decomposition": () => {
+    commitScenarioInput(fixture.workspaceRoot);
+    const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
+      workspaceRoot: fixture.workspaceRoot,
+      trigger: fixture.trigger,
+      ports: {
+        runCommand: successfulWorkflowCommandRun,
+        runAgent: ({ stepId, cwd }) => {
+          if (stepId === "decompose") return DECOMPOSITION_PLAN;
           writeActionableTask(
-            fixture.workspaceRoot,
+            cwd,
             TASK_ID,
             "doing",
             "The task changed during semantic review.",
           );
           return DECOMPOSITION_REVIEW;
         },
-      }),
-    );
+      },
+    }).run();
 
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps["review-decomposition"].status).toBe("success");

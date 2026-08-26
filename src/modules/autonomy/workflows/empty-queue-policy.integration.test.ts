@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./backlog-promoter/workflow.js";
 import dispatcherWorkflow from "./dispatcher/workflow.js";
 
@@ -144,7 +144,7 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { workspaceRoot });
+    const harness = new WorkflowScenarioDriver(dispatcherWorkflow, { workspaceRoot });
     const result = await harness.run();
 
     const events = result.emitted.map((e) => e.event);
@@ -179,10 +179,10 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -221,7 +221,7 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
     });

@@ -1,4 +1,4 @@
-import type { AgentCanUseTool } from "#core/agent-harness/index.js";
+import type { AgentCanUseTool, AgentHarness } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
@@ -29,11 +29,14 @@ import {
 import { RunStateDatabase, type StoredRun } from "./run-state-database.js";
 import type { WorkflowRunMetadata, WorkflowRunToolRunner } from "./run-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
+import type { WorkflowCommandRunner } from "./workflow-command.js";
 
 const TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled"]);
 
 export type StandaloneRunExecutionOptions = Readonly<{
   runTool?: WorkflowRunToolRunner;
+  runCommand?: WorkflowCommandRunner;
+  resolveAgentHarness?: (name: string) => AgentHarness;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
 }>;
 
@@ -337,6 +340,8 @@ export class StandaloneRunHost {
       resolveSkillsPrompt: this.options.resolveSkillsPrompt,
       scopePolicyAuthority: this.scopeRuntime.scopePolicyAuthority,
       runTool: execution?.runTool,
+      runCommand: execution?.runCommand,
+      resolveAgentHarness: execution?.resolveAgentHarness,
       createAgentCanUseTool: execution?.createAgentCanUseTool,
     }, abortController);
     try {

@@ -1,8 +1,8 @@
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   registerWorkflowDefinition,
@@ -165,22 +165,22 @@ describe("scope-improver semantic boundaries", () => {
         ),
       },
     };
-    const run = await new WorkflowTestHarness(scopeImproverWorkflow, {
+    const run = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
       workspaceRoot,
       trigger,
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
-      contextOverrides: { state: transactionalState },
+      ports: { state: transactionalState },
     }).run();
     expect(run.status).toBe("success");
 
     const first = publishScopeImprovement({
       scopeRoot: workspaceRoot,
-      sourceRunId: "harness",
+      sourceRunId: basename(run.runDirPath),
       currentState: initialState,
     });
     const second = publishScopeImprovement({
       scopeRoot: workspaceRoot,
-      sourceRunId: "harness",
+      sourceRunId: basename(run.runDirPath),
       currentState: first.nextState!,
     });
 

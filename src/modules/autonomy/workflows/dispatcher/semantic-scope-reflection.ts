@@ -16,15 +16,17 @@ export type ScopeBoundaryInspection = {
 
 export function inspectScopeSemanticBoundary(args: {
   workspaceRoot: string;
+  scopeRoot: string;
+  stateDir: string;
   scopePolicySnapshot: ScopePolicySnapshot;
   state: ScopeImprovementState;
 }): ScopeBoundaryInspection {
-  const scopeId = deriveDirectoryScopeId(args.workspaceRoot);
+  const scopeId = deriveDirectoryScopeId(args.scopeRoot);
   if (args.state.scopeId !== scopeId) {
     throw new Error("scope improvement state does not belong to its runtime scope");
   }
   const state = args.state;
-  const worktree = getRepoWorktreeStatus(args.workspaceRoot);
+  const worktree = getRepoWorktreeStatus(args.scopeRoot);
   if (!worktree.available || worktree.dirty) {
     return {
       shouldEmit: false,
@@ -36,6 +38,8 @@ export function inspectScopeSemanticBoundary(args: {
   const current = computeScopeContentFingerprint(
     args.workspaceRoot,
     args.scopePolicySnapshot.policy,
+    args.stateDir,
+    args.scopeRoot,
   );
   if (!state.consumedFingerprint) {
     if (state.pendingFingerprint && state.pendingDelivery === "deferred") {

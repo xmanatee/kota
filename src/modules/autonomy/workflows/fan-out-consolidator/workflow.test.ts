@@ -2,41 +2,11 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { consolidationTaskIdForCapability } from "#modules/autonomy/fan-out-consolidation.js";
 import fanOutConsolidatorWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
-async function mockDirtyWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: true,
-    trackedDirty: true,
-    entries: ["M src/foo.ts"],
-    fingerprint: "M src/foo.ts",
-    summary: "src/foo.ts",
-    headSha: "abc1234",
-  });
-}
 
 const FAN_OUT_TITLES = [
   { id: "task-add-cross-store-retract-seam", title: "Add cross-store retract seam mirroring capture", area: "modules" },
@@ -92,12 +62,7 @@ function commitInitial(dir: string) {
 }
 
 describe("fan-out-consolidator workflow", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("seeds a consolidation task in ready/ when a fan-out batch is detected", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const baseMs = Date.now() - 5 * 24 * 60 * 60 * 1000;
     for (let i = 0; i < FAN_OUT_TITLES.length; i++) {
@@ -110,16 +75,16 @@ describe("fan-out-consolidator workflow", () => {
     }
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
+    const harness = new WorkflowScenarioDriver(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
       workspaceRoot,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
     expect(result.status).toBe("success");
     const consolidationPath = join(
-      workspaceRoot,
+      result.workspaceDir,
       "data",
       "tasks",
       "ready",
@@ -132,7 +97,6 @@ describe("fan-out-consolidator workflow", () => {
   });
 
   it("skips seeding when the worktree is dirty (recovery safety)", async () => {
-    await mockDirtyWorktree();
     const workspaceRoot = makeScopeRoot();
     const baseMs = Date.now() - 5 * 24 * 60 * 60 * 1000;
     for (let i = 0; i < FAN_OUT_TITLES.length; i++) {
@@ -144,10 +108,12 @@ describe("fan-out-consolidator workflow", () => {
       );
     }
     commitInitial(workspaceRoot);
+    writeFileSync(join(workspaceRoot, "scratch.txt"), "uncommitted recovery state\n");
 
-    const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
+    const harness = new WorkflowScenarioDriver(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
       workspaceRoot,
+      workspaceDir: workspaceRoot,
     });
     const result = await harness.run();
 
@@ -163,7 +129,6 @@ describe("fan-out-consolidator workflow", () => {
   });
 
   it("does not seed when no fan-out batch is detected (single-surface only)", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "done", "task-tighten-internal.md"),
@@ -176,7 +141,7 @@ describe("fan-out-consolidator workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
+    const harness = new WorkflowScenarioDriver(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
       workspaceRoot,
     });

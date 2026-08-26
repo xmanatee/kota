@@ -2,40 +2,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
-async function mockDirtyWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: true,
-    trackedDirty: true,
-    entries: ["M src/foo.ts"],
-    fingerprint: "M src/foo.ts",
-    summary: "src/foo.ts",
-    headSha: "abc1234",
-  });
-}
 
 const TASK_TEMPLATE = (
   id: string,
@@ -89,6 +59,7 @@ function makeScopeRoot(): string {
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
+  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
   return dir;
 }
 
@@ -98,12 +69,7 @@ function commitInitial(dir: string) {
 }
 
 describe("backlog-promoter workflow", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("promotes the top backlog batch and writes a rationale artifact", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "backlog", "task-p1-arch.md"),
@@ -130,10 +96,10 @@ describe("backlog-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -145,10 +111,10 @@ describe("backlog-promoter workflow", () => {
     // Ranking: both p1 strategic; older updated_at wins the tie.
     expect(promotedIds).toEqual(["task-p1-modules-old", "task-p1-arch"]);
     for (const id of promotedIds) {
-      expect(existsSync(join(workspaceRoot, "data", "tasks", "ready", `${id}.md`))).toBe(true);
+      expect(existsSync(join(result.workspaceDir, "data", "tasks", "ready", `${id}.md`))).toBe(true);
     }
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "backlog", "task-p3-cleanup.md")),
+      existsSync(join(result.workspaceDir, "data", "tasks", "backlog", "task-p3-cleanup.md")),
     ).toBe(true);
 
     const writeRationaleOutput = result.steps["write-rationale"].output as {
@@ -179,7 +145,6 @@ describe("backlog-promoter workflow", () => {
   });
 
   it("records blocked alternatives in the rationale even though they are not promoted", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "backlog", "task-p2-fanout.md"),
@@ -195,10 +160,10 @@ describe("backlog-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -216,7 +181,6 @@ describe("backlog-promoter workflow", () => {
   });
 
   it("does not treat task class or missing prose links as an execution gate", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "backlog", "task-meta-invalid.md"),
@@ -237,10 +201,10 @@ describe("backlog-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -253,18 +217,17 @@ describe("backlog-promoter workflow", () => {
       "task-platform-valid",
     ]);
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "backlog", "task-meta-invalid.md")),
+      existsSync(join(result.workspaceDir, "data", "tasks", "backlog", "task-meta-invalid.md")),
     ).toBe(false);
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "ready", "task-meta-invalid.md")),
+      existsSync(join(result.workspaceDir, "data", "tasks", "ready", "task-meta-invalid.md")),
     ).toBe(true);
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "ready", "task-platform-valid.md")),
+      existsSync(join(result.workspaceDir, "data", "tasks", "ready", "task-platform-valid.md")),
     ).toBe(true);
   });
 
   it("skips promotion entirely when only blocked work exists", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const blockedTask = TASK_TEMPLATE("task-blocked", { priority: "p1" }).replace(
       "status: backlog",
@@ -276,7 +239,7 @@ describe("backlog-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
     });
@@ -290,17 +253,21 @@ describe("backlog-promoter workflow", () => {
   });
 
   it("skips promotion when the worktree is dirty", async () => {
-    await mockDirtyWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
       TASK_TEMPLATE("task-foo", { priority: "p1" }),
     );
     commitInitial(workspaceRoot);
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
+      `${TASK_TEMPLATE("task-foo", { priority: "p1" })}\nDirty change.\n`,
+    );
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
+      workspaceDir: workspaceRoot,
     });
     const result = await harness.run();
 

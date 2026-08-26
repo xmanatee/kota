@@ -10,7 +10,7 @@ Workflow behavior is owned by the production run host and step executors.
 - Agent/model calls, clocks, credentials, and outbound processes may be faked
   at their typed ports. Scheduling, branching, retries, persistence, and
   recovery are not fake ports.
-- `WorkflowTestHarness` is legacy migration surface. Do not add step types,
-  semantics, or new consumers to it. Move scenarios to the production host and
-  remove the corresponding harness behavior as coverage migrates.
+- `WorkflowScenarioDriver` delegates validation and every step semantic to the
+  production executor. It may adapt typed host ports, but must never interpret
+  steps, scheduling, branching, persistence, retries, or recovery itself.
 - Testing exports remain narrow and must not become a public alternate runtime.

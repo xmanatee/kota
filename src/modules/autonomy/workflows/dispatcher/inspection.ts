@@ -38,6 +38,7 @@ export type DispatcherInspection = {
 
 export function inspectDispatcherStateInWorker(input: {
   workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   nowIso: string;
   scopePolicySnapshot: ScopePolicySnapshot | null;
@@ -57,6 +58,8 @@ export function inspectDispatcherStateInWorker(input: {
     scopeBoundary: input.scopePolicySnapshot
       ? inspectScopeSemanticBoundary({
           workspaceRoot: input.workspaceRoot,
+          scopeRoot: input.scopeRoot,
+          stateDir: input.stateDir,
           scopePolicySnapshot: input.scopePolicySnapshot,
           state: input.scopeImprovementState,
         })
@@ -72,6 +75,7 @@ export function inspectDispatcherStateInWorker(input: {
 export const dispatcherInspectionOperation = defineWorkflowBlockingOperation<
   {
     workspaceRoot: string;
+    scopeRoot: string;
     stateDir: string;
     nowIso: string;
     scopePolicySnapshot: ScopePolicySnapshot | null;

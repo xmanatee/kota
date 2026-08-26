@@ -61,7 +61,7 @@ function delayWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -508,7 +508,7 @@ describe("step timeout", () => {
 
   it("lets streaming agent steps exceed idleTimeoutMs while typed messages arrive", async () => {
     const harness = "workflow-idle-productive";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       const signal = options.abortController?.signal;
       await delayWithAbort(100, signal);
       await options.onMessage?.({ type: "text", text: "one" });
@@ -538,7 +538,7 @@ describe("step timeout", () => {
 
   it("governs an unbounded agent step only by trusted idle progress", async () => {
     const harness = "workflow-idle-governed";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       const signal = options.abortController?.signal;
       await delayWithAbort(30, signal);
       await options.onMessage?.({ type: "text", text: "one" });
@@ -569,7 +569,7 @@ describe("step timeout", () => {
     const harness = "workflow-agent-output-validator";
     const token = `${"ghp"}_${"A".repeat(36)}`;
     const responseText = ["```json", JSON.stringify({ body: `token: ${token}` }), "```"].join("\n");
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await options.onMessage?.({ type: "text", text: responseText });
       return {
         text: responseText,
@@ -617,7 +617,7 @@ describe("step timeout", () => {
   it("retries invalid fenced JSON output with a targeted correction prompt", async () => {
     const harness = "workflow-agent-invalid-json-retry";
     const prompts: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       prompts.push(options.prompt);
       const text = prompts.length === 1
         ? "```json\n{ invalid\n```"
@@ -657,7 +657,7 @@ describe("step timeout", () => {
   it("retries missing fenced JSON output with a targeted correction prompt", async () => {
     const harness = "workflow-agent-missing-json-fence-retry";
     const prompts: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       prompts.push(options.prompt);
       const text = prompts.length === 1
         ? JSON.stringify({ body: "ok" })
@@ -699,7 +699,7 @@ describe("step timeout", () => {
   it("retries agent idle timeouts through the agent retry classifier", async () => {
     const harness = "workflow-idle-retry";
     let attempts = 0;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       attempts += 1;
       const signal = options.abortController?.signal;
       if (attempts === 1) {
@@ -732,7 +732,7 @@ describe("step timeout", () => {
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
 
     const harness = "workflow-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
@@ -763,7 +763,7 @@ describe("step timeout", () => {
   it("records structured idle-timeout failure details from repair agents", async () => {
     const harness = "workflow-repair-idle-failure";
     let attempts = 0;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       attempts += 1;
       if (attempts === 1) return AGENT_OK_RESULT;
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
@@ -808,7 +808,7 @@ describe("step timeout", () => {
 
   it("records structured repair-loop exhaustion", async () => {
     const harness = "workflow-repair-exhausted";
-    registerWorkflowTestHarness(harness, async () => AGENT_OK_RESULT);
+    registerWorkflowScenarioDriver(harness, async () => AGENT_OK_RESULT);
 
     const definition = makeDefinition({
       moduleRoot: workspaceRoot,
@@ -911,7 +911,7 @@ describe("step timeout", () => {
 
   it("preserves agent idle-timeout details and backoff from parallel groups", async () => {
     const harness = "workflow-parallel-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
@@ -949,7 +949,7 @@ describe("step timeout", () => {
 
   it("preserves agent idle-timeout details and backoff from foreach groups", async () => {
     const harness = "workflow-foreach-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
@@ -989,7 +989,7 @@ describe("step timeout", () => {
 
   it("lets hard timeoutMs win before an idle timeout deadline", async () => {
     const harness = "workflow-hard-timeout-wins";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });

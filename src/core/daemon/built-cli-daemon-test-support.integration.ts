@@ -4,14 +4,6 @@ import { join } from "node:path";
 
 export type ControlAddress = { port: number; token: string; startedAt: string };
 
-type LoopbackAwareGlobal = typeof globalThis & {
-  __kotaRealLoopbackAvailable?: boolean;
-};
-
-export function realLoopbackAvailable(): boolean {
-  return (globalThis as LoopbackAwareGlobal).__kotaRealLoopbackAvailable !== false;
-}
-
 export async function pollControlFile(
   stateDir: string,
   timeoutMs: number,

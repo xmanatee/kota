@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import evaluatorCalibrationNotify, {
   buildAttentionItemFromCalibration,
@@ -37,7 +37,7 @@ describe("evaluator-calibration-notify workflow", () => {
   });
 
   it("emits workflow.attention.digest carrying the contradiction rate and reason", async () => {
-    const harness = new WorkflowTestHarness(evaluatorCalibrationNotify, {
+    const harness = new WorkflowScenarioDriver(evaluatorCalibrationNotify, {
       trigger: {
         event: "evaluator-calibration.regression.detected",
         payload: samplePayload,

@@ -4,13 +4,6 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const DEMO_SCRIPT = resolve(process.cwd(), "examples/modules/kota-demo-http.js");
-type LoopbackAwareGlobal = typeof globalThis & {
-  __kotaRealLoopbackAvailable?: boolean;
-};
-
-function realLoopbackAvailable(): boolean {
-  return (globalThis as LoopbackAwareGlobal).__kotaRealLoopbackAvailable !== false;
-}
 
 async function postJson(url: string, body: unknown): Promise<unknown> {
   const res = await fetch(url, {
@@ -38,7 +31,7 @@ function waitForListening(proc: ChildProcess): Promise<number> {
   });
 }
 
-describe.skipIf(!existsSync(DEMO_SCRIPT) || !realLoopbackAvailable())(
+describe.skipIf(!existsSync(DEMO_SCRIPT))(
   "HTTP demo module (examples/modules/kota-demo-http.js)",
   () => {
     let proc: ChildProcess | null = null;

@@ -1,101 +1,76 @@
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import {
+  WorkflowScenarioDriver,
+  type WorkflowScenarioOptions,
+} from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { EXPLORER_STATE_KEY } from "./explorer-state.js";
 import explorerWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(() => ({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  })),
-}));
-
-vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
-  countRepoPromotableBacklogTasks: vi.fn(() => 0),
-  getRepoTaskQueueSnapshot: vi.fn(),
-  isRepoTaskQueueSnapshot: vi.fn(() => true),
-  isThinDispatchableQueue: vi.fn((snapshot, promotableBacklogCount) => {
-    const backlogCount =
-      promotableBacklogCount ?? snapshot.promotableBacklogCount ?? 0;
-    const waitingCount =
-      snapshot.counts.ready + snapshot.counts.doing + backlogCount;
-    return (
-      snapshot.inboxCount === 0 &&
-      waitingCount <= 2 &&
-      waitingCount > 0
-    );
-  }),
-  REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
-  listFullRepoTasks: vi.fn(() => []),
-  getRepoTaskStateDir: vi.fn((workspaceRoot: string, state: string) =>
-    `${workspaceRoot}/data/tasks/${state}`,
-  ),
-}));
-
-function makeSnapshot({
-  inboxCount = 0,
-  ready = 0,
-  backlog = 0,
-  doing = 0,
-}: {
-  inboxCount?: number;
-  ready?: number;
-  backlog?: number;
-  doing?: number;
-} = {}) {
-  const counts = { backlog, ready, doing, blocked: 0, done: 0, dropped: 0 };
-  const actionableCount = ready + doing;
-  const dispatchableCount = inboxCount + actionableCount + backlog;
-  return {
-    counts,
-    inboxCount,
-    openCount: dispatchableCount,
-    pullableCount: backlog + ready + doing,
-    actionableCount,
-    promotableBacklogCount: backlog,
-    dispatchableCount,
-    hasDispatchableWork: dispatchableCount > 0,
-    dependencyBlockedTasks: [],
-    headSha: "abc1234",
-  };
-}
 
 describe("explorer workflow thin queue gating", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    vi.clearAllMocks();
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
-    mkdirSync(join(tempDir, ".kota"), { recursive: true });
+    for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+      const dir = join(tempDir, "data", "tasks", state);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
+    }
+    writeFileSync(join(tempDir, ".gitignore"), ".kota/\n");
+    execFileSync("git", ["init", "--quiet"], { cwd: tempDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: tempDir });
+    execFileSync("git", ["config", "user.name", "KOTA test"], { cwd: tempDir });
   });
 
-  it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
-      makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
-    );
+  function writeTask(state: "backlog" | "ready" | "doing", id: string): void {
+    writeFileSync(join(tempDir, "data", "tasks", state, `${id}.md`), [
+      "---",
+      `id: ${id}`,
+      `title: ${id}`,
+      `status: ${state}`,
+      "priority: p2",
+      "area: autonomy",
+      `summary: ${id} summary`,
+      "created_at: 2026-08-01T00:00:00.000Z",
+      "updated_at: 2026-08-01T00:00:00.000Z",
+      "---",
+      "",
+    ].join("\n"));
+  }
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+  function runExplorerScenario(
+    options: Omit<WorkflowScenarioOptions, "workspaceRoot">,
+  ) {
+    execFileSync("git", ["add", "-A"], { cwd: tempDir });
+    execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "scenario input"], {
+      cwd: tempDir,
+    });
+    return new WorkflowScenarioDriver(explorerWorkflow, {
+      ...options,
+      workspaceRoot: tempDir,
+      ports: {
+        runCommand: successfulWorkflowCommandRun,
+        ...options.ports,
+      },
+    }).run();
+  }
+
+  it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
+    writeTask("backlog", "task-tail");
+
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepMocks: {
+      stepOutputs: {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      workspaceRoot: tempDir,
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
@@ -107,23 +82,15 @@ describe("explorer workflow thin queue gating", () => {
   });
 
   it("runs explore when a single ready task remains and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
-      makeSnapshot({ inboxCount: 0, ready: 1, backlog: 0, doing: 0 }),
-    );
+    writeTask("ready", "task-ready");
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepMocks: {
+      stepOutputs: {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      workspaceRoot: tempDir,
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
@@ -135,23 +102,15 @@ describe("explorer workflow thin queue gating", () => {
   });
 
   it("explores when only active doing work remains", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
-      makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
-    );
+    writeTask("doing", "task-doing");
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepMocks: {
+      stepOutputs: {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      workspaceRoot: tempDir,
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
@@ -161,23 +120,16 @@ describe("explorer workflow thin queue gating", () => {
   });
 
   it("skips explore when the queue is empty but the refresh window is not due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
     const state = createTestTransactionalRunState();
     state.compareAndSet(EXPLORER_STATE_KEY, 0, {
       lastExplorationAt: new Date().toISOString(),
     });
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
-      workspaceRoot: tempDir,
-      contextOverrides: { state },
+      ports: { state },
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({

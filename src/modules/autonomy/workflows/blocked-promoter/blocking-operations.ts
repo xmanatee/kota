@@ -24,6 +24,7 @@ export type InspectBlockedResult = {
 
 export function inspectBlockedInWorker(input: {
   workspaceRoot: string;
+  scopeRoot: string;
   nowMs: number;
 }): InspectBlockedResult {
   const worktree = getRepoWorktreeStatus(input.workspaceRoot);
@@ -32,14 +33,20 @@ export function inspectBlockedInWorker(input: {
     dirty: worktree.available && worktree.dirty,
     blockedCount: records.length,
     ownerAsk: pickOwnerAskCandidate(records, input.nowMs),
-    actions: classifyBlockedActions(records, input.workspaceRoot, input.nowMs),
+    actions: classifyBlockedActions(
+      records,
+      input.workspaceRoot,
+      input.nowMs,
+      input.scopeRoot,
+    ),
   };
 }
 
 export function promoteSatisfiedBlockedTasksInWorker(input: {
   workspaceRoot: string;
+  scopeRoot: string;
 }): DeterministicPromotionResult {
-  return promoteSatisfiedBlockedTasks(input.workspaceRoot);
+  return promoteSatisfiedBlockedTasks(input.workspaceRoot, input.scopeRoot);
 }
 
 export function applyAskOutcomeInWorker(input: {
@@ -58,12 +65,14 @@ export function applyAskOutcomeInWorker(input: {
 
 export function instructOperatorCaptureInWorker(input: {
   workspaceRoot: string;
+  scopeRoot: string;
   nowMs: number;
 }): { instructions: OperatorCaptureInstruction[] } {
   const candidates = listOperatorCaptureInstructCandidates(
     listBlockedTasksWithPreconditions(input.workspaceRoot),
     input.workspaceRoot,
     input.nowMs,
+    input.scopeRoot,
   );
   const now = new Date(input.nowMs);
   return {
@@ -78,12 +87,12 @@ export function instructOperatorCaptureInWorker(input: {
 }
 
 export const inspectBlockedOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number },
   InspectBlockedResult
 >(import.meta.url, "inspectBlockedInWorker");
 
 export const promoteSatisfiedBlockedTasksOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string },
+  { workspaceRoot: string; scopeRoot: string },
   DeterministicPromotionResult
 >(import.meta.url, "promoteSatisfiedBlockedTasksInWorker");
 
@@ -98,6 +107,6 @@ export const applyAskOutcomeOperation = defineWorkflowBlockingOperation<
 >(import.meta.url, "applyAskOutcomeInWorker");
 
 export const instructOperatorCaptureOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number },
   { instructions: OperatorCaptureInstruction[] }
 >(import.meta.url, "instructOperatorCaptureInWorker");

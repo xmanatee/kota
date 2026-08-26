@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import evalHarnessRegressionNotify, {
   buildAttentionItemFromRegression,
@@ -30,7 +30,7 @@ describe("eval-harness-regression-notify workflow", () => {
   });
 
   it("emits workflow.attention.digest with both baseline and candidate numbers", async () => {
-    const harness = new WorkflowTestHarness(evalHarnessRegressionNotify, {
+    const harness = new WorkflowScenarioDriver(evalHarnessRegressionNotify, {
       trigger: {
         event: "eval-harness.regression.detected",
         payload: samplePayload,

@@ -7,8 +7,7 @@ Module behavior is owned by the production loader and host modes.
 - Fake only typed external ports. Do not duplicate module registration,
   dependency resolution, initialization, subscription, or teardown semantics in
   a test interpreter.
-- `ModuleTestHarness` is legacy migration surface. Do not add capabilities or
-  new consumers. Replace its scenarios with production-loader scenarios and
-  delete migrated harness behavior.
+- Keep test utilities to narrow adapters for typed external ports. Lifecycle
+  coverage uses the production `ModuleLoader`; never introduce a second loader.
 - Pure schemas, parsers, and domain decisions may be tested directly when the
   test owns a distinct accepted, rejected, or transformed behavior.

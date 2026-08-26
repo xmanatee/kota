@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import onboardingWorkflow from "../scope-improvement-onboarding/workflow.js";
 import {
@@ -39,11 +39,11 @@ describe("scope improvement onboarding workflow", () => {
         },
       },
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
-      contextOverrides: { state },
+      ports: { state },
     } as const;
 
-    const first = await new WorkflowTestHarness(onboardingWorkflow, options).run();
-    const second = await new WorkflowTestHarness(onboardingWorkflow, options).run();
+    const first = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
+    const second = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
 
     expect(first.status).toBe("success");
     expect(first.emitted).toHaveLength(1);

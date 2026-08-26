@@ -1,5 +1,6 @@
 import type {
   AgentCanUseTool,
+  AgentHarness,
   AgentTokenBudgetLedger,
   KotaAgentMessage,
   TrajectoryDiagnosticsMetadata,
@@ -59,6 +60,7 @@ export type AgentStepConfig = {
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
+  resolveAgentHarness?: (name: string) => AgentHarness;
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
   delegateBudget?: DelegateBudget;
   runTokenBudget?: AgentTokenBudgetLedger;

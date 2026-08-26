@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   registerWorkflowDefinition,
@@ -292,7 +292,7 @@ describe("Social-origin inbound signal workflow dispatch", () => {
       },
     });
 
-    const trustedHarness = new WorkflowTestHarness(socialSignalProbeWorkflow, {
+    const trustedHarness = new WorkflowScenarioDriver(socialSignalProbeWorkflow, {
       trigger: queued[0],
     });
     const trustedResult = await trustedHarness.run();
@@ -306,7 +306,7 @@ describe("Social-origin inbound signal workflow dispatch", () => {
       actorTrust: "trusted",
     });
 
-    const untrustedHarness = new WorkflowTestHarness(socialSignalProbeWorkflow, {
+    const untrustedHarness = new WorkflowScenarioDriver(socialSignalProbeWorkflow, {
       trigger: queued[1],
     });
     const untrustedResult = await untrustedHarness.run();

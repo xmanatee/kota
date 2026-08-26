@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import type { SecurityReviewCandidate } from "./security-review.js";
@@ -22,10 +22,10 @@ export function describeSecurityReviewRunTests(
     });
 
     it("completes as an explicit no-op when the deterministic scan is empty", async () => {
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
-        stepMocks: {},
+        stepOutputs: {},
       });
 
       const result = await harness.run();
@@ -37,7 +37,7 @@ export function describeSecurityReviewRunTests(
       expect(result.steps["revalidate-findings"].status).toBe("skipped");
       expect(result.steps["create-follow-up-tasks"].status).toBe("skipped");
       expect(
-        existsSync(join(fixture.workspaceRoot, ".kota/runs/harness/security-review-outcome.json")),
+        existsSync(join(result.runDirPath, "security-review-outcome.json")),
       ).toBe(true);
     });
 
@@ -55,10 +55,10 @@ export function describeSecurityReviewRunTests(
         ]),
       );
 
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: { event: SECURITY_REVIEW_DUE_EVENT, payload: {} },
-        stepMocks: {},
+        stepOutputs: {},
       });
 
       const result = await harness.run();
@@ -75,7 +75,7 @@ export function describeSecurityReviewRunTests(
       fixture.writeProjectFile("src/modules/web-access/z-due.ts", "await fetch(url, { headers });\n");
       fixture.writeProjectFile("notes/no-matcher.md", "No security-sensitive content here.\n");
 
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
+      const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
         trigger: {
           event: SECURITY_REVIEW_DUE_EVENT,
@@ -91,7 +91,7 @@ export function describeSecurityReviewRunTests(
             ],
           },
         },
-        stepMocks: {
+        stepOutputs: {
           "investigate-candidates": { findings: [] },
         },
       });
@@ -120,7 +120,7 @@ export function describeSecurityReviewRunTests(
       );
       const artifact = JSON.parse(
         readFileSync(
-          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-candidates.json"),
+          join(result.runDirPath, "security-review-candidates.json"),
           "utf-8",
         ),
       ) as {

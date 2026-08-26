@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { ScopedEventBus } from "#core/events/scope.js";
@@ -86,6 +87,7 @@ export function executeWorkflowRun(
     runtimeResources,
     pbus,
     approvalQueue,
+    resolveAgentHarness: inputDeps.resolveAgentHarness ?? resolveAgentHarness,
   };
   const run = deps.store.createRun(
     definition,
@@ -173,6 +175,7 @@ export function executeWorkflowRun(
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
+          resolveAgentHarness: deps.resolveAgentHarness,
           createCanUseTool: deps.createAgentCanUseTool,
           delegateBudget,
           runTokenBudget,

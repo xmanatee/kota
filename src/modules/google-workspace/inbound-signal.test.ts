@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type InboundSignalReceivedPayload,
@@ -360,7 +360,7 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
       },
     });
 
-    const harness = new WorkflowTestHarness(googleWorkspaceSignalProbeWorkflow, {
+    const harness = new WorkflowScenarioDriver(googleWorkspaceSignalProbeWorkflow, {
       trigger: queued[0],
     });
     const result = await harness.run();

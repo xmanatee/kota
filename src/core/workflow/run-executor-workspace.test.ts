@@ -87,7 +87,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   };
 }
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -149,7 +149,7 @@ describe("workflow workspaceDir execution", () => {
     mkdirSync(workspaceDir, { recursive: true });
     const harness = "workflow-workspace-override";
     let agentOptions: AgentHarnessRunOptions | undefined;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       agentOptions = options;
       return AGENT_OK_RESULT;
     });

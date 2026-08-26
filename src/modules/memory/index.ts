@@ -30,10 +30,14 @@ const memoryModule: KotaModule = {
   description: "Persistent memory across sessions (save/search/list/update/delete)",
   dependencies: ["rendering"],
   uiSurfaces: [memoryUiSurfaceSource],
-  tools: [
+  tools: (ctx) => [
     {
       tool: memoryTool,
-      runner: runMemory,
+      runner: (input) => {
+        const provider = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
+        if (!provider) throw new Error("memory provider is not registered");
+        return runMemory(input, provider);
+      },
       effect: readOnlyDaemonEffect(),
       group: "management",
     },

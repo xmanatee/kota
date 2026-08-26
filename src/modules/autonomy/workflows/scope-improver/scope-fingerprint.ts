@@ -115,9 +115,10 @@ export function computeScopeContentFingerprint(
   workspaceRoot: string,
   scopePolicy: ResolvedScopePolicy,
   stateDir?: string,
+  scopeRoot: string = workspaceRoot,
 ): ScopeContentFingerprint {
   const canonicalStateDir = stateDir ?? join(workspaceRoot, ".kota");
-  const scopeId = deriveDirectoryScopeId(workspaceRoot);
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
   if (scopePolicy.scopeId !== scopeId) {
     throw new Error(
       `resolved scope policy ${scopePolicy.scopeId} does not belong to ${scopeId}`,

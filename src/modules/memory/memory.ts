@@ -1,5 +1,8 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getMemoryProvider } from "#core/modules/provider-registry.js";
+import {
+  getMemoryProvider,
+  type MemoryProvider,
+} from "#core/modules/provider-registry.js";
 import type {
   WorkMemoryFreshness,
   WorkMemoryProvenance,
@@ -85,9 +88,10 @@ function formatMemoryLine(m: {
 
 export async function runMemory(
   input: Record<string, unknown>,
+  provider?: MemoryProvider,
 ): Promise<ToolResult> {
   const action = input.action as string;
-  const store = getMemoryProvider();
+  const store = provider ?? getMemoryProvider();
 
   switch (action) {
     case "save": {

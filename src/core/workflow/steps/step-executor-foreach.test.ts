@@ -96,7 +96,7 @@ function uniqueHarnessName(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -557,7 +557,7 @@ describe("foreach step – maxConcurrency", () => {
     let active = 0;
     let maxActive = 0;
     let calls = 0;
-    registerWorkflowTestHarness(harness, async () => {
+    registerWorkflowScenarioDriver(harness, async () => {
       calls++;
       active++;
       maxActive = Math.max(maxActive, active);
@@ -594,7 +594,7 @@ describe("foreach step – maxConcurrency", () => {
     const harness = uniqueHarnessName("foreach-agent-serial");
     let active = 0;
     let maxActive = 0;
-    registerWorkflowTestHarness(harness, async () => {
+    registerWorkflowScenarioDriver(harness, async () => {
       active++;
       maxActive = Math.max(maxActive, active);
       await delay(10);
@@ -630,7 +630,7 @@ describe("foreach step – maxConcurrency", () => {
     let active = 0;
     let maxActive = 0;
     let calls = 0;
-    registerWorkflowTestHarness(harness, async (options) => {
+    registerWorkflowScenarioDriver(harness, async (options) => {
       calls++;
       active++;
       maxActive = Math.max(maxActive, active);
@@ -691,7 +691,7 @@ describe("foreach step – maxConcurrency", () => {
   it("preserves ordered agent item results and continues after agent item failures", async () => {
     const harness = uniqueHarnessName("foreach-agent-failure");
     let nextCallIndex = 0;
-    registerWorkflowTestHarness(harness, async () => {
+    registerWorkflowScenarioDriver(harness, async () => {
       const callIndex = nextCallIndex++;
       await delay(callIndex === 0 ? 20 : 0);
       if (callIndex === 1) throw new Error("agent item 1 failed");
@@ -739,7 +739,7 @@ describe("foreach step – maxConcurrency", () => {
   it("re-runs only failed agent items on retry when retryFailedItems is true", async () => {
     const harness = uniqueHarnessName("foreach-agent-retry");
     let nextCallIndex = 0;
-    registerWorkflowTestHarness(harness, async () => {
+    registerWorkflowScenarioDriver(harness, async () => {
       const callIndex = nextCallIndex++;
       if (callIndex === 1) throw new Error("agent item 1 failed");
       return { ...AGENT_OK_RESULT, text: `first:${callIndex}` };
@@ -768,7 +768,7 @@ describe("foreach step – maxConcurrency", () => {
     expect(first.metadata.status).toBe("completed-with-warnings");
 
     let retryCalls = 0;
-    registerWorkflowTestHarness(harness, async () => {
+    registerWorkflowScenarioDriver(harness, async () => {
       const callIndex = retryCalls++;
       return { ...AGENT_OK_RESULT, text: `retry:${callIndex}` };
     });

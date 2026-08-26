@@ -47,6 +47,8 @@ describe("scope-improver semantic consumption", () => {
     };
     expect(inspectScopeSemanticBoundary({
       workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
       state: consumed,
     }).shouldEmit).toBe(false);
@@ -67,6 +69,8 @@ describe("scope-improver semantic consumption", () => {
 
     const boundary = inspectScopeSemanticBoundary({
       workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
       state: consumed,
     });
@@ -153,6 +157,8 @@ describe("scope-improver semantic consumption", () => {
 
     const resumed = inspectScopeSemanticBoundary({
       workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
       state: deferred,
     });

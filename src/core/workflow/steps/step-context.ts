@@ -39,7 +39,10 @@ import type {
 } from "../run-types.js";
 import { isRunLocalEffect } from "../transaction-effect-policy.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
-import { createWorkflowCommandRunner } from "../workflow-command.js";
+import {
+  createWorkflowCommandRunner,
+  type WorkflowCommandRunner,
+} from "../workflow-command.js";
 import { buildWorkflowToolContext } from "./step-tool-context.js";
 
 async function enforceWorkflowToolScopePolicy(args: {
@@ -134,6 +137,7 @@ export function createStepContext(
     approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
     runTool?: WorkflowRunToolRunner;
+    runCommand?: WorkflowCommandRunner;
     runContext?: Pick<
       RunContext,
       "effects" | "processes" | "publications" | "signal" | "state"
@@ -157,7 +161,7 @@ export function createStepContext(
   const scopePolicySnapshot = deps.scopePolicyAuthority?.getSnapshot(
     deps.pbus.getScopeId(),
   );
-  const runCommand = createWorkflowCommandRunner({
+  const runCommand = deps.runCommand ?? createWorkflowCommandRunner({
     cwd: deps.workspaceRoot,
     ...(deps.runtimeResources !== undefined
       ? { env: deps.runtimeResources.env }

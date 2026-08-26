@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -111,7 +111,7 @@ describe("backlog-promoter task path safety", () => {
       cwd: workspaceRoot,
     });
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       workspaceRoot,
     });

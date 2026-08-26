@@ -65,6 +65,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const [inspection, progressBoundary] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
             workspaceRoot,
+            scopeRoot,
             stateDir,
             nowIso: new Date().toISOString(),
             scopePolicySnapshot: scopePolicySnapshot ?? null,

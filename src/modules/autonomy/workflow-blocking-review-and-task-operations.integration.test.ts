@@ -122,7 +122,7 @@ describe("autonomy workflow blocking review and task operations", () => {
       );
       const blockedPromotions = await runWorkflowBlockingOperation(
         promoteSatisfiedBlockedTasksOperation,
-        { workspaceRoot },
+        { workspaceRoot, scopeRoot: workspaceRoot },
       );
       const scopeInputs: ScopeImprovementInputs = {
         generatedAt: "2026-08-14T12:00:00.000Z",

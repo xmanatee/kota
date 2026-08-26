@@ -81,7 +81,8 @@ export async function executeAgentStep(
   priorStepOutputs: Record<string, unknown> = {},
   foreach?: WorkflowStepContext["foreach"],
 ): Promise<AgentStepResult> {
-  const resolvedHarness = resolveAgentHarness(step.harness);
+  const resolvedHarness = agentConfig.resolveAgentHarness?.(step.harness)
+    ?? resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
   const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
   const capabilitySnapshot = writeHarnessCapabilityArtifact(

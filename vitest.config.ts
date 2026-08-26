@@ -27,6 +27,19 @@ const OWNER_PROJECT_EXCLUDES = [
   EVAL_TEST_FILES,
   INTEGRATION_TEST_FILES,
 ];
+const REAL_NETWORK_TEST_FILES = [
+  "src/core/agent-harness/native-cli-egress-proxy.test.ts",
+  "src/core/agent-harness/native-cli-sandbox-egress.test.ts",
+  "src/core/agent-harness/native-cli-sandbox.test.ts",
+  "src/core/agent-harness/task-probe-hard-links.test.ts",
+  "src/core/modules/foreign-module-http-demo.test.ts",
+  "src/core/modules/foreign-module-http.test.ts",
+  "src/core/server/daemon-link.test.ts",
+  "src/core/server/server-routes.test.ts",
+  "src/modules/autonomy/workflows/attention-digest/attention-route.test.ts",
+  "src/modules/autonomy/workflows/daily-digest/digest-route.test.ts",
+  "src/modules/history/client.test.ts",
+];
 
 export default defineConfig({
   resolve: {
@@ -52,7 +65,6 @@ export default defineConfig({
     hookTimeout: 60000,
     setupFiles: [
       "./test/scope-authority-token.ts",
-      "./test/loopback-fetch.ts",
     ],
     // Source-CLI tests each launch several TSX subprocesses. Run them after
     // the process-heavy main suite so worker saturation cannot consume their
@@ -63,8 +75,18 @@ export default defineConfig({
         test: {
           name: "owner",
           include: ["src/**/*.test.ts"],
-          exclude: OWNER_PROJECT_EXCLUDES,
+          exclude: [...OWNER_PROJECT_EXCLUDES, ...REAL_NETWORK_TEST_FILES],
           sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "network",
+          include: REAL_NETWORK_TEST_FILES,
+          exclude: TEST_EXCLUDES,
+          maxWorkers: 2,
+          sequence: { groupOrder: 1 },
         },
       },
       {
@@ -74,7 +96,7 @@ export default defineConfig({
           include: [INTEGRATION_TEST_FILES],
           exclude: [...TEST_EXCLUDES, EVAL_TEST_FILES, ...CLI_TEST_FILES],
           maxWorkers: 2,
-          sequence: { groupOrder: 1 },
+          sequence: { groupOrder: 2 },
         },
       },
       {
@@ -84,7 +106,7 @@ export default defineConfig({
           include: [EVAL_TEST_FILES],
           exclude: TEST_EXCLUDES,
           maxWorkers: 2,
-          sequence: { groupOrder: 2 },
+          sequence: { groupOrder: 3 },
         },
       },
       {
@@ -96,7 +118,7 @@ export default defineConfig({
           // project rerun unrelated focused tests.
           exclude: CLI_PROJECT_EXCLUDES,
           maxWorkers: 1,
-          sequence: { groupOrder: 3 },
+          sequence: { groupOrder: 4 },
         },
       },
     ],

@@ -58,7 +58,6 @@ import {
   fetchAuthorized,
   pollControlFile,
   pollControlFileReplacement,
-  realLoopbackAvailable,
   waitForExit,
   writeRestartRegressionModule,
 } from "#core/daemon/built-cli-daemon-test-support.integration.js";
@@ -77,7 +76,7 @@ beforeAll(() => {
   }
 });
 
-describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-backed routes)", () => {
+describe("built CLI daemon smoke (provider-backed routes)", () => {
   let scopeRoot: string;
   let stateDir: string;
   let homeDir: string;

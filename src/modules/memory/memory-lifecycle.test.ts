@@ -1,98 +1,48 @@
-/**
- * Lifecycle integration test for the memory module using ModuleTestHarness.
- *
- * Exercises the KotaModule contract — load, tool call, dynamic state query,
- * and teardown — rather than testing internal helpers directly.
- */
-
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ModuleTestHarness } from "#core/modules/testing/index.js";
-import { MemoryStore } from "#modules/memory/store.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
+import { executeTool, getModuleToolNames } from "#core/tools/index.js";
+import renderingModule from "#modules/rendering/index.js";
+import memoryModule from "./index.js";
 
-vi.mock("#modules/memory/store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#modules/memory/store.js")>();
-  return { ...actual, getMemoryStore: vi.fn() };
-});
+describe("memory module lifecycle", () => {
+  let root: string;
+  let loader: ModuleLoader;
 
-import { getMemoryStore } from "#modules/memory/store.js";
-import memoryExtension from "./index.js";
-
-const mocked = vi.mocked(getMemoryStore);
-
-// Use a fresh in-memory store per test so memory entries don't bleed between tests
-let tempDir: string;
-beforeEach(() => {
-  tempDir = mkdtempSync(join(tmpdir(), "kota-mem-lifecycle-"));
-  mocked.mockReturnValue(new MemoryStore(tempDir));
-});
-
-describe("memory module lifecycle (ModuleTestHarness)", () => {
-  let harness: ModuleTestHarness;
-
-  beforeEach(async () => {
-    harness = await ModuleTestHarness.create(memoryExtension, { cwd: tempDir });
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "kota-memory-lifecycle-"));
+    loader = new ModuleLoader({}, false, {
+      providerRegistry: new ProviderRegistry(),
+    });
+    loader.setCwd(root);
+    loader.setBus(new EventBus());
   });
 
   afterEach(async () => {
-    await harness.teardown();
+    await loader.unloadAll();
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("registers the memory tool on load", () => {
-    const tool = harness.getTool("memory");
-    expect(tool).toBeDefined();
-    expect(tool?.tool.name).toBe("memory");
-  });
+  it("makes persisted memory behavior available only while the module is active", async () => {
+    await loader.load(renderingModule);
+    await loader.load(memoryModule);
 
-  it("tool runner saves and retrieves a memory entry", async () => {
-    const save = await harness.callTool("memory", {
-      action: "save",
-      content: "Harness test: always use vitest",
-    });
-    expect(save.is_error).toBeUndefined();
-    expect(save.content).toContain("Saved memory");
+    expect(getModuleToolNames("memory")).toEqual(["memory"]);
+    expect(
+      await executeTool("memory", {
+        action: "save",
+        content: "Use behavior-level lifecycle tests",
+      }),
+    ).toMatchObject({ content: expect.stringContaining("Saved memory") });
+    expect(
+      await executeTool("memory", { action: "search", query: "behavior" }),
+    ).toMatchObject({ content: expect.stringContaining("behavior-level") });
 
-    const search = await harness.callTool("memory", {
-      action: "search",
-      query: "vitest",
-    });
-    expect(search.is_error).toBeUndefined();
-    expect(search.content).toContain("vitest");
-  });
-
-  it("tool runner returns error for unknown action", async () => {
-    const result = await harness.callTool("memory", { action: "bogus" });
-    expect(result.is_error).toBe(true);
-  });
-
-  it("throws when calling an unregistered tool", async () => {
-    await expect(harness.callTool("nonexistent_tool", {})).rejects.toThrow(
-      "not found",
-    );
-  });
-
-  it("getDynamicState returns empty string (memory has no state provider)", () => {
-    expect(harness.getDynamicState()).toBe("");
-  });
-
-  it("teardown completes without error (no onUnload on memory module)", async () => {
-    await expect(harness.teardown()).resolves.toBeUndefined();
-  });
-});
-
-describe("memory module — multiple load/teardown cycles", () => {
-  it("can be loaded, torn down, and loaded again", async () => {
-    const harness = new ModuleTestHarness(memoryExtension);
-
-    await harness.load();
-    expect(harness.getTool("memory")).toBeDefined();
-
-    await harness.teardown();
-    await harness.load();
-    expect(harness.getTool("memory")).toBeDefined();
-
-    await harness.teardown();
+    await loader.unload("memory");
+    expect(getModuleToolNames("memory")).toEqual([]);
   });
 });
