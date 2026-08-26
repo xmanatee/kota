@@ -57,6 +57,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           scopeState.value,
           deriveDirectoryScopeId(scopeDir),
         );
+        const scopeId = deriveDirectoryScopeId(scopeDir);
         const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
           projectDir,
           stateDir,
@@ -65,6 +66,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const [inspection, progressBoundary] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
             projectDir,
+            scopeId,
             stateDir,
             nowIso: new Date().toISOString(),
             scopePolicySnapshot: scopePolicySnapshot ?? null,

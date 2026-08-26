@@ -14,6 +14,7 @@ export function rejectUnadmittedWorkflowTrigger(args: {
   const admission = args.definition.triggerAdmission?.({
     projectDir: args.projectDir,
     stateDir: args.stateDir,
+    scopeId: args.projectId,
     workflowName: args.definition.name,
     trigger: args.trigger,
     state: {

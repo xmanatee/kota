@@ -10,10 +10,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { emptyScopeImprovementState } from "../scope-improver/scope-improvement-state.js";
+import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import {
   inspectProgressSemanticBoundary,
   type ProgressBoundaryState,
 } from "./semantic-reflection.js";
+import { inspectScopeSemanticBoundary } from "./semantic-scope-reflection.js";
 
 const boundaryStates = new Map<string, ProgressBoundaryState>();
 
@@ -247,5 +251,32 @@ describe("semantic progress reflection", () => {
       shouldEmit: true,
       payload: { boundary: "strategic-completion", inputRevision: 1 },
     });
+  });
+});
+
+describe("semantic scope reflection", () => {
+  const projectDirs: string[] = [];
+
+  afterEach(() => {
+    for (const projectDir of projectDirs.splice(0)) {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("uses canonical scope identity while inspecting an isolated repository checkout", () => {
+    const canonicalDir = makeProject("canonical-scope");
+    const isolatedDir = makeProject("isolated-checkout");
+    projectDirs.push(canonicalDir, isolatedDir);
+    write(isolatedDir, "README.md", "# Isolated repository view\n");
+    commit(isolatedDir, "seed isolated checkout");
+    const scopeId = deriveDirectoryScopeId(canonicalDir);
+
+    expect(() => inspectScopeSemanticBoundary({
+      projectDir: isolatedDir,
+      scopeId,
+      stateDir: join(canonicalDir, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(canonicalDir),
+      state: emptyScopeImprovementState(scopeId),
+    })).not.toThrow();
   });
 });

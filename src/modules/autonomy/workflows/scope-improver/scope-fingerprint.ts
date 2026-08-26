@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
-import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { readScopeImprovementConfigFromStateDir } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_CONFIG_FILE,
@@ -117,12 +116,6 @@ export function computeScopeContentFingerprint(
   stateDir?: string,
 ): ScopeContentFingerprint {
   const canonicalStateDir = stateDir ?? join(projectDir, ".kota");
-  const scopeId = deriveDirectoryScopeId(projectDir);
-  if (scopePolicy.scopeId !== scopeId) {
-    throw new Error(
-      `resolved scope policy ${scopePolicy.scopeId} does not belong to ${scopeId}`,
-    );
-  }
   const guidanceRefs = listGuidanceFiles(projectDir)
     .sort((a, b) => a.localeCompare(b));
   const refs = [

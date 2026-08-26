@@ -36,14 +36,19 @@ export type DispatcherInspection = {
   scopeBoundary: ScopeBoundaryInspection;
 };
 
-export function inspectDispatcherStateInWorker(input: {
+export type DispatcherInspectionInput = {
   projectDir: string;
+  scopeId: string;
   stateDir: string;
   nowIso: string;
   scopePolicySnapshot: ScopePolicySnapshot | null;
   scopeImprovementState: ScopeImprovementState;
   securityReviewGitEvidence: SecurityReviewGitEvidence;
-}): DispatcherInspection {
+};
+
+export function inspectDispatcherStateInWorker(
+  input: DispatcherInspectionInput,
+): DispatcherInspection {
   const now = new Date(input.nowIso);
   return {
     queue: getRepoTaskQueueSnapshot(input.projectDir),
@@ -57,6 +62,8 @@ export function inspectDispatcherStateInWorker(input: {
     scopeBoundary: input.scopePolicySnapshot
       ? inspectScopeSemanticBoundary({
           projectDir: input.projectDir,
+          scopeId: input.scopeId,
+          stateDir: input.stateDir,
           scopePolicySnapshot: input.scopePolicySnapshot,
           state: input.scopeImprovementState,
         })
@@ -70,13 +77,6 @@ export function inspectDispatcherStateInWorker(input: {
 }
 
 export const dispatcherInspectionOperation = defineWorkflowBlockingOperation<
-  {
-    projectDir: string;
-    stateDir: string;
-    nowIso: string;
-    scopePolicySnapshot: ScopePolicySnapshot | null;
-    scopeImprovementState: ScopeImprovementState;
-    securityReviewGitEvidence: SecurityReviewGitEvidence;
-  },
+  DispatcherInspectionInput,
   DispatcherInspection
 >(import.meta.url, "inspectDispatcherStateInWorker");

@@ -8,6 +8,7 @@ import type {
 
 export type ProgressReviewActionOperationInput = {
   projectDir: string;
+  scopeDir: string;
   runId: string;
   evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;

@@ -86,6 +86,7 @@ function taskActionPath(actions: readonly object[]): string | null {
 
 export function writeFollowUpTask(args: {
   projectDir: string;
+  scopeDir: string;
   runId: string;
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
@@ -122,7 +123,7 @@ export function writeFollowUpTask(args: {
         existingTaskId: result.taskId,
         existingState: "ready" as const,
         existingPath: `data/tasks/ready/${result.taskId}.md`,
-        existingScopeId: deriveDirectoryScopeId(args.projectDir),
+        existingScopeId: deriveDirectoryScopeId(args.scopeDir),
       }
       : {}),
   };

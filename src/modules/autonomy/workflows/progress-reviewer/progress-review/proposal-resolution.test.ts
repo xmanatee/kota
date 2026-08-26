@@ -55,6 +55,7 @@ describe("progress-reviewer generated-work resolution", () => {
 
     const result = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "progress-review-after",
       evidence: {
         evidence: [{

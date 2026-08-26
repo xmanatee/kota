@@ -96,16 +96,15 @@ describe("scope content fingerprint", () => {
     expect(computeScopeContentFingerprint(projectDir, policy)).toEqual(compact);
   });
 
-  it("rejects a resolved policy snapshot from another scope", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-scope-fingerprint-owner-"));
-    const otherProjectDir = mkdtempSync(join(tmpdir(), "kota-scope-fingerprint-other-"));
-    projectDirs.push(projectDir, otherProjectDir);
+  it("combines an isolated repository view with canonical scope policy", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-scope-fingerprint-view-"));
+    const scopeDir = mkdtempSync(join(tmpdir(), "kota-scope-fingerprint-scope-"));
+    projectDirs.push(projectDir, scopeDir);
+    write(projectDir, "AGENTS.md", "# Isolated repository guidance\n");
+    const policy = scopePolicySnapshotForTest(scopeDir).policy;
 
-    expect(() =>
-      computeScopeContentFingerprint(
-        projectDir,
-        scopePolicySnapshotForTest(otherProjectDir).policy,
-      )
-    ).toThrow(/does not belong/);
+    expect(computeScopeContentFingerprint(projectDir, policy)).toMatchObject({
+      refs: ["AGENTS.md", `scope-policy:${deriveDirectoryScopeId(scopeDir)}`],
+    });
   });
 });

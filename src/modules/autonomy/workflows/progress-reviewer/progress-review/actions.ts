@@ -19,6 +19,7 @@ export { readTaskStatus };
 
 export function applyProgressReviewActions(args: {
   projectDir: string;
+  scopeDir: string;
   runId: string;
   evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;

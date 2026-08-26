@@ -1,5 +1,4 @@
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
-import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { ScopeImprovementRequest } from "../scope-improver/events.js";
 import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
@@ -16,13 +15,15 @@ export type ScopeBoundaryInspection = {
 
 export function inspectScopeSemanticBoundary(args: {
   projectDir: string;
+  scopeId: string;
+  stateDir: string;
   scopePolicySnapshot: ScopePolicySnapshot;
   state: ScopeImprovementState;
 }): ScopeBoundaryInspection {
-  const scopeId = deriveDirectoryScopeId(args.projectDir);
-  if (args.state.scopeId !== scopeId) {
+  if (args.state.scopeId !== args.scopeId) {
     throw new Error("scope improvement state does not belong to its runtime scope");
   }
+  const scopeId = args.scopeId;
   const state = args.state;
   const worktree = getRepoWorktreeStatus(args.projectDir);
   if (!worktree.available || worktree.dirty) {
@@ -36,6 +37,7 @@ export function inspectScopeSemanticBoundary(args: {
   const current = computeScopeContentFingerprint(
     args.projectDir,
     args.scopePolicySnapshot.policy,
+    args.stateDir,
   );
   if (!state.consumedFingerprint) {
     if (state.pendingFingerprint && state.pendingDelivery === "deferred") {

@@ -1,4 +1,3 @@
-import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   WorkflowTriggerAdmissionDecision,
   WorkflowTriggerAdmissionInput,
@@ -38,7 +37,7 @@ export function admitScopeImprovementTrigger(
       payload.deliveryAttempt! >= 0
     ? payload.deliveryAttempt!
     : 0;
-  const scopeId = deriveDirectoryScopeId(input.projectDir);
+  const scopeId = input.scopeId;
   const expected = scopeImprovementDispatchKey(
     scopeId,
     payload.fingerprint,

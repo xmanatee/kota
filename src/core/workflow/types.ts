@@ -125,6 +125,8 @@ export type WorkflowResourceResolver = (
 export type WorkflowTriggerAdmissionInput = {
   projectDir: string;
   stateDir: string;
+  /** Canonical scope identity resolved by the queue before repository isolation. */
+  scopeId: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;
   state: Pick<TransactionalRunState, "read">;

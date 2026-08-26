@@ -148,6 +148,7 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
     const evidence = readProgressReviewEvidencePacket(ctx);
     return ctx.runBlocking(progressReviewActionOperation, {
       projectDir: ctx.projectDir,
+      scopeDir: ctx.scopeDir,
       runId: ctx.workflow.runId,
       evidence,
       review: decodeProgressReviewAgentOutputForEvidence(

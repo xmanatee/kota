@@ -65,6 +65,7 @@ describe("progress and calibration blocking operations", () => {
       commitFixture(projectDir);
       const input: ProgressReviewActionOperationInput = {
         projectDir,
+        scopeDir: projectDir,
         runId: "progress-worker-boundary",
         evidence: {
           evidence: [

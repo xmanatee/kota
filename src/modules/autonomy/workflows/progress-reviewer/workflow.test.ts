@@ -916,6 +916,7 @@ describe("progress-reviewer workflow", () => {
 
     const created = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "task-disposition-run",
       evidence,
       review: reviewOutput({
@@ -930,6 +931,7 @@ describe("progress-reviewer workflow", () => {
 
     const changed = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "question-disposition-run",
       evidence,
       review: reviewOutput({
@@ -1574,6 +1576,7 @@ describe("progress-reviewer workflow", () => {
 
     const actionResult = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -1663,6 +1666,7 @@ describe("progress-reviewer workflow", () => {
 
     const actionResult = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -1768,6 +1772,7 @@ describe("progress-reviewer workflow", () => {
 
     const actionResult = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -2882,6 +2887,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = applyProgressReviewActions({
       projectDir,
+      scopeDir: projectDir,
       runId: "inbox-dedupe-run",
       evidence: collectProgressReviewEvidence({
         projectDir,
@@ -2938,6 +2944,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = applyProgressReviewActions({
       projectDir: projectA,
+      scopeDir: projectA,
       runId: "global-dedupe-run",
       evidence,
       review: reviewOutput({

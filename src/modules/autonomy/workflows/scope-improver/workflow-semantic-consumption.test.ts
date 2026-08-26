@@ -33,6 +33,19 @@ describe("scope-improver semantic consumption", () => {
     return projectDir;
   }
 
+  function inspect(
+    projectDir: string,
+    state: Parameters<typeof inspectScopeSemanticBoundary>[0]["state"],
+  ) {
+    return inspectScopeSemanticBoundary({
+      projectDir,
+      scopeId: deriveDirectoryScopeId(projectDir),
+      stateDir: join(projectDir, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      state,
+    });
+  }
+
   it("reserves one later review only after durable guidance changes", () => {
     const projectDir = track("policy-change");
     const scopeId = deriveDirectoryScopeId(projectDir);
@@ -45,11 +58,7 @@ describe("scope-improver semantic consumption", () => {
       lastRunAt: SCOPE_TEST_NOW.toISOString(),
       consumedFingerprint: first.fingerprint,
     };
-    expect(inspectScopeSemanticBoundary({
-      projectDir,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      state: consumed,
-    }).shouldEmit).toBe(false);
+    expect(inspect(projectDir, consumed).shouldEmit).toBe(false);
 
     writeFileSync(join(projectDir, "AGENTS.md"), "# Scope\n\n- Preserve owner policy.\n");
     runScopeFixtureGit(projectDir, ["add", "AGENTS.md"]);
@@ -65,11 +74,7 @@ describe("scope-improver semantic consumption", () => {
       "change scope guidance",
     ]);
 
-    const boundary = inspectScopeSemanticBoundary({
-      projectDir,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      state: consumed,
-    });
+    const boundary = inspect(projectDir, consumed);
     expect(boundary).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "content-policy-changed", automatic: true },
@@ -151,11 +156,7 @@ describe("scope-improver semantic consumption", () => {
       pendingDeliveryAttempt: 1,
     });
 
-    const resumed = inspectScopeSemanticBoundary({
-      projectDir,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      state: deferred,
-    });
+    const resumed = inspect(projectDir, deferred);
     expect(resumed).toMatchObject({
       shouldEmit: true,
       payload: {
