@@ -22,9 +22,9 @@ struct KnowledgeBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.knowledgeError {
+            if let err = appState.content.knowledgeError {
                 KnowledgeErrorView(message: err)
-            } else if appState.isLoadingKnowledge && appState.knowledgeResult == nil {
+            } else if appState.content.isLoadingKnowledge && appState.content.knowledgeResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Searching…")
@@ -36,7 +36,7 @@ struct KnowledgeBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.knowledgeResult {
+            } else if let result = appState.content.knowledgeResult {
                 switch result {
                 case .success(let entries):
                     if entries.isEmpty {
@@ -67,7 +67,7 @@ struct KnowledgeBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -88,7 +88,7 @@ struct KnowledgeErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingKnowledge)
+            .disabled(appState.content.isLoadingKnowledge)
         }
     }
 }

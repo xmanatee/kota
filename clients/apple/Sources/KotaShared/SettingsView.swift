@@ -16,11 +16,11 @@ public struct MenuBarLabel: View {
 
     public var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: appState.health.systemImageName)
+            Image(systemName: appState.connection.health.systemImageName)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(iconColor)
-            if appState.pendingApprovals.count > 0 {
-                Text("\(appState.pendingApprovals.count)")
+            if appState.activity.pendingApprovals.count > 0 {
+                Text("\(appState.activity.pendingApprovals.count)")
                     .font(.caption2.bold())
                     .foregroundStyle(.red)
             }
@@ -28,7 +28,7 @@ public struct MenuBarLabel: View {
     }
 
     var iconColor: Color {
-        switch appState.health {
+        switch appState.connection.health {
         case .idle: return .green
         case .running, .paused: return .orange
         case .error: return .red

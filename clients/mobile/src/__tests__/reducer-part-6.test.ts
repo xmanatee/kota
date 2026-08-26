@@ -81,8 +81,8 @@ describe('reducer', () => {
       append: true,
       hasMore: false,
     });
-    expect(next.answerLogEntries.map((e) => e.id)).toEqual(['r-1', 'r-2']);
-    expect(next.answerLogHasMore).toBe(false);
+    expect(next.content.answerLogEntries.map((e) => e.id)).toEqual(['r-1', 'r-2']);
+    expect(next.content.answerLogHasMore).toBe(false);
   });
 
   test('ANSWER_LOG_ERROR records the error without dropping accumulated entries', () => {
@@ -104,9 +104,9 @@ describe('reducer', () => {
       type: 'ANSWER_LOG_ERROR',
       error: '503',
     });
-    expect(next.answerLogError).toBe('503');
-    expect(next.answerLogLoading).toBe(false);
-    expect(next.answerLogEntries).toEqual(first);
+    expect(next.content.answerLogError).toBe('503');
+    expect(next.content.answerLogLoading).toBe(false);
+    expect(next.content.answerLogEntries).toEqual(first);
   });
 
   test('ANSWER_SHOW_LOADING clears prior record and missing flag', () => {
@@ -132,15 +132,15 @@ describe('reducer', () => {
       type: 'ANSWER_SHOW_RESULT',
       record,
     });
-    expect(seeded.answerShowRecord).toBe(record);
+    expect(seeded.content.answerShowRecord).toBe(record);
     const next = reducer(seeded, {
       type: 'ANSWER_SHOW_LOADING',
       id: 'r-2',
     });
-    expect(next.answerShowLoading).toBe(true);
-    expect(next.answerShowRecord).toBeNull();
-    expect(next.answerShowMissing).toBe(false);
-    expect(next.answerShowError).toBeNull();
+    expect(next.content.answerShowLoading).toBe(true);
+    expect(next.content.answerShowRecord).toBeNull();
+    expect(next.content.answerShowMissing).toBe(false);
+    expect(next.content.answerShowError).toBeNull();
   });
 
   test('ANSWER_SHOW_RESULT preserves the four AnswerResult arms verbatim', () => {
@@ -181,19 +181,19 @@ describe('reducer', () => {
         type: 'ANSWER_SHOW_RESULT',
         record,
       });
-      expect(next.answerShowRecord).toBe(record);
-      expect(next.answerShowMissing).toBe(false);
-      expect(next.answerShowLoading).toBe(false);
-      expect(next.answerShowError).toBeNull();
+      expect(next.content.answerShowRecord).toBe(record);
+      expect(next.content.answerShowMissing).toBe(false);
+      expect(next.content.answerShowLoading).toBe(false);
+      expect(next.content.answerShowError).toBeNull();
     }
   });
 
   test('ANSWER_SHOW_NOT_FOUND surfaces the missing-id arm without a record', () => {
     const next = reducer(initialState, { type: 'ANSWER_SHOW_NOT_FOUND' });
-    expect(next.answerShowMissing).toBe(true);
-    expect(next.answerShowRecord).toBeNull();
-    expect(next.answerShowLoading).toBe(false);
-    expect(next.answerShowError).toBeNull();
+    expect(next.content.answerShowMissing).toBe(true);
+    expect(next.content.answerShowRecord).toBeNull();
+    expect(next.content.answerShowLoading).toBe(false);
+    expect(next.content.answerShowError).toBeNull();
   });
 
   test('ANSWER_SHOW_ERROR clears stale record and missing flag', () => {
@@ -214,10 +214,10 @@ describe('reducer', () => {
       type: 'ANSWER_SHOW_ERROR',
       error: '503',
     });
-    expect(next.answerShowError).toBe('503');
-    expect(next.answerShowLoading).toBe(false);
-    expect(next.answerShowRecord).toBeNull();
-    expect(next.answerShowMissing).toBe(false);
+    expect(next.content.answerShowError).toBe('503');
+    expect(next.content.answerShowLoading).toBe(false);
+    expect(next.content.answerShowRecord).toBeNull();
+    expect(next.content.answerShowMissing).toBe(false);
   });
 
   test('ANSWER_SHOW_CLOSE clears the show view back to idle', () => {
@@ -235,10 +235,10 @@ describe('reducer', () => {
       record,
     });
     const next = reducer(seeded, { type: 'ANSWER_SHOW_CLOSE' });
-    expect(next.answerShowRecord).toBeNull();
-    expect(next.answerShowMissing).toBe(false);
-    expect(next.answerShowLoading).toBe(false);
-    expect(next.answerShowError).toBeNull();
+    expect(next.content.answerShowRecord).toBeNull();
+    expect(next.content.answerShowMissing).toBe(false);
+    expect(next.content.answerShowLoading).toBe(false);
+    expect(next.content.answerShowError).toBeNull();
   });
 
   test('ONLINE false drops cached answer-log entries and answer-show record', () => {
@@ -266,8 +266,8 @@ describe('reducer', () => {
     });
     s = reducer(s, { type: 'ANSWER_SHOW_RESULT', record });
     s = reducer(s, { type: 'ONLINE', online: false });
-    expect(s.answerLogEntries).toEqual([]);
-    expect(s.answerLogHasMore).toBe(false);
-    expect(s.answerShowRecord).toBeNull();
-    expect(s.answerShowMissing).toBe(false);
+    expect(s.content.answerLogEntries).toEqual([]);
+    expect(s.content.answerLogHasMore).toBe(false);
+    expect(s.content.answerShowRecord).toBeNull();
+    expect(s.content.answerShowMissing).toBe(false);
   });});

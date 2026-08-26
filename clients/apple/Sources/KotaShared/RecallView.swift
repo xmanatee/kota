@@ -30,9 +30,9 @@ struct RecallBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.recallError {
+            if let err = appState.content.recallError {
                 RecallErrorView(message: err)
-            } else if appState.isLoadingRecall && appState.recallResult == nil {
+            } else if appState.content.isLoadingRecall && appState.content.recallResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Searching…")
@@ -44,7 +44,7 @@ struct RecallBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.recallResult {
+            } else if let result = appState.content.recallResult {
                 switch result {
                 case .success(let hits):
                     if hits.isEmpty {
@@ -71,7 +71,7 @@ struct RecallBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.recallQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.recallQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -156,7 +156,7 @@ struct RecallErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingRecall)
+            .disabled(appState.content.isLoadingRecall)
         }
     }
 }

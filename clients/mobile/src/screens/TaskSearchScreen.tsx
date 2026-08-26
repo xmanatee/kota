@@ -19,7 +19,8 @@ const EMPTY_QUERY_HINT = 'Type a query and tap Search to query tasks.';
 
 export function TaskSearchScreen() {
   const { state, setTasksQuery, searchTasks } = useDaemon();
-  const { online, tasksQuery, tasksResult, tasksLoading, tasksError } = state;
+  const { online } = state.connection;
+  const { tasksQuery, tasksResult, tasksLoading, tasksError } = state.content;
 
   const trimmed = tasksQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -29,7 +30,7 @@ export function TaskSearchScreen() {
     void searchTasks(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -37,7 +38,7 @@ export function TaskSearchScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -142,7 +143,7 @@ export function TaskSearchScreen() {
 function TasksBody({
   result,
 }: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['tasksResult']>;
+  result: NonNullable<ReturnType<typeof useDaemon>['state']['content']['tasksResult']>;
 }) {
   if (result.ok === false) {
     return (
@@ -166,7 +167,7 @@ function TasksBody({
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['tasksResult'],
+  result: ReturnType<typeof useDaemon>['state']['content']['tasksResult'],
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {

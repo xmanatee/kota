@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { StatusScreen } from '../screens/StatusScreen';
 import type { DaemonStatus } from '../types';
 
@@ -10,7 +11,22 @@ jest.mock('../context/DaemonContext', () => ({
 }));
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+      sseConnected: state.sseConnected,
+    },
+    activity: {
+      ...initialState.activity,
+      status: state.status,
+    },
+  };
 }
 
 function defaultState() {
@@ -35,12 +51,6 @@ function defaultState() {
     online: true,
     sseConnected: true,
     status,
-    runs: [],
-    approvals: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
   };
 }
 

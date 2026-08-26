@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { TaskSearchScreen } from '../screens/TaskSearchScreen';
 import { renderRepoTaskSearchPlain } from '../tasksRender';
 import type { TasksSearchResponse } from '../types';
@@ -16,34 +17,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
-    historyQuery: '',
-    historyResult: null,
-    historyLoading: false,
-    historyError: null,
     tasksQuery: '',
     tasksResult: null as TasksSearchResponse | null,
     tasksLoading: false,
@@ -52,7 +25,24 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      tasksQuery: state.tasksQuery,
+      tasksResult: state.tasksResult,
+      tasksLoading: state.tasksLoading,
+      tasksError: state.tasksError,
+    },
+  };
 }
 
 function mockDaemon(

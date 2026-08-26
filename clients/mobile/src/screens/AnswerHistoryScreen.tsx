@@ -33,23 +33,23 @@ export function AnswerHistoryScreen() {
   const [view, setView] = useState<Mode>({ mode: 'log' });
 
   useEffect(() => {
-    if (!state.online) return;
+    if (!state.connection.online) return;
     if (
-      state.answerLogEntries.length === 0 &&
-      !state.answerLogLoading &&
-      state.answerLogError === null
+      state.content.answerLogEntries.length === 0 &&
+      !state.content.answerLogLoading &&
+      state.content.answerLogError === null
     ) {
       void loadAnswerLog();
     }
   }, [
-    state.online,
-    state.answerLogEntries.length,
-    state.answerLogLoading,
-    state.answerLogError,
+    state.connection.online,
+    state.content.answerLogEntries.length,
+    state.content.answerLogLoading,
+    state.content.answerLogError,
     loadAnswerLog,
   ]);
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -57,7 +57,7 @@ export function AnswerHistoryScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -98,13 +98,13 @@ function LogView({
   onLoadOlder: () => Promise<void>;
 }) {
   const { state } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     answerLogEntries,
     answerLogLoading,
     answerLogError,
     answerLogHasMore,
-  } = state;
+  } = state.content;
 
   return (
     <ScrollView
@@ -229,7 +229,7 @@ function ShowView({ onBack }: { onBack: () => void }) {
     answerShowMissing,
     answerShowLoading,
     answerShowError,
-  } = state;
+  } = state.content;
 
   return (
     <ScrollView

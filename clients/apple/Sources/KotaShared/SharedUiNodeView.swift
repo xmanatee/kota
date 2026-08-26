@@ -107,14 +107,14 @@ struct SharedUiNodeView: View {
             case .logStream(let entries, let source, let streamId, let title):
                 SharedUiNodeSection(title: title) {
                     HStack(spacing: 5) {
-                        Image(systemName: appState.uiSurfaceEventsConnected ? "dot.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
-                        Text(appState.uiSurfaceEventsConnected ? "Live from \(source.path)" : "Polling · \(source.path)")
+                        Image(systemName: appState.sharedUi.eventsConnected ? "dot.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
+                        Text(appState.sharedUi.eventsConnected ? "Live from \(source.path)" : "Polling · \(source.path)")
                         Text(source.eventTypes.joined(separator: ", "))
                             .lineLimit(1)
                     }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    SharedUiLogEntriesView(entries: entries + (appState.liveUiLogEntries[streamId] ?? []))
+                    SharedUiLogEntriesView(entries: entries + (appState.sharedUi.liveLogEntries[streamId] ?? []))
                 }
             case .form(let fields, let submit, let title):
                 SharedUiNodeSection(title: title) {

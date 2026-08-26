@@ -23,13 +23,13 @@ export function HistoryScreen() {
     setHistoryQuery,
     searchHistory,
   } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     historyQuery,
     historyResult,
     historyLoading,
     historyError,
-  } = state;
+  } = state.content;
 
   const trimmed = historyQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -39,7 +39,7 @@ export function HistoryScreen() {
     void searchHistory(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -47,7 +47,7 @@ export function HistoryScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -157,7 +157,7 @@ export function HistoryScreen() {
 function HistoryBody({
   result,
 }: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['historyResult']>;
+  result: NonNullable<ReturnType<typeof useDaemon>['state']['content']['historyResult']>;
 }) {
   if (result.ok === false) {
     return (
@@ -183,7 +183,7 @@ function HistoryBody({
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['historyResult'],
+  result: ReturnType<typeof useDaemon>['state']['content']['historyResult'],
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {

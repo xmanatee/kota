@@ -1,4 +1,5 @@
 import { DaemonClient } from '../daemonClient';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
 
@@ -46,7 +47,9 @@ describe('DaemonClient', () => {
         record: { target: 'rumor', recordId: 'r-1' },
       }),
     );
-    await expect(client().capture('x')).rejects.toThrow(/unknown target/i);
+    await expect(client().capture('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('capture rejects an unknown contributor_failed target loudly', async () => {
@@ -58,7 +61,9 @@ describe('DaemonClient', () => {
         message: 'boom',
       }),
     );
-    await expect(client().capture('x')).rejects.toThrow(/unknown target/i);
+    await expect(client().capture('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('capture surfaces the daemon HTTP error one-to-one', async () => {
@@ -178,7 +183,7 @@ describe('DaemonClient', () => {
     );
     await expect(
       client().retract({ target: 'memory', id: 'mem-7' }),
-    ).rejects.toThrow(/mystery/);
+    ).rejects.toBeInstanceOf(ContractDecodeError);
   });
 
   test('retract rejects an unknown target on a success record loudly', async () => {
@@ -190,7 +195,7 @@ describe('DaemonClient', () => {
     );
     await expect(
       client().retract({ target: 'memory', id: 'mem-7' }),
-    ).rejects.toThrow(/unknown target/i);
+    ).rejects.toBeInstanceOf(ContractDecodeError);
   });
 
   test('retract rejects a tasks success record missing previousPath loudly', async () => {
@@ -207,7 +212,7 @@ describe('DaemonClient', () => {
     );
     await expect(
       client().retract({ target: 'tasks', id: 'task-foo' }),
-    ).rejects.toThrow(/previousPath/i);
+    ).rejects.toBeInstanceOf(ContractDecodeError);
   });
 
   test('retract rejects a tasks success record with a non-dropped toState loudly', async () => {
@@ -225,7 +230,7 @@ describe('DaemonClient', () => {
     );
     await expect(
       client().retract({ target: 'tasks', id: 'task-foo' }),
-    ).rejects.toThrow(/toState/i);
+    ).rejects.toBeInstanceOf(ContractDecodeError);
   });
 
   test('retract rejects a not_found target outside the closed enum loudly', async () => {
@@ -239,7 +244,7 @@ describe('DaemonClient', () => {
     );
     await expect(
       client().retract({ target: 'memory', id: 'mem-missing' }),
-    ).rejects.toThrow(/unknown target/i);
+    ).rejects.toBeInstanceOf(ContractDecodeError);
   });
 
   test('retract surfaces the daemon HTTP error one-to-one', async () => {

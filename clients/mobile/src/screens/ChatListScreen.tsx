@@ -42,7 +42,7 @@ export function ChatListScreen({
   const [newSessionMode, setNewSessionMode] =
     useState<AutonomyMode>('supervised');
 
-  const scopeId = state.activeScopeId ?? undefined;
+  const scopeId = state.scope.activeScopeId ?? undefined;
 
   const fetchSessions = useCallback(async () => {
     if (!client) return;
@@ -58,8 +58,8 @@ export function ChatListScreen({
   }, [client, scopeId]);
 
   useEffect(() => {
-    if (state.online) void fetchSessions();
-  }, [state.online, fetchSessions]);
+    if (state.connection.online) void fetchSessions();
+  }, [state.connection.online, fetchSessions]);
 
   async function handleNewSession() {
     if (!client || creating) return;
@@ -86,7 +86,7 @@ export function ChatListScreen({
     }
   }
 
-  if (!state.online) {
+  if (!state.connection.online) {
     return (
       <View style={styles.center}>
         <Text style={styles.offlineIcon}>💬</Text>

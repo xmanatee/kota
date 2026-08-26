@@ -3,7 +3,10 @@ import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { SemanticRole } from "#modules/rendering/primitives.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type {
+  KotaClientPort,
+  ScopedKotaClientPort,
+} from "#root/client/kota-client.generated.js";
 import { gatherStatus, type StatusSnapshot } from "./status-cli.js";
 
 export type OperatorInboxKind =
@@ -133,7 +136,7 @@ function extractUnblockKind(content: string): string {
 }
 
 async function blockedTaskItems(
-  client: KotaClient,
+  client: KotaClientPort<"tasks">,
   limit: number,
 ): Promise<OperatorInboxItem[]> {
   const result = await client.tasks.list(["blocked"]);
@@ -190,7 +193,9 @@ function failedRunItem(run: WorkflowRunSummary): OperatorInboxItem {
 }
 
 export async function buildOperatorInboxSnapshot(args: {
-  client: KotaClient;
+  client: ScopedKotaClientPort<
+    "approvals" | "ownerQuestions" | "setup" | "tasks" | "workflow"
+  >;
   scopeRoot: string;
   scopeId?: string;
   limit?: number;

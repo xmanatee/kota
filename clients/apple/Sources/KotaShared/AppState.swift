@@ -97,112 +97,10 @@ public enum DaemonConnectionMode {
 
 @MainActor
 public final class AppState: ObservableObject {
-    @Published var health: DaemonHealth = .unknown
-    @Published var activeRuns: [ActiveRun] = []
-    @Published var pendingApprovals: [ApprovalRequest] = []
-    @Published var pendingOwnerQuestions: [OwnerQuestion] = []
-    @Published var taskQueue: TaskQueueResponse?
-    @Published var activeSessions: [SessionSummary] = []
-    @Published var recentRuns: [RunSummary] = []
-    @Published var digest: DigestResponse?
-    @Published var digestError: String?
-    @Published var isLoadingDigest: Bool = false
-    @Published var attention: AttentionResponse?
-    @Published var attentionError: String?
-    @Published var isLoadingAttention: Bool = false
-    @Published var knowledgeQuery: String = ""
-    @Published var knowledgeResult: KnowledgeSearchResponse?
-    @Published var knowledgeError: String?
-    @Published var isLoadingKnowledge: Bool = false
-    @Published var memoryQuery: String = ""
-    @Published var memoryResult: MemorySearchResponse?
-    @Published var memoryError: String?
-    @Published var isLoadingMemory: Bool = false
-    @Published var historyQuery: String = ""
-    @Published var historyResult: HistorySearchResponse?
-    @Published var historyError: String?
-    @Published var isLoadingHistory: Bool = false
-    @Published var tasksQuery: String = ""
-    @Published var tasksResult: TasksSearchResponse?
-    @Published var tasksError: String?
-    @Published var isLoadingTasksSearch: Bool = false
-    @Published var recallQuery: String = ""
-    @Published var recallResult: RecallSearchResponse?
-    @Published var recallError: String?
-    @Published var isLoadingRecall: Bool = false
-    @Published var answerQuery: String = ""
-    @Published var answerResult: AnswerResult?
-    @Published var answerError: String?
-    @Published var isLoadingAnswer: Bool = false
-    @Published var answerLogEntries: [AnswerHistoryEntry] = []
-    @Published var answerLogError: String?
-    @Published var isLoadingAnswerLog: Bool = false
-    @Published var answerLogHasMore: Bool = false
-    @Published var answerShowOpenId: String?
-    @Published var answerShowRecord: AnswerHistoryRecord?
-    @Published var answerShowMissing: Bool = false
-    @Published var answerShowError: String?
-    @Published var isLoadingAnswerShow: Bool = false
-    @Published var captureDraft: String = ""
-    @Published var captureTarget: CaptureTargetChoice = .auto
-    @Published var captureHint: String = ""
-    @Published var captureResult: CaptureResult?
-    @Published var captureError: String?
-    @Published var isLoadingCapture: Bool = false
-    @Published var retractTarget: RetractTarget = .memory {
-        didSet {
-            guard retractTarget != oldValue else { return }
-            retractIdentifier = ""
-            retractConfirmed = false
-            retractResult = nil
-            retractError = nil
-        }
-    }
-    @Published var retractIdentifier: String = "" {
-        didSet {
-            guard retractIdentifier != oldValue else { return }
-            if retractConfirmed { retractConfirmed = false }
-        }
-    }
-    @Published var retractResult: RetractResult?
-    @Published var retractError: String?
-    @Published var isLoadingRetract: Bool = false
-    @Published var retractConfirmed: Bool = false
-
-    // Thin-client contract surfaces. `identity` and `capabilities` populate
-    // on every successful refresh so the UI can hide controls whose
-    // capability is `unavailable` (dashboard, semantic search) and label
-    // identity-aware status text without UserDefaults guessing. `workflowDefinitions`
-    // backs the workflow trigger picker so the operator never types free
-    // text. Each surface is `nil` when the daemon is unreachable.
-    @Published var identity: ClientIdentity?
-    @Published var capabilities: CapabilityReadinessResponse?
-    @Published var workflowDefinitions: [WorkflowDefinitionSummary] = []
-
-    // Canonical daemon-owned operator UI. Both Apple shells render this exact
-    // generated bundle; capability-specific view state above remains available
-    // to legacy leaf views but no longer defines the production inventory.
-    @Published var uiSurfaceBundle: UiSurfaceBundle?
-    @Published var uiSurfaceError: String?
-    @Published var isLoadingUiSurfaces = false
-    @Published var uiSurfaceEventsConnected = false
-    @Published var liveUiLogEntries: [String: [UiLogEntry]] = [:]
-
-    /// Active directory scope used to qualify every scope-aware daemon route
-    /// (`/status`, `/workflow/runs`, `/workflow/trigger`, `/sessions`,
-    /// …). `nil` until the first identity refresh resolves the registry's
-    /// default. Reseeds to `identity.scopeRegistry.defaultScopeId` if the
-    /// current selection is no longer in the registry, matching the web
-    /// `ScopeProvider` behavior. Operator-driven switches go through
-    /// `setActiveScopeId(_:)`.
-    @Published public private(set) var activeScopeId: String?
-
-    /// Operator-facing classification of the current connection. Replaces
-    /// the historical "Daemon offline" collapse with a discriminated state
-    /// that names which scope, base URL, pid, and failure mode the menu
-    /// bar should render. Updated on every refresh — see
-    /// `deriveLocalDaemonDiagnostic` / `deriveRemoteDaemonDiagnostic`.
-    @Published var diagnostic: DaemonConnectionDiagnostic = .noScope
+    @Published var connection = ConnectionDomainState()
+    @Published var activity = ActivityDomainState()
+    @Published var content = ContentDomainState()
+    @Published var sharedUi = SharedUiDomainState()
 
     @Published var scopeRoot: URL? {
         didSet {
@@ -234,6 +132,8 @@ public final class AppState: ObservableObject {
     private var uiSurfaceEventTask: Task<Void, Never>?
     private var uiSurfaceSubscriptionKey = ""
     private let liveUiUpdatesEnabled: Bool
+    private var refreshGeneration = 0
+    private var scopeGeneration = 0
 
     private var knownFailedRunIDs: Set<String> = []
     private var knownApprovalIDs: Set<String> = []
@@ -275,18 +175,19 @@ public final class AppState: ObservableObject {
     /// "Open Dashboard" action when this is false so the operator never
     /// chases a broken `localhost:3000` URL.
     var isDashboardAvailable: Bool {
-        identity?.dashboard.isAvailable ?? false
+        connection.identity?.dashboard.isAvailable ?? false
     }
 
     var isWorkflowDispatchPaused: Bool {
-        health.isDispatchPaused
+        connection.health.isDispatchPaused
     }
 
     /// Dashboard URL the operator should open. Returns nil when the
     /// daemon does not advertise a ready dashboard capability — the UI
     /// must hide the action in that case rather than constructing a URL.
     var webUIURL: URL? {
-        guard let identity, case .available(let path) = identity.dashboard else {
+        guard let identity = connection.identity,
+              case .available(let path) = identity.dashboard else {
             return nil
         }
         if !remoteURL.isEmpty, let base = URL(string: remoteURL) {
@@ -336,21 +237,21 @@ public final class AppState: ObservableObject {
 
     private func refreshRemote() async {
         guard let url = URL(string: remoteURL), url.scheme != nil, url.host != nil else {
-            health = .error("Invalid remote URL")
-            diagnostic = .remoteInvalidURL(input: remoteURL)
+            connection.health = .error("Invalid remote URL")
+            connection.diagnostic = .remoteInvalidURL(input: remoteURL)
             clearOnDemandForOffline()
-            identity = nil
-            capabilities = nil
-            workflowDefinitions = []
-            uiSurfaceBundle = nil
-            uiSurfaceError = "Invalid remote URL"
+            connection.identity = nil
+            connection.capabilities = nil
+            activity.workflowDefinitions = []
+            sharedUi.bundle = nil
+            sharedUi.error = "Invalid remote URL"
             stopUiSurfaceEventStream()
             return
         }
         let token = keychainRead() ?? ""
         client.setRemoteConnection(url: url, token: token)
         await fetchAll()
-        diagnostic = deriveRemoteDaemonDiagnostic(
+        connection.diagnostic = deriveRemoteDaemonDiagnostic(
             remoteURL: remoteURL,
             identityProbe: lastIdentityProbe
         )
@@ -358,8 +259,8 @@ public final class AppState: ObservableObject {
 
     private func refreshLocal() async {
         guard let dir = scopeRoot else {
-            health = .offline
-            diagnostic = .noScope
+            connection.health = .offline
+            connection.diagnostic = .noScope
             resetOfflineDaemonState()
             return
         }
@@ -367,8 +268,8 @@ public final class AppState: ObservableObject {
         let controlFileState = classifyDaemonControlFile(scopeRoot: dir)
         switch controlFileState {
         case .missing, .unreadable, .stale:
-            health = .offline
-            diagnostic = deriveLocalDaemonDiagnostic(
+            connection.health = .offline
+            connection.diagnostic = deriveLocalDaemonDiagnostic(
                 selectedScopeRoot: dir,
                 controlFileState: controlFileState,
                 identityProbe: nil
@@ -384,8 +285,8 @@ public final class AppState: ObservableObject {
             // The control file went away (or became unreadable) between the
             // classification above and the connection refresh — fall through
             // to the same offline rendering instead of pretending we tried.
-            health = .offline
-            diagnostic = deriveLocalDaemonDiagnostic(
+            connection.health = .offline
+            connection.diagnostic = deriveLocalDaemonDiagnostic(
                 selectedScopeRoot: dir,
                 controlFileState: classifyDaemonControlFile(scopeRoot: dir),
                 identityProbe: nil
@@ -395,7 +296,7 @@ public final class AppState: ObservableObject {
         }
 
         await fetchAll()
-        diagnostic = deriveLocalDaemonDiagnostic(
+        connection.diagnostic = deriveLocalDaemonDiagnostic(
             selectedScopeRoot: dir,
             controlFileState: controlFileState,
             identityProbe: lastIdentityProbe
@@ -403,33 +304,25 @@ public final class AppState: ObservableObject {
     }
 
     private func resetOfflineDaemonState() {
-        activeRuns = []
-        pendingApprovals = []
-        pendingOwnerQuestions = []
-        taskQueue = nil
-        activeSessions = []
-        recentRuns = []
-        identity = nil
-        capabilities = nil
-        workflowDefinitions = []
-        uiSurfaceBundle = nil
-        uiSurfaceError = nil
-        isLoadingUiSurfaces = false
-        liveUiLogEntries = [:]
+        refreshGeneration += 1
+        scopeGeneration += 1
+        activity.clear()
+        connection.identity = nil
+        connection.capabilities = nil
+        sharedUi.clear()
         stopUiSurfaceEventStream()
-        activeScopeId = nil
+        connection.activeScopeId = nil
         lastIdentityProbe = nil
         clearOnDemandForOffline()
     }
 
     /// Switch the active directory scope. The selector only passes ids backed
     /// by a directory, so an unknown or non-directory id is a programming
-    /// only ever pass a known id, so an unknown id is a programming
     /// error, not a runtime fallback. Switching clears scope-bound
     /// runtime state immediately so a stale row can never paint the
     /// new scope's view, then triggers an immediate refresh.
     public func setActiveScopeId(_ scopeId: String) {
-        guard let identity,
+        guard let identity = connection.identity,
               identity.scopeRegistry.scopes.contains(where: {
                   $0.scopeId == scopeId && $0.directoryRoot != nil
               })
@@ -437,267 +330,224 @@ public final class AppState: ObservableObject {
             assertionFailure("setActiveScopeId(\(scopeId)): not a directory-backed scope")
             return
         }
-        guard scopeId != activeScopeId else { return }
-        activeScopeId = scopeId
-        activeRuns = []
-        pendingApprovals = []
-        pendingOwnerQuestions = []
-        taskQueue = nil
-        activeSessions = []
-        recentRuns = []
-        uiSurfaceBundle = nil
-        uiSurfaceError = nil
-        liveUiLogEntries = [:]
+        guard scopeId != connection.activeScopeId else { return }
+        refreshGeneration += 1
+        scopeGeneration += 1
+        connection.activeScopeId = scopeId
+        activity.clearScopeOwned()
+        content.clearLiveResults()
+        sharedUi.clear()
         stopUiSurfaceEventStream()
         Task { await refresh() }
     }
 
-    /// Drops any cached on-demand body (digest, attention) when the daemon
+    /// Drops any cached on-demand body (content.digest, content.attention) when the daemon
     /// transitions offline so a stale rollup never paints over a disconnected
     /// state. These bodies are only loaded explicitly, so the next load
     /// happens once the daemon is reachable again.
     private func clearOnDemandForOffline() {
-        digest = nil
-        digestError = nil
-        isLoadingDigest = false
-        attention = nil
-        attentionError = nil
-        isLoadingAttention = false
-        knowledgeResult = nil
-        knowledgeError = nil
-        isLoadingKnowledge = false
-        memoryResult = nil
-        memoryError = nil
-        isLoadingMemory = false
-        historyResult = nil
-        historyError = nil
-        isLoadingHistory = false
-        tasksResult = nil
-        tasksError = nil
-        isLoadingTasksSearch = false
-        recallResult = nil
-        recallError = nil
-        isLoadingRecall = false
-        answerResult = nil
-        answerError = nil
-        isLoadingAnswer = false
-        answerLogEntries = []
-        answerLogError = nil
-        isLoadingAnswerLog = false
-        answerLogHasMore = false
-        answerShowOpenId = nil
-        answerShowRecord = nil
-        answerShowMissing = false
-        answerShowError = nil
-        isLoadingAnswerShow = false
-        captureResult = nil
-        captureError = nil
-        isLoadingCapture = false
-        retractResult = nil
-        retractError = nil
-        isLoadingRetract = false
-        retractConfirmed = false
+        content.clearLiveResults()
     }
 
     /// Pulls the on-demand 24h rollup from `/api/digest`. Errors land in
-    /// `digestError` so the view can surface the daemon's typed failure
+    /// `content.digestError` so the view can surface the daemon's typed failure
     /// without preserving a stale body.
     func loadDigest() async {
-        isLoadingDigest = true
-        digestError = nil
+        content.isLoadingDigest = true
+        content.digestError = nil
         do {
-            digest = try await client.fetchDigest()
+            content.digest = try await client.fetchDigest()
         } catch {
-            digest = nil
-            digestError = DaemonErrorPresenter.message(for: error)
+            content.digest = nil
+            content.digestError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingDigest = false
+        content.isLoadingDigest = false
     }
 
     /// Pulls the on-demand attention rollup from `/api/attention`. Mirrors
-    /// `loadDigest`: failures land in `attentionError` rather than silently
-    /// folding back to the digest body.
+    /// `loadDigest`: failures land in `content.attentionError` rather than silently
+    /// folding back to the content.digest body.
     func loadAttention() async {
-        isLoadingAttention = true
-        attentionError = nil
+        content.isLoadingAttention = true
+        content.attentionError = nil
         do {
-            attention = try await client.fetchAttention()
+            content.attention = try await client.fetchAttention()
         } catch {
-            attention = nil
-            attentionError = DaemonErrorPresenter.message(for: error)
+            content.attention = nil
+            content.attentionError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingAttention = false
+        content.isLoadingAttention = false
     }
 
     /// Pulls semantic knowledge search results from `/api/knowledge/search`.
     /// Empty / whitespace-only queries clear any prior result and skip the
     /// request — the view surfaces the inline usage hint instead. Failures
-    /// land in `knowledgeError`; the typed `semanticUnavailable` branch lands
-    /// in `knowledgeResult` so the view renders the daemon's explanation
+    /// land in `content.knowledgeError`; the typed `semanticUnavailable` branch lands
+    /// in `content.knowledgeResult` so the view renders the daemon's explanation
     /// without retrying the request.
     func loadKnowledge() async {
-        let trimmed = knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.knowledgeQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            knowledgeResult = nil
-            knowledgeError = nil
-            isLoadingKnowledge = false
+            content.knowledgeResult = nil
+            content.knowledgeError = nil
+            content.isLoadingKnowledge = false
             return
         }
-        isLoadingKnowledge = true
-        knowledgeError = nil
+        content.isLoadingKnowledge = true
+        content.knowledgeError = nil
         do {
-            knowledgeResult = try await client.searchKnowledge(query: trimmed, limit: 10)
+            content.knowledgeResult = try await client.searchKnowledge(query: trimmed, limit: 10)
         } catch {
-            knowledgeResult = nil
-            knowledgeError = DaemonErrorPresenter.message(for: error)
+            content.knowledgeResult = nil
+            content.knowledgeError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingKnowledge = false
+        content.isLoadingKnowledge = false
     }
 
     /// Pulls semantic memory search results from `/api/memory/search`.
     /// Empty / whitespace-only queries clear any prior result and skip the
     /// request — the view surfaces the inline usage hint instead. Failures
-    /// land in `memoryError`; the typed `semanticUnavailable` branch lands in
-    /// `memoryResult` so the view renders the daemon's explanation without
+    /// land in `content.memoryError`; the typed `semanticUnavailable` branch lands in
+    /// `content.memoryResult` so the view renders the daemon's explanation without
     /// retrying the request.
     func loadMemory() async {
-        let trimmed = memoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.memoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            memoryResult = nil
-            memoryError = nil
-            isLoadingMemory = false
+            content.memoryResult = nil
+            content.memoryError = nil
+            content.isLoadingMemory = false
             return
         }
-        isLoadingMemory = true
-        memoryError = nil
+        content.isLoadingMemory = true
+        content.memoryError = nil
         do {
-            memoryResult = try await client.searchMemory(query: trimmed, limit: 10)
+            content.memoryResult = try await client.searchMemory(query: trimmed, limit: 10)
         } catch {
-            memoryResult = nil
-            memoryError = DaemonErrorPresenter.message(for: error)
+            content.memoryResult = nil
+            content.memoryError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingMemory = false
+        content.isLoadingMemory = false
     }
 
     /// Pulls semantic history search results from `/api/history/search`.
     /// Empty / whitespace-only queries clear any prior result and skip the
     /// request — the view surfaces the inline usage hint instead. Failures
-    /// land in `historyError`; the typed `semanticUnavailable` branch lands in
-    /// `historyResult` so the view renders the daemon's explanation without
+    /// land in `content.historyError`; the typed `semanticUnavailable` branch lands in
+    /// `content.historyResult` so the view renders the daemon's explanation without
     /// retrying the request.
     func loadHistory() async {
-        let trimmed = historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            historyResult = nil
-            historyError = nil
-            isLoadingHistory = false
+            content.historyResult = nil
+            content.historyError = nil
+            content.isLoadingHistory = false
             return
         }
-        isLoadingHistory = true
-        historyError = nil
+        content.isLoadingHistory = true
+        content.historyError = nil
         do {
-            historyResult = try await client.searchHistory(query: trimmed, limit: 10)
+            content.historyResult = try await client.searchHistory(query: trimmed, limit: 10)
         } catch {
-            historyResult = nil
-            historyError = DaemonErrorPresenter.message(for: error)
+            content.historyResult = nil
+            content.historyError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingHistory = false
+        content.isLoadingHistory = false
     }
 
     /// Pulls semantic repo-task search results from the daemon's
     /// `/tasks/search` route. Empty / whitespace-only queries clear any prior
     /// result and skip the request — the view surfaces the inline usage hint
-    /// instead. Failures land in `tasksError`; the typed `semanticUnavailable`
-    /// branch lands in `tasksResult` so the view renders the daemon's
+    /// instead. Failures land in `content.tasksError`; the typed `semanticUnavailable`
+    /// branch lands in `content.tasksResult` so the view renders the daemon's
     /// explanation without retrying the request.
     func loadTasksSearch() async {
-        let trimmed = tasksQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.tasksQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            tasksResult = nil
-            tasksError = nil
-            isLoadingTasksSearch = false
+            content.tasksResult = nil
+            content.tasksError = nil
+            content.isLoadingTasksSearch = false
             return
         }
-        isLoadingTasksSearch = true
-        tasksError = nil
+        content.isLoadingTasksSearch = true
+        content.tasksError = nil
         do {
-            tasksResult = try await client.searchTasks(query: trimmed, limit: 10, states: nil)
+            content.tasksResult = try await client.searchTasks(query: trimmed, limit: 10, states: nil)
         } catch {
-            tasksResult = nil
-            tasksError = DaemonErrorPresenter.message(for: error)
+            content.tasksResult = nil
+            content.tasksError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingTasksSearch = false
+        content.isLoadingTasksSearch = false
     }
 
     /// Pulls cross-store recall results from the daemon's `POST /recall`
     /// route. Empty / whitespace-only queries clear any prior result and skip
     /// the request — the view surfaces the inline usage hint instead. Failures
-    /// land in `recallError`; the typed `semanticUnavailable` branch lands in
-    /// `recallResult` so the view renders the daemon's explanation without
+    /// land in `content.recallError`; the typed `semanticUnavailable` branch lands in
+    /// `content.recallResult` so the view renders the daemon's explanation without
     /// retrying the request. `topK`, `minScore`, and `sources` are left nil so
     /// the seam applies its own typed defaults (every registered contributor,
     /// `RECALL_DEFAULT_TOP_K = 20`, no min-score floor).
     func loadRecall() async {
-        let trimmed = recallQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.recallQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            recallResult = nil
-            recallError = nil
-            isLoadingRecall = false
+            content.recallResult = nil
+            content.recallError = nil
+            content.isLoadingRecall = false
             return
         }
-        isLoadingRecall = true
-        recallError = nil
+        content.isLoadingRecall = true
+        content.recallError = nil
         do {
-            recallResult = try await client.recall(
+            content.recallResult = try await client.recall(
                 query: trimmed,
                 topK: nil,
                 minScore: nil,
                 sources: nil
             )
         } catch {
-            recallResult = nil
-            recallError = DaemonErrorPresenter.message(for: error)
+            content.recallResult = nil
+            content.recallError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingRecall = false
+        content.isLoadingRecall = false
     }
 
     /// Pulls a synthesized cited answer from the daemon's `POST /answer`
     /// route. Empty / whitespace-only queries clear any prior result and
     /// skip the request — the view surfaces the inline usage hint instead.
-    /// Failures land in `answerError`; the three typed `ok: false` arms
+    /// Failures land in `content.answerError`; the three typed `ok: false` arms
     /// (`noHits`, `semanticUnavailable`, `synthesisFailed`) land in
-    /// `answerResult` so the view renders the daemon's degradation notice
+    /// `content.answerResult` so the view renders the daemon's degradation notice
     /// without retrying the request. `topK`, `minScore`, and `sources`
     /// are left nil so the seam applies its own typed defaults.
     func loadAnswer() async {
-        let trimmed = answerQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.answerQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            answerResult = nil
-            answerError = nil
-            isLoadingAnswer = false
+            content.answerResult = nil
+            content.answerError = nil
+            content.isLoadingAnswer = false
             return
         }
-        isLoadingAnswer = true
-        answerError = nil
+        content.isLoadingAnswer = true
+        content.answerError = nil
         do {
-            answerResult = try await client.answer(
+            content.answerResult = try await client.answer(
                 query: trimmed,
                 topK: nil,
                 minScore: nil,
                 sources: nil
             )
         } catch {
-            answerResult = nil
-            answerError = DaemonErrorPresenter.message(for: error)
+            content.answerResult = nil
+            content.answerError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingAnswer = false
+        content.isLoadingAnswer = false
     }
 
     /// Page size for the persisted answer-history list. Mirrors the
     /// mobile `ANSWER_LOG_PAGE_SIZE` so a paginated request returns the
     /// same row count on every operator surface, and the
     /// `entries.count >= limit` heuristic the daemon's list route exposes
-    /// translates to the same `answerLogHasMore` truth value.
+    /// translates to the same `content.answerLogHasMore` truth value.
     static let answerLogPageSize: Int = 20
 
     /// Pulls the persisted cited-answer history from the daemon's
@@ -705,18 +555,18 @@ public final class AppState: ObservableObject {
     /// prior list, error, or open-detail state. A `beforeId` cursor
     /// appends to the existing list instead of resetting, mirroring the
     /// mobile `loadAnswerLog({ beforeId })` paginate path. Failures land
-    /// in `answerLogError`; successful loads update `answerLogHasMore`
+    /// in `content.answerLogError`; successful loads update `content.answerLogHasMore`
     /// from the cursor heuristic (`entries.count >= limit`).
     func loadAnswerLog(beforeId: String? = nil) async {
         let append = beforeId != nil
-        isLoadingAnswerLog = true
-        answerLogError = nil
+        content.isLoadingAnswerLog = true
+        content.answerLogError = nil
         if !append {
-            answerShowOpenId = nil
-            answerShowRecord = nil
-            answerShowMissing = false
-            answerShowError = nil
-            isLoadingAnswerShow = false
+            content.answerShowOpenId = nil
+            content.answerShowRecord = nil
+            content.answerShowMissing = false
+            content.answerShowError = nil
+            content.isLoadingAnswerShow = false
         }
         let limit = AppState.answerLogPageSize
         do {
@@ -724,55 +574,55 @@ public final class AppState: ObservableObject {
                 filter: AnswerHistoryListFilter(limit: limit, beforeId: beforeId)
             )
             if append {
-                answerLogEntries.append(contentsOf: result.entries)
+                content.answerLogEntries.append(contentsOf: result.entries)
             } else {
-                answerLogEntries = result.entries
+                content.answerLogEntries = result.entries
             }
-            answerLogHasMore = result.entries.count >= limit
+            content.answerLogHasMore = result.entries.count >= limit
         } catch {
-            answerLogError = DaemonErrorPresenter.message(for: error)
-            answerLogHasMore = false
+            content.answerLogError = DaemonErrorPresenter.message(for: error)
+            content.answerLogHasMore = false
         }
-        isLoadingAnswerLog = false
+        content.isLoadingAnswerLog = false
     }
 
     /// Cursor paginate. Reads the last entry's id and asks the daemon for
     /// the next page before it. A no-op when the list is empty (which
-    /// also keeps `answerLogHasMore` honest after a refresh).
+    /// also keeps `content.answerLogHasMore` honest after a refresh).
     func loadMoreAnswerLog() async {
-        guard let last = answerLogEntries.last else { return }
+        guard let last = content.answerLogEntries.last else { return }
         await loadAnswerLog(beforeId: last.id)
     }
 
     /// Pulls the full persisted envelope for one record from the daemon's
-    /// `GET /answers/:id` route. Sets `answerShowOpenId` so the view can
+    /// `GET /answers/:id` route. Sets `content.answerShowOpenId` so the view can
     /// pin which row the operator opened, and folds the discriminated
     /// `AnswerHistoryShowResult` into typed view state: `notFound` lands
-    /// in `answerShowMissing` (the typed banner), `success` lands in
-    /// `answerShowRecord`. Transport / decode failures land in
-    /// `answerShowError`.
+    /// in `content.answerShowMissing` (the typed banner), `success` lands in
+    /// `content.answerShowRecord`. Transport / decode failures land in
+    /// `content.answerShowError`.
     func openAnswerShow(id: String) async {
-        answerShowOpenId = id
-        answerShowRecord = nil
-        answerShowMissing = false
-        answerShowError = nil
-        isLoadingAnswerShow = true
+        content.answerShowOpenId = id
+        content.answerShowRecord = nil
+        content.answerShowMissing = false
+        content.answerShowError = nil
+        content.isLoadingAnswerShow = true
         do {
             let result = try await client.answerShow(id: id)
             switch result {
             case .success(let record):
-                answerShowRecord = record
-                answerShowMissing = false
+                content.answerShowRecord = record
+                content.answerShowMissing = false
             case .notFound:
-                answerShowRecord = nil
-                answerShowMissing = true
+                content.answerShowRecord = nil
+                content.answerShowMissing = true
             }
         } catch {
-            answerShowRecord = nil
-            answerShowMissing = false
-            answerShowError = DaemonErrorPresenter.message(for: error)
+            content.answerShowRecord = nil
+            content.answerShowMissing = false
+            content.answerShowError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingAnswerShow = false
+        content.isLoadingAnswerShow = false
     }
 
     /// Drops any open answer-history detail state without touching the
@@ -780,93 +630,95 @@ public final class AppState: ObservableObject {
     /// collapse the detail back to the list view from the macOS surface
     /// without re-loading the list.
     func closeAnswerShow() {
-        answerShowOpenId = nil
-        answerShowRecord = nil
-        answerShowMissing = false
-        answerShowError = nil
-        isLoadingAnswerShow = false
+        content.answerShowOpenId = nil
+        content.answerShowRecord = nil
+        content.answerShowMissing = false
+        content.answerShowError = nil
+        content.isLoadingAnswerShow = false
     }
 
     /// Posts the current draft through the daemon's `POST /capture` route.
     /// Empty / whitespace-only drafts clear any prior result and skip the
     /// request — the view surfaces the inline usage hint instead. Failures
-    /// land in `captureError`; the four typed `CaptureResult` arms
+    /// land in `content.captureError`; the four typed `CaptureResult` arms
     /// (`success`, `ambiguous`, `noContributors`, `contributorFailed`) all
-    /// land in `captureResult` so the view renders the daemon's verdict
-    /// without retrying the request. The `captureTarget` picker collapses
+    /// land in `content.captureResult` so the view renders the daemon's verdict
+    /// without retrying the request. The `content.captureTarget` picker collapses
     /// `.auto` to a `nil` target so the seam classifier picks the store;
-    /// `captureHint` collapses an empty string to `nil` so the daemon
+    /// `content.captureHint` collapses an empty string to `nil` so the daemon
     /// skips passing the hint to the prompt.
     func loadCapture() async {
-        let trimmed = captureDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = content.captureDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            captureResult = nil
-            captureError = nil
-            isLoadingCapture = false
+            content.captureResult = nil
+            content.captureError = nil
+            content.isLoadingCapture = false
             return
         }
-        isLoadingCapture = true
-        captureError = nil
-        let trimmedHint = captureHint.trimmingCharacters(in: .whitespacesAndNewlines)
+        content.isLoadingCapture = true
+        content.captureError = nil
+        let trimmedHint = content.captureHint.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedHint: String? = trimmedHint.isEmpty ? nil : trimmedHint
         do {
-            captureResult = try await client.capture(
+            content.captureResult = try await client.capture(
                 text: trimmed,
-                target: captureTarget.resolved,
+                target: content.captureTarget.resolved,
                 hint: resolvedHint
             )
         } catch {
-            captureResult = nil
-            captureError = DaemonErrorPresenter.message(for: error)
+            content.captureResult = nil
+            content.captureError = DaemonErrorPresenter.message(for: error)
         }
-        isLoadingCapture = false
+        content.isLoadingCapture = false
     }
 
     /// Posts the current retract draft through the daemon's
     /// `POST /retract` route. Submission is gated through the pure
     /// `evaluateRetractSubmit` helper so the gate is unit-testable
     /// without instantiating `AppState`. The first call with a non-empty
-    /// identifier flips `retractConfirmed` and returns without firing,
+    /// identifier flips `content.retractConfirmed` and returns without firing,
     /// mirroring how `RetractPanel.tsx` already gates the dashboard
     /// surface against the seam's `dangerous` risk classification. The
     /// second call (once the operator has acknowledged) builds the typed
     /// `RetractRequest` from the picker + identifier draft and consumes
-    /// `DaemonClient.retract`. Failures land in `retractError`; the four
+    /// `DaemonClient.retract`. Failures land in `content.retractError`; the four
     /// typed `RetractResult` arms (`success`, `noContributors`,
-    /// `notFound`, `contributorFailed`) all land in `retractResult` so
+    /// `notFound`, `contributorFailed`) all land in `content.retractResult` so
     /// the view renders the daemon's verdict without retrying. Empty /
     /// whitespace identifiers clear any prior result and skip the
     /// request — the view surfaces the inline usage hint instead.
     func loadRetract() async {
         let outcome = evaluateRetractSubmit(
-            target: retractTarget,
-            identifier: retractIdentifier,
-            confirmed: retractConfirmed
+            target: content.retractTarget,
+            identifier: content.retractIdentifier,
+            confirmed: content.retractConfirmed
         )
         switch outcome {
         case .skip:
-            retractResult = nil
-            retractError = nil
-            retractConfirmed = false
-            isLoadingRetract = false
+            content.retractResult = nil
+            content.retractError = nil
+            content.retractConfirmed = false
+            content.isLoadingRetract = false
         case .requireConfirmation:
-            retractConfirmed = true
+            content.retractConfirmed = true
         case .fire(let request):
-            isLoadingRetract = true
-            retractError = nil
+            content.isLoadingRetract = true
+            content.retractError = nil
             do {
-                retractResult = try await client.retract(request: request)
+                content.retractResult = try await client.retract(request: request)
             } catch {
-                retractResult = nil
-                retractError = DaemonErrorPresenter.message(for: error)
+                content.retractResult = nil
+                content.retractError = DaemonErrorPresenter.message(for: error)
             }
-            retractConfirmed = false
-            isLoadingRetract = false
+            content.retractConfirmed = false
+            content.isLoadingRetract = false
         }
     }
 
     private func fetchAll() async {
-        // Resolve identity and capabilities first so the active directory
+        refreshGeneration += 1
+        let requestGeneration = refreshGeneration
+        // Resolve connection.identity and connection.capabilities first so the active directory
         // scope is up to date before scope-aware fetches
         // fan out. Without this, the very first poll after launch would
         // send `?scopeId=` empty (the default scope) while the operator
@@ -875,18 +727,21 @@ public final class AppState: ObservableObject {
         do { identityResult = .success(try await client.fetchIdentity()) }
         catch { identityResult = .failure(error) }
 
+        guard requestGeneration == refreshGeneration else { return }
+
         switch identityResult {
         case .success(let id):
-            identity = id
+            connection.identity = id
             lastIdentityProbe = .ok(id)
             reconcileActiveScopeId(with: id.scopeRegistry)
         case .failure(let error):
-            identity = nil
+            connection.identity = nil
             lastIdentityProbe = classifyIdentityFailure(error)
-            activeScopeId = nil
+            connection.activeScopeId = nil
         }
 
-        let scopedId = activeScopeId
+        let scopedId = connection.activeScopeId
+        let requestScopeGeneration = scopeGeneration
 
         async let statusResult: Result<DaemonStatusResponse, Error> = {
             do { return .success(try await client.fetchStatus(scopeId: scopedId)) }
@@ -900,7 +755,7 @@ public final class AppState: ObservableObject {
             do { return .success(try await client.fetchOwnerQuestions()) }
             catch { return .failure(error) }
         }()
-        async let tasksResult: Result<TaskQueueResponse, Error> = {
+        async let taskQueueResult: Result<TaskQueueResponse, Error> = {
             do { return .success(try await client.fetchTasks()) }
             catch { return .failure(error) }
         }()
@@ -925,22 +780,25 @@ public final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
 
-        let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, tasksResult, sessionsResult, recentRunsResult)
+        let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, taskQueueResult, sessionsResult, recentRunsResult)
         let (capr, defsr, uisr) = await (capabilitiesResult, definitionsResult, surfacesResult)
+        guard requestGeneration == refreshGeneration,
+              requestScopeGeneration == scopeGeneration
+        else { return }
         switch capr {
-        case .success(let caps): capabilities = caps
-        case .failure: capabilities = nil
+        case .success(let caps): connection.capabilities = caps
+        case .failure: connection.capabilities = nil
         }
         switch defsr {
-        case .success(let resp): workflowDefinitions = resp.definitions
-        case .failure: workflowDefinitions = []
+        case .success(let resp): activity.workflowDefinitions = resp.definitions
+        case .failure: activity.workflowDefinitions = []
         }
         switch uisr {
         case .success(let bundle):
             applyUiSurfaceBundle(bundle)
         case .failure(let error):
-            uiSurfaceBundle = nil
-            uiSurfaceError = DaemonErrorPresenter.message(for: error)
+            sharedUi.bundle = nil
+            sharedUi.error = DaemonErrorPresenter.message(for: error)
             stopUiSurfaceEventStream()
         }
 
@@ -948,51 +806,51 @@ public final class AppState: ObservableObject {
         case .success(let status):
             let workflow = status.workflow
             let runs = status.workflow?.activeRuns ?? []
-            activeRuns = runs
+            activity.activeRuns = runs
             if workflow?.paused == true {
-                health = .paused(workflow?.queuedRunCount ?? 0)
+                connection.health = .paused(workflow?.queuedRunCount ?? 0)
             } else {
-                health = runs.isEmpty ? .idle : .running(runs.count)
+                connection.health = runs.isEmpty ? .idle : .running(runs.count)
             }
         case .failure(let error):
-            health = .error(DaemonErrorPresenter.message(for: error))
-            activeRuns = []
+            connection.health = .error(DaemonErrorPresenter.message(for: error))
+            activity.activeRuns = []
             clearOnDemandForOffline()
         }
 
         switch ar {
         case .success(let resp):
-            pendingApprovals = resp.approvals.filter { $0.status == "pending" }
+            activity.pendingApprovals = resp.approvals.filter { $0.status == "pending" }
         case .failure:
-            pendingApprovals = []
+            activity.pendingApprovals = []
         }
 
         switch oqr {
         case .success(let resp):
-            pendingOwnerQuestions = resp.questions.filter { $0.status == "pending" }
+            activity.pendingOwnerQuestions = resp.questions.filter { $0.status == "pending" }
         case .failure:
-            pendingOwnerQuestions = []
+            activity.pendingOwnerQuestions = []
         }
 
         switch tr {
         case .success(let resp):
-            taskQueue = resp
+            activity.taskQueue = resp
         case .failure:
-            taskQueue = nil
+            activity.taskQueue = nil
         }
 
         switch sesr {
         case .success(let resp):
-            activeSessions = resp.sessions
+            activity.activeSessions = resp.sessions
         case .failure:
-            activeSessions = []
+            activity.activeSessions = []
         }
 
         switch rrr {
         case .success(let resp):
-            recentRuns = resp.runs
+            activity.recentRuns = resp.runs
         case .failure:
-            recentRuns = []
+            activity.recentRuns = []
         }
 
         checkForNotifications()
@@ -1001,13 +859,13 @@ public final class AppState: ObservableObject {
     // MARK: - Shared UI surface runtime
 
     func refreshUiSurfaceBundle() async {
-        isLoadingUiSurfaces = true
+        sharedUi.isLoading = true
         do {
-            let bundle = try await client.fetchUiSurfaceBundle(scopeId: activeScopeId)
+            let bundle = try await client.fetchUiSurfaceBundle(scopeId: connection.activeScopeId)
             applyUiSurfaceBundle(bundle)
         } catch {
-            uiSurfaceError = DaemonErrorPresenter.message(for: error)
-            isLoadingUiSurfaces = false
+            sharedUi.error = DaemonErrorPresenter.message(for: error)
+            sharedUi.isLoading = false
         }
     }
 
@@ -1050,9 +908,9 @@ public final class AppState: ObservableObject {
     }
 
     private func applyUiSurfaceBundle(_ bundle: UiSurfaceBundle) {
-        uiSurfaceBundle = bundle
-        uiSurfaceError = nil
-        isLoadingUiSurfaces = false
+        sharedUi.bundle = bundle
+        sharedUi.error = nil
+        sharedUi.isLoading = false
         reconcileUiSurfaceEventStream(bundle: bundle)
     }
 
@@ -1069,7 +927,7 @@ public final class AppState: ObservableObject {
         uiSurfaceSubscriptionKey = key
         uiSurfaceEventTask = Task { [weak self] in
             guard let self else { return }
-            self.uiSurfaceEventsConnected = true
+            self.sharedUi.eventsConnected = true
             do {
                 try await self.client.watchUiSurfaceEvents(
                     eventTypes: subscription.eventTypes
@@ -1084,13 +942,13 @@ public final class AppState: ObservableObject {
             }
             if self.uiSurfaceSubscriptionKey == key {
                 self.uiSurfaceSubscriptionKey = ""
-                self.uiSurfaceEventsConnected = false
+                self.sharedUi.eventsConnected = false
             }
         }
     }
 
     private func consumeUiSurfaceEvent(_ event: UiSurfaceLiveEvent) async {
-        guard let bundle = uiSurfaceBundle else { return }
+        guard let bundle = sharedUi.bundle else { return }
         let subscription = uiSurfaceSubscription(bundle)
         for streamId in subscription.streamIdsByEvent[event.type] ?? [] {
             let entry = UiLogEntry(
@@ -1099,8 +957,8 @@ public final class AppState: ObservableObject {
                 source: event.type,
                 timestamp: event.timestamp
             )
-            liveUiLogEntries[streamId] = Array(
-                (liveUiLogEntries[streamId] ?? []).appending(entry).suffix(100)
+            sharedUi.liveLogEntries[streamId] = Array(
+                (sharedUi.liveLogEntries[streamId] ?? []).appending(entry).suffix(100)
             )
         }
         await refreshUiSurfaceBundle()
@@ -1110,28 +968,28 @@ public final class AppState: ObservableObject {
         uiSurfaceEventTask?.cancel()
         uiSurfaceEventTask = nil
         uiSurfaceSubscriptionKey = ""
-        uiSurfaceEventsConnected = false
+        sharedUi.eventsConnected = false
     }
 
     func checkForNotifications() {
         guard notificationsEnabled && !isPopoverOpen else {
             // Seed known state so we don't fire stale notifications when re-enabled
             if !notificationStateInitialized {
-                knownFailedRunIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
-                knownApprovalIDs = Set(pendingApprovals.map { $0.id })
-                knownOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
+                knownFailedRunIDs = Set(activity.recentRuns.filter { $0.status == "failed" }.map { $0.id })
+                knownApprovalIDs = Set(activity.pendingApprovals.map { $0.id })
+                knownOwnerQuestionIDs = Set(activity.pendingOwnerQuestions.map { $0.id })
                 notificationStateInitialized = true
             }
             return
         }
 
-        let currentFailedIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
-        let currentApprovalIDs = Set(pendingApprovals.map { $0.id })
-        let currentOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
+        let currentFailedIDs = Set(activity.recentRuns.filter { $0.status == "failed" }.map { $0.id })
+        let currentApprovalIDs = Set(activity.pendingApprovals.map { $0.id })
+        let currentOwnerQuestionIDs = Set(activity.pendingOwnerQuestions.map { $0.id })
 
         if notificationStateInitialized {
             for id in currentFailedIDs.subtracting(knownFailedRunIDs) {
-                if let run = recentRuns.first(where: { $0.id == id }) {
+                if let run = activity.recentRuns.first(where: { $0.id == id }) {
                     notifications.notify(
                         title: "Workflow failed",
                         body: run.workflow,
@@ -1140,7 +998,7 @@ public final class AppState: ObservableObject {
                 }
             }
             for id in currentApprovalIDs.subtracting(knownApprovalIDs) {
-                if let approval = pendingApprovals.first(where: { $0.id == id }) {
+                if let approval = activity.pendingApprovals.first(where: { $0.id == id }) {
                     let excerpt = approval.reason.flatMap { $0.isEmpty ? nil : String($0.prefix(100)) }
                     let body = excerpt.map { "\(approval.tool): \($0)" } ?? approval.tool
                     notifications.notify(
@@ -1151,7 +1009,7 @@ public final class AppState: ObservableObject {
                 }
             }
             for id in currentOwnerQuestionIDs.subtracting(knownOwnerQuestionIDs) {
-                if let question = pendingOwnerQuestions.first(where: { $0.id == id }) {
+                if let question = activity.pendingOwnerQuestions.first(where: { $0.id == id }) {
                     notifications.notify(
                         title: "Owner question",
                         body: "\(question.source): \(String(question.question.prefix(100)))",
@@ -1188,25 +1046,25 @@ public final class AppState: ObservableObject {
     }
 
     func triggerWorkflow(name: String, payload: Data? = nil) async throws {
-        _ = try await client.triggerWorkflow(name: name, payload: payload, scopeId: activeScopeId)
+        _ = try await client.triggerWorkflow(name: name, payload: payload, scopeId: connection.activeScopeId)
         await refresh()
     }
 
     func createSession(autonomyMode: AutonomyMode? = nil) async -> String? {
-        return try? await client.createSession(autonomyMode: autonomyMode, scopeId: activeScopeId)
+        return try? await client.createSession(autonomyMode: autonomyMode, scopeId: connection.activeScopeId)
     }
 
     func endSession(_ id: String) async {
-        try? await client.deleteSession(id: id, scopeId: activeScopeId)
+        try? await client.deleteSession(id: id, scopeId: connection.activeScopeId)
         await refresh()
     }
 
     func setSessionAutonomyMode(id: String, mode: AutonomyMode) async {
-        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode, scopeId: activeScopeId)
+        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode, scopeId: connection.activeScopeId)
         await refresh()
     }
 
-    /// Reseed `activeScopeId` from the latest registry projection.
+    /// Reseed `connection.activeScopeId` from the latest registry projection.
     /// Reused by the polling loop and by tests that drive the registry
     /// directly. Mirrors the web `ScopeProvider` behavior — preserves
     /// an existing valid selection, falls back to `defaultScopeId`
@@ -1215,10 +1073,17 @@ public final class AppState: ObservableObject {
         let directoryScopeIds = Set(
             projection.scopes.compactMap { $0.directoryRoot == nil ? nil : $0.scopeId }
         )
-        if let current = activeScopeId, directoryScopeIds.contains(current) { return }
-        activeScopeId = directoryScopeIds.contains(projection.defaultScopeId)
+        if let current = connection.activeScopeId, directoryScopeIds.contains(current) { return }
+        let nextScopeId = directoryScopeIds.contains(projection.defaultScopeId)
             ? projection.defaultScopeId
             : directoryScopeIds.first
+        guard nextScopeId != connection.activeScopeId else { return }
+        scopeGeneration += 1
+        connection.activeScopeId = nextScopeId
+        activity.clearScopeOwned()
+        content.clearLiveResults()
+        sharedUi.clear()
+        stopUiSurfaceEventStream()
     }
 
     public func openDashboard() {
@@ -1228,19 +1093,19 @@ public final class AppState: ObservableObject {
 
     func pauseWorkflowDispatch() async {
         do {
-            _ = try await client.pauseWorkflow(scopeId: activeScopeId)
+            _ = try await client.pauseWorkflow(scopeId: connection.activeScopeId)
             await refresh()
         } catch {
-            health = .error(DaemonErrorPresenter.message(for: error))
+            connection.health = .error(DaemonErrorPresenter.message(for: error))
         }
     }
 
     func resumeWorkflowDispatch() async {
         do {
-            _ = try await client.resumeWorkflow(scopeId: activeScopeId)
+            _ = try await client.resumeWorkflow(scopeId: connection.activeScopeId)
             await refresh()
         } catch {
-            health = .error(DaemonErrorPresenter.message(for: error))
+            connection.health = .error(DaemonErrorPresenter.message(for: error))
         }
     }
 

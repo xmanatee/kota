@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import recallRenderFixtureJson from './__fixtures__/recall-render-fixture.json';
+import { initialState } from '../context/state';
 import { RecallScreen } from '../screens/RecallScreen';
 import {
   describeRecallHit,
@@ -44,38 +45,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
-    historyQuery: '',
-    historyResult: null,
-    historyLoading: false,
-    historyError: null,
-    tasksQuery: '',
-    tasksResult: null,
-    tasksLoading: false,
-    tasksError: null,
     recallQuery: '',
     recallResult: null as RecallSearchResponse | null,
     recallLoading: false,
@@ -84,7 +53,24 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      recallQuery: state.recallQuery,
+      recallResult: state.recallResult,
+      recallLoading: state.recallLoading,
+      recallError: state.recallError,
+    },
+  };
 }
 
 function mockDaemon(

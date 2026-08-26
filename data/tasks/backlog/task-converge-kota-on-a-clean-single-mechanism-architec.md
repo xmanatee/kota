@@ -64,7 +64,7 @@ executor are dropped with dispositions.
 - [x] Stage 5 — separate shipping, validation, and confidence cadences.
 - [x] Stage 6 — complete the terminal project-to-scope migration.
 - [x] Stage 7 — establish one authored daemon/client contract graph.
-- [ ] Stage 8 — narrow client ports and client-side owners.
+- [x] Stage 8 — narrow client ports and client-side owners.
 - [ ] Stage 9 — make runtime lifecycle host-owned.
 - [ ] Stage 10 — replace shadow runtimes with production drivers.
 - [ ] Stage 11 — correct transport, capability, and mutation ports.
@@ -270,6 +270,20 @@ mobile 76, and the full Apple suite 239. A representative source-field mutation
 changed every language output, and inspection found no remaining authored
 decoder mirror, copied giant fixture, old core aggregate, or neutral-core
 module-client import.
+
+## Stage 8 Result
+
+Generated namespace ports now let server and client consumers name only the
+capabilities they use. Apple and mobile replaced their flat application state
+with focused connection, scope/activity, content, and shared-UI domains; web's
+existing query/scope split was retained. Scope switches preserve global state
+and drafts, invalidate scope-owned projections, and reject late old-scope
+responses. The old aggregate screen fixtures and decoder-message assertions
+were removed, while each platform retains one application event-stream owner.
+
+Binding freshness, lint, both TypeScript projects, 51 focused server tests,
+378 mobile tests, 239 Apple tests, and 75 web tests plus the web production
+build passed.
 
 ## Finding Ownership
 

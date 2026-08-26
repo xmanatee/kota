@@ -22,9 +22,9 @@ struct HistoryBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.historyError {
+            if let err = appState.content.historyError {
                 HistoryErrorView(message: err)
-            } else if appState.isLoadingHistory && appState.historyResult == nil {
+            } else if appState.content.isLoadingHistory && appState.content.historyResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Searching…")
@@ -36,7 +36,7 @@ struct HistoryBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.historyResult {
+            } else if let result = appState.content.historyResult {
                 switch result {
                 case .success(let conversations):
                     if conversations.isEmpty {
@@ -67,7 +67,7 @@ struct HistoryBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.historyQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -88,7 +88,7 @@ struct HistoryErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingHistory)
+            .disabled(appState.content.isLoadingHistory)
         }
     }
 }

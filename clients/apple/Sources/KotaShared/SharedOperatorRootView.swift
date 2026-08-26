@@ -21,7 +21,7 @@ public struct SharedOperatorRootView: View {
 
     public var body: some View {
         Group {
-            if let bundle = appState.uiSurfaceBundle {
+            if let bundle = appState.sharedUi.bundle {
                 let inventory = SharedUiInventory(bundle: bundle)
                 if inventory.surfaces.isEmpty {
                     SharedOperatorEmptyState(
@@ -36,7 +36,7 @@ public struct SharedOperatorRootView: View {
                         tabContent(inventory)
                     }
                 }
-            } else if appState.isLoadingUiSurfaces {
+            } else if appState.sharedUi.isLoading {
                 VStack(spacing: 10) {
                     ProgressView()
                     Text("Loading shared operator surfaces…")
@@ -46,14 +46,14 @@ public struct SharedOperatorRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 SharedOperatorEmptyState(
-                    title: appState.uiSurfaceError == nil ? "Daemon offline" : "Shared UI unavailable",
-                    detail: appState.uiSurfaceError ?? appState.diagnostic.detail,
+                    title: appState.sharedUi.error == nil ? "Daemon offline" : "Shared UI unavailable",
+                    detail: appState.sharedUi.error ?? appState.connection.diagnostic.detail,
                     action: { Task { await appState.refreshUiSurfaceBundle() } }
                 )
             }
         }
         .onAppear { reconcileSelection() }
-        .onChange(of: appState.uiSurfaceBundle) { _ in reconcileSelection() }
+        .onChange(of: appState.sharedUi.bundle) { _ in reconcileSelection() }
         .sheet(isPresented: Binding(
             get: { chatSessionId != nil },
             set: { if !$0 { chatSessionId = nil } }
@@ -152,7 +152,7 @@ public struct SharedOperatorRootView: View {
     }
 
     private func selectSurface(_ surfaceId: String) {
-        guard let bundle = appState.uiSurfaceBundle,
+        guard let bundle = appState.sharedUi.bundle,
               let surface = bundle.surfaces.first(where: { $0.surfaceId == surfaceId })
         else { return }
         selectedSurfaceId = surfaceId
@@ -160,7 +160,7 @@ public struct SharedOperatorRootView: View {
     }
 
     private func reconcileSelection() {
-        guard let bundle = appState.uiSurfaceBundle else {
+        guard let bundle = appState.sharedUi.bundle else {
             selectedSurfaceId = nil
             selectedIntentRaw = ""
             return
@@ -223,11 +223,11 @@ private struct SharedOperatorConnectionBar: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Image(systemName: appState.uiSurfaceEventsConnected ? "dot.radiowaves.left.and.right" : appState.health.systemImageName)
-                .foregroundStyle(appState.uiSurfaceEventsConnected ? Color.green : Color.secondary)
+            Image(systemName: appState.sharedUi.eventsConnected ? "dot.radiowaves.left.and.right" : appState.connection.health.systemImageName)
+                .foregroundStyle(appState.sharedUi.eventsConnected ? Color.green : Color.secondary)
             VStack(alignment: .leading, spacing: 1) {
-                Text(appState.diagnostic.headline).font(.caption.weight(.semibold)).lineLimit(1)
-                Text(appState.uiSurfaceEventsConnected ? "Live updates connected" : "5-second refresh fallback")
+                Text(appState.connection.diagnostic.headline).font(.caption.weight(.semibold)).lineLimit(1)
+                Text(appState.sharedUi.eventsConnected ? "Live updates connected" : "5-second refresh fallback")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -236,7 +236,7 @@ private struct SharedOperatorConnectionBar: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.plain)
-            .disabled(appState.isLoadingUiSurfaces)
+            .disabled(appState.sharedUi.isLoading)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

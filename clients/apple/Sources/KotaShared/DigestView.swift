@@ -19,7 +19,7 @@ struct DigestView: View {
                     Text("Daily Digest")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if let digest = appState.digest {
+                    if let digest = appState.content.digest {
                         DigestStateBadge(quiet: digest.data.quiet)
                     }
                     Spacer()
@@ -40,16 +40,16 @@ struct DigestView: View {
     }
 
     private var headerIconColor: Color {
-        guard let digest = appState.digest else { return .secondary }
+        guard let digest = appState.content.digest else { return .secondary }
         return digest.data.quiet ? .secondary : .blue
     }
 
     private func toggleExpansion() {
         isExpanded.toggle()
         if isExpanded
-            && appState.digest == nil
-            && appState.digestError == nil
-            && !appState.isLoadingDigest
+            && appState.content.digest == nil
+            && appState.content.digestError == nil
+            && !appState.content.isLoadingDigest
         {
             Task { await appState.loadDigest() }
         }
@@ -77,7 +77,7 @@ struct DigestExpandedContent: View {
 
     var body: some View {
         Group {
-            if appState.isLoadingDigest && appState.digest == nil {
+            if appState.content.isLoadingDigest && appState.content.digest == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Loading…")
@@ -86,9 +86,9 @@ struct DigestExpandedContent: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-            } else if let err = appState.digestError {
+            } else if let err = appState.content.digestError {
                 DigestErrorView(message: err)
-            } else if let digest = appState.digest {
+            } else if let digest = appState.content.digest {
                 DigestBodyView(digest: digest)
             } else {
                 Text("Tap to load digest")
@@ -114,7 +114,7 @@ struct DigestBodyView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             HStack {
-                if appState.isLoadingDigest {
+                if appState.content.isLoadingDigest {
                     ProgressView().scaleEffect(0.5)
                     Text("Refreshing…")
                         .font(.caption2)
@@ -126,7 +126,7 @@ struct DigestBodyView: View {
                         .font(.caption2)
                 }
                 .buttonStyle(.borderless)
-                .disabled(appState.isLoadingDigest)
+                .disabled(appState.content.isLoadingDigest)
             }
         }
         .padding(.horizontal, 12)
@@ -151,7 +151,7 @@ struct DigestErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingDigest)
+            .disabled(appState.content.isLoadingDigest)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

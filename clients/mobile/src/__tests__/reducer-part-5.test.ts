@@ -57,14 +57,14 @@ describe('reducer', () => {
       type: 'ANSWER_ERROR',
       error: 'boom',
     });
-    expect(withError.answerError).toBe('boom');
+    expect(withError.content.answerError).toBe('boom');
     const next = reducer(withError, {
       type: 'ANSWER_LOADING',
       query: 'autonomy loop',
     });
-    expect(next.answerLoading).toBe(true);
-    expect(next.answerError).toBeNull();
-    expect(next.answerQuery).toBe('autonomy loop');
+    expect(next.content.answerLoading).toBe(true);
+    expect(next.content.answerError).toBeNull();
+    expect(next.content.answerQuery).toBe('autonomy loop');
   });
 
   test('ANSWER_RESULT stores a synthesized success payload spanning multiple sources', () => {
@@ -99,9 +99,9 @@ describe('reducer', () => {
       query: 'autonomy loop',
     });
     const next = reducer(loading, { type: 'ANSWER_RESULT', result });
-    expect(next.answerResult).toBe(result);
-    expect(next.answerLoading).toBe(false);
-    expect(next.answerError).toBeNull();
+    expect(next.content.answerResult).toBe(result);
+    expect(next.content.answerLoading).toBe(false);
+    expect(next.content.answerError).toBeNull();
   });
 
   test('ANSWER_RESULT preserves each ok:false branch verbatim', () => {
@@ -113,9 +113,9 @@ describe('reducer', () => {
     for (const reason of reasons) {
       const result: AnswerResult = { ok: false, reason };
       const next = reducer(initialState, { type: 'ANSWER_RESULT', result });
-      expect(next.answerResult).toEqual({ ok: false, reason });
-      expect(next.answerLoading).toBe(false);
-      expect(next.answerError).toBeNull();
+      expect(next.content.answerResult).toEqual({ ok: false, reason });
+      expect(next.content.answerLoading).toBe(false);
+      expect(next.content.answerError).toBeNull();
     }
   });
 
@@ -140,9 +140,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'ANSWER_ERROR', error: '503' });
-    expect(next.answerResult).toBeNull();
-    expect(next.answerError).toBe('503');
-    expect(next.answerLoading).toBe(false);
+    expect(next.content.answerResult).toBeNull();
+    expect(next.content.answerError).toBe('503');
+    expect(next.content.answerLoading).toBe(false);
   });
 
   test('ONLINE false drops cached answer result so it cannot persist across an offline transition', () => {
@@ -156,20 +156,20 @@ describe('reducer', () => {
       type: 'ANSWER_RESULT',
       result,
     });
-    expect(withResult.answerResult).toBe(result);
+    expect(withResult.content.answerResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.answerResult).toBeNull();
+    expect(offline.content.answerResult).toBeNull();
   });
 
   test('initial state seeds the answer-history surface with empty log and no record', () => {
-    expect(initialState.answerLogEntries).toEqual([]);
-    expect(initialState.answerLogLoading).toBe(false);
-    expect(initialState.answerLogError).toBeNull();
-    expect(initialState.answerLogHasMore).toBe(false);
-    expect(initialState.answerShowRecord).toBeNull();
-    expect(initialState.answerShowMissing).toBe(false);
-    expect(initialState.answerShowLoading).toBe(false);
-    expect(initialState.answerShowError).toBeNull();
+    expect(initialState.content.answerLogEntries).toEqual([]);
+    expect(initialState.content.answerLogLoading).toBe(false);
+    expect(initialState.content.answerLogError).toBeNull();
+    expect(initialState.content.answerLogHasMore).toBe(false);
+    expect(initialState.content.answerShowRecord).toBeNull();
+    expect(initialState.content.answerShowMissing).toBe(false);
+    expect(initialState.content.answerShowLoading).toBe(false);
+    expect(initialState.content.answerShowError).toBeNull();
   });
 
   test('ANSWER_LOG_LOADING with reset clears stale entries', () => {
@@ -187,15 +187,15 @@ describe('reducer', () => {
       append: false,
       hasMore: true,
     });
-    expect(withEntries.answerLogEntries).toHaveLength(1);
-    expect(withEntries.answerLogHasMore).toBe(true);
+    expect(withEntries.content.answerLogEntries).toHaveLength(1);
+    expect(withEntries.content.answerLogHasMore).toBe(true);
     const next = reducer(withEntries, {
       type: 'ANSWER_LOG_LOADING',
       reset: true,
     });
-    expect(next.answerLogLoading).toBe(true);
-    expect(next.answerLogEntries).toEqual([]);
-    expect(next.answerLogHasMore).toBe(false);
+    expect(next.content.answerLogLoading).toBe(true);
+    expect(next.content.answerLogEntries).toEqual([]);
+    expect(next.content.answerLogHasMore).toBe(false);
   });
 
   test('ANSWER_LOG_LOADING without reset preserves existing entries (append page)', () => {
@@ -217,9 +217,9 @@ describe('reducer', () => {
       type: 'ANSWER_LOG_LOADING',
       reset: false,
     });
-    expect(next.answerLogLoading).toBe(true);
-    expect(next.answerLogEntries).toBe(seeded);
-    expect(next.answerLogHasMore).toBe(true);
+    expect(next.content.answerLogLoading).toBe(true);
+    expect(next.content.answerLogEntries).toBe(seeded);
+    expect(next.content.answerLogHasMore).toBe(true);
   });
 
   test('ANSWER_LOG_RESULT replaces entries by default (reset path)', () => {
@@ -251,8 +251,8 @@ describe('reducer', () => {
       append: false,
       hasMore: false,
     });
-    expect(next.answerLogEntries).toEqual(replacement);
-    expect(next.answerLogHasMore).toBe(false);
-    expect(next.answerLogLoading).toBe(false);
-    expect(next.answerLogError).toBeNull();
+    expect(next.content.answerLogEntries).toEqual(replacement);
+    expect(next.content.answerLogHasMore).toBe(false);
+    expect(next.content.answerLogLoading).toBe(false);
+    expect(next.content.answerLogError).toBeNull();
   });});

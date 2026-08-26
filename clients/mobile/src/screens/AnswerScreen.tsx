@@ -17,8 +17,8 @@ const EMPTY_QUERY_HINT =
 
 export function AnswerScreen() {
   const { state, setAnswerQuery, answer } = useDaemon();
-  const { online, answerQuery, answerResult, answerLoading, answerError } =
-    state;
+  const { online } = state.connection;
+  const { answerQuery, answerResult, answerLoading, answerError } = state.content;
 
   const trimmed = answerQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -28,7 +28,7 @@ export function AnswerScreen() {
     void answer(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -36,7 +36,7 @@ export function AnswerScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>

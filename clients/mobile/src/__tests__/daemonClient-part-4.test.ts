@@ -1,4 +1,5 @@
 import { DaemonClient } from '../daemonClient';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
 
@@ -46,8 +47,8 @@ describe('DaemonClient', () => {
         hits: [{ source: 'knowledge', score: 0.5, id: 'k-1' }],
       }),
     );
-    await expect(client().recall('x')).rejects.toThrow(
-      /knowledge fields/i,
+    await expect(client().recall('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
     );
   });
 
@@ -65,7 +66,9 @@ describe('DaemonClient', () => {
         ],
       }),
     );
-    await expect(client().recall('x')).rejects.toThrow(/tasks fields/i);
+    await expect(client().recall('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('recall surfaces the daemon HTTP error one-to-one', async () => {
@@ -161,7 +164,9 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().answer('x')).rejects.toThrow(/mystery/);
+    await expect(client().answer('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answer rejects a malformed citation loudly', async () => {
@@ -173,14 +178,18 @@ describe('DaemonClient', () => {
         hits: [],
       }),
     );
-    await expect(client().answer('x')).rejects.toThrow(/answer citation/i);
+    await expect(client().answer('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answer rejects a missing answer body loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: true, citations: [], hits: [] }),
     );
-    await expect(client().answer('x')).rejects.toThrow(/answer missing/i);
+    await expect(client().answer('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answer surfaces the daemon HTTP error one-to-one', async () => {
@@ -258,21 +267,25 @@ describe('DaemonClient', () => {
         ],
       }),
     );
-    await expect(client().answerLog()).rejects.toThrow(/mystery/);
+    await expect(client().answerLog()).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerLog rejects a malformed entry loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ entries: [{ id: 'x' }] }),
     );
-    await expect(client().answerLog()).rejects.toThrow(
-      /answer history entry/i,
+    await expect(client().answerLog()).rejects.toBeInstanceOf(
+      ContractDecodeError,
     );
   });
 
   test('answerLog rejects a missing entries field loudly', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({}));
-    await expect(client().answerLog()).rejects.toThrow(/entries missing/i);
+    await expect(client().answerLog()).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerLog surfaces the daemon HTTP error one-to-one', async () => {

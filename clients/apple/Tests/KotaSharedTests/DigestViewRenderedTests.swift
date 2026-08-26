@@ -69,14 +69,14 @@ final class DigestViewRenderedTests: XCTestCase {
                 id: "collapsed-active-header",
                 summary: "DigestView collapsed header renders the active badge from data.quiet=false",
                 mount: "DigestView().environmentObject(AppState)",
-                configure: { state in state.digest = activeDigest },
+                configure: { state in state.content.digest = activeDigest },
                 content: { _ in AnyView(DigestView()) }
             ),
             RenderScenario(
                 id: "collapsed-quiet-header",
                 summary: "DigestView collapsed header renders the quiet-window badge from data.quiet=true",
                 mount: "DigestView().environmentObject(AppState)",
-                configure: { state in state.digest = quietDigest },
+                configure: { state in state.content.digest = quietDigest },
                 content: { _ in AnyView(DigestView()) }
             ),
             RenderScenario(
@@ -84,8 +84,8 @@ final class DigestViewRenderedTests: XCTestCase {
                 summary: "DigestExpandedContent renders Loading before the first payload",
                 mount: "DigestExpandedContent().environmentObject(AppState)",
                 configure: { state in
-                    state.isLoadingDigest = true
-                    state.digest = nil
+                    state.content.isLoadingDigest = true
+                    state.content.digest = nil
                 },
                 content: { _ in AnyView(DigestExpandedContent()) }
             ),
@@ -93,14 +93,14 @@ final class DigestViewRenderedTests: XCTestCase {
                 id: "expanded-active-body",
                 summary: "DigestBodyView renders the active daemon text body and Refresh control",
                 mount: "DigestBodyView(digest: activeDigest).environmentObject(AppState)",
-                configure: { state in state.digest = activeDigest },
+                configure: { state in state.content.digest = activeDigest },
                 content: { _ in AnyView(DigestBodyView(digest: activeDigest)) }
             ),
             RenderScenario(
                 id: "expanded-quiet-body",
                 summary: "DigestBodyView renders the quiet daemon text body",
                 mount: "DigestBodyView(digest: quietDigest).environmentObject(AppState)",
-                configure: { state in state.digest = quietDigest },
+                configure: { state in state.content.digest = quietDigest },
                 content: { _ in AnyView(DigestBodyView(digest: quietDigest)) }
             ),
             RenderScenario(
@@ -108,8 +108,8 @@ final class DigestViewRenderedTests: XCTestCase {
                 summary: "DigestBodyView renders Refreshing while a cached digest refreshes",
                 mount: "DigestBodyView(digest: activeDigest).environmentObject(AppState)",
                 configure: { state in
-                    state.digest = activeDigest
-                    state.isLoadingDigest = true
+                    state.content.digest = activeDigest
+                    state.content.isLoadingDigest = true
                 },
                 content: { _ in AnyView(DigestBodyView(digest: activeDigest)) }
             ),
@@ -118,11 +118,11 @@ final class DigestViewRenderedTests: XCTestCase {
                 summary: "DigestErrorView renders the daemon error and Retry control",
                 mount: "DigestErrorView(message:).environmentObject(AppState)",
                 configure: { state in
-                    state.digest = nil
-                    state.digestError = "API error 503: digest unavailable"
+                    state.content.digest = nil
+                    state.content.digestError = "API error 503: digest unavailable"
                 },
                 content: { state in
-                    AnyView(DigestErrorView(message: state.digestError ?? "missing error"))
+                    AnyView(DigestErrorView(message: state.content.digestError ?? "missing error"))
                 }
             ),
             RenderScenario(

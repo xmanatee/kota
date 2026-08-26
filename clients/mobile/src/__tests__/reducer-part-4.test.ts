@@ -73,9 +73,9 @@ describe('reducer', () => {
       query: 'autonomy',
     });
     const next = reducer(loading, { type: 'TASKS_RESULT', result });
-    expect(next.tasksResult).toBe(result);
-    expect(next.tasksLoading).toBe(false);
-    expect(next.tasksError).toBeNull();
+    expect(next.content.tasksResult).toBe(result);
+    expect(next.content.tasksLoading).toBe(false);
+    expect(next.content.tasksError).toBeNull();
   });
 
   test('TASKS_RESULT preserves the semantic-unavailable branch verbatim', () => {
@@ -84,12 +84,12 @@ describe('reducer', () => {
       reason: 'semantic_unavailable',
     };
     const next = reducer(initialState, { type: 'TASKS_RESULT', result });
-    expect(next.tasksResult).toEqual({
+    expect(next.content.tasksResult).toEqual({
       ok: false,
       reason: 'semantic_unavailable',
     });
-    expect(next.tasksLoading).toBe(false);
-    expect(next.tasksError).toBeNull();
+    expect(next.content.tasksLoading).toBe(false);
+    expect(next.content.tasksError).toBeNull();
   });
 
   test('TASKS_ERROR clears stale tasks result', () => {
@@ -113,9 +113,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'TASKS_ERROR', error: '503' });
-    expect(next.tasksResult).toBeNull();
-    expect(next.tasksError).toBe('503');
-    expect(next.tasksLoading).toBe(false);
+    expect(next.content.tasksResult).toBeNull();
+    expect(next.content.tasksError).toBe('503');
+    expect(next.content.tasksLoading).toBe(false);
   });
 
   test('ONLINE false drops cached tasks result so it cannot persist across an offline transition', () => {
@@ -138,9 +138,9 @@ describe('reducer', () => {
       type: 'TASKS_RESULT',
       result,
     });
-    expect(withResult.tasksResult).toBe(result);
+    expect(withResult.content.tasksResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.tasksResult).toBeNull();
+    expect(offline.content.tasksResult).toBeNull();
   });
 
   test('RECALL_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -148,10 +148,10 @@ describe('reducer', () => {
       type: 'RECALL_QUERY_SET',
       query: 'autonomy',
     });
-    expect(next.recallQuery).toBe('autonomy');
-    expect(next.recallResult).toBeNull();
-    expect(next.recallLoading).toBe(false);
-    expect(next.recallError).toBeNull();
+    expect(next.content.recallQuery).toBe('autonomy');
+    expect(next.content.recallResult).toBeNull();
+    expect(next.content.recallLoading).toBe(false);
+    expect(next.content.recallError).toBeNull();
   });
 
   test('RECALL_LOADING records the in-flight query and clears prior error', () => {
@@ -159,14 +159,14 @@ describe('reducer', () => {
       type: 'RECALL_ERROR',
       error: 'boom',
     });
-    expect(withError.recallError).toBe('boom');
+    expect(withError.content.recallError).toBe('boom');
     const next = reducer(withError, {
       type: 'RECALL_LOADING',
       query: 'autonomy',
     });
-    expect(next.recallLoading).toBe(true);
-    expect(next.recallError).toBeNull();
-    expect(next.recallQuery).toBe('autonomy');
+    expect(next.content.recallLoading).toBe(true);
+    expect(next.content.recallError).toBeNull();
+    expect(next.content.recallQuery).toBe('autonomy');
   });
 
   test('RECALL_RESULT stores a populated payload across multiple source arms', () => {
@@ -197,9 +197,9 @@ describe('reducer', () => {
       query: 'autonomy',
     });
     const next = reducer(loading, { type: 'RECALL_RESULT', result });
-    expect(next.recallResult).toBe(result);
-    expect(next.recallLoading).toBe(false);
-    expect(next.recallError).toBeNull();
+    expect(next.content.recallResult).toBe(result);
+    expect(next.content.recallLoading).toBe(false);
+    expect(next.content.recallError).toBeNull();
   });
 
   test('RECALL_RESULT preserves the semantic-unavailable branch verbatim', () => {
@@ -208,12 +208,12 @@ describe('reducer', () => {
       reason: 'semantic_unavailable',
     };
     const next = reducer(initialState, { type: 'RECALL_RESULT', result });
-    expect(next.recallResult).toEqual({
+    expect(next.content.recallResult).toEqual({
       ok: false,
       reason: 'semantic_unavailable',
     });
-    expect(next.recallLoading).toBe(false);
-    expect(next.recallError).toBeNull();
+    expect(next.content.recallLoading).toBe(false);
+    expect(next.content.recallError).toBeNull();
   });
 
   test('RECALL_ERROR clears stale recall result', () => {
@@ -234,9 +234,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'RECALL_ERROR', error: '503' });
-    expect(next.recallResult).toBeNull();
-    expect(next.recallError).toBe('503');
-    expect(next.recallLoading).toBe(false);
+    expect(next.content.recallResult).toBeNull();
+    expect(next.content.recallError).toBe('503');
+    expect(next.content.recallLoading).toBe(false);
   });
 
   test('ONLINE false drops cached recall result so it cannot persist across an offline transition', () => {
@@ -257,9 +257,9 @@ describe('reducer', () => {
       type: 'RECALL_RESULT',
       result,
     });
-    expect(withResult.recallResult).toBe(result);
+    expect(withResult.content.recallResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.recallResult).toBeNull();
+    expect(offline.content.recallResult).toBeNull();
   });
 
   test('ANSWER_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -267,8 +267,8 @@ describe('reducer', () => {
       type: 'ANSWER_QUERY_SET',
       query: 'autonomy loop',
     });
-    expect(next.answerQuery).toBe('autonomy loop');
-    expect(next.answerResult).toBeNull();
-    expect(next.answerLoading).toBe(false);
-    expect(next.answerError).toBeNull();
+    expect(next.content.answerQuery).toBe('autonomy loop');
+    expect(next.content.answerResult).toBeNull();
+    expect(next.content.answerLoading).toBe(false);
+    expect(next.content.answerError).toBeNull();
   });});

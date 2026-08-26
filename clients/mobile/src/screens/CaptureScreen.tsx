@@ -45,15 +45,15 @@ export function CaptureScreen() {
     setCaptureHint,
     capture,
   } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     captureText,
     captureTarget,
     captureHint,
     captureResult,
     captureLoading,
     captureError,
-  } = state;
+  } = state.content;
 
   const trimmed = captureText.trim();
   const hasText = trimmed.length > 0;
@@ -69,7 +69,7 @@ export function CaptureScreen() {
     void capture(trimmed, buildFilter(suggestion, captureHint));
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -77,7 +77,7 @@ export function CaptureScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>

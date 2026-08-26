@@ -22,9 +22,9 @@ struct AnswerBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.answerError {
+            if let err = appState.content.answerError {
                 AnswerErrorView(message: err)
-            } else if appState.isLoadingAnswer && appState.answerResult == nil {
+            } else if appState.content.isLoadingAnswer && appState.content.answerResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Composing…")
@@ -36,7 +36,7 @@ struct AnswerBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.answerResult {
+            } else if let result = appState.content.answerResult {
                 AnswerResultView(result: result)
             } else {
                 Text("Press return to ask.")
@@ -48,7 +48,7 @@ struct AnswerBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.answerQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.answerQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -173,7 +173,7 @@ struct AnswerErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingAnswer)
+            .disabled(appState.content.isLoadingAnswer)
         }
     }
 }

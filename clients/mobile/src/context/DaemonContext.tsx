@@ -140,6 +140,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [ui, setUi] = useState<SharedUiState>(initialSharedUiState);
   const clientRef = useRef<DaemonClient | null>(null);
+  const refreshRequestRef = useRef(0);
   const uiRef = useRef(ui);
   const uiRequestRef = useRef(0);
   const uiRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -167,14 +168,15 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
 
   // Rebuild client when URL/token changes
   useEffect(() => {
-    if (!state.settingsLoaded) return;
-    clientRef.current = state.daemonUrl && state.token
-      ? new DaemonClient(state.daemonUrl, state.token)
+    if (!state.connection.settingsLoaded) return;
+    clientRef.current = state.connection.daemonUrl && state.connection.token
+      ? new DaemonClient(state.connection.daemonUrl, state.connection.token)
       : null;
+    refreshRequestRef.current += 1;
     uiRequestRef.current += 1;
     setUi(initialSharedUiState);
     pushRegisteredRef.current = false;
-  }, [state.daemonUrl, state.token, state.settingsLoaded]);
+  }, [state.connection.daemonUrl, state.connection.token, state.connection.settingsLoaded]);
 
   // The reducer owns the active scopeId; we mirror it through a ref so
   // the polling loop reads the *latest* selection without re-running on
@@ -183,8 +185,8 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   // to the chosen scope.
   const activeScopeIdRef = useRef<string | null>(null);
   useEffect(() => {
-    activeScopeIdRef.current = state.activeScopeId;
-  }, [state.activeScopeId]);
+    activeScopeIdRef.current = state.scope.activeScopeId;
+  }, [state.scope.activeScopeId]);
 
   const fetchUiSurfaces = useCallback(async (scopeId?: string) => {
     const requestId = ++uiRequestRef.current;
@@ -230,10 +232,12 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const fetchAll = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
+    const requestId = ++refreshRequestRef.current;
     try {
       // Resolve identity first so the registry's default scopeId seeds
       // `activeScopeId` before the scope-aware fetches fan out.
       const identity = await client.getIdentity();
+      if (requestId !== refreshRequestRef.current || client !== clientRef.current) return;
       const knownIds = new Set(
         identity.scopeRegistry.scopes
           .filter((scope) => scope.directoryRoot !== undefined)
@@ -260,24 +264,27 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         client.getTasks(),
         client.getOwnerQuestions(),
       ]);
-      dispatch({ type: 'STATUS', status: statusRes });
-      dispatch({ type: 'RUNS', runs: runsRes.runs });
+      if (requestId !== refreshRequestRef.current || client !== clientRef.current) return;
+      dispatch({ type: 'STATUS', status: statusRes, requestScopeId: nextScopeId });
+      dispatch({ type: 'RUNS', runs: runsRes.runs, requestScopeId: nextScopeId });
       dispatch({ type: 'APPROVALS', approvals: approvalsRes.approvals });
       dispatch({ type: 'TASKS', tasks: tasksRes });
       dispatch({ type: 'OWNER_QUESTIONS', questions: ownerQuestionsRes.questions });
       dispatch({ type: 'ERROR', error: null });
     } catch (e) {
+      if (requestId !== refreshRequestRef.current || client !== clientRef.current) return;
       dispatch({ type: 'ERROR', error: e instanceof Error ? e.message : String(e) });
     }
   }, [fetchUiSurfaces]);
 
   // Health check loop
   useEffect(() => {
-    if (!state.settingsLoaded) return;
+    if (!state.connection.settingsLoaded) return;
 
     async function checkHealth() {
       const client = clientRef.current;
       if (!client) {
+        refreshRequestRef.current += 1;
         dispatch({ type: 'ONLINE', online: false });
         setUi(initialSharedUiState);
         return;
@@ -287,6 +294,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'ONLINE', online: true });
         void fetchAll();
       } catch {
+        refreshRequestRef.current += 1;
         dispatch({ type: 'ONLINE', online: false });
         setUi(initialSharedUiState);
       }
@@ -297,21 +305,21 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (healthTimerRef.current !== null) clearInterval(healthTimerRef.current);
     };
-  }, [state.settingsLoaded, state.daemonUrl, state.token, fetchAll]);
+  }, [state.connection.settingsLoaded, state.connection.daemonUrl, state.connection.token, fetchAll]);
 
   // Register push token once when online and push notifications enabled
   useEffect(() => {
     const client = clientRef.current;
-    if (!state.online || !client || pushRegisteredRef.current) return;
-    if (!state.pushNotificationsEnabled) return;
+    if (!state.connection.online || !client || pushRegisteredRef.current) return;
+    if (!state.connection.pushNotificationsEnabled) return;
     pushRegisteredRef.current = true;
     void registerPushTokenWithDaemon(client).catch(() => {
       pushRegisteredRef.current = false;
     });
-  }, [state.online, state.pushNotificationsEnabled]);
+  }, [state.connection.online, state.connection.pushNotificationsEnabled]);
 
   useEffect(() => {
-    if (!state.online || state.sseConnected) {
+    if (!state.connection.online || state.connection.sseConnected) {
       if (pollTimerRef.current !== null) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
@@ -322,7 +330,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (pollTimerRef.current !== null) clearInterval(pollTimerRef.current);
     };
-  }, [state.online, state.sseConnected, fetchAll]);
+  }, [state.connection.online, state.connection.sseConnected, fetchAll]);
 
   const handleSseEvent = useCallback((event: SseEvent) => {
     const client = clientRef.current;
@@ -350,10 +358,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       case 'queue.changed':
         void client
           .getStatus(scopeId)
-          .then((s) => dispatch({ type: 'STATUS', status: s }));
+          .then((s) => dispatch({ type: 'STATUS', status: s, requestScopeId: scopeId ?? null }));
         void client
           .getRuns(undefined, 30, scopeId)
-          .then((r) => dispatch({ type: 'RUNS', runs: r.runs }));
+          .then((r) => dispatch({ type: 'RUNS', runs: r.runs, requestScopeId: scopeId ?? null }));
         break;
       case 'approval.changed': {
         const count = event.payload.pendingCount;
@@ -382,7 +390,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SSE_STATUS', connected });
   }, []);
 
-  const sseUrl = state.online && clientRef.current
+  const sseUrl = state.connection.online && clientRef.current
     ? clientRef.current.sseUrl()
     : null;
   const authHeader = clientRef.current?.authHeader ?? null;
@@ -402,6 +410,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveScopeId = useCallback((scopeId: string) => {
     activeScopeIdRef.current = scopeId;
+    refreshRequestRef.current += 1;
     uiRequestRef.current += 1;
     setUi(initialSharedUiState);
     dispatch({ type: 'ACTIVE_SCOPE', scopeId });
@@ -440,14 +449,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const refreshDigest = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'DIGEST_LOADING' });
     try {
       const digest = await client.getDigest();
-      dispatch({ type: 'DIGEST_RESULT', digest });
+      dispatch({ type: 'DIGEST_RESULT', digest, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'DIGEST_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -455,14 +466,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const refreshAttention = useCallback(async () => {
     const client = clientRef.current;
     if (!client) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'ATTENTION_LOADING' });
     try {
       const attention = await client.getAttention();
-      dispatch({ type: 'ATTENTION_RESULT', attention });
+      dispatch({ type: 'ATTENTION_RESULT', attention, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'ATTENTION_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -475,14 +488,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'KNOWLEDGE_LOADING', query });
     try {
       const result = await client.searchKnowledge(query, 10);
-      dispatch({ type: 'KNOWLEDGE_RESULT', result });
+      dispatch({ type: 'KNOWLEDGE_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'KNOWLEDGE_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -495,14 +510,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'MEMORY_LOADING', query });
     try {
       const result = await client.searchMemory(query, 10);
-      dispatch({ type: 'MEMORY_RESULT', result });
+      dispatch({ type: 'MEMORY_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'MEMORY_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -515,14 +532,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'HISTORY_LOADING', query });
     try {
       const result = await client.searchHistory(query, 10);
-      dispatch({ type: 'HISTORY_RESULT', result });
+      dispatch({ type: 'HISTORY_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'HISTORY_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -535,14 +554,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'TASKS_LOADING', query });
     try {
       const result = await client.searchTasks(query, 10);
-      dispatch({ type: 'TASKS_RESULT', result });
+      dispatch({ type: 'TASKS_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'TASKS_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -555,14 +576,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'RECALL_LOADING', query });
     try {
       const result = await client.recall(query);
-      dispatch({ type: 'RECALL_RESULT', result });
+      dispatch({ type: 'RECALL_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'RECALL_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -575,14 +598,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     if (query.trim().length === 0) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'ANSWER_LOADING', query });
     try {
       const result = await client.answer(query);
-      dispatch({ type: 'ANSWER_RESULT', result });
+      dispatch({ type: 'ANSWER_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'ANSWER_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -593,6 +618,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     async (opts?: AnswerHistoryListFilter) => {
       const client = clientRef.current;
       if (!client) return;
+      const requestScopeId = activeScopeIdRef.current;
       const limit = opts?.limit ?? ANSWER_LOG_PAGE_SIZE;
       const append = opts?.beforeId !== undefined;
       dispatch({ type: 'ANSWER_LOG_LOADING', reset: !append });
@@ -605,11 +631,13 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
           entries: result.entries,
           append,
           hasMore: result.entries.length >= limit,
+          requestScopeId,
         });
       } catch (e) {
         dispatch({
           type: 'ANSWER_LOG_ERROR',
           error: e instanceof Error ? e.message : String(e),
+          requestScopeId,
         });
       }
     },
@@ -617,26 +645,28 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   );
 
   const loadMoreAnswerLog = useCallback(async () => {
-    const last = state.answerLogEntries[state.answerLogEntries.length - 1];
+    const last = state.content.answerLogEntries[state.content.answerLogEntries.length - 1];
     if (!last) return;
     await loadAnswerLog({ beforeId: last.id });
-  }, [state.answerLogEntries, loadAnswerLog]);
+  }, [state.content.answerLogEntries, loadAnswerLog]);
 
   const openAnswerShow = useCallback(async (id: string) => {
     const client = clientRef.current;
     if (!client) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'ANSWER_SHOW_LOADING', id });
     try {
       const result = await client.answerShow(id);
       if (result.ok) {
-        dispatch({ type: 'ANSWER_SHOW_RESULT', record: result.record });
+        dispatch({ type: 'ANSWER_SHOW_RESULT', record: result.record, requestScopeId });
       } else {
-        dispatch({ type: 'ANSWER_SHOW_NOT_FOUND' });
+        dispatch({ type: 'ANSWER_SHOW_NOT_FOUND', requestScopeId });
       }
     } catch (e) {
       dispatch({
         type: 'ANSWER_SHOW_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);
@@ -662,14 +692,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       const client = clientRef.current;
       if (!client) return;
       if (text.trim().length === 0) return;
+      const requestScopeId = activeScopeIdRef.current;
       dispatch({ type: 'CAPTURE_LOADING' });
       try {
         const result = await client.capture(text, options);
-        dispatch({ type: 'CAPTURE_RESULT', result });
+        dispatch({ type: 'CAPTURE_RESULT', result, requestScopeId });
       } catch (e) {
         dispatch({
           type: 'CAPTURE_ERROR',
           error: e instanceof Error ? e.message : String(e),
+          requestScopeId,
         });
       }
     },
@@ -691,14 +723,16 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const retract = useCallback(async (request: RetractRequest) => {
     const client = clientRef.current;
     if (!client) return;
+    const requestScopeId = activeScopeIdRef.current;
     dispatch({ type: 'RETRACT_LOADING' });
     try {
       const result = await client.retract(request);
-      dispatch({ type: 'RETRACT_RESULT', result });
+      dispatch({ type: 'RETRACT_RESULT', result, requestScopeId });
     } catch (e) {
       dispatch({
         type: 'RETRACT_ERROR',
         error: e instanceof Error ? e.message : String(e),
+        requestScopeId,
       });
     }
   }, []);

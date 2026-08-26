@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { initialState } from '../context/state';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { renderHistorySearchPlain } from '../historyRender';
 import type { HistorySearchResponse } from '../types';
@@ -18,30 +19,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
     historyQuery: '',
     historyResult: null as HistorySearchResponse | null,
     historyLoading: false,
@@ -50,7 +27,24 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      historyQuery: state.historyQuery,
+      historyResult: state.historyResult,
+      historyLoading: state.historyLoading,
+      historyError: state.historyError,
+    },
+  };
 }
 
 function mockDaemon(

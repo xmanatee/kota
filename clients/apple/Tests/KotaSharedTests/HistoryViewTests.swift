@@ -177,55 +177,55 @@ final class HistoryViewTests: XCTestCase {
                 id: "empty-query",
                 summary: "historyQuery is blank; HistoryBodyView renders the empty-query hint",
                 configure: { state in
-                    state.historyQuery = ""
+                    state.content.historyQuery = ""
                 }
             ),
             RenderScenario(
                 id: "loading",
                 summary: "isLoadingHistory is true before the first result arrives",
                 configure: { state in
-                    state.historyQuery = "release"
-                    state.isLoadingHistory = true
-                    state.historyResult = nil
+                    state.content.historyQuery = "release"
+                    state.content.isLoadingHistory = true
+                    state.content.historyResult = nil
                 }
             ),
             RenderScenario(
                 id: "populated",
                 summary: "success response contains two conversations",
                 configure: { state in
-                    state.historyQuery = "release"
-                    state.historyResult = .success(conversations: sampleConversations)
+                    state.content.historyQuery = "release"
+                    state.content.historyResult = .success(conversations: sampleConversations)
                 }
             ),
             RenderScenario(
                 id: "empty-results",
                 summary: "success response contains no conversations",
                 configure: { state in
-                    state.historyQuery = "missing"
-                    state.historyResult = .success(conversations: [])
+                    state.content.historyQuery = "missing"
+                    state.content.historyResult = .success(conversations: [])
                 }
             ),
             RenderScenario(
                 id: "semantic-unavailable",
                 summary: "daemon returns the semantic_unavailable result arm",
                 configure: { state in
-                    state.historyQuery = "release"
-                    state.historyResult = .semanticUnavailable
+                    state.content.historyQuery = "release"
+                    state.content.historyResult = .semanticUnavailable
                 }
             ),
             RenderScenario(
                 id: "error-retry",
                 summary: "historyError is set and the retry body is mounted",
                 configure: { state in
-                    state.historyQuery = "release"
-                    state.historyError = "503 Service Unavailable"
+                    state.content.historyQuery = "release"
+                    state.content.historyError = "503 Service Unavailable"
                 }
             ),
             RenderScenario(
                 id: "after-query-before-submit",
                 summary: "non-empty query has no result, loading flag, or error yet",
                 configure: { state in
-                    state.historyQuery = "release"
+                    state.content.historyQuery = "release"
                 }
             ),
         ]

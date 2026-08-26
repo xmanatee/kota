@@ -80,9 +80,9 @@ describe('reducer', () => {
     ];
     for (const result of arms) {
       const next = reducer(initialState, { type: 'RETRACT_RESULT', result });
-      expect(next.retractResult).toEqual(result);
-      expect(next.retractLoading).toBe(false);
-      expect(next.retractError).toBeNull();
+      expect(next.content.retractResult).toEqual(result);
+      expect(next.content.retractLoading).toBe(false);
+      expect(next.content.retractError).toBeNull();
     }
   });
 
@@ -96,9 +96,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'RETRACT_ERROR', error: '503' });
-    expect(next.retractResult).toBeNull();
-    expect(next.retractError).toBe('503');
-    expect(next.retractLoading).toBe(false);
+    expect(next.content.retractResult).toBeNull();
+    expect(next.content.retractError).toBe('503');
+    expect(next.content.retractLoading).toBe(false);
   });
 
   test('ONLINE false drops cached retract result/error/loading/confirmation but preserves target+identifier draft', () => {
@@ -125,10 +125,10 @@ describe('reducer', () => {
       },
     });
     const offline = reducer(s, { type: 'ONLINE', online: false });
-    expect(offline.retractResult).toBeNull();
-    expect(offline.retractError).toBeNull();
-    expect(offline.retractLoading).toBe(false);
-    expect(offline.retractConfirmed).toBe(false);
-    expect(offline.retractTarget).toBe('tasks');
-    expect(offline.retractIdentifier).toBe('task-foo');
+    expect(offline.content.retractResult).toBeNull();
+    expect(offline.content.retractError).toBeNull();
+    expect(offline.content.retractLoading).toBe(false);
+    expect(offline.content.retractConfirmed).toBe(false);
+    expect(offline.content.retractTarget).toBe('tasks');
+    expect(offline.content.retractIdentifier).toBe('task-foo');
   });});

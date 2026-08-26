@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Header directory-scope selector. Hidden when the daemon hosts exactly one
-/// directory scope. The selected id drives `appState.activeScopeId`, which
+/// directory scope. The selected id drives `appState.connection.activeScopeId`, which
 /// threads through every scope-aware daemon route in `fetchAll`.
 /// macOS mounts it inside `MenuBarView`, iOS mounts it inside
 /// `IOSRootView`'s Status tab.
@@ -11,9 +11,9 @@ public struct ScopeSelectorView: View {
     public init() {}
 
     public var body: some View {
-        if let identity = appState.identity,
+        if let identity = appState.connection.identity,
            identity.scopeRegistry.scopes.filter({ $0.directoryRoot != nil }).count > 1,
-           let activeId = appState.activeScopeId
+           let activeId = appState.connection.activeScopeId
         {
             HStack(spacing: 6) {
                 Image(systemName: "folder")

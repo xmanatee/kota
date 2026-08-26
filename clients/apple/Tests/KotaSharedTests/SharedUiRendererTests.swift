@@ -91,7 +91,7 @@ final class SharedUiRendererTests: XCTestCase {
         ))
 
         await state.refreshUiSurfaceBundle()
-        let action = try XCTUnwrap(state.uiSurfaceBundle?.surfaces.flatMap(\.actions).first { $0.isReady })
+        let action = try XCTUnwrap(state.sharedUi.bundle?.surfaces.flatMap(\.actions).first { $0.isReady })
         let result = await state.executeUiAction(action)
         XCTAssertTrue(result.ok)
         XCTAssertTrue(state.openUiLinkTarget(.externalUrl(url: "https://example.com/operator")))

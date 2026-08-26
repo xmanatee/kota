@@ -3,6 +3,7 @@ import { render } from '@testing-library/react-native';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ActivityIndicator } from 'react-native';
+import { initialState } from '../context/state';
 import { AttentionScreen } from '../screens/AttentionScreen';
 import type { AttentionResponse } from '../types';
 
@@ -20,19 +21,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
     attention: null as AttentionResponse | null,
     attentionLoading: false,
     attentionError: null as string | null,
@@ -40,7 +28,23 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      attention: state.attention,
+      attentionLoading: state.attentionLoading,
+      attentionError: state.attentionError,
+    },
+  };
 }
 
 function emitMobileAttentionEvidence(fileName: string, tree: unknown): void {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { AnswerHistoryScreen } from '../screens/AnswerHistoryScreen';
 import { describeRecallHit } from '../recallRender';
 import type {
@@ -20,46 +21,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
-    historyQuery: '',
-    historyResult: null,
-    historyLoading: false,
-    historyError: null,
-    tasksQuery: '',
-    tasksResult: null,
-    tasksLoading: false,
-    tasksError: null,
-    recallQuery: '',
-    recallResult: null,
-    recallLoading: false,
-    recallError: null,
-    answerQuery: '',
-    answerResult: null as AnswerResult | null,
-    answerLoading: false,
-    answerError: null as string | null,
     answerLogEntries: [] as AnswerHistoryEntry[],
     answerLogLoading: false,
     answerLogError: null as string | null,
@@ -72,7 +33,28 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      answerLogEntries: state.answerLogEntries,
+      answerLogLoading: state.answerLogLoading,
+      answerLogError: state.answerLogError,
+      answerLogHasMore: state.answerLogHasMore,
+      answerShowRecord: state.answerShowRecord,
+      answerShowMissing: state.answerShowMissing,
+      answerShowLoading: state.answerShowLoading,
+      answerShowError: state.answerShowError,
+    },
+  };
 }
 
 interface MockFns {

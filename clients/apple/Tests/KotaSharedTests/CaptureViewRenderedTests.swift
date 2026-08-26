@@ -68,14 +68,14 @@ final class CaptureViewRenderedTests: XCTestCase {
                 id: "expanded-empty-draft",
                 summary: "CaptureExpandedContent renders the draft field, auto/four-target picker, hint field, submit button, and empty-draft guidance.",
                 mount: "CaptureExpandedContent().environmentObject(AppState)",
-                configure: { state in state.captureDraft = "" },
+                configure: { state in state.content.captureDraft = "" },
                 content: { _ in AnyView(CaptureExpandedContent()) }
             ),
             RenderScenario(
                 id: "expanded-ready-before-submit",
                 summary: "CaptureBodyView renders Press Capture to route this note after typing but before submit.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
-                configure: { state in state.captureDraft = "Remember to call Alice" },
+                configure: { state in state.content.captureDraft = "Remember to call Alice" },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
             RenderScenario(
@@ -83,9 +83,9 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the capturing spinner while the request is pending.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Remember to call Alice"
-                    state.isLoadingCapture = true
-                    state.captureResult = nil
+                    state.content.captureDraft = "Remember to call Alice"
+                    state.content.isLoadingCapture = true
+                    state.content.captureResult = nil
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
@@ -94,8 +94,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the memory success badge and canonical body line.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Remember to call Alice"
-                    state.captureResult = .success(record: .memory(recordId: "mem-1"))
+                    state.content.captureDraft = "Remember to call Alice"
+                    state.content.captureResult = .success(record: .memory(recordId: "mem-1"))
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
@@ -104,8 +104,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the knowledge success badge and canonical body line.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Store this architecture decision"
-                    state.captureResult = .success(record: .knowledge(recordId: "kn-1"))
+                    state.content.captureDraft = "Store this architecture decision"
+                    state.content.captureResult = .success(record: .knowledge(recordId: "kn-1"))
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
@@ -114,8 +114,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the tasks success badge and filesystem path metadata.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "File the follow-up"
-                    state.captureResult = .success(
+                    state.content.captureDraft = "File the follow-up"
+                    state.content.captureResult = .success(
                         record: .tasks(
                             recordId: "task-x",
                             path: "data/tasks/ready/task-x.md"
@@ -129,8 +129,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the inbox success badge and filesystem path metadata.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Raw morning thought"
-                    state.captureResult = .success(
+                    state.content.captureDraft = "Raw morning thought"
+                    state.content.captureResult = .success(
                         record: .inbox(
                             recordId: "inbox-x",
                             path: "data/inbox/x.md"
@@ -144,8 +144,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the ambiguous notice, four suggestion chips, and resubmit footnote.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Something vague"
-                    state.captureResult = .ambiguous(suggestions: [.memory, .knowledge, .tasks, .inbox])
+                    state.content.captureDraft = "Something vague"
+                    state.content.captureResult = .ambiguous(suggestions: [.memory, .knowledge, .tasks, .inbox])
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
@@ -154,8 +154,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders the no_contributors unavailable notice.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Anything"
-                    state.captureResult = .noContributors
+                    state.content.captureDraft = "Anything"
+                    state.content.captureResult = .noContributors
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),
@@ -164,8 +164,8 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders contributor_failed with target badge and verbatim daemon message.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Forced to inbox"
-                    state.captureResult = .contributorFailed(
+                    state.content.captureDraft = "Forced to inbox"
+                    state.content.captureResult = .contributorFailed(
                         target: .inbox,
                         message: "inbox writer cannot reach scope root"
                     )
@@ -177,9 +177,9 @@ final class CaptureViewRenderedTests: XCTestCase {
                 summary: "CaptureBodyView renders daemon HTTP error text and the Retry control.",
                 mount: "CaptureBodyView().environmentObject(AppState)",
                 configure: { state in
-                    state.captureDraft = "Remember to call Alice"
-                    state.captureError = "API error 503: capture unavailable"
-                    state.captureResult = nil
+                    state.content.captureDraft = "Remember to call Alice"
+                    state.content.captureError = "API error 503: capture unavailable"
+                    state.content.captureResult = nil
                 },
                 content: { _ in AnyView(CaptureBodyView()) }
             ),

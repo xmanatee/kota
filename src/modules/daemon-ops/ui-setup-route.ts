@@ -1,5 +1,5 @@
 import { appendScopeSelector, encodeQueryParams } from "#core/server/scope-selector.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { KotaClient, KotaClientPort } from "#root/client/kota-client.generated.js";
 import type { UiActionExecutionResult, UiJsonValue } from "./operator-ui.js";
 import type { UiActionOperation } from "./operator-ui-types.js";
 
@@ -75,7 +75,7 @@ function setupSecretValuesFromUi(parameters: UiJsonValue | undefined) {
 }
 
 function setupMutationResult(
-  result: Awaited<ReturnType<KotaClient["setup"]["submitForm"]>>,
+  result: Awaited<ReturnType<KotaClientPort<"setup">["setup"]["submitForm"]>>,
   successMessage: string,
 ): UiActionExecutionResult {
   return result.ok
@@ -84,7 +84,7 @@ function setupMutationResult(
 }
 
 export async function executeLocalSetupRoute(
-  client: KotaClient,
+  client: KotaClientPort<"setup">,
   operation: Extract<UiActionOperation, { kind: "daemon-route" }>,
   parameters: UiJsonValue | undefined,
 ): Promise<UiActionExecutionResult | null> {

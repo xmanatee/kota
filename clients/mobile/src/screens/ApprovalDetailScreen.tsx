@@ -44,8 +44,8 @@ export function ApprovalDetailScreen({
   const [acting, setActing] = useState(false);
 
   const approval: Approval | undefined = useMemo(
-    () => state.approvals.find((a) => a.id === approvalId),
-    [state.approvals, approvalId],
+    () => state.activity.approvals.find((a) => a.id === approvalId),
+    [state.activity.approvals, approvalId],
   );
 
   async function handleApprove() {

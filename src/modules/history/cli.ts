@@ -20,7 +20,7 @@ import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { ScopedKotaClientPort } from "#root/client/kota-client.generated.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
 
@@ -127,14 +127,14 @@ export function validateConversationResumeCwd(
  * Exits with a clear error on miss or ambiguous prefix.
  */
 export async function resolveConversationId(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   idOrPrefix: string,
 ): Promise<string> {
   return (await resolveConversationRecord(client, idOrPrefix)).id;
 }
 
 export async function resolveConversationRecord(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   idOrPrefix: string,
   options: ConversationRecordResolveOptions = {},
 ): Promise<ConversationRecord> {
@@ -175,7 +175,7 @@ export async function resolveConversationRecord(
 }
 
 export async function resolveExplicitConversationResume(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   idOrPrefix: string,
   opts: { resumeHere?: boolean } = {},
 ): Promise<ResumeConversationSelection> {
@@ -234,7 +234,7 @@ function exitAmbiguousConversationPrefix(trimmed: string, ids: string[]): never 
 }
 
 async function resolveRecordFromConfiguredScopes(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   trimmed: string,
 ): Promise<ConversationRecordLookup | undefined> {
   try {
@@ -253,7 +253,7 @@ async function resolveRecordFromConfiguredScopes(
 }
 
 async function resolveRecordFromDiscoveredScopeHistories(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   trimmed: string,
 ): Promise<ConversationRecordLookup | undefined> {
   try {
@@ -436,7 +436,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
  * conversation for the current cwd. Exits when no candidate is found.
  */
 export async function resolveRunContinue(
-  client: KotaClient,
+  client: ScopedKotaClientPort<"history" | "scopes">,
   opts: { continue?: boolean | string; resumeHere?: boolean },
 ): Promise<ResumeConversationSelection | undefined> {
   if (!opts.continue) return undefined;

@@ -1,6 +1,6 @@
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { KotaClientPort } from "#root/client/kota-client.generated.js";
 
 export type TelegramChatScopeBinding = {
   chatId: number;
@@ -34,7 +34,7 @@ type TelegramScopeView =
     }
   | { ok: false; message: string };
 
-type TelegramScopeSource = Pick<KotaClient["scopes"], "list">;
+type TelegramScopeSource = Pick<KotaClientPort<"scopes">["scopes"], "list">;
 
 type TelegramScopeSelectionOptions = {
   scopeSource?: TelegramScopeSource;
@@ -80,7 +80,7 @@ export class TelegramScopeSelection {
   private readonly scopeSource: TelegramScopeSource;
 
   constructor(
-    client: KotaClient,
+    client: KotaClientPort<"scopes">,
     private readonly storage: ModuleStorage,
     bindings: TelegramChatScopeBinding[],
     options?: TelegramScopeSelectionOptions,

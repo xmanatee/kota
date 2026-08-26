@@ -23,8 +23,8 @@ struct AnswerHistoryView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     AnswerHistoryHeaderBadge(
-                        entryCount: appState.answerLogEntries.count,
-                        hasError: appState.answerLogError != nil
+                        entryCount: appState.content.answerLogEntries.count,
+                        hasError: appState.content.answerLogError != nil
                     )
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -45,16 +45,16 @@ struct AnswerHistoryView: View {
     }
 
     private var headerIconColor: Color {
-        if appState.answerLogError != nil { return .red }
-        return appState.answerLogEntries.isEmpty ? .secondary : .blue
+        if appState.content.answerLogError != nil { return .red }
+        return appState.content.answerLogEntries.isEmpty ? .secondary : .blue
     }
 
     private func toggleExpansion() {
         isExpanded.toggle()
         if isExpanded
-            && appState.answerLogEntries.isEmpty
-            && appState.answerLogError == nil
-            && !appState.isLoadingAnswerLog
+            && appState.content.answerLogEntries.isEmpty
+            && appState.content.answerLogError == nil
+            && !appState.content.isLoadingAnswerLog
         {
             Task { await appState.loadAnswerLog() }
         }
@@ -95,7 +95,7 @@ struct AnswerHistoryExpandedContent: View {
 
     var body: some View {
         Group {
-            if appState.answerShowOpenId != nil {
+            if appState.content.answerShowOpenId != nil {
                 AnswerHistoryDetailView()
             } else {
                 AnswerHistoryListBody()
@@ -110,11 +110,11 @@ struct AnswerHistoryListBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let err = appState.answerLogError {
+            if let err = appState.content.answerLogError {
                 AnswerHistoryErrorBanner(message: err) {
                     Task { await appState.loadAnswerLog() }
                 }
-            } else if appState.isLoadingAnswerLog && appState.answerLogEntries.isEmpty {
+            } else if appState.content.isLoadingAnswerLog && appState.content.answerLogEntries.isEmpty {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Loading…")
@@ -123,22 +123,22 @@ struct AnswerHistoryListBody: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-            } else if appState.answerLogEntries.isEmpty {
+            } else if appState.content.answerLogEntries.isEmpty {
                 Text("No answers in history yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
             } else {
-                ForEach(appState.answerLogEntries) { entry in
+                ForEach(appState.content.answerLogEntries) { entry in
                     AnswerHistoryEntryRow(entry: entry) {
                         Task { await appState.openAnswerShow(id: entry.id) }
                     }
                 }
-                if appState.answerLogHasMore {
+                if appState.content.answerLogHasMore {
                     Button(action: { Task { await appState.loadMoreAnswerLog() } }) {
                         HStack(spacing: 4) {
-                            if appState.isLoadingAnswerLog {
+                            if appState.content.isLoadingAnswerLog {
                                 ProgressView().scaleEffect(0.5)
                             }
                             Text("Load older")
@@ -148,7 +148,7 @@ struct AnswerHistoryListBody: View {
                         .padding(.vertical, 6)
                     }
                     .buttonStyle(.borderless)
-                    .disabled(appState.isLoadingAnswerLog)
+                    .disabled(appState.content.isLoadingAnswerLog)
                     .accessibilityIdentifier("answer-history-load-more")
                 }
             }
@@ -234,17 +234,17 @@ struct AnswerHistoryDetailView: View {
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("answer-history-back")
                 Spacer()
-                if appState.isLoadingAnswerShow {
+                if appState.content.isLoadingAnswerShow {
                     ProgressView().scaleEffect(0.5)
                 }
             }
-            if let err = appState.answerShowError {
+            if let err = appState.content.answerShowError {
                 AnswerHistoryErrorBanner(message: err) {
-                    if let id = appState.answerShowOpenId {
+                    if let id = appState.content.answerShowOpenId {
                         Task { await appState.openAnswerShow(id: id) }
                     }
                 }
-            } else if appState.answerShowMissing {
+            } else if appState.content.answerShowMissing {
                 Text("No answer record with that id.")
                     .font(.caption)
                     .foregroundStyle(Color.orange)
@@ -252,9 +252,9 @@ struct AnswerHistoryDetailView: View {
                     .padding(.vertical, 4)
                     .background(Color.orange.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
-            } else if let record = appState.answerShowRecord {
+            } else if let record = appState.content.answerShowRecord {
                 AnswerHistoryRecordBody(record: record)
-            } else if appState.isLoadingAnswerShow {
+            } else if appState.content.isLoadingAnswerShow {
                 Text("Loading…")
                     .font(.caption)
                     .foregroundStyle(.secondary)

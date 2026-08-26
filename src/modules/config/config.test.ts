@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { KotaClientPort } from "#root/client/kota-client.generated.js";
 import type { ConfigClient } from "./client.js";
 import {
   configSchemaContent,
@@ -47,7 +46,10 @@ function trustScopeConfig(scopeRoot: string): void {
   );
 }
 
-function makeFakeCtx(scopeRoot: string, moduleKeys: ReadonlySet<string>): ModuleContext {
+function makeFakeCtx(
+  scopeRoot: string,
+  moduleKeys: ReadonlySet<string>,
+): { client: KotaClientPort<"config"> } {
   const config: ConfigClient = {
     async validate() {
       return validateConfig(scopeRoot, moduleKeys);
@@ -65,8 +67,7 @@ function makeFakeCtx(scopeRoot: string, moduleKeys: ReadonlySet<string>): Module
       return { content: configSchemaContent() };
     },
   };
-  const client = { config } as unknown as KotaClient;
-  return { cwd: scopeRoot, client } as unknown as ModuleContext;
+  return { client: { config } };
 }
 
 function makeProgram(scopeRoot: string, moduleKeys: ReadonlySet<string> = new Set()): Command {

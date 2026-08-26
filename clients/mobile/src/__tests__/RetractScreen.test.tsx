@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { renderRetractResultPlain } from '../retractRender';
 import { RetractScreen } from '../screens/RetractScreen';
 import type { RetractResult, RetractTarget } from '../types';
@@ -16,52 +17,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
-    historyQuery: '',
-    historyResult: null,
-    historyLoading: false,
-    historyError: null,
-    tasksQuery: '',
-    tasksResult: null,
-    tasksLoading: false,
-    tasksError: null,
-    recallQuery: '',
-    recallResult: null,
-    recallLoading: false,
-    recallError: null,
-    answerQuery: '',
-    answerResult: null,
-    answerLoading: false,
-    answerError: null,
-    captureText: '',
-    captureTarget: 'auto' as 'auto' | 'memory' | 'knowledge' | 'tasks' | 'inbox',
-    captureHint: '',
-    captureResult: null,
-    captureLoading: false,
-    captureError: null,
     retractTarget: 'memory' as RetractTarget,
     retractIdentifier: '',
     retractResult: null as RetractResult | null,
@@ -72,7 +27,26 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      retractTarget: state.retractTarget,
+      retractIdentifier: state.retractIdentifier,
+      retractResult: state.retractResult,
+      retractLoading: state.retractLoading,
+      retractError: state.retractError,
+      retractConfirmed: state.retractConfirmed,
+    },
+  };
 }
 
 function mockDaemon(

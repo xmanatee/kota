@@ -86,7 +86,7 @@ struct RetractControlsRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
-                Picker("Target", selection: $appState.retractTarget) {
+                Picker("Target", selection: $appState.content.retractTarget) {
                     ForEach(RetractTarget.allCases, id: \.self) { t in
                         Text(t.rawValue).tag(t)
                     }
@@ -97,47 +97,47 @@ struct RetractControlsRow: View {
                 .frame(width: 92)
 
                 TextField(
-                    retractIdentifierPlaceholder(for: appState.retractTarget),
-                    text: $appState.retractIdentifier
+                    retractIdentifierPlaceholder(for: appState.content.retractTarget),
+                    text: $appState.content.retractIdentifier
                 )
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
             }
 
             HStack(spacing: 4) {
-                Text(retractIdentifierLabel(for: appState.retractTarget))
+                Text(retractIdentifierLabel(for: appState.content.retractTarget))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                if appState.retractConfirmed {
-                    Button(action: { appState.retractConfirmed = false }) {
+                if appState.content.retractConfirmed {
+                    Button(action: { appState.content.retractConfirmed = false }) {
                         Text("Cancel").font(.caption)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(appState.isLoadingRetract)
+                    .disabled(appState.content.isLoadingRetract)
                 }
 
                 Button(action: { Task { await appState.loadRetract() } }) {
-                    if appState.isLoadingRetract {
+                    if appState.content.isLoadingRetract {
                         ProgressView().scaleEffect(0.5)
                     } else {
-                        Text(appState.retractConfirmed ? "Confirm retract" : "Retract")
+                        Text(appState.content.retractConfirmed ? "Confirm retract" : "Retract")
                             .font(.caption)
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .tint(appState.retractConfirmed ? .red : .accentColor)
-                .disabled(appState.isLoadingRetract || isSubmitDisabled)
+                .tint(appState.content.retractConfirmed ? .red : .accentColor)
+                .disabled(appState.content.isLoadingRetract || isSubmitDisabled)
             }
         }
     }
 
     private var isSubmitDisabled: Bool {
-        appState.retractIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        appState.content.retractIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -146,9 +146,9 @@ struct RetractBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.retractError {
+            if let err = appState.content.retractError {
                 RetractErrorView(message: err)
-            } else if appState.isLoadingRetract && appState.retractResult == nil {
+            } else if appState.content.isLoadingRetract && appState.content.retractResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Retracting…")
@@ -156,13 +156,13 @@ struct RetractBodyView: View {
                         .foregroundStyle(.secondary)
                 }
             } else if !hasEnteredIdentifier {
-                Text("Pick a store, type the \(retractIdentifierLabel(for: appState.retractTarget)), then submit.")
+                Text("Pick a store, type the \(retractIdentifierLabel(for: appState.content.retractTarget)), then submit.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.retractResult {
+            } else if let result = appState.content.retractResult {
                 RetractResultView(result: result)
-            } else if appState.retractConfirmed {
+            } else if appState.content.retractConfirmed {
                 Text("Press Confirm retract to remove this record. This is destructive.")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -177,7 +177,7 @@ struct RetractBodyView: View {
     }
 
     private var hasEnteredIdentifier: Bool {
-        !appState.retractIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.retractIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -248,7 +248,7 @@ struct RetractErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingRetract)
+            .disabled(appState.content.isLoadingRetract)
         }
     }
 }

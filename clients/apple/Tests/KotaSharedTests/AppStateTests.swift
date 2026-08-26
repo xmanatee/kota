@@ -90,7 +90,7 @@ final class AppStateTests: XCTestCase {
             "With no identity payload yet, the menu bar must hide the Open Dashboard action."
         )
 
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/Users/op/Desktop/mono/apps/kota",
             scopeRegistry: makeScopeRegistry(
@@ -109,7 +109,7 @@ final class AppStateTests: XCTestCase {
             "Once identity reports dashboard.available, the menu bar must show the action."
         )
 
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/Users/op/Desktop/mono/apps/kota",
             scopeRegistry: makeScopeRegistry(
@@ -139,14 +139,14 @@ final class AppStateTests: XCTestCase {
         // test will catch the regression — the offline branch must wipe
         // the lot so a stale rollup never paints over the disconnected
         // state.
-        state.activeRuns = [
+        state.activity.activeRuns = [
             ActiveRun(
                 runId: "run-1",
                 workflow: "builder",
                 startedAt: "2026-04-29T00:00:00Z"
             )
         ]
-        state.recentRuns = [
+        state.activity.recentRuns = [
             RunSummary(
                 id: "run-old",
                 workflow: "builder",
@@ -155,7 +155,7 @@ final class AppStateTests: XCTestCase {
                 durationMs: 1000
             )
         ]
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/x",
             scopeRegistry: makeScopeRegistry(
@@ -169,29 +169,29 @@ final class AppStateTests: XCTestCase {
             startedAt: "2026-04-29T00:00:00Z",
             dashboard: .available(path: "/")
         )
-        state.health = .running(1)
-        state.knowledgeError = "stale"
-        state.memoryError = "stale"
-        state.historyError = "stale"
-        state.tasksError = "stale"
-        state.recallError = "stale"
-        state.answerError = "stale"
-        state.captureError = "stale"
-        state.retractError = "stale"
-        state.digestError = "stale"
-        state.attentionError = "stale"
-        state.isLoadingDigest = true
-        state.isLoadingAttention = true
-        state.isLoadingKnowledge = true
-        state.isLoadingMemory = true
-        state.isLoadingHistory = true
-        state.isLoadingTasksSearch = true
-        state.isLoadingRecall = true
-        state.isLoadingAnswer = true
-        state.isLoadingCapture = true
-        state.isLoadingRetract = true
-        state.retractConfirmed = true
-        state.answerLogEntries = [
+        state.connection.health = .running(1)
+        state.content.knowledgeError = "stale"
+        state.content.memoryError = "stale"
+        state.content.historyError = "stale"
+        state.content.tasksError = "stale"
+        state.content.recallError = "stale"
+        state.content.answerError = "stale"
+        state.content.captureError = "stale"
+        state.content.retractError = "stale"
+        state.content.digestError = "stale"
+        state.content.attentionError = "stale"
+        state.content.isLoadingDigest = true
+        state.content.isLoadingAttention = true
+        state.content.isLoadingKnowledge = true
+        state.content.isLoadingMemory = true
+        state.content.isLoadingHistory = true
+        state.content.isLoadingTasksSearch = true
+        state.content.isLoadingRecall = true
+        state.content.isLoadingAnswer = true
+        state.content.isLoadingCapture = true
+        state.content.isLoadingRetract = true
+        state.content.retractConfirmed = true
+        state.content.answerLogEntries = [
             AnswerHistoryEntry(
                 id: "ans-stale",
                 createdAt: "2026-04-29T00:00:00Z",
@@ -199,69 +199,69 @@ final class AppStateTests: XCTestCase {
                 result: .failure(reason: .noHits)
             )
         ]
-        state.answerLogError = "stale"
-        state.isLoadingAnswerLog = true
-        state.answerLogHasMore = true
-        state.answerShowOpenId = "ans-stale"
-        state.answerShowMissing = true
-        state.answerShowError = "stale"
-        state.isLoadingAnswerShow = true
+        state.content.answerLogError = "stale"
+        state.content.isLoadingAnswerLog = true
+        state.content.answerLogHasMore = true
+        state.content.answerShowOpenId = "ans-stale"
+        state.content.answerShowMissing = true
+        state.content.answerShowError = "stale"
+        state.content.isLoadingAnswerShow = true
         state.scopeRoot = nil
         state.remoteURL = ""
 
         await state.refresh()
 
-        if case .offline = state.health {
+        if case .offline = state.connection.health {
             // expected
         } else {
             XCTFail("offline branch must set health to .offline")
         }
-        XCTAssertEqual(state.diagnostic, .noScope)
-        XCTAssertTrue(state.activeRuns.isEmpty)
-        XCTAssertTrue(state.recentRuns.isEmpty)
-        XCTAssertNil(state.identity)
-        XCTAssertNil(state.capabilities)
-        XCTAssertTrue(state.workflowDefinitions.isEmpty)
-        XCTAssertNil(state.digest)
-        XCTAssertNil(state.digestError)
-        XCTAssertFalse(state.isLoadingDigest)
-        XCTAssertNil(state.attention)
-        XCTAssertNil(state.attentionError)
-        XCTAssertFalse(state.isLoadingAttention)
-        XCTAssertNil(state.knowledgeResult)
-        XCTAssertNil(state.knowledgeError)
-        XCTAssertFalse(state.isLoadingKnowledge)
-        XCTAssertNil(state.memoryResult)
-        XCTAssertNil(state.memoryError)
-        XCTAssertFalse(state.isLoadingMemory)
-        XCTAssertNil(state.historyResult)
-        XCTAssertNil(state.historyError)
-        XCTAssertFalse(state.isLoadingHistory)
-        XCTAssertNil(state.tasksResult)
-        XCTAssertNil(state.tasksError)
-        XCTAssertFalse(state.isLoadingTasksSearch)
-        XCTAssertNil(state.recallResult)
-        XCTAssertNil(state.recallError)
-        XCTAssertFalse(state.isLoadingRecall)
-        XCTAssertNil(state.answerResult)
-        XCTAssertNil(state.answerError)
-        XCTAssertFalse(state.isLoadingAnswer)
-        XCTAssertNil(state.captureResult)
-        XCTAssertNil(state.captureError)
-        XCTAssertFalse(state.isLoadingCapture)
-        XCTAssertNil(state.retractResult)
-        XCTAssertNil(state.retractError)
-        XCTAssertFalse(state.isLoadingRetract)
-        XCTAssertFalse(state.retractConfirmed)
-        XCTAssertTrue(state.answerLogEntries.isEmpty)
-        XCTAssertNil(state.answerLogError)
-        XCTAssertFalse(state.isLoadingAnswerLog)
-        XCTAssertFalse(state.answerLogHasMore)
-        XCTAssertNil(state.answerShowOpenId)
-        XCTAssertNil(state.answerShowRecord)
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
-        XCTAssertFalse(state.isLoadingAnswerShow)
+        XCTAssertEqual(state.connection.diagnostic, .noScope)
+        XCTAssertTrue(state.activity.activeRuns.isEmpty)
+        XCTAssertTrue(state.activity.recentRuns.isEmpty)
+        XCTAssertNil(state.connection.identity)
+        XCTAssertNil(state.connection.capabilities)
+        XCTAssertTrue(state.activity.workflowDefinitions.isEmpty)
+        XCTAssertNil(state.content.digest)
+        XCTAssertNil(state.content.digestError)
+        XCTAssertFalse(state.content.isLoadingDigest)
+        XCTAssertNil(state.content.attention)
+        XCTAssertNil(state.content.attentionError)
+        XCTAssertFalse(state.content.isLoadingAttention)
+        XCTAssertNil(state.content.knowledgeResult)
+        XCTAssertNil(state.content.knowledgeError)
+        XCTAssertFalse(state.content.isLoadingKnowledge)
+        XCTAssertNil(state.content.memoryResult)
+        XCTAssertNil(state.content.memoryError)
+        XCTAssertFalse(state.content.isLoadingMemory)
+        XCTAssertNil(state.content.historyResult)
+        XCTAssertNil(state.content.historyError)
+        XCTAssertFalse(state.content.isLoadingHistory)
+        XCTAssertNil(state.content.tasksResult)
+        XCTAssertNil(state.content.tasksError)
+        XCTAssertFalse(state.content.isLoadingTasksSearch)
+        XCTAssertNil(state.content.recallResult)
+        XCTAssertNil(state.content.recallError)
+        XCTAssertFalse(state.content.isLoadingRecall)
+        XCTAssertNil(state.content.answerResult)
+        XCTAssertNil(state.content.answerError)
+        XCTAssertFalse(state.content.isLoadingAnswer)
+        XCTAssertNil(state.content.captureResult)
+        XCTAssertNil(state.content.captureError)
+        XCTAssertFalse(state.content.isLoadingCapture)
+        XCTAssertNil(state.content.retractResult)
+        XCTAssertNil(state.content.retractError)
+        XCTAssertFalse(state.content.isLoadingRetract)
+        XCTAssertFalse(state.content.retractConfirmed)
+        XCTAssertTrue(state.content.answerLogEntries.isEmpty)
+        XCTAssertNil(state.content.answerLogError)
+        XCTAssertFalse(state.content.isLoadingAnswerLog)
+        XCTAssertFalse(state.content.answerLogHasMore)
+        XCTAssertNil(state.content.answerShowOpenId)
+        XCTAssertNil(state.content.answerShowRecord)
+        XCTAssertFalse(state.content.answerShowMissing)
+        XCTAssertNil(state.content.answerShowError)
+        XCTAssertFalse(state.content.isLoadingAnswerShow)
     }
 
     // MARK: - Active scope selection
@@ -275,19 +275,19 @@ final class AppStateTests: XCTestCase {
                 directoryScope(scopeId: "p-other", displayName: "other", directoryRoot: "/tmp/other"),
             ]
         )
-        XCTAssertNil(state.activeScopeId)
+        XCTAssertNil(state.connection.activeScopeId)
         state.reconcileActiveScopeId(with: projection)
-        XCTAssertEqual(state.activeScopeId, "p-default")
+        XCTAssertEqual(state.connection.activeScopeId, "p-default")
 
         // A subsequent reconcile with the same registry preserves the
         // current selection — the operator has not changed scopes.
         state.reconcileActiveScopeId(with: projection)
-        XCTAssertEqual(state.activeScopeId, "p-default")
+        XCTAssertEqual(state.connection.activeScopeId, "p-default")
     }
 
     func testReconcileActiveScopeIdResetsWhenSelectionDropsOutOfRegistry() {
         let state = makeState(notifications: RecordingNotifications())
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/tmp/kota",
             scopeRegistry: makeScopeRegistry(
@@ -303,7 +303,7 @@ final class AppStateTests: XCTestCase {
             dashboard: .available(path: "/")
         )
         state.setActiveScopeId("p-other")
-        XCTAssertEqual(state.activeScopeId, "p-other")
+        XCTAssertEqual(state.connection.activeScopeId, "p-other")
 
         // After a config reload the registry no longer carries `p-other`.
         // The selection must collapse back to the registry's default
@@ -315,12 +315,12 @@ final class AppStateTests: XCTestCase {
             ]
         )
         state.reconcileActiveScopeId(with: shrunken)
-        XCTAssertEqual(state.activeScopeId, "p-default")
+        XCTAssertEqual(state.connection.activeScopeId, "p-default")
     }
 
     func testSetActiveScopeIdClearsScopeScopedStateImmediately() {
         let state = makeState(notifications: RecordingNotifications())
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/tmp/kota",
             scopeRegistry: makeScopeRegistry(
@@ -335,15 +335,30 @@ final class AppStateTests: XCTestCase {
             startedAt: "t",
             dashboard: .available(path: "/")
         )
-        state.reconcileActiveScopeId(with: state.identity!.scopeRegistry)
-        XCTAssertEqual(state.activeScopeId, "p-default")
-        state.activeRuns = [ActiveRun(runId: "r1", workflow: "builder", startedAt: "t")]
-        state.recentRuns = [RunSummary(id: "r0", workflow: "builder", status: "success", startedAt: "t", durationMs: 1)]
+        state.reconcileActiveScopeId(with: state.connection.identity!.scopeRegistry)
+        XCTAssertEqual(state.connection.activeScopeId, "p-default")
+        state.activity.activeRuns = [ActiveRun(runId: "r1", workflow: "builder", startedAt: "t")]
+        state.activity.recentRuns = [RunSummary(id: "r0", workflow: "builder", status: "success", startedAt: "t", durationMs: 1)]
+        state.activity.pendingApprovals = [
+            ApprovalRequest(
+                id: "approval-global",
+                tool: "shell",
+                risk: "elevated",
+                reason: "operator decision",
+                createdAt: "t",
+                status: "pending"
+            )
+        ]
+        state.content.knowledgeQuery = "keep my draft"
+        state.content.knowledgeError = "old scope"
 
         state.setActiveScopeId("p-other")
-        XCTAssertEqual(state.activeScopeId, "p-other")
-        XCTAssertTrue(state.activeRuns.isEmpty)
-        XCTAssertTrue(state.recentRuns.isEmpty)
+        XCTAssertEqual(state.connection.activeScopeId, "p-other")
+        XCTAssertTrue(state.activity.activeRuns.isEmpty)
+        XCTAssertTrue(state.activity.recentRuns.isEmpty)
+        XCTAssertEqual(state.activity.pendingApprovals.map(\.id), ["approval-global"])
+        XCTAssertEqual(state.content.knowledgeQuery, "keep my draft")
+        XCTAssertNil(state.content.knowledgeError)
     }
 
     // MARK: - Scope-scoped URL builder
@@ -373,10 +388,10 @@ final class AppStateTests: XCTestCase {
         // First pass seeds the known-id sets without emitting anything,
         // mirroring the production "don't fire stale notifications when
         // re-enabled" behavior.
-        state.recentRuns = [
+        state.activity.recentRuns = [
             RunSummary(id: "run-old", workflow: "builder", status: "failed", startedAt: "t0", durationMs: nil)
         ]
-        state.pendingApprovals = [
+        state.activity.pendingApprovals = [
             ApprovalRequest(
                 id: "approval-old",
                 tool: "shell",
@@ -386,7 +401,7 @@ final class AppStateTests: XCTestCase {
                 status: "pending"
             )
         ]
-        state.pendingOwnerQuestions = [
+        state.activity.pendingOwnerQuestions = [
             OwnerQuestion(
                 id: "owner-old",
                 context: "ctx",
@@ -407,10 +422,10 @@ final class AppStateTests: XCTestCase {
         // Second pass: one new failed run, one new approval, one new
         // owner question. Each must emit exactly once with the expected
         // identifier prefix.
-        state.recentRuns.append(
+        state.activity.recentRuns.append(
             RunSummary(id: "run-new", workflow: "decomposer", status: "failed", startedAt: "t1", durationMs: nil)
         )
-        state.pendingApprovals.append(
+        state.activity.pendingApprovals.append(
             ApprovalRequest(
                 id: "approval-new",
                 tool: "git",
@@ -420,7 +435,7 @@ final class AppStateTests: XCTestCase {
                 status: "pending"
             )
         )
-        state.pendingOwnerQuestions.append(
+        state.activity.pendingOwnerQuestions.append(
             OwnerQuestion(
                 id: "owner-new",
                 context: "ctx2",

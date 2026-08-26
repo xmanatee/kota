@@ -55,7 +55,7 @@ final class ScopeSelectorRenderedTests: XCTestCase {
             notifications: InertNotificationManager(),
             startPollingOnInit: false
         )
-        state.identity = ClientIdentity(
+        state.connection.identity = ClientIdentity(
             scopeName: "kota",
             scopeRoot: "/Users/operator/projects/kota",
             scopeRegistry: projection,
@@ -93,9 +93,9 @@ final class ScopeSelectorRenderedTests: XCTestCase {
 
         // Sanity assertions: the snapshot is only useful if it
         // captures the same selection state the AppState reports.
-        XCTAssertNil(single.activeScopeId)
-        XCTAssertEqual(multiDefault.activeScopeId, "p-kota")
-        XCTAssertEqual(multiSwitched.activeScopeId, "p-side")
+        XCTAssertNil(single.connection.activeScopeId)
+        XCTAssertEqual(multiDefault.connection.activeScopeId, "p-kota")
+        XCTAssertEqual(multiSwitched.connection.activeScopeId, "p-side")
 
         let snapshot = lines.joined(separator: "\n") + "\n"
         guard let url = Self.snapshotPath() else { return }
@@ -109,25 +109,25 @@ final class ScopeSelectorRenderedTests: XCTestCase {
     private func renderState(label: String, state: AppState) -> String {
         var lines: [String] = []
         lines.append("## \(label)")
-        guard let identity = state.identity else {
+        guard let identity = state.connection.identity else {
             lines.append("  (no identity payload)")
             return lines.joined(separator: "\n")
         }
         let entries = identity.scopeRegistry.scopes
         if entries.count <= 1 {
             lines.append("  selector hidden — registry has a single scope (\(entries.first?.displayName ?? "<none>"))")
-            lines.append("  activeScopeId = \(state.activeScopeId ?? "<nil>")")
+            lines.append("  activeScopeId = \(state.connection.activeScopeId ?? "<nil>")")
             return lines.joined(separator: "\n")
         }
         lines.append("  ┌─ Scope ─────────────────────────────────────┐")
         for entry in entries {
-            let active = state.activeScopeId == entry.scopeId
+            let active = state.connection.activeScopeId == entry.scopeId
             let marker = active ? "●" : "○"
             let line = "  │ \(marker) \(entry.displayName.padding(toLength: 18, withPad: " ", startingAt: 0))  \(entry.scopeId.padding(toLength: 24, withPad: " ", startingAt: 0)) │"
             lines.append(line)
         }
         lines.append("  └────────────────────────────────────────────────┘")
-        lines.append("  activeScopeId = \(state.activeScopeId ?? "<nil>")")
+        lines.append("  activeScopeId = \(state.connection.activeScopeId ?? "<nil>")")
         return lines.joined(separator: "\n")
     }
 

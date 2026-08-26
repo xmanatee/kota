@@ -71,24 +71,24 @@ final class AnswerHistoryStateTests: XCTestCase {
 
         let state = makeState()
         // Seed prior open detail to confirm a fresh list-load clears it.
-        state.answerShowOpenId = "ans-stale"
-        state.answerShowMissing = true
-        state.answerShowError = "stale"
+        state.content.answerShowOpenId = "ans-stale"
+        state.content.answerShowMissing = true
+        state.content.answerShowError = "stale"
 
         await state.loadAnswerLog()
 
-        XCTAssertEqual(state.answerLogEntries.count, 20)
-        XCTAssertEqual(state.answerLogEntries.first?.id, "ans-0")
-        XCTAssertEqual(state.answerLogEntries.last?.id, "ans-19")
+        XCTAssertEqual(state.content.answerLogEntries.count, 20)
+        XCTAssertEqual(state.content.answerLogEntries.first?.id, "ans-0")
+        XCTAssertEqual(state.content.answerLogEntries.last?.id, "ans-19")
         XCTAssertTrue(
-            state.answerLogHasMore,
+            state.content.answerLogHasMore,
             "Full page (entries.count >= limit) must surface as hasMore=true."
         )
-        XCTAssertNil(state.answerLogError)
-        XCTAssertFalse(state.isLoadingAnswerLog)
-        XCTAssertNil(state.answerShowOpenId)
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
+        XCTAssertNil(state.content.answerLogError)
+        XCTAssertFalse(state.content.isLoadingAnswerLog)
+        XCTAssertNil(state.content.answerShowOpenId)
+        XCTAssertFalse(state.content.answerShowMissing)
+        XCTAssertNil(state.content.answerShowError)
     }
 
     /// A short page (entries < limit) drops `hasMore` to false and
@@ -111,13 +111,13 @@ final class AnswerHistoryStateTests: XCTestCase {
         }
 
         let state = makeState()
-        state.answerLogHasMore = true
+        state.content.answerLogHasMore = true
 
         await state.loadAnswerLog()
 
-        XCTAssertEqual(state.answerLogEntries.count, 1)
+        XCTAssertEqual(state.content.answerLogEntries.count, 1)
         XCTAssertFalse(
-            state.answerLogHasMore,
+            state.content.answerLogHasMore,
             "Short page (entries.count < limit) must clear hasMore so the Load older affordance hides."
         )
     }
@@ -138,13 +138,13 @@ final class AnswerHistoryStateTests: XCTestCase {
         }
 
         let state = makeState()
-        state.answerLogHasMore = true
+        state.content.answerLogHasMore = true
 
         await state.loadAnswerLog()
 
-        XCTAssertNotNil(state.answerLogError)
-        XCTAssertFalse(state.answerLogHasMore)
-        XCTAssertFalse(state.isLoadingAnswerLog)
+        XCTAssertNotNil(state.content.answerLogError)
+        XCTAssertFalse(state.content.answerLogHasMore)
+        XCTAssertFalse(state.content.isLoadingAnswerLog)
     }
 
     // MARK: - loadMoreAnswerLog
@@ -178,7 +178,7 @@ final class AnswerHistoryStateTests: XCTestCase {
         }
 
         let state = makeState()
-        state.answerLogEntries = [
+        state.content.answerLogEntries = [
             AnswerHistoryEntry(
                 id: "ans-prior-1",
                 createdAt: "t0",
@@ -195,8 +195,8 @@ final class AnswerHistoryStateTests: XCTestCase {
 
         await state.loadMoreAnswerLog()
 
-        XCTAssertEqual(state.answerLogEntries.count, 4)
-        XCTAssertEqual(state.answerLogEntries.map { $0.id }, [
+        XCTAssertEqual(state.content.answerLogEntries.count, 4)
+        XCTAssertEqual(state.content.answerLogEntries.map { $0.id }, [
             "ans-prior-1", "ans-prior-last", "ans-older-1", "ans-older-2",
         ])
     }
@@ -220,7 +220,7 @@ final class AnswerHistoryStateTests: XCTestCase {
         await state.loadMoreAnswerLog()
 
         XCTAssertEqual(requestCount, 0)
-        XCTAssertTrue(state.answerLogEntries.isEmpty)
+        XCTAssertTrue(state.content.answerLogEntries.isEmpty)
     }
 
     // MARK: - openAnswerShow / closeAnswerShow
@@ -254,11 +254,11 @@ final class AnswerHistoryStateTests: XCTestCase {
         let state = makeState()
         await state.openAnswerShow(id: "ans-42")
 
-        XCTAssertEqual(state.answerShowOpenId, "ans-42")
-        XCTAssertEqual(state.answerShowRecord?.id, "ans-42")
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
-        XCTAssertFalse(state.isLoadingAnswerShow)
+        XCTAssertEqual(state.content.answerShowOpenId, "ans-42")
+        XCTAssertEqual(state.content.answerShowRecord?.id, "ans-42")
+        XCTAssertFalse(state.content.answerShowMissing)
+        XCTAssertNil(state.content.answerShowError)
+        XCTAssertFalse(state.content.isLoadingAnswerShow)
     }
 
     /// The discriminated `notFound` arm sets `answerShowMissing` so the
@@ -279,10 +279,10 @@ final class AnswerHistoryStateTests: XCTestCase {
         let state = makeState()
         await state.openAnswerShow(id: "missing")
 
-        XCTAssertEqual(state.answerShowOpenId, "missing")
-        XCTAssertNil(state.answerShowRecord)
-        XCTAssertTrue(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
+        XCTAssertEqual(state.content.answerShowOpenId, "missing")
+        XCTAssertNil(state.content.answerShowRecord)
+        XCTAssertTrue(state.content.answerShowMissing)
+        XCTAssertNil(state.content.answerShowError)
     }
 
     /// HTTP / decode failure surfaces in `answerShowError` (the typed
@@ -303,10 +303,10 @@ final class AnswerHistoryStateTests: XCTestCase {
         let state = makeState()
         await state.openAnswerShow(id: "ans-bad")
 
-        XCTAssertNil(state.answerShowRecord)
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNotNil(state.answerShowError)
-        XCTAssertFalse(state.isLoadingAnswerShow)
+        XCTAssertNil(state.content.answerShowRecord)
+        XCTAssertFalse(state.content.answerShowMissing)
+        XCTAssertNotNil(state.content.answerShowError)
+        XCTAssertFalse(state.content.isLoadingAnswerShow)
     }
 
     /// `closeAnswerShow` drops the open-detail bookkeeping without
@@ -314,7 +314,7 @@ final class AnswerHistoryStateTests: XCTestCase {
     /// without a second roundtrip.
     func testCloseAnswerShowClearsDetailWithoutTouchingList() {
         let state = makeState()
-        state.answerLogEntries = [
+        state.content.answerLogEntries = [
             AnswerHistoryEntry(
                 id: "ans-keep",
                 createdAt: "t",
@@ -322,19 +322,19 @@ final class AnswerHistoryStateTests: XCTestCase {
                 result: .success(citationCount: 0)
             )
         ]
-        state.answerLogHasMore = true
-        state.answerShowOpenId = "ans-detail"
-        state.answerShowMissing = true
-        state.answerShowError = "boom"
+        state.content.answerLogHasMore = true
+        state.content.answerShowOpenId = "ans-detail"
+        state.content.answerShowMissing = true
+        state.content.answerShowError = "boom"
 
         state.closeAnswerShow()
 
-        XCTAssertNil(state.answerShowOpenId)
-        XCTAssertNil(state.answerShowRecord)
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
-        XCTAssertFalse(state.isLoadingAnswerShow)
-        XCTAssertEqual(state.answerLogEntries.count, 1, "list must survive close()")
-        XCTAssertTrue(state.answerLogHasMore)
+        XCTAssertNil(state.content.answerShowOpenId)
+        XCTAssertNil(state.content.answerShowRecord)
+        XCTAssertFalse(state.content.answerShowMissing)
+        XCTAssertNil(state.content.answerShowError)
+        XCTAssertFalse(state.content.isLoadingAnswerShow)
+        XCTAssertEqual(state.content.answerLogEntries.count, 1, "list must survive close()")
+        XCTAssertTrue(state.content.answerLogHasMore)
     }
 }

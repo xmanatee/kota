@@ -22,9 +22,9 @@ struct TaskSearchBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.tasksError {
+            if let err = appState.content.tasksError {
                 TaskSearchErrorView(message: err)
-            } else if appState.isLoadingTasksSearch && appState.tasksResult == nil {
+            } else if appState.content.isLoadingTasksSearch && appState.content.tasksResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Searching…")
@@ -36,7 +36,7 @@ struct TaskSearchBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.tasksResult {
+            } else if let result = appState.content.tasksResult {
                 switch result {
                 case .success(let tasks):
                     if tasks.isEmpty {
@@ -67,7 +67,7 @@ struct TaskSearchBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.tasksQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.tasksQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -88,7 +88,7 @@ struct TaskSearchErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingTasksSearch)
+            .disabled(appState.content.isLoadingTasksSearch)
         }
     }
 }

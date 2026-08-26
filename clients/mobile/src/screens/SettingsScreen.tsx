@@ -21,17 +21,17 @@ type SettingsScreenProps = {
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { state, saveSettings, setPushNotificationsEnabled } = useDaemon();
-  const [url, setUrl] = useState(state.daemonUrl);
-  const [token, setToken] = useState(state.token);
+  const [url, setUrl] = useState(state.connection.daemonUrl);
+  const [token, setToken] = useState(state.connection.token);
   const [saving, setSaving] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
-    setUrl(state.daemonUrl);
-    setToken(state.token);
-  }, [state.daemonUrl, state.token]);
+    setUrl(state.connection.daemonUrl);
+    setToken(state.connection.token);
+  }, [state.connection.daemonUrl, state.connection.token]);
 
   async function handleSave() {
     const trimmedUrl = url.trim().replace(/\/$/, '');
@@ -157,7 +157,7 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
             <Text style={styles.rowHint}>Receive alerts when a workflow needs approval.</Text>
           </View>
           <Switch
-            value={state.pushNotificationsEnabled}
+            value={state.connection.pushNotificationsEnabled}
             onValueChange={(v) => void setPushNotificationsEnabled(v)}
           />
         </View>

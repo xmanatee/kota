@@ -22,9 +22,9 @@ struct MemoryBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.memoryError {
+            if let err = appState.content.memoryError {
                 MemoryErrorView(message: err)
-            } else if appState.isLoadingMemory && appState.memoryResult == nil {
+            } else if appState.content.isLoadingMemory && appState.content.memoryResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Searching…")
@@ -36,7 +36,7 @@ struct MemoryBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.memoryResult {
+            } else if let result = appState.content.memoryResult {
                 switch result {
                 case .success(let entries):
                     if entries.isEmpty {
@@ -67,7 +67,7 @@ struct MemoryBodyView: View {
     }
 
     private var hasEnteredQuery: Bool {
-        !appState.memoryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.memoryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -88,7 +88,7 @@ struct MemoryErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingMemory)
+            .disabled(appState.content.isLoadingMemory)
         }
     }
 }

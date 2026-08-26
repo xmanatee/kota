@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { initialState } from '../context/state';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { renderKnowledgeSearchPlain } from '../knowledgeRender';
 import type { KnowledgeEntry, KnowledgeSearchResponse } from '../types';
@@ -31,22 +32,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
     knowledgeQuery: '',
     knowledgeResult: null as KnowledgeSearchResponse | null,
     knowledgeLoading: false,
@@ -55,7 +40,24 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      knowledgeQuery: state.knowledgeQuery,
+      knowledgeResult: state.knowledgeResult,
+      knowledgeLoading: state.knowledgeLoading,
+      knowledgeError: state.knowledgeError,
+    },
+  };
 }
 
 function mockDaemon(

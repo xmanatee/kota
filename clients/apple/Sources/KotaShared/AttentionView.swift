@@ -21,7 +21,7 @@ struct AttentionView: View {
                     Text("Attention")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if let attention = appState.attention {
+                    if let attention = appState.content.attention {
                         AttentionStateBadge(itemCount: attention.items.count)
                     }
                     Spacer()
@@ -42,16 +42,16 @@ struct AttentionView: View {
     }
 
     private var headerIconColor: Color {
-        guard let attention = appState.attention else { return .secondary }
+        guard let attention = appState.content.attention else { return .secondary }
         return attention.items.isEmpty ? .secondary : .orange
     }
 
     private func toggleExpansion() {
         isExpanded.toggle()
         if isExpanded
-            && appState.attention == nil
-            && appState.attentionError == nil
-            && !appState.isLoadingAttention
+            && appState.content.attention == nil
+            && appState.content.attentionError == nil
+            && !appState.content.isLoadingAttention
         {
             Task { await appState.loadAttention() }
         }
@@ -86,7 +86,7 @@ struct AttentionExpandedContent: View {
 
     var body: some View {
         Group {
-            if appState.isLoadingAttention && appState.attention == nil {
+            if appState.content.isLoadingAttention && appState.content.attention == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Loading…")
@@ -95,9 +95,9 @@ struct AttentionExpandedContent: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-            } else if let err = appState.attentionError {
+            } else if let err = appState.content.attentionError {
                 AttentionErrorView(message: err)
-            } else if let attention = appState.attention {
+            } else if let attention = appState.content.attention {
                 AttentionBodyView(attention: attention)
             } else {
                 Text("Tap to load attention")
@@ -123,7 +123,7 @@ struct AttentionBodyView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             HStack {
-                if appState.isLoadingAttention {
+                if appState.content.isLoadingAttention {
                     ProgressView().scaleEffect(0.5)
                     Text("Refreshing…")
                         .font(.caption2)
@@ -135,7 +135,7 @@ struct AttentionBodyView: View {
                         .font(.caption2)
                 }
                 .buttonStyle(.borderless)
-                .disabled(appState.isLoadingAttention)
+                .disabled(appState.content.isLoadingAttention)
             }
         }
         .padding(.horizontal, 12)
@@ -160,7 +160,7 @@ struct AttentionErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingAttention)
+            .disabled(appState.content.isLoadingAttention)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

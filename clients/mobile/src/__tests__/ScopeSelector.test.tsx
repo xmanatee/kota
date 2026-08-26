@@ -36,6 +36,17 @@ function makeIdentity(scopes: { scopeId: string; displayName: string }[]): Clien
   };
 }
 
+function stateWithIdentity(
+  identity: ClientIdentity | null,
+  activeScopeId: string | null,
+) {
+  return {
+    ...initialState,
+    connection: { ...initialState.connection, identity },
+    scope: { activeScopeId },
+  };
+}
+
 describe('ScopeSelector', () => {
   afterEach(() => {
     mockUseDaemon.mockReset();
@@ -43,11 +54,10 @@ describe('ScopeSelector', () => {
 
   test('hides itself when the daemon hosts a single directory scope', () => {
     mockUseDaemon.mockReturnValue({
-      state: {
-        ...initialState,
-        identity: makeIdentity([{ scopeId: 'p-kota', displayName: 'kota' }]),
-        activeScopeId: 'p-kota',
-      },
+      state: stateWithIdentity(
+        makeIdentity([{ scopeId: 'p-kota', displayName: 'kota' }]),
+        'p-kota',
+      ),
       setActiveScopeId: jest.fn(),
     });
     const { queryByTestId } = render(<ScopeSelector />);
@@ -56,14 +66,13 @@ describe('ScopeSelector', () => {
 
   test('renders one chip per directory scope and highlights the active one', () => {
     mockUseDaemon.mockReturnValue({
-      state: {
-        ...initialState,
-        identity: makeIdentity([
+      state: stateWithIdentity(
+        makeIdentity([
           { scopeId: 'p-kota', displayName: 'kota' },
           { scopeId: 'p-side', displayName: 'side-scope' },
         ]),
-        activeScopeId: 'p-kota',
-      },
+        'p-kota',
+      ),
       setActiveScopeId: jest.fn(),
     });
     const { getByTestId, getByText } = render(<ScopeSelector />);
@@ -77,14 +86,13 @@ describe('ScopeSelector', () => {
   test('tapping a chip drives setActiveScopeId with that scope id', () => {
     const setActiveScopeId = jest.fn();
     mockUseDaemon.mockReturnValue({
-      state: {
-        ...initialState,
-        identity: makeIdentity([
+      state: stateWithIdentity(
+        makeIdentity([
           { scopeId: 'p-kota', displayName: 'kota' },
           { scopeId: 'p-side', displayName: 'side-scope' },
         ]),
-        activeScopeId: 'p-kota',
-      },
+        'p-kota',
+      ),
       setActiveScopeId,
     });
     const { getByTestId } = render(<ScopeSelector />);
@@ -94,7 +102,7 @@ describe('ScopeSelector', () => {
 
   test('hides itself when identity has not resolved yet', () => {
     mockUseDaemon.mockReturnValue({
-      state: { ...initialState, identity: null, activeScopeId: null },
+      state: stateWithIdentity(null, null),
       setActiveScopeId: jest.fn(),
     });
     const { queryByTestId } = render(<ScopeSelector />);
@@ -110,14 +118,13 @@ describe('ScopeSelector', () => {
 
     function snapshot(label: string, activeId: string | null): unknown {
       mockUseDaemon.mockReturnValue({
-        state: {
-          ...initialState,
-          identity: makeIdentity([
+        state: stateWithIdentity(
+          makeIdentity([
             { scopeId: 'p-kota', displayName: 'kota' },
             { scopeId: 'p-side', displayName: 'side-scope' },
           ]),
-          activeScopeId: activeId,
-        },
+          activeId,
+        ),
         setActiveScopeId: jest.fn(),
       });
       const { toJSON } = render(<ScopeSelector />);

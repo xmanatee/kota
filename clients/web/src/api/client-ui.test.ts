@@ -14,7 +14,9 @@ describe("shared UI API client", () => {
   });
 
   it("strictly loads the selected scope's shared UI bundle", async () => {
-    const fixture = await import("../../../conformance/ui-behavior-vectors.generated.json");
+    const fixture = await import(
+      "../../../conformance/ui-behavior-vectors.generated.json"
+    );
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(fixture.default.operatorBundle),
@@ -31,7 +33,9 @@ describe("shared UI API client", () => {
   });
 
   it("executes the graph-bound action with its canonical scope", async () => {
-    const fixture = await import("../../../conformance/ui-behavior-vectors.generated.json");
+    const fixture = await import(
+      "../../../conformance/ui-behavior-vectors.generated.json"
+    );
     const { parseUiSurfaceBundle } = await import(
       "../../../conformance/ui-surface.generated"
     );

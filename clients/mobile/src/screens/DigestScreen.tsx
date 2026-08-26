@@ -12,7 +12,8 @@ import { useDaemon } from '../context/DaemonContext';
 
 export function DigestScreen() {
   const { state, refreshDigest } = useDaemon();
-  const { online, digest, digestLoading, digestError } = state;
+  const { online } = state.connection;
+  const { digest, digestLoading, digestError } = state.content;
 
   useEffect(() => {
     if (online && digest === null && !digestLoading && digestError === null) {
@@ -20,7 +21,7 @@ export function DigestScreen() {
     }
   }, [online, digest, digestLoading, digestError, refreshDigest]);
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -28,7 +29,7 @@ export function DigestScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>

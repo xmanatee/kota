@@ -49,7 +49,7 @@ struct CaptureDraftField: View {
     var body: some View {
         TextField(
             "Capture a note across stores…",
-            text: $appState.captureDraft,
+            text: $appState.content.captureDraft,
             axis: .vertical
         )
         .textFieldStyle(.roundedBorder)
@@ -68,7 +68,7 @@ struct CaptureControlsRow: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
-                Picker("Target", selection: $appState.captureTarget) {
+                Picker("Target", selection: $appState.content.captureTarget) {
                     Text("auto").tag(CaptureTargetChoice.auto)
                     ForEach(CaptureTarget.allCases, id: \.self) { t in
                         Text(t.rawValue).tag(CaptureTargetChoice.target(t))
@@ -78,12 +78,12 @@ struct CaptureControlsRow: View {
                 .labelsHidden()
                 .font(.caption)
 
-                TextField("hint (optional)", text: $appState.captureHint)
+                TextField("hint (optional)", text: $appState.content.captureHint)
                     .textFieldStyle(.roundedBorder)
                     .font(.caption)
 
                 Button(action: { Task { await appState.loadCapture() } }) {
-                    if appState.isLoadingCapture {
+                    if appState.content.isLoadingCapture {
                         ProgressView().scaleEffect(0.5)
                     } else {
                         Text("Capture").font(.caption)
@@ -91,13 +91,13 @@ struct CaptureControlsRow: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(appState.isLoadingCapture || isSubmitDisabled)
+                .disabled(appState.content.isLoadingCapture || isSubmitDisabled)
             }
         }
     }
 
     private var isSubmitDisabled: Bool {
-        appState.captureDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        appState.content.captureDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -122,9 +122,9 @@ struct CaptureBodyView: View {
 
     var body: some View {
         Group {
-            if let err = appState.captureError {
+            if let err = appState.content.captureError {
                 CaptureErrorView(message: err)
-            } else if appState.isLoadingCapture && appState.captureResult == nil {
+            } else if appState.content.isLoadingCapture && appState.content.captureResult == nil {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
                     Text("Capturing…")
@@ -136,7 +136,7 @@ struct CaptureBodyView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let result = appState.captureResult {
+            } else if let result = appState.content.captureResult {
                 CaptureResultView(result: result)
             } else {
                 Text("Press Capture to route this note.")
@@ -148,7 +148,7 @@ struct CaptureBodyView: View {
     }
 
     private var hasEnteredDraft: Bool {
-        !appState.captureDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !appState.content.captureDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -259,7 +259,7 @@ struct CaptureErrorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(appState.isLoadingCapture)
+            .disabled(appState.content.isLoadingCapture)
         }
     }
 }

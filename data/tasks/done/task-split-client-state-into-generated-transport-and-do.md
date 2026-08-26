@@ -1,14 +1,14 @@
 ---
 id: task-split-client-state-into-generated-transport-and-do
 title: Split client state into generated transport and domain stores
-status: backlog
+status: done
 priority: p2
 area: client
 task_class: Platform
 depends_on: [task-generate-all-thin-client-daemon-contract-bindings]
 summary: Replace oversized client application-state objects with generated wire contracts and focused scope, task, session, setup, and UI stores.
 created_at: 2026-08-24T02:13:50.623Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T11:12:44.635Z
 ---
 
 ## Problem
@@ -68,3 +68,26 @@ Thin native clients over one daemon contract.
   error, and recovered states.
 - Dependency report proving client domain stores do not reproduce daemon
   authority or authored wire schemas.
+
+## Result
+
+Apple and React Native now expose connection, scope/activity, requested
+content, and shared-UI state through focused domain values. Their composition
+roots coordinate transport without forwarding the former flat aggregate
+fields. Scope changes retain daemon-global approvals, questions, and task
+state, clear only scope-owned activity and live content, preserve operator
+drafts, and reject late completions from the previous scope. Web already used
+TanStack Query plus `ScopeContext`; its single `DaemonEventSource` remains the
+event owner.
+
+The generated TypeScript client now publishes namespace-port types. Config,
+history, setup routing, operator inbox, and Telegram scope selection consume
+only their declared namespaces. Mobile screen fixtures no longer repeat the
+entire application state, and decoder boundary tests assert the public
+`ContractDecodeError` instead of generated error wording. Each platform has
+one connection-level event stream owner; chat streaming remains a separate
+request response protocol rather than a second application event subscriber.
+
+Generator freshness, repository lint, production/test typechecks, and 51
+focused server tests passed. Mobile typecheck and all 378 selected tests,
+Apple's 239 tests, and all 75 web tests plus its production build passed.

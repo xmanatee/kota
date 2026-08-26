@@ -10,12 +10,12 @@ import { useDaemon } from '../context/DaemonContext';
  */
 export function ScopeSelector() {
   const { state, setActiveScopeId } = useDaemon();
-  const identity = state.identity;
+  const identity = state.connection.identity;
   const scopes = identity?.scopeRegistry.scopes.filter(
     (scope) => scope.directoryRoot !== undefined,
   );
   if (!identity || !scopes || scopes.length <= 1) return null;
-  const activeId = state.activeScopeId ?? identity.scopeRegistry.defaultScopeId;
+  const activeId = state.scope.activeScopeId ?? identity.scopeRegistry.defaultScopeId;
   return (
     <View style={styles.container} testID="scope-selector">
       <Text style={styles.label}>Scope</Text>

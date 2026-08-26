@@ -1,4 +1,5 @@
 import { DaemonClient } from '../daemonClient';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
 
@@ -94,15 +95,17 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().searchHistory('x')).rejects.toThrow(/mystery/);
+    await expect(client().searchHistory('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('searchHistory rejects a malformed conversation loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: true, conversations: [{ id: 'c-1' }] }),
     );
-    await expect(client().searchHistory('x')).rejects.toThrow(
-      /conversation record/i,
+    await expect(client().searchHistory('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
     );
   });
 
@@ -167,14 +170,18 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().searchTasks('x')).rejects.toThrow(/mystery/);
+    await expect(client().searchTasks('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('searchTasks rejects a malformed task hit loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: true, tasks: [{ id: 'task-foo' }] }),
     );
-    await expect(client().searchTasks('x')).rejects.toThrow(/repo task hit/i);
+    await expect(client().searchTasks('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('searchTasks surfaces the daemon HTTP error one-to-one', async () => {
@@ -263,7 +270,9 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().recall('x')).rejects.toThrow(/mystery/);
+    await expect(client().recall('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('recall rejects an unknown source loudly', async () => {
@@ -275,5 +284,7 @@ describe('DaemonClient', () => {
         ],
       }),
     );
-    await expect(client().recall('x')).rejects.toThrow(/unknown source/i);
+    await expect(client().recall('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });});

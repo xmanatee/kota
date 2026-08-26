@@ -94,7 +94,7 @@ export function RunListScreen({ onRunPress }: { onRunPress: (id: string) => void
   return (
     <FlatList
       style={styles.container}
-      data={state.runs}
+      data={state.activity.runs}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
         <RunRow run={item} onPress={() => onRunPress(item.id)} />
@@ -103,14 +103,14 @@ export function RunListScreen({ onRunPress }: { onRunPress: (id: string) => void
       ListEmptyComponent={() => (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            {state.online ? 'No runs yet.' : 'Daemon offline.'}
+            {state.connection.online ? 'No runs yet.' : 'Daemon offline.'}
           </Text>
         </View>
       )}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />
       }
-      contentContainerStyle={state.runs.length === 0 ? styles.emptyContainer : undefined}
+      contentContainerStyle={state.activity.runs.length === 0 ? styles.emptyContainer : undefined}
     />
   );
 }

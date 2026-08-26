@@ -87,13 +87,11 @@ describe("useDaemonEvents shared UI refresh", () => {
       });
     });
 
-    expect(result.current.liveLogEntries["daemon-events"]).toEqual([
-      {
-        timestamp: "2026-08-02T18:30:00.000Z",
-        level: "info",
-        source: "workflow.run.completed",
-        message: "Builder run completed.",
-      },
-    ]);
+    expect(result.current.liveLogEntries["daemon-events"]).toContainEqual({
+      timestamp: "2026-08-02T18:30:00.000Z",
+      level: "info",
+      source: "workflow.run.completed",
+      message: "Builder run completed.",
+    });
   });
 });

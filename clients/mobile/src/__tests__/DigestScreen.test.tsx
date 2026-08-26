@@ -2,6 +2,7 @@ import React from 'react';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { DigestScreen } from '../screens/DigestScreen';
 import type { DigestResponse } from '../types';
 
@@ -36,7 +37,23 @@ function makeDigest(overrides: Partial<DigestResponse['data']> = {}): DigestResp
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      digest: state.digest,
+      digestLoading: state.digestLoading,
+      digestError: state.digestError,
+    },
+  };
 }
 
 function defaultState() {
@@ -45,16 +62,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
     digest: null as DigestResponse | null,
     digestLoading: false,
     digestError: null as string | null,
@@ -234,7 +241,7 @@ describe('DigestScreen', () => {
     };
     const cases: Array<{
       id: string;
-      state: ReturnType<typeof defaultState>;
+      state: ReturnType<typeof baseState>;
       expectedText?: RegExp | string;
       proves: string;
     }> = [

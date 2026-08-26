@@ -95,13 +95,13 @@ export function AppNavigator() {
 
   useEffect(flushPendingTarget, [flushPendingTarget, ui.bundle]);
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return <CenteredMessage loading title="Loading device settings" />;
   }
-  if (!state.daemonUrl || !state.token || connectionOpen) {
+  if (!state.connection.daemonUrl || !state.connection.token || connectionOpen) {
     return (
       <View style={styles.fullScreen}>
-        {state.daemonUrl && state.token ? (
+        {state.connection.daemonUrl && state.connection.token ? (
           <TouchableOpacity
             style={styles.closeConnection}
             accessibilityRole="button"

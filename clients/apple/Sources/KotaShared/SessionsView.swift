@@ -7,7 +7,7 @@ struct SessionsView: View {
     @State private var newSessionMode: AutonomyMode = .supervised
 
     var body: some View {
-        let sessions = appState.activeSessions
+        let sessions = appState.activity.activeSessions
         VStack(alignment: .leading, spacing: 0) {
             Divider()
             HStack {

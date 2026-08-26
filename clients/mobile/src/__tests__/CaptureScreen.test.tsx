@@ -2,6 +2,7 @@ import React from 'react';
 import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, fireEvent, render } from '@testing-library/react-native';
+import { initialState } from '../context/state';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { renderCaptureResultPlain } from '../captureRender';
 import type { CaptureResult } from '../types';
@@ -18,46 +19,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
-    attention: null,
-    attentionLoading: false,
-    attentionError: null,
-    knowledgeQuery: '',
-    knowledgeResult: null,
-    knowledgeLoading: false,
-    knowledgeError: null,
-    memoryQuery: '',
-    memoryResult: null,
-    memoryLoading: false,
-    memoryError: null,
-    historyQuery: '',
-    historyResult: null,
-    historyLoading: false,
-    historyError: null,
-    tasksQuery: '',
-    tasksResult: null,
-    tasksLoading: false,
-    tasksError: null,
-    recallQuery: '',
-    recallResult: null,
-    recallLoading: false,
-    recallError: null,
-    answerQuery: '',
-    answerResult: null,
-    answerLoading: false,
-    answerError: null,
     captureText: '',
     captureTarget: 'auto' as 'auto' | 'memory' | 'knowledge' | 'tasks' | 'inbox',
     captureHint: '',
@@ -68,7 +29,26 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      captureText: state.captureText,
+      captureTarget: state.captureTarget,
+      captureHint: state.captureHint,
+      captureResult: state.captureResult,
+      captureLoading: state.captureLoading,
+      captureError: state.captureError,
+    },
+  };
 }
 
 function mockDaemon(
@@ -399,7 +379,7 @@ describe('CaptureScreen', () => {
 
     const cases: Array<{
       id: string;
-      state: ReturnType<typeof defaultState>;
+      state: ReturnType<typeof baseState>;
       expectedText?: RegExp | string;
       proves: string;
     }> = [
@@ -514,7 +494,13 @@ describe('CaptureScreen', () => {
     }> = [];
 
     for (const entry of cases) {
-      mockDaemon(entry.state);
+      mockUseDaemon.mockReturnValue({
+        state: entry.state,
+        setCaptureText: jest.fn(),
+        setCaptureTarget: jest.fn(),
+        setCaptureHint: jest.fn(),
+        capture: jest.fn().mockResolvedValue(undefined),
+      });
       const rendered = render(<CaptureScreen />);
       if (entry.expectedText) {
         expect(rendered.getByText(entry.expectedText)).toBeTruthy();

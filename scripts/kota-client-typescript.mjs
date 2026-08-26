@@ -32,6 +32,9 @@ ${names}
 ] as const satisfies ReadonlyArray<keyof KotaClient>;
 
 export type KotaClientNamespace = (typeof KOTA_CLIENT_NAMESPACES)[number];
+export type KotaClientPort<K extends KotaClientNamespace> = Readonly<Pick<KotaClient, K>>;
+export type ScopedKotaClientPort<K extends KotaClientNamespace> = KotaClientPort<K> &
+  Readonly<Pick<KotaClient, "forScope">>;
 export type LocalClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 export type DaemonClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 

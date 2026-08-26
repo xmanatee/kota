@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { KotaClientPort } from "#root/client/kota-client.generated.js";
 import { TelegramScopeSelection } from "./scope-selection.js";
 
 const scopes = [
@@ -11,7 +11,7 @@ const scopes = [
   { scopeId: "scope-b", scopeRoot: "/tmp/scope-b", displayName: "Scope B" },
 ];
 
-function makeClient(): KotaClient {
+function makeClient(): KotaClientPort<"scopes"> {
   return {
     scopes: {
       list: vi.fn(async () => ({
@@ -22,7 +22,7 @@ function makeClient(): KotaClient {
       })),
       use: vi.fn(),
     },
-  } as unknown as KotaClient;
+  };
 }
 
 describe("TelegramScopeSelection", () => {
@@ -80,7 +80,7 @@ describe("TelegramScopeSelection", () => {
         list: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
         use: vi.fn(),
       },
-    } as unknown as KotaClient;
+    };
     const scopeSource = {
       list: vi.fn(async () => ({
         ok: true as const,
@@ -129,7 +129,7 @@ describe("TelegramScopeSelection", () => {
         })),
         use: vi.fn(),
       },
-    } as unknown as KotaClient;
+    };
 
     expect(
       await new TelegramScopeSelection(makeClient(), storage(), [])

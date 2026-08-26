@@ -24,12 +24,12 @@ struct TriggerWorkflowView: View {
     @State private var errorMessage: String?
 
     private var enabledDefinitions: [WorkflowDefinitionSummary] {
-        appState.workflowDefinitions.filter { $0.enabled }
+        appState.activity.workflowDefinitions.filter { $0.enabled }
     }
 
     private var selectedDefinition: WorkflowDefinitionSummary? {
         guard let selectedName else { return nil }
-        return appState.workflowDefinitions.first { $0.name == selectedName }
+        return appState.activity.workflowDefinitions.first { $0.name == selectedName }
     }
 
     private var requiresPayload: Bool {
@@ -45,7 +45,7 @@ struct TriggerWorkflowView: View {
             Text("Trigger Workflow")
                 .font(.headline)
 
-            if appState.workflowDefinitions.isEmpty {
+            if appState.activity.workflowDefinitions.isEmpty {
                 Text("Daemon has no workflow definitions loaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
