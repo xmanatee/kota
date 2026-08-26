@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildModuleCapabilityManifestProjection,
-	clearModuleCapabilityManifestProjections,
-	registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import { initAuditStore, resetAuditStore } from "#core/tools/audit-store.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
+import {
+	clearModuleToolEffects,
+	registerModuleToolManifestProjection,
+} from "#core/tools/tool-effect-registry.js";
 import { auditTool, runAudit } from "./audit-tool.js";
 
 function makeTmpDir(): string {
@@ -28,7 +30,7 @@ describe("audit tool", () => {
 
 	afterEach(() => {
 		resetAuditStore();
-		clearModuleCapabilityManifestProjections();
+		clearModuleToolEffects();
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
@@ -100,7 +102,7 @@ describe("audit tool", () => {
 	});
 
 	it("includes manifest capability and data context for matching tools", async () => {
-		registerModuleCapabilityManifestProjection(
+		registerModuleToolManifestProjection(
 			buildModuleCapabilityManifestProjection(
 				"shell-module",
 				{

@@ -16,6 +16,7 @@ import type { ModuleStorage } from "./module-storage.js";
 import type {
   ControlRouteRegistration,
   KotaModule,
+  ModuleActivation,
   ModuleSource,
   RouteRegistration,
 } from "./module-types.js";
@@ -30,6 +31,7 @@ import type { ModuleSetupRequirementContribution } from "./setup-requirements.js
  */
 export interface LoaderState {
   modules: KotaModule[];
+  moduleActivations: Map<string, ModuleActivation>;
   moduleStorages: Map<string, ModuleStorage>;
   moduleRegistry: Map<string, KotaModule>;
   moduleToolCounts: Map<string, number>;
@@ -65,6 +67,7 @@ export interface LoaderState {
 export function createLoaderState(): LoaderState {
   return {
     modules: [],
+    moduleActivations: new Map(),
     moduleStorages: new Map(),
     moduleRegistry: new Map(),
     moduleToolCounts: new Map(),

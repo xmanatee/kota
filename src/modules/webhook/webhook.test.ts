@@ -184,8 +184,8 @@ describe("webhookModule notifications", () => {
 
   it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
-    await webhookModule.onUnload?.();
+    const activation = await webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
+    await activation?.dispose();
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",

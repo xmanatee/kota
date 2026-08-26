@@ -202,8 +202,6 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
   }
 }
 
-let unsubs: (() => void)[] = [];
-
 const slackModule: KotaModule = {
   name: "slack",
   version: "1.0.0",
@@ -265,6 +263,7 @@ const slackModule: KotaModule = {
     const { webhookUrl } = config;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
     const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
+    const unsubs: (() => void)[] = [];
 
     const subscribe = (event: keyof BusEvents) => {
       const unsub = ctx.events.subscribe(event, (payload) => {
@@ -284,11 +283,7 @@ const slackModule: KotaModule = {
     subscribe("approval.requested");
     subscribe("owner.question.asked");
 
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
+    return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
 };
 

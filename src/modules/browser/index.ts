@@ -211,11 +211,7 @@ const browserModule: KotaModule = {
           (profile.headless ? "" : " (headed browser enabled)"),
       );
     }
-    ctx.registerCleanupHook(() => void closeBrowser());
-  },
-
-  async onUnload() {
-    await closeBrowser();
+    return { dispose: closeBrowser };
   },
 };
 

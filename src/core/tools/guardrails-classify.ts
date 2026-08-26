@@ -16,7 +16,6 @@
  * effects own that information now.
  */
 
-import { findModuleManifestToolEffect } from "#core/modules/module-manifest.js";
 import {
   type McpToolAnnotations,
   mcpAnnotationsFromEffect,
@@ -42,6 +41,7 @@ import {
 } from "./guardrails-shell-authority.js";
 import { getToolEffect } from "./index.js";
 import { isPathOutsideRoot } from "./path-containment.js";
+import { getModuleToolManifestEffect } from "./tool-effect-registry.js";
 
 export type RiskLevel = RiskTier;
 export type { McpToolAnnotations };
@@ -117,7 +117,7 @@ export function classifyToolCallInputEffectOverride(
   if (inputEffect) {
     const risk = riskFromEffect(inputEffect);
     const staticEffect =
-      findModuleManifestToolEffect(name)?.effect ?? getToolEffect(name);
+      getModuleToolManifestEffect(name)?.effect ?? getToolEffect(name);
     if (!staticEffect || RISK_RANK[risk] >= RISK_RANK[riskFromEffect(staticEffect)]) {
       return {
         kind: inputEffect.kind,
@@ -132,7 +132,7 @@ export function classifyToolCallInputEffectOverride(
 // ─── Classification ───────────────────────────────────────────────────
 
 function resolveToolEffect(name: string): ResolvedToolEffect | undefined {
-  const manifestEffect = findModuleManifestToolEffect(name);
+  const manifestEffect = getModuleToolManifestEffect(name);
   if (manifestEffect) {
     return {
       source: "manifest",
@@ -273,7 +273,7 @@ export function classifyRisk(
  * cannot describe an unknown tool, and MCP omits annotations in that case).
  */
 export function getToolMcpAnnotations(toolName: string): McpToolAnnotations | undefined {
-  const effect = findModuleManifestToolEffect(toolName)?.effect ?? getToolEffect(toolName);
+  const effect = getModuleToolManifestEffect(toolName)?.effect ?? getToolEffect(toolName);
   if (!effect) return undefined;
   return mcpAnnotationsFromEffect(effect);
 }

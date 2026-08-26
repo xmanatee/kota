@@ -144,6 +144,7 @@ export class AgentSession implements AgentLoopState {
   autonomyMode!: AutonomyMode;
   scopePolicyAuthority: ScopePolicyAuthority | undefined;
   guardrailsSnapshot!: GuardrailsSnapshot;
+  private closePromise: Promise<void> | null = null;
 
   constructor(options: LoopOptions) {
     initAgentSession(this, options, (opts) => {
@@ -245,8 +246,16 @@ export class AgentSession implements AgentLoopState {
 
   /** Clean up handlers and save final state. */
   close(errored = false): void {
-    process.removeListener("SIGINT", this.sigintHandler);
-    runClose(this, errored);
+    void this.dispose(errored);
+  }
+
+  /** Close and wait until host-owned module and MCP resources are released. */
+  dispose(errored = false): Promise<void> {
+    if (!this.closePromise) {
+      process.removeListener("SIGINT", this.sigintHandler);
+      this.closePromise = runClose(this, errored);
+    }
+    return this.closePromise;
   }
 }
 
@@ -263,6 +272,6 @@ export async function runAgentLoop(
     errored = true;
     throw err;
   } finally {
-    session.close(errored);
+    await session.dispose(errored);
   }
 }

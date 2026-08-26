@@ -33,8 +33,6 @@ import {
 } from "#core/events/module-event.js";
 import {
   buildModuleCapabilityManifestProjection,
-  clearModuleCapabilityManifestProjections,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -45,6 +43,10 @@ import {
   readOnlyLocalEffect,
 } from "#core/tools/effect.js";
 import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js";
+import {
+  clearModuleToolEffects,
+  registerModuleToolManifestProjection,
+} from "#core/tools/tool-effect-registry.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
 import {
@@ -158,7 +160,7 @@ describe("workflow trial execution", () => {
     deregisterTool(PROCESS_ENV_TOOL);
     deregisterTool("file_write");
     deregisterTool("shell");
-    clearModuleCapabilityManifestProjections();
+    clearModuleToolEffects();
     delete process.env[PROCESS_ENV_KEY];
     rmSync(FAKE_HOME, { recursive: true, force: true });
     for (const dir of cleanup.splice(0)) {
@@ -372,7 +374,7 @@ describe("workflow trial execution", () => {
       "workflow-trial-test",
       { effect: readOnlyLocalEffect() },
     );
-    registerModuleCapabilityManifestProjection(
+    registerModuleToolManifestProjection(
       buildModuleCapabilityManifestProjection(
         "workflow-trial-test",
         {
@@ -1025,6 +1027,7 @@ describe("workflow trial execution", () => {
     expect(existsSync(join(defaultScopeRoot, "data", "selected-marker.txt"))).toBe(false);
     expect(existsSync(join(selectedScopeRoot, "data", "selected-marker.txt"))).toBe(false);
     const attempt = result.summary.attempts[0]!;
+    expect(attempt.error).toBeUndefined();
     cleanup.push(attempt.trialWorkspaceRoot);
     expect(readFileSync(join(attempt.trialWorkspaceRoot, "data", "selected-marker.txt"), "utf-8")).toBe("selected");
   });

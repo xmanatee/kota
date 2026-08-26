@@ -73,6 +73,7 @@ export async function ensureCliProvidersFor(
       providers: providersForLoader,
     },
     false,
+    registry ? { providerRegistry: registry } : undefined,
   );
   loader.setCwd(cwd);
   loader.setBus(initEventBus());

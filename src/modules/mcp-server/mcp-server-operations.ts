@@ -15,7 +15,7 @@
  * long-lived host.
  */
 import { loadConfig } from "#core/config/config.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import type { ModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
@@ -40,7 +40,7 @@ export function localMcpServerClient(): McpServerClient {
       const loader = await loadRuntimeModules({
         config,
         cwd: process.cwd(),
-        eventBus: initEventBus(),
+        eventBus: new EventBus(),
       });
 
       const samplingEnabled = config.mcp?.sampling?.enabled === true;

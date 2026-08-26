@@ -5,7 +5,7 @@
  * store layout: the answer module is the only place that imports
  * `AnswerHistoryStore` and the only writer of `RecallAnswerHit` payloads.
  * The contributor is registered against the live `RecallProvider` from the
- * answer module's `onLoad` and is unregistered cleanly from `onUnload`.
+ * answer module's `onLoad` and is unregistered by its activation disposer.
  *
  * The contributor mirrors the recall module's keyword-fallback adapters:
  * native scores come from `searchAnswers`'s `[0, 1]` overlap signal so the

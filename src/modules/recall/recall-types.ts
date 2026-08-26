@@ -166,7 +166,7 @@ export interface RecallContributor {
  *
  * `register` and `unregister` are the public registration seam any module
  * uses to contribute or withdraw a contributor from its own `onLoad` /
- * `onUnload`. The seam has exactly one shape — a sixth contributor follows
+ * activation disposer. The seam has exactly one shape — a sixth contributor follows
  * the same path. Modules reach the live `RecallProvider` through the
  * provider-registry seam (`ctx.getProvider<RecallProvider>("recall")`),
  * which the recall module populates during its own `onLoad` via

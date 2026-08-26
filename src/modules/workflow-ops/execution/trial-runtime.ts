@@ -27,6 +27,7 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
       return {
         config: runtimeConfig,
         eventBus,
+        providerRegistry: runtimeLoader.getProviderRegistry(),
         workflows: runtimeLoader.getContributedWorkflows(),
         resolveAgentDef: (name) => runtimeLoader.getAgentDef(name),
         resolveSkillsPrompt: (names, agentName) =>

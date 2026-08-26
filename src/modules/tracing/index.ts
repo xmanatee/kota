@@ -15,11 +15,6 @@ import { buildModelLookup, WorkflowTracer } from "./tracer.js";
 
 const METER_NAME = "kota-workflow";
 
-let shutdownTraces: (() => Promise<void>) | undefined;
-let shutdownMetrics: (() => Promise<void>) | undefined;
-let shutdownLogs: (() => Promise<void>) | undefined;
-let unsubscribers: Array<() => void> = [];
-
 async function initTraceProvider(config: TracingConfig): Promise<() => Promise<void>> {
   const {
     NodeTracerProvider,
@@ -93,8 +88,8 @@ function subscribeToEvents(
   tracer: WorkflowTracer,
   metricsEmitter: WorkflowMetricsEmitter | undefined,
   securityLogEmitter: SecurityLogEmitter | undefined,
-): void {
-  unsubscribers.push(
+): Array<() => void> {
+  const unsubscribers = [
     ctx.events.subscribe("workflow.started", (payload) => {
       tracer.onWorkflowStarted(payload as Parameters<typeof tracer.onWorkflowStarted>[0]);
     }),
@@ -122,10 +117,11 @@ function subscribeToEvents(
       tracer.onDaemonConfigReload(payload);
       metricsEmitter?.onDaemonConfigReload(payload);
     }),
-  );
+  ];
   if (securityLogEmitter) {
     unsubscribers.push(...subscribeSecurityLogEvents(ctx.events, securityLogEmitter));
   }
+  return unsubscribers;
 }
 
 function flattenSteps(
@@ -164,7 +160,7 @@ const tracingModule: KotaModule = {
       return;
     }
 
-    shutdownTraces = await initTraceProvider(config);
+    const shutdownTraces = await initTraceProvider(config);
 
     const workflows = ctx.getContributedWorkflows();
     const flatWorkflows = workflows.map((wf: RegisteredWorkflowDefinitionInput) => ({
@@ -177,7 +173,7 @@ const tracingModule: KotaModule = {
     });
 
     const metricsProvider = await initMetricProvider(config);
-    shutdownMetrics = metricsProvider.shutdown;
+    const shutdownMetrics = metricsProvider.shutdown;
     const metricsEmitter = new WorkflowMetricsEmitter(
       metricsProvider.meter,
       ctx.cwd,
@@ -185,7 +181,7 @@ const tracingModule: KotaModule = {
     );
 
     const securityLogExporter: SecurityLogExporter = createSecurityLogExporter(config);
-    shutdownLogs = async () => {
+    const shutdownLogs = async () => {
       await securityLogExporter.shutdown?.();
     };
     const securityLogEmitter = new SecurityLogEmitter(
@@ -194,27 +190,23 @@ const tracingModule: KotaModule = {
       (msg, err) => ctx.log.debug(msg, err),
     );
 
-    subscribeToEvents(ctx, tracer, metricsEmitter, securityLogEmitter);
+    const unsubscribers = subscribeToEvents(
+      ctx,
+      tracer,
+      metricsEmitter,
+      securityLogEmitter,
+    );
     ctx.log.info(
       `Tracing enabled → ${config.endpoint} (metrics → ${config.metricsEndpoint ?? config.endpoint}, logs → ${resolveTracingLogEndpoint(config)})`,
     );
-  },
-
-  onUnload: async () => {
-    for (const unsub of unsubscribers) unsub();
-    unsubscribers = [];
-    if (shutdownTraces) {
+    return {
+      dispose: async () => {
+        for (const unsubscribe of unsubscribers) unsubscribe();
       await shutdownTraces();
-      shutdownTraces = undefined;
-    }
-    if (shutdownMetrics) {
       await shutdownMetrics();
-      shutdownMetrics = undefined;
-    }
-    if (shutdownLogs) {
       await shutdownLogs();
-      shutdownLogs = undefined;
-    }
+      },
+    };
   },
 };
 

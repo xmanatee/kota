@@ -187,7 +187,7 @@ function resolveMcpConfig(state: AgentLoopState): { mcpServers: Record<string, M
 
 function bindRenderingTransport(state: AgentLoopState): void {
   if (!state.defaultTransportProxy) return;
-  const provider = getRenderingProvider();
+  const provider = getRenderingProvider(state.moduleLoader.getProviderRegistry());
   if (!provider) return;
   state.defaultTransportProxy.target = provider.createAgentTransport({
     verbose: state.verbose,
@@ -228,7 +228,7 @@ function restoreConversationIfRequested(state: AgentLoopState): void {
   if (!state.resumeConversationId) return;
   const targetId = state.resumeConversationId;
   state.resumeConversationId = undefined;
-  const history = getHistoryProvider();
+  const history = getHistoryProvider(state.moduleLoader.getProviderRegistry());
   const data = history.load(targetId);
   if (data) {
     state.conversationId = targetId;
@@ -256,7 +256,7 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
   if (!state.conversationId && snapshot.messages.length === 0) return;
   let history: ReturnType<typeof getHistoryProvider>;
   try {
-    history = getHistoryProvider();
+    history = getHistoryProvider(state.moduleLoader.getProviderRegistry());
   } catch {
     // History module not loaded (e.g. a deployment excludes it, or the
     // session closes before init completes). Saving is a best-effort side

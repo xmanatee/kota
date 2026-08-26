@@ -16,6 +16,7 @@ import type {
   RouteRegistration,
 } from "./module-types.js";
 import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
+import type { ProviderRegistry } from "./provider-registry.js";
 
 const MAX_TOOL_CALL_DEPTH = 10;
 
@@ -37,6 +38,7 @@ export interface LoaderContextDeps {
   getSessionFactory: () => ((opts: CreateSessionOptions) => ModuleSession) | null;
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
   getRegisteredConfigKeys: () => ReadonlySet<string>;
+  providerRegistry: ProviderRegistry;
 }
 
 /**
@@ -73,6 +75,7 @@ export function createLoaderModuleContext(
     getSessionFactory: deps.getSessionFactory,
     probeHealthChecks: deps.probeHealthChecks,
     getRegisteredConfigKeys: deps.getRegisteredConfigKeys,
+    providerRegistry: deps.providerRegistry,
     callTool: async (name, input) => {
       if (depth.value >= MAX_TOOL_CALL_DEPTH) {
         return {

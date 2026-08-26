@@ -44,6 +44,27 @@ fewer capabilities outside `onLoad`:
 Lifecycle registration belongs in `onLoad`; contribution factories may run
 after provider activation. `module-context-capabilities.test.ts` enforces this.
 
+`ModuleLoader` owns its `ProviderRegistry`. Runtime composition roots pass the
+host registry explicitly when it must also be the single CLI process registry;
+embedded and test hosts use a fresh registry. Never initialize, replace, or
+reset the process registry from a module or a nested host. Register through the
+module context so unload can remove only that module's contributions.
+
+When activation allocates resources, `onLoad` returns a `ModuleActivation`
+whose `dispose` releases that exact instance. Loader shutdown withdraws owned
+contributions synchronously and disposes activated instances in reverse load
+order. Do not add a reset-all teardown path; process-owned exceptions must stay
+at the CLI composition boundary and must not promise multi-host isolation.
+
+The legacy core-tool catalog and its session decoration state (enabled groups,
+telemetry, dynamically authored tools, change tracking, and agent-status
+formatters) are the remaining explicit single-interactive-CLI-process owner.
+Hosted daemon, web, MCP, workflow, and server runtimes must not reset or borrow
+that state: they own an `EventBus`, scheduler, provider registry, loader state,
+routes, manifests, and module activations directly. Extend the host-owned path;
+do not add another process singleton or make a nested host clean up the CLI
+process owner.
+
 - Modules own tool, workflow, channel, provider, agent, and service contributions.
 - Treat `<scope>/.kota/modules/` as untrusted. Resolve persisted machine trust
   before discovery or re-import; caller `KotaConfig` is not authority.

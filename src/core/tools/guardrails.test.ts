@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildModuleCapabilityManifestProjection,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import {
   legacyEffect,
@@ -21,6 +20,7 @@ import {
   sanitizeGuardrailsConfig,
 } from "./guardrails.js";
 import { clearCustomTools, getCoreRegistrations, registerTool } from "./index.js";
+import { registerModuleToolManifestProjection } from "./tool-effect-registry.js";
 
 describe("classifyRisk", () => {
   afterEach(() => clearCustomTools());
@@ -69,7 +69,7 @@ describe("classifyRisk", () => {
       "test-module",
       { effect: legacyEffect({ risk: "safe", kind: "discovery" }) },
     );
-    registerModuleCapabilityManifestProjection(
+    registerModuleToolManifestProjection(
       buildModuleCapabilityManifestProjection(
         "test-module",
         {

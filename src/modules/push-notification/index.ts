@@ -28,8 +28,6 @@ import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { pushNotificationControlRoutes } from "./routes.js";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
 
-let unsubs: (() => void)[] = [];
-
 const pushNotificationModule: KotaModule = {
   name: "push-notification",
   version: "1.0.0",
@@ -87,7 +85,7 @@ const pushNotificationModule: KotaModule = {
   controlRoutes: (ctx) => pushNotificationControlRoutes(ctx.cwd),
 
   onLoad: (ctx) => {
-    unsubs = [
+    const unsubs = [
       ctx.events.subscribe("approval.requested", (payload) => {
         void sendPushNotifications(
           ctx.cwd,
@@ -123,11 +121,7 @@ const pushNotificationModule: KotaModule = {
         );
       }),
     ];
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
+    return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
 };
 

@@ -15,10 +15,7 @@
  * still module-owned and lives in each contributing module's `onLoad`.
  */
 
-import {
-  getProviderRegistry,
-  type ProviderRegistry,
-} from "#core/modules/provider-registry.js";
+import type { ProviderRegistry } from "#core/modules/provider-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -106,14 +103,18 @@ export type CapabilityReadinessResponse = {
 export async function probeCapabilityReadiness(
   registry: ProviderRegistry,
 ): Promise<CapabilityReadinessResponse> {
-  const sourceNames = registry.list(CAPABILITY_READINESS_PROVIDER_TYPE);
+  const sources = registry.list(CAPABILITY_READINESS_PROVIDER_TYPE).flatMap((name) => {
+    const source = registry.getByName(CAPABILITY_READINESS_PROVIDER_TYPE, name);
+    return source ? [source] : [];
+  });
+  return probeCapabilityReadinessSources(sources);
+}
+
+export async function probeCapabilityReadinessSources(
+  sources: readonly CapabilityReadinessSource[],
+): Promise<CapabilityReadinessResponse> {
   const collected: CapabilityReadiness[] = [];
-  for (const name of sourceNames) {
-    const source = registry.getByName(
-      CAPABILITY_READINESS_PROVIDER_TYPE,
-      name,
-    );
-    if (!source) continue;
+  for (const source of sources) {
     try {
       const reports = await source.probe();
       for (const report of reports) collected.push(report);
@@ -160,8 +161,8 @@ export async function probeCapabilityReadiness(
 /** Add readiness for the daemon-owned workflow trigger capability. */
 export async function probeCapabilityReadinessWithTrigger(
   workflows: WorkflowRuntime,
+  registry?: ProviderRegistry,
 ): Promise<CapabilityReadinessResponse> {
-  const registry = getProviderRegistry();
   const aggregated = registry
     ? await probeCapabilityReadiness(registry)
     : { capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } };

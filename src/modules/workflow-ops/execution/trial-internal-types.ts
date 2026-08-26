@@ -1,6 +1,7 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ToolEffect } from "#core/tools/effect.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -15,6 +16,7 @@ export type FileSnapshot = Map<string, string>;
 export type WorkflowTrialRuntime = {
   config: KotaConfig;
   eventBus?: EventBus;
+  providerRegistry?: ProviderRegistry;
   workflows: RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: ModuleContext["resolveAgentDef"];
   resolveSkillsPrompt?: ModuleContext["resolveSkillsPrompt"];

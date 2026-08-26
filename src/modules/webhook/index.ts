@@ -24,6 +24,8 @@ import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { WORKFLOW_DEFINITIONS_PROVIDER_TYPE } from "#core/workflow/workflow-definitions-provider.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import { postWithRetry } from "#modules/notification/index.js";
 import { registerWebhookCommands } from "./cli.js";
 import type {
@@ -60,8 +62,6 @@ type WebhookConfig = {
   retryDelayMs?: number;
 };
 
-let unsubs: (() => void)[] = [];
-
 const webhookModule: KotaModule = {
   name: "webhook",
   version: "1.0.0",
@@ -77,6 +77,7 @@ const webhookModule: KotaModule = {
     const urls = config.urls;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
     const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
+    const unsubs: (() => void)[] = [];
 
     const forward = (event: string, payload: Record<string, unknown>) => {
       const body = JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload });
@@ -103,11 +104,7 @@ const webhookModule: KotaModule = {
         forward("owner.question.asked", payload as Record<string, unknown>),
       ),
     );
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
+    return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
 
   commands: (ctx) => {
@@ -120,7 +117,10 @@ const webhookModule: KotaModule = {
 
   routes: (ctx) => eventTriggerRoutes(ctx),
   controlRoutes: (ctx) => [
-    ...webhookTriggerControlRoutes(() => loadConfig(ctx.cwd)),
+    ...webhookTriggerControlRoutes(() => loadConfig(ctx.cwd), {
+      getDefinitionsSource: () => ctx.getProvider(WORKFLOW_DEFINITIONS_PROVIDER_TYPE),
+      getDispatcher: () => ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE),
+    }),
     ...webhookSecretControlRoutes(ctx),
   ],
   localClient: (ctx) => {

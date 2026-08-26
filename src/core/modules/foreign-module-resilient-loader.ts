@@ -153,10 +153,12 @@ export async function startResilientStdioModule(
       lastRestartAt,
     }),
     healthCheck: () => session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
-    onUnload: async () => {
-      stopped = true;
-      clearPingTimer();
-      await session.close();
-    },
+    onLoad: () => ({
+      dispose: async () => {
+        stopped = true;
+        clearPingTimer();
+        await session.close();
+      },
+    }),
   };
 }

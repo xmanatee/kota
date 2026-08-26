@@ -11,10 +11,10 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import {
   buildModuleCapabilityManifestProjection,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import type { ToolEffect } from "./effect.js";
 import { registerTool, type ToolRunner } from "./index.js";
+import { registerModuleToolManifestProjection } from "./tool-effect-registry.js";
 
 export {
   initGitTestProject as initHandoffPolicyGitProject,
@@ -97,7 +97,7 @@ export function registerHandoffPolicyManifest(
   name: string,
   effect: ToolEffect,
 ): void {
-  registerModuleCapabilityManifestProjection(
+  registerModuleToolManifestProjection(
     buildModuleCapabilityManifestProjection(
       HANDOFF_POLICY_MODULE,
       {

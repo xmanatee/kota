@@ -6,9 +6,9 @@
  */
 
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getModuleCapabilityManifestProjections } from "#core/modules/module-manifest.js";
 import { getAuditStore } from "#core/tools/audit-store.js";
 import type { ToolResult } from "#core/tools/index.js";
+import { getModuleToolManifestProjection } from "#core/tools/tool-effect-registry.js";
 import { resolveAuditManifestContext } from "./audit-operations.js";
 
 export const auditTool: KotaTool = {
@@ -104,10 +104,10 @@ export async function runAudit(input: Record<string, unknown>): Promise<ToolResu
 	if (entries.length === 0) return { content: "No audit entries match the filter." };
 
 	const lines = [`${entries.length} entries (most recent first):\n`];
-	const manifests = getModuleCapabilityManifestProjections();
 	for (const e of entries) {
 		const ts = e.ts.replace("T", " ").replace(/\.\d{3}Z$/, "Z");
-		const context = resolveAuditManifestContext(e.tool, manifests);
+		const manifest = getModuleToolManifestProjection(e.tool);
+		const context = resolveAuditManifestContext(e.tool, manifest ? [manifest] : []);
 		const manifestLabel = context
 			? ` module=${context.moduleName} capabilities=${context.capabilities.map((capability) => capability.id).join(",") || "-"} data=${context.dataClasses.map((dataClass) => dataClass.id).join(",") || "-"}`
 			: "";

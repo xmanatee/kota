@@ -1,10 +1,8 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import {
-  getMemoryProvider,
-  MEMORY_PROVIDER_TOKEN,
-} from "#core/modules/provider-registry.js";
+import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
@@ -43,9 +41,11 @@ const memoryModule: KotaModule = {
   skills: [{ name: "memory", promptPath: "src/modules/memory/memory.md" }],
 
   localClient: (ctx) => {
-    const scopeStores = createMemoryScopeStores(ctx.cwd, () =>
-      getMemoryProvider(),
-    );
+    const scopeStores = createMemoryScopeStores(ctx.cwd, () => {
+      const provider = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
+      if (!provider) throw new Error("memory provider is not registered");
+      return provider;
+    }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE));
     const handler: MemoryClient = {
       async list(filter) {
         const provider = resolveMemoryProvider(scopeStores, filter?.scopeId);
@@ -137,7 +137,11 @@ const memoryModule: KotaModule = {
   },
 
   routes: (ctx) =>
-    memoryRoutes(createMemoryScopeStores(ctx.cwd, () => getMemoryProvider())),
+    memoryRoutes(createMemoryScopeStores(ctx.cwd, () => {
+      const provider = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
+      if (!provider) throw new Error("memory provider is not registered");
+      return provider;
+    }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE))),
 };
 
 function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {

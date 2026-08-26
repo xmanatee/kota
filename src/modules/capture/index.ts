@@ -146,7 +146,7 @@ const captureModule: KotaModule = {
   uiSurfaces: [captureUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveScopeContext = createCaptureScopeContextResolver(ctx.cwd);
+    const resolveScopeContext = createCaptureScopeContextResolver(ctx.cwd, ctx);
     const provider = new CaptureProviderImpl({
       classifier: createDefaultClassifier(ctx),
       resolveScopeContext,
@@ -168,6 +168,11 @@ const captureModule: KotaModule = {
     ctx.log.info(
       `capture: registered ${provider.contributors().length} contributor(s)`,
     );
+    return {
+      dispose: () => {
+        if (activeProvider === provider) activeProvider = null;
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -181,19 +186,19 @@ const captureModule: KotaModule = {
   controlRoutes: (ctx) =>
     captureControlRoutes(
       resolveActiveProvider,
-      createCaptureScopeContextResolver(ctx.cwd),
+      createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     captureApiRoutes(
       resolveActiveProvider,
-      createCaptureScopeContextResolver(ctx.cwd),
+      createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: (ctx) => {
     const handler: CaptureClient = {
       async capture(text, filter) {
-        const scope = createCaptureScopeContextResolver(ctx.cwd)(
+        const scope = createCaptureScopeContextResolver(ctx.cwd, ctx)(
           selectedScopeSelectorId(filter),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
@@ -205,9 +210,6 @@ const captureModule: KotaModule = {
 
   daemonClient: (link) => ({ capture: buildCaptureDaemonHandler(link) }),
 
-  onUnload() {
-    activeProvider = null;
-  },
 };
 
 export default captureModule;

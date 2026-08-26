@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerCleanupHook, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import {
   registerPreSendHook,
   resetPreSendHooks,
@@ -142,7 +141,6 @@ describe("AgentSession", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetCleanupHooks();
     resetPreSendHooks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -150,7 +148,6 @@ describe("AgentSession", () => {
 
   afterEach(() => {
     session?.close();
-    resetCleanupHooks();
     resetPreSendHooks();
     vi.restoreAllMocks();
   });
@@ -687,14 +684,20 @@ describe("AgentSession", () => {
   });
 
   describe("close", () => {
-    it("runs registered cleanup hooks", () => {
-      const cleanup = vi.fn();
-      registerCleanupHook("test-cleanup", cleanup);
-
+    it("resolves disposal only after its owned module host releases resources", async () => {
       session = new AgentSession({ autonomyMode: "autonomous" });
-      session.close();
+      let release!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const unload = vi
+        .spyOn(session.moduleLoader, "unloadAll")
+        .mockImplementation(() => blocked);
 
-      expect(cleanup).toHaveBeenCalledTimes(1);
+      const disposal = session.dispose();
+      expect(unload).toHaveBeenCalledTimes(1);
+      release();
+      await disposal;
     });
 
     it("is idempotent", () => {

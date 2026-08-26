@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
@@ -36,7 +36,7 @@ export async function createDaemonRuntimeContext(
   config: DaemonConfig,
   hooks: DaemonRuntimeContextHooks = {},
 ): Promise<DaemonRuntimeContext> {
-  const bus = config.runtimeModuleHost?.eventBus ?? initEventBus();
+  const bus = config.runtimeModuleHost?.eventBus ?? new EventBus();
   config.runtimeModuleHost?.moduleLoader.assertEventBusAuthority(bus);
   const logger = new DaemonLogger(config.logFormat);
   const log = (message: string) => logger.line(message);

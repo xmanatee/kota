@@ -1,3 +1,4 @@
+import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
   buildDirectoryScope,
@@ -28,6 +29,7 @@ export type KnowledgeScopeStoresOptions = {
   defaultScopeId?: ScopeId;
   getActiveScopeId?: () => ScopeId | null;
   getDefaultProvider?: () => KnowledgeProvider | null;
+  getDaemonScopeProvider?: () => DaemonScopeProvider | null;
 };
 
 export class KnowledgeScopeStores {
@@ -37,6 +39,7 @@ export class KnowledgeScopeStores {
   private readonly getFallbackActiveScopeId: () => ScopeId | null;
   private readonly getDefaultProvider: (() => KnowledgeProvider | null) | undefined;
   private readonly globalDir: string | undefined;
+  private readonly getDaemonScopeProvider: () => DaemonScopeProvider | null;
   private readonly stores = new Map<ScopeId, KnowledgeProvider>();
 
   constructor(options: KnowledgeScopeStoresOptions) {
@@ -62,6 +65,8 @@ export class KnowledgeScopeStores {
     this.getFallbackActiveScopeId = options.getActiveScopeId ?? (() => null);
     this.getDefaultProvider = options.getDefaultProvider;
     this.globalDir = options.globalDir;
+    this.getDaemonScopeProvider = options.getDaemonScopeProvider
+      ?? (() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null);
   }
 
   resolve(
@@ -97,9 +102,7 @@ export class KnowledgeScopeStores {
   }
 
   private snapshot(): ScopeSnapshot {
-    const daemonScope = getProviderRegistry()?.get(
-      DAEMON_SCOPE_PROVIDER_TYPE,
-    );
+    const daemonScope = this.getDaemonScopeProvider();
     if (daemonScope) {
       const projection = daemonScope.getScopeRegistryProjection();
       return {
@@ -134,6 +137,7 @@ export class KnowledgeScopeStores {
 export function createKnowledgeScopeStores(
   defaultScopeRoot: string,
   getDefaultProvider?: () => KnowledgeProvider | null,
+  getDaemonScopeProvider?: () => DaemonScopeProvider | null,
 ): KnowledgeScopeStores {
-  return new KnowledgeScopeStores({ defaultScopeRoot, getDefaultProvider });
+  return new KnowledgeScopeStores({ defaultScopeRoot, getDefaultProvider, getDaemonScopeProvider });
 }

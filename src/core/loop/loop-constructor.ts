@@ -17,7 +17,7 @@ import { resolveAgentRuntime } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
-import { initProviderRegistry, registerDefaultProviders } from "#core/modules/provider-registry.js";
+import { registerDefaultProviders } from "#core/modules/provider-registry.js";
 import {
   setConfigProvider,
   setModuleInfoProvider,
@@ -77,6 +77,12 @@ export function initAgentSession(
   state.editorModel = options.editorModel || state.model;
   state.maxTokens = options.maxTokens || 8192;
   state.verbose = options.verbose || false;
+  state.ownsModuleRuntime = options.moduleLoader === undefined;
+  state.moduleLoader = options.moduleLoader
+    ?? new ModuleLoader(options.config || {}, state.verbose);
+  if (state.ownsModuleRuntime) {
+    registerDefaultProviders(state.moduleLoader.getProviderRegistry());
+  }
   state.sessionPath = options.sessionPath;
   const showCost = options.showCost ?? options.config?.serve?.showCost ?? true;
   state.showCost = showCost;
@@ -122,7 +128,7 @@ export function initAgentSession(
     apiKey: options.config?.modelProvider?.apiKey,
     scopeRoot,
   }).client;
-  state.costTracker = new CostTracker();
+  state.costTracker = new CostTracker(state.moduleLoader.getProviderRegistry());
 
   if (options.scopeRuntime) {
     if (options.scopeRoot !== undefined && options.scopeRoot !== scopeRoot) {
@@ -148,12 +154,6 @@ export function initAgentSession(
     state.idempotencyStore = idempotencyStore;
   }
   initChangeTracker();
-  state.ownsModuleRuntime = options.moduleLoader === undefined;
-  if (state.ownsModuleRuntime) {
-    initProviderRegistry();
-    registerDefaultProviders();
-  }
-
   state.scopeContext = loadScopeContext(scopeRoot, scopeRoot);
   const scopeContext = state.scopeContext;
   const instructionContext = loadInstructionContext(scopeRoot, scopeRoot);
@@ -205,8 +205,6 @@ export function initAgentSession(
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands(scopeRoot));
 
-  state.moduleLoader = options.moduleLoader
-    ?? new ModuleLoader(options.config || {}, state.verbose);
   if (state.ownsModuleRuntime) {
     state.moduleLoader.setCwd(scopeRoot);
     state.moduleLoader.setBus(

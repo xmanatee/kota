@@ -505,7 +505,14 @@ async function main() {
   if (wasPiped) return;
 
   const config = loadConfig();
-  const loader = new ModuleLoader(config, false, { mode: "commands" });
+  const processProviders = getProviderRegistry();
+  if (!processProviders) {
+    throw new Error("CLI provider authority was not initialized");
+  }
+  const loader = new ModuleLoader(config, false, {
+    mode: "commands",
+    providerRegistry: processProviders,
+  });
   await loader.loadAll(bundledModules, modules);
   // Resolve the active KotaClient exactly once: daemon when reachable,
   // otherwise a LocalKotaClient assembled from the namespace handlers

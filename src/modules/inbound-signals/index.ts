@@ -26,8 +26,6 @@ import { dispatchInboundSignalRoute } from "./routing.js";
 export * from "./events.js";
 export * from "./routing.js";
 
-let unsubscribeInboundSignals: (() => void) | null = null;
-
 const inboundSignalsModule: KotaModule = {
   name: "inbound-signals",
   version: "1.0.0",
@@ -53,8 +51,7 @@ const inboundSignalsModule: KotaModule = {
     inboundSignals: buildInboundSignalsDaemonClient(link),
   }),
   onLoad: (ctx) => {
-    unsubscribeInboundSignals?.();
-    unsubscribeInboundSignals = ctx.events.subscribe(
+    const unsubscribe = ctx.events.subscribe(
       inboundSignalReceived,
       (signal) => {
         const context = routingValidationContext(ctx);
@@ -89,10 +86,7 @@ const inboundSignalsModule: KotaModule = {
         });
       },
     );
-  },
-  onUnload: () => {
-    unsubscribeInboundSignals?.();
-    unsubscribeInboundSignals = null;
+    return { dispose: unsubscribe };
   },
   configSchema: inboundSignalsConfigSchema,
 };

@@ -1,7 +1,7 @@
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import {
-  getProviderRegistry,
+  HISTORY_PROVIDER_TOKEN,
   HISTORY_SCOPE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -72,6 +72,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   } = params;
   const sessions = new Map<string, InteractiveSession>();
   const eventLoopLatency = new DaemonEventLoopLatencyMonitor();
+  const providerRegistry = config.runtimeModuleHost?.moduleLoader.getProviderRegistry();
 
   // Closures inside the handle and provider seams reference `ctx` — they
   // resolve lazily when invoked, so the variable is fully assigned before
@@ -105,7 +106,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
     inspectExternalBlockers: (scope) => [
       ...inspectExternalScopeDrainBlockers(
-        getProviderRegistry(),
+        providerRegistry ?? null,
         {
           scopeId: scope.scopeId,
           scopeRoot: scope.directoryRoot,
@@ -118,10 +119,11 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   const daemonModel = config.model ?? config.config?.model;
   const getDefaultWorkflows = () => scopeRuntimes.getDefault().workflowRuntime;
   const chatBindings = new DaemonChatBindingStore(stateDir);
-  const historyScopeProvider = getProviderRegistry()?.get(HISTORY_SCOPE_PROVIDER_TOKEN);
+  const historyScopeProvider = providerRegistry?.get(HISTORY_SCOPE_PROVIDER_TOKEN);
   const resolveChatHistoryProvider = createChatHistoryProviderResolver({
     scopeRuntimes,
     historyScopeProvider,
+    defaultHistoryProvider: providerRegistry?.get(HISTORY_PROVIDER_TOKEN),
   });
   const conversationResolver = {
     conversationExists: (conversationId: string, scopeId: string): boolean => {
@@ -162,7 +164,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     getModuleSummaries: () => config.getModuleSummaries?.() ?? [],
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
     getEventLoopLatency: () => ctx.eventLoopLatency.snapshot(),
-    probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(getDefaultWorkflows()),
+    probeCapabilityReadiness: () =>
+      probeCapabilityReadinessWithTrigger(getDefaultWorkflows(), providerRegistry),
     getChannelStatuses: () => ctx.channelStatuses,
   });
 
@@ -197,7 +200,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       return def?.webhookRateLimit;
     },
   };
-  const registry = getProviderRegistry();
+  const registry = providerRegistry;
   if (registry) {
     registry.register(
       LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE,

@@ -145,7 +145,11 @@ const telegramModule: KotaModule = {
     ];
   },
 
-  onLoad: loadTelegramModule,
+  onLoad: async (ctx) => {
+    await loadTelegramModule(ctx);
+    return { dispose: unloadTelegramModule };
+  },
+  // Direct module consumers are migrated to loader-owned activation in Stage 10.
   onUnload: unloadTelegramModule,
 };
 

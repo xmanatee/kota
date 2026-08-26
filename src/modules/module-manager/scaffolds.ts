@@ -60,7 +60,7 @@ function indexTs(name: string, safeName: string): string {
   return `import type { KotaModule, ToolDef } from "kota/module";
 
 // KotaModule supports: tools, commands, routes, workflows, channels,
-// skills, agents, onLoad, onUnload. Add fields as your module grows.
+// skills, agents, and onLoad. Add fields as your module grows.
 
 const helloTool: ToolDef = {
   tool: {
@@ -85,8 +85,10 @@ const module: KotaModule = {
   version: "0.1.0",
   description: "${name} module",
   tools: [helloTool],
-  // onLoad: (ctx) => { /* initialize — ctx.log, ctx.storage, ctx.config */ },
-  // onUnload: () => { /* clean up connections, timers */ },
+  // onLoad: (ctx) => {
+  //   /* initialize — ctx.log, ctx.storage, ctx.config */
+  //   return { dispose: () => { /* clean up connections, timers */ } };
+  // },
 };
 
 export default module;

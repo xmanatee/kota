@@ -48,7 +48,7 @@ async function startForeignModule(
     description: raw.description,
     tools,
     healthCheck: () => raw.session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
-    onUnload: () => raw.session.close(),
+    onLoad: () => ({ dispose: () => raw.session.close() }),
   };
 }
 

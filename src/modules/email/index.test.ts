@@ -121,7 +121,7 @@ describe("email module setup", () => {
     ]);
   });
 
-  it("resolves SMTP auth secret references before creating the mailer", () => {
+  it("resolves SMTP auth secret references before creating the mailer", async () => {
     const ctx = makeCtx({
       smtp: {
         host: "smtp.example.test",
@@ -140,7 +140,7 @@ describe("email module setup", () => {
       })[key] ?? null,
     );
 
-    emailModule.onLoad?.(ctx as never);
+    const activation = await emailModule.onLoad?.(ctx as never);
 
     expect(createMailer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -151,5 +151,6 @@ describe("email module setup", () => {
         },
       }),
     );
+    await activation?.dispose();
   });
 });

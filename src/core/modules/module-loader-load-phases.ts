@@ -14,6 +14,7 @@ import type { LoaderState } from "./module-loader-state.js";
 import { moduleToolSnapshots } from "./module-loader-tool-snapshots.js";
 import {
   type KotaModule,
+  type ModuleActivation,
   type ModuleRuntimeContext,
   resolveModuleChannels,
   resolveModuleTools,
@@ -98,9 +99,18 @@ export function commitModuleTools(
   mod: KotaModule,
   tools: readonly ToolDef[],
 ): void {
+  const manifest = state.moduleManifests.get(mod.name);
   for (const def of tools) {
+    const manifestEffect = manifest?.effects.find(
+      (candidate) => candidate.source === "tool" && candidate.target === def.tool.name,
+    );
     registerTool(def.tool, def.runner, mod.name, {
       effect: def.effect,
+      moduleName: mod.name,
+      ...(manifestEffect
+        ? { manifestEffect: { ...manifestEffect, moduleName: mod.name } }
+        : {}),
+      ...(manifest ? { moduleManifest: manifest } : {}),
       ...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
     });
     if (def.group) registerCustomGroup(def.group, [def.tool.name]);
@@ -228,9 +238,9 @@ export async function runModuleOnLoad(
   policy: LoadPhasePolicy,
   mod: KotaModule,
   ctx: ModuleRuntimeContext,
-): Promise<void> {
-  if (!mod.onLoad || policy.isCommandsMode) return;
-  await mod.onLoad(ctx);
+): Promise<ModuleActivation | undefined> {
+  if (!mod.onLoad || policy.isCommandsMode) return undefined;
+  return (await mod.onLoad(ctx)) ?? undefined;
 }
 
 /**
@@ -260,7 +270,8 @@ export async function runModuleLoadPhases(
   attachModuleControlRoutes(state, mod, ctx);
   await attachModuleMetadata(state, policy, mod, ctx, tools);
   commitModuleTools(state, mod, tools);
-  await runModuleOnLoad(policy, mod, ctx);
+  const activation = await runModuleOnLoad(policy, mod, ctx);
+  if (activation) state.moduleActivations.set(mod.name, activation);
 
   state.modules.push(mod);
   state.moduleRegistry.set(mod.name, mod);

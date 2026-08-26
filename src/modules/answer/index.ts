@@ -120,8 +120,14 @@ const answerModule: KotaModule = {
   uiSurfaces: [answerUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveScopeContext = createAnswerScopeContextResolver(ctx.cwd, () =>
-      activeHistory,
+    const stateRoot = join(ctx.cwd, ".kota");
+    const history = new DiskAnswerHistoryStore({
+      rootDir: answerHistoryRootForScope(stateRoot),
+    });
+    const resolveScopeContext = createAnswerScopeContextResolver(
+      ctx.cwd,
+      () => history,
+      ctx,
     );
     const recallSeam: AnswerRecallSeam = {
       async recall(query, filter) {
@@ -129,14 +135,10 @@ const answerModule: KotaModule = {
       },
     };
     const synthesizer = createDefaultSynthesizer(ctx);
-    const stateRoot = join(ctx.cwd, ".kota");
-    activeHistory = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForScope(stateRoot),
-    });
-    activeProvider = new AnswerProviderImpl({
+    const provider = new AnswerProviderImpl({
       recall: recallSeam,
       synthesizer,
-      history: activeHistory,
+      history,
       onSynthesisError: (err) => {
         const msg = err instanceof Error ? err.message : String(err);
         ctx.log.warn(`answer: synthesis failed — ${msg}`);
@@ -146,7 +148,9 @@ const answerModule: KotaModule = {
         ctx.log.warn(`answer: history append failed — ${msg}`);
       },
     });
-    ctx.registerProvider(ANSWER_PROVIDER_TOKEN, activeProvider);
+    activeHistory = history;
+    activeProvider = provider;
+    ctx.registerProvider(ANSWER_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createAnswerReadinessSource({
@@ -185,11 +189,21 @@ const answerModule: KotaModule = {
       );
     }
     recallProvider.register(
-      createAnswerRecallContributor(activeHistory, resolveScopeContext),
+      createAnswerRecallContributor(history, resolveScopeContext),
     );
     recallContributorHost = recallProvider;
 
     ctx.log.info("answer: cited-answer seam ready");
+    return {
+      dispose: () => {
+        if (activeProvider === provider) {
+          recallProvider.unregister("answer");
+          activeProvider = null;
+          if (activeHistory === history) activeHistory = null;
+          if (recallContributorHost === recallProvider) recallContributorHost = null;
+        }
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -204,14 +218,14 @@ const answerModule: KotaModule = {
     answerControlRoutes(
       resolveActiveProvider,
       resolveActiveHistory,
-      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory),
+      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
     ),
 
   routes: (ctx) =>
     answerApiRoutes(
       resolveActiveProvider,
       resolveActiveHistory,
-      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory),
+      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
     ),
 
   localClient: (ctx) => {
@@ -222,7 +236,7 @@ const answerModule: KotaModule = {
       async answer(query, filter) {
         const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
+        ctx);
         const scope = resolver(filter?.scopeId);
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
         return resolveActiveProvider().answer(query, filter, scope);
@@ -230,7 +244,7 @@ const answerModule: KotaModule = {
       async log(filter?: AnswerHistoryListFilter) {
         const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
+        ctx);
         const scope = resolver(filter?.scopeId);
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
         const store = scope.history;
@@ -240,7 +254,7 @@ const answerModule: KotaModule = {
       async show(id: string, scope) {
         const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
+        ctx);
         const resolved = resolver(scope?.scopeId);
         if ("error" in resolved) throw new Error(`Unknown scope: ${resolved.scopeId}`);
         const store = resolved.history;
@@ -255,14 +269,6 @@ const answerModule: KotaModule = {
 
   daemonClient: (link) => ({ answer: buildAnswerDaemonHandler(link) }),
 
-  onUnload() {
-    if (recallContributorHost) {
-      recallContributorHost.unregister("answer");
-      recallContributorHost = null;
-    }
-    activeProvider = null;
-    activeHistory = null;
-  },
 };
 
 export default answerModule;

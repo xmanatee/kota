@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
+import type { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { getHistoryProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { ConversationRecord, Memory } from "#core/modules/provider-types.js";
 
@@ -137,6 +138,7 @@ export function extractSearchTerms(message: string): string[] {
 export function analyzeRequest(
   message: string,
   cwd: string,
+  providerRegistry?: ProviderRegistry,
 ): RequestAnalysis | null {
   if (message.length < MIN_MESSAGE_LENGTH) return null;
 
@@ -148,13 +150,13 @@ export function analyzeRequest(
   let conversations: ConversationRecord[] = [];
   if (terms.length > 0) {
     try {
-      const provider = getMemoryProvider();
+      const provider = getMemoryProvider(providerRegistry);
       memories = provider.search(terms.join(" ")).slice(0, MAX_MEMORIES);
     } catch {
       // Memory store unavailable — skip
     }
     try {
-      const history = getHistoryProvider();
+      const history = getHistoryProvider(providerRegistry);
       conversations = history.list({ search: terms.join(" "), limit: MAX_CONVERSATIONS });
     } catch {
       // History unavailable — skip

@@ -5,7 +5,7 @@ import { topoSort } from "./module-deps.js";
 import { reimportInstalledModule } from "./module-discovery.js";
 import type { LoaderState } from "./module-loader-state.js";
 import type { KotaModule, ModuleSource } from "./module-types.js";
-import { getProviderRegistry } from "./provider-registry.js";
+import type { ProviderRegistry } from "./provider-registry.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface LoadAllEnv {
@@ -13,6 +13,7 @@ export interface LoadAllEnv {
   cwd: string;
   verbose: boolean;
   isCommandsMode: boolean;
+  providerRegistry: ProviderRegistry;
 }
 
 /**
@@ -72,7 +73,7 @@ export async function loadAllModules(
     }
   }
 
-  activateConfiguredProviders(env.config, env.verbose);
+  activateConfiguredProviders(env.config, env.verbose, env.providerRegistry);
 
   const bundledFailures = [...state.loadFailures.entries()]
     .filter(([name]) => bundledNames.has(name));
@@ -90,11 +91,13 @@ export async function loadAllModules(
   }
 }
 
-export function activateConfiguredProviders(config: KotaConfig, verbose: boolean): void {
+export function activateConfiguredProviders(
+  config: KotaConfig,
+  verbose: boolean,
+  reg: ProviderRegistry,
+): void {
   const providers = config.providers;
   if (!providers) return;
-  const reg = getProviderRegistry();
-  if (!reg) return;
 
   for (const [type, name] of Object.entries(providers)) {
     if (!reg.setActiveById(type, name)) {

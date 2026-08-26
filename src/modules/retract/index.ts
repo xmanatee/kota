@@ -124,7 +124,7 @@ const retractModule: KotaModule = {
 
   onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RetractProviderImpl({
-      resolveScopeContext: createRetractScopeContextResolver(ctx.cwd),
+      resolveScopeContext: createRetractScopeContextResolver(ctx.cwd, ctx),
     });
     provider.register(createScopeMemoryContributor());
     provider.register(createScopeKnowledgeContributor());
@@ -143,6 +143,11 @@ const retractModule: KotaModule = {
     ctx.log.info(
       `retract: registered ${provider.contributors().length} contributor(s)`,
     );
+    return {
+      dispose: () => {
+        if (activeProvider === provider) activeProvider = null;
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -156,19 +161,19 @@ const retractModule: KotaModule = {
   controlRoutes: (ctx) =>
     retractControlRoutes(
       resolveActiveProvider,
-      createRetractScopeContextResolver(ctx.cwd),
+      createRetractScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     retractApiRoutes(
       resolveActiveProvider,
-      createRetractScopeContextResolver(ctx.cwd),
+      createRetractScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: (ctx) => {
     const handler: RetractClient = {
       async retract(request) {
-        const scope = createRetractScopeContextResolver(ctx.cwd)(
+        const scope = createRetractScopeContextResolver(ctx.cwd, ctx)(
           selectedScopeSelectorId(request),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
@@ -180,9 +185,6 @@ const retractModule: KotaModule = {
 
   daemonClient: (link) => ({ retract: buildRetractDaemonHandler(link) }),
 
-  onUnload() {
-    activeProvider = null;
-  },
 };
 
 export default retractModule;

@@ -7,7 +7,7 @@ bus subscriptions that drive delivery.
 
 The module contributes the route through `KotaModule.controlRoutes`
 (`control` capability scope) and subscribes to the bus in `onLoad`,
-unsubscribing in `onUnload`. The wire contract — JSON body
+returning an activation disposer that unsubscribes the exact listeners. The wire contract — JSON body
 `{ token, deviceId }`, `400 { error: "Invalid JSON body" }` on parse
 failure, `400 { error: "token and deviceId are required" }` on missing
 fields, `200 { ok: true }` on success — matches what the mobile client's

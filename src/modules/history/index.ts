@@ -8,9 +8,9 @@
 
 
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
-	getHistoryProvider,
 	HISTORY_PROVIDER_TOKEN,
 	HISTORY_SCOPE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
@@ -67,11 +67,7 @@ const historyModule: KotaModule = {
 		ctx.registerProvider(HISTORY_SCOPE_PROVIDER_TOKEN, {
 			forScope: (scope) => {
 				if (scope.isDefault) {
-					try {
-						return getHistoryProvider();
-					} catch {
-						return store;
-					}
+					return ctx.getProvider(HISTORY_PROVIDER_TOKEN) ?? store;
 				}
 				return getScopeHistoryStore(scope.scopeRoot);
 			},
@@ -84,18 +80,27 @@ const historyModule: KotaModule = {
 
 	routes: (ctx) =>
 		historyRoutes(
-			createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
+			createHistoryScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
+				if (!provider) throw new Error("history provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 		),
 	controlRoutes: (ctx) =>
 		historyControlRoutes(
-			createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
+			createHistoryScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
+				if (!provider) throw new Error("history provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 			ctx.cwd,
 		),
 
 	localClient: (ctx) => {
 		const scopeStores = createHistoryScopeStores(
 			ctx.cwd,
-			getLoadedHistoryProvider,
+			() => ctx.getProvider(HISTORY_PROVIDER_TOKEN),
+			() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
 		);
 		const handler: HistoryClient = {
 			async list(filter) {
@@ -155,14 +160,6 @@ const historyModule: KotaModule = {
 
 	daemonClient: (link) => ({ history: buildHistoryDaemonHandler(link) }),
 };
-
-function getLoadedHistoryProvider() {
-	try {
-		return getHistoryProvider();
-	} catch {
-		return null;
-	}
-}
 
 /** Daemon-side history client over the module's typed routes. */
 function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {

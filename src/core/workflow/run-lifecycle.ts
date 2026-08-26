@@ -254,7 +254,19 @@ export class RunLifecycle {
       if (outcome.kind !== "completed") {
         if (outcome.kind === "terminal") {
           const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
-          if (cleanup) return cleanup;
+          if (cleanup) {
+            const cause = outcome.error ?? `workflow finished with state ${outcome.state}`;
+            const evidence = Array.isArray(cleanup.wait?.evidence)
+              ? cleanup.wait.evidence
+              : [];
+            return {
+              ...cleanup,
+              wait: cleanup.wait
+                ? { ...cleanup.wait, evidence: [...evidence, cause] }
+                : cleanup.wait,
+              error: `${cleanup.error ?? "sandbox-cleanup-blocked"}: ${cause}`,
+            };
+          }
         }
         return outcome;
       }
@@ -283,7 +295,19 @@ export class RunLifecycle {
       }
       if (sandbox) {
         const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
-        if (cleanup) return cleanup;
+        if (cleanup) {
+          const cause = errorMessage(error);
+          const evidence = Array.isArray(cleanup.wait?.evidence)
+            ? cleanup.wait.evidence
+            : [];
+          return {
+            ...cleanup,
+            wait: cleanup.wait
+              ? { ...cleanup.wait, evidence: [...evidence, cause] }
+              : cleanup.wait,
+            error: `${cleanup.error ?? "sandbox-cleanup-blocked"}: ${cause}`,
+          };
+        }
       }
       if (error instanceof AmbiguousExternalEffectError) {
         return this.attention("external-effect-ambiguous", [error.effectKey]);

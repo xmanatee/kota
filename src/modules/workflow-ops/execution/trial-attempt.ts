@@ -121,6 +121,7 @@ export async function runTrialAttempt(args: {
         displayName: scopeId,
       },
       bus,
+      providerRegistry: runtime.providerRegistry,
       workflows: runtime.workflows,
       config: runtime.config,
       resolveAgentDef: runtime.resolveAgentDef,

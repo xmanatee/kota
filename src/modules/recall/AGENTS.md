@@ -47,7 +47,7 @@ follows the same registration seam every other contributor uses:
    (`ctx.getProvider<RecallProvider>("recall")`) and calls
    `register(contributor)`. Declares `recall` in the module's
    `dependencies` so the loader populates the registry first.
-5. From the same module's `onUnload`, calls
+5. From the same module activation's returned disposer, calls
    `recallProvider.unregister(<source>)` to withdraw the contributor.
 
 The four first-party raw-store contributors (`knowledge`, `memory`,

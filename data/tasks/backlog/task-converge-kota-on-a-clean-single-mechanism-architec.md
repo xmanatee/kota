@@ -65,7 +65,7 @@ executor are dropped with dispositions.
 - [x] Stage 6 — complete the terminal project-to-scope migration.
 - [x] Stage 7 — establish one authored daemon/client contract graph.
 - [x] Stage 8 — narrow client ports and client-side owners.
-- [ ] Stage 9 — make runtime lifecycle host-owned.
+- [x] Stage 9 — make runtime lifecycle host-owned.
 - [ ] Stage 10 — replace shadow runtimes with production drivers.
 - [ ] Stage 11 — correct transport, capability, and mutation ports.
 - [ ] Stage 12 — normalize persistence and typed projections.
@@ -284,6 +284,29 @@ were removed, while each platform retains one application event-stream owner.
 Binding freshness, lint, both TypeScript projects, 51 focused server tests,
 378 mobile tests, 239 Apple tests, and 75 web tests plus the web production
 build passed.
+
+## Stage 9 Result
+
+Runtime loaders and standalone workflow hosts now own their provider registry,
+event authority, contribution state, routes, manifests, and module activation
+instances. Servers and interactive history own schedulers directly. Hosted
+daemon, web, MCP, browser, server, and trial composition paths create or pass
+the exact lifecycle authorities they use; workflow trials no longer split
+provider lookup across a loader and an unrelated host registry.
+
+Module activation returns a disposable instance and loader shutdown withdraws
+the exact owner in reverse order. Foreign modules and resource-owning bundled
+modules use the same path. Interactive restart awaits `AgentSession.dispose()`
+before recreating the session, and production close/server paths no longer run
+reset catalogs. The remaining legacy core-tool session decorations are
+documented as a single-interactive-CLI-process owner and are not borrowed or
+reset by nested hosts.
+
+Two concurrent standalone hosts demonstrated independent event and provider
+state, with disposing one leaving the other active. Lint, both TypeScript
+projects, task validation, diff checks, 129 focused lifecycle checks, and the
+279-test changed-owner set passed. The latter includes production workflow
+trial execution and module activation behavior in parallel.
 
 ## Finding Ownership
 

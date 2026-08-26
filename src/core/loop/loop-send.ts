@@ -57,7 +57,11 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         channelIdentity: state.channelIdentity,
       });
     }
-    const analysis = analyzeRequest(prompt, state.scopeRoot);
+    const analysis = analyzeRequest(
+      prompt,
+      state.scopeRoot,
+      state.moduleLoader.getProviderRegistry(),
+    );
     const taskRoute = routeTask(prompt);
     let augmentedPrompt = prompt;
     if (analysis) augmentedPrompt += formatContextHint(analysis);

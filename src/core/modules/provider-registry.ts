@@ -164,6 +164,23 @@ export class ProviderRegistry {
 		return true;
 	}
 
+	/** Remove every provider contribution owned by one module/host component. */
+	unregisterOwner(name: string): void {
+		for (const [token, entries] of this.providers) {
+			const remaining = entries.filter((entry) => entry.name !== name);
+			if (remaining.length === entries.length) continue;
+			if (remaining.length === 0) {
+				this.providers.delete(token);
+				this.active.delete(token);
+				continue;
+			}
+			this.providers.set(token, remaining);
+			if (this.active.get(token) === name) {
+				this.active.set(token, remaining[0].name);
+			}
+		}
+	}
+
 	/** Clear all providers and active selections. */
 	clear(): void {
 		this.providers.clear();
@@ -187,9 +204,9 @@ export function resetProviderRegistry(): void {
 }
 
 /** Register the in-process default stores for core-owned service types. */
-export function registerDefaultProviders(): void {
-	if (!registry) return;
-	registry.register(TASK_PROVIDER_TOKEN, "default", getTaskStore());
+export function registerDefaultProviders(target: ProviderRegistry | null = registry): void {
+	if (!target) return;
+	target.register(TASK_PROVIDER_TOKEN, "default", getTaskStore());
 }
 
 /**
@@ -197,9 +214,9 @@ export function registerDefaultProviders(): void {
  * the default implementation — callers must ensure it has loaded (via the
  * module runtime or `ensureCliProvidersFor(["memory"])`).
  */
-export function getMemoryProvider(): MemoryProvider {
-	if (registry) {
-		const provider = registry.get(MEMORY_PROVIDER_TOKEN);
+export function getMemoryProvider(target: ProviderRegistry | null = registry): MemoryProvider {
+	if (target) {
+		const provider = target.get(MEMORY_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -212,9 +229,9 @@ export function getMemoryProvider(): MemoryProvider {
  * owns the default implementation — callers must ensure it has loaded (via
  * the module runtime or `ensureCliProvidersFor(["knowledge"])`).
  */
-export function getKnowledgeProvider(): KnowledgeProvider {
-	if (registry) {
-		const provider = registry.get(KNOWLEDGE_PROVIDER_TOKEN);
+export function getKnowledgeProvider(target: ProviderRegistry | null = registry): KnowledgeProvider {
+	if (target) {
+		const provider = target.get(KNOWLEDGE_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -223,9 +240,9 @@ export function getKnowledgeProvider(): KnowledgeProvider {
 }
 
 /** Get the active task provider, or the default TaskStore when no registry provider is active. */
-export function getTaskProvider(): TaskProvider {
-	if (registry) {
-		const provider = registry.get(TASK_PROVIDER_TOKEN);
+export function getTaskProvider(target: ProviderRegistry | null = registry): TaskProvider {
+	if (target) {
+		const provider = target.get(TASK_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	return getTaskStore();
@@ -236,9 +253,9 @@ export function getTaskProvider(): TaskProvider {
  * owns the default implementation — callers must ensure it has loaded (via
  * the module runtime or `ensureCliProvidersFor(["history"])`).
  */
-export function getHistoryProvider(): HistoryProvider {
-	if (registry) {
-		const provider = registry.get(HISTORY_PROVIDER_TOKEN);
+export function getHistoryProvider(target: ProviderRegistry | null = registry): HistoryProvider {
+	if (target) {
+		const provider = target.get(HISTORY_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -253,9 +270,9 @@ export function getHistoryProvider(): HistoryProvider {
  * must ensure `repo-tasks` has loaded (via the module runtime or
  * `ensureCliProvidersFor(["repo-tasks"])`).
  */
-export function getRepoTasksProvider(): RepoTasksProvider {
-	if (registry) {
-		const provider = registry.get(REPO_TASKS_PROVIDER_TOKEN);
+export function getRepoTasksProvider(target: ProviderRegistry | null = registry): RepoTasksProvider {
+	if (target) {
+		const provider = target.get(REPO_TASKS_PROVIDER_TOKEN);
 		if (provider) return provider;
 	}
 	throw new Error(
@@ -271,9 +288,9 @@ export function getRepoTasksProvider(): RepoTasksProvider {
  * neutral fallback — `NullTransport` for the agent stream, a refusal
  * for the interactive REPL — without failing at startup.
  */
-export function getRenderingProvider(): RenderingProvider | null {
-	if (!registry) return null;
-	return registry.get(RENDERING_PROVIDER_TOKEN);
+export function getRenderingProvider(target: ProviderRegistry | null = registry): RenderingProvider | null {
+	if (!target) return null;
+	return target.get(RENDERING_PROVIDER_TOKEN);
 }
 
 /**
@@ -285,7 +302,7 @@ export function getRenderingProvider(): RenderingProvider | null {
  * preserves the explicit-zero rule end-to-end instead of throwing inside
  * an interactive cost summary.
  */
-export function getModelPricingProvider(): ModelPricingProvider | null {
-	if (!registry) return null;
-	return registry.get(MODEL_PRICING_PROVIDER_TOKEN);
+export function getModelPricingProvider(target: ProviderRegistry | null = registry): ModelPricingProvider | null {
+	if (!target) return null;
+	return target.get(MODEL_PRICING_PROVIDER_TOKEN);
 }

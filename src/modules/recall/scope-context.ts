@@ -1,8 +1,14 @@
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import type { ProviderLookupContext } from "#core/modules/module-context-types.js";
 import {
   getHistoryProvider,
   getKnowledgeProvider,
   getMemoryProvider,
   getRepoTasksProvider,
+  HISTORY_PROVIDER_TOKEN,
+  KNOWLEDGE_PROVIDER_TOKEN,
+  MEMORY_PROVIDER_TOKEN,
+  REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import { createHistoryScopeStores } from "#modules/history/scope.js";
 import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
@@ -16,18 +22,30 @@ export type ResolveRecallScopeContext = (
 
 export function createRecallScopeContextResolver(
   defaultScopeRoot: string,
+  providers?: ProviderLookupContext,
 ): ResolveRecallScopeContext {
-  const memoryStores = createMemoryScopeStores(defaultScopeRoot, () =>
-    getMemoryProvider(),
+  const daemonScope = providers
+    ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)
+    : undefined;
+  const memoryStores = createMemoryScopeStores(
+    defaultScopeRoot,
+    () => providers?.getProvider(MEMORY_PROVIDER_TOKEN) ?? getMemoryProvider(),
+    daemonScope,
   );
-  const knowledgeStores = createKnowledgeScopeStores(defaultScopeRoot, () =>
-    getKnowledgeProvider(),
+  const knowledgeStores = createKnowledgeScopeStores(
+    defaultScopeRoot,
+    () => providers?.getProvider(KNOWLEDGE_PROVIDER_TOKEN) ?? getKnowledgeProvider(),
+    daemonScope,
   );
-  const historyStores = createHistoryScopeStores(defaultScopeRoot, () =>
-    getHistoryProvider(),
+  const historyStores = createHistoryScopeStores(
+    defaultScopeRoot,
+    () => providers?.getProvider(HISTORY_PROVIDER_TOKEN) ?? getHistoryProvider(),
+    daemonScope,
   );
-  const taskStores = createRepoTasksScopeStores(defaultScopeRoot, () =>
-    getRepoTasksProvider(),
+  const taskStores = createRepoTasksScopeStores(
+    defaultScopeRoot,
+    () => providers?.getProvider(REPO_TASKS_PROVIDER_TOKEN) ?? getRepoTasksProvider(),
+    daemonScope,
   );
 
   return (scopeId) => {

@@ -38,14 +38,16 @@ const sqliteMemoryModule: KotaModule = {
 	dependencies: ["memory"],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {
-		storageDir = ctx.storage.getDir();
-		const provider = new SQLiteMemoryProvider(storageDir);
+		const activatedStorageDir = ctx.storage.getDir();
+		storageDir = activatedStorageDir;
+		const provider = new SQLiteMemoryProvider(activatedStorageDir);
 		ctx.registerProvider(MEMORY_PROVIDER_TOKEN, provider);
 		ctx.log.info("SQLite memory provider registered");
-	},
-
-	onUnload: () => {
-		storageDir = null;
+		return {
+			dispose: () => {
+				if (storageDir === activatedStorageDir) storageDir = null;
+			},
+		};
 	},
 
 	healthCheck: () => checkSqliteHealth(),

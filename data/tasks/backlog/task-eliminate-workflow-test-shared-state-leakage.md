@@ -8,7 +8,7 @@ task_class: Platform
 depends_on: [task-make-builder-continuation-evidence-driven-and-prio]
 summary: Isolate runtime roots, stores, ports, clocks, globals, and teardown so workflow concurrency tests pass under full-suite and randomized execution.
 created_at: 2026-08-24T02:13:51.982Z
-updated_at: 2026-08-24T02:13:51.982Z
+updated_at: 2026-08-26T11:55:00.000Z
 ---
 
 ## Problem
@@ -53,6 +53,17 @@ Fresh 2026-08-24 validation: 12,982 tests passed, 14 skipped, and one failed at
 `src/workflow-runtime.integration.test.ts` in the named concurrency-group
 case; the exact test passed 10/10 isolated reruns. The owner approved fixing
 the isolation defect rather than retry-greenwashing it.
+
+## Current Progress
+
+Stage 9 removed ambient provider/bus/scheduler teardown from hosted runtime
+composition, made module activation disposable, and made interactive restart
+await host disposal. A production workflow-trial check exposed and corrected
+a split provider authority between its runtime loader and standalone host.
+Concurrent hosts now dispose independently, and the 279-test changed-owner set
+passes in parallel. Stage 10 still owns deletion of shadow test runtimes;
+randomized affected-shard and repeated full-suite observations remain before
+this task can move to done.
 
 ## Initiative
 

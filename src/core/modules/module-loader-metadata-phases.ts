@@ -10,7 +10,6 @@ import {
   buildModuleCapabilityManifestProjection,
   buildModuleManifestEventFlows,
   buildModuleManifestSetupStatusLinks,
-  registerModuleCapabilityManifestProjection,
 } from "./module-manifest.js";
 import {
   type KotaModule,
@@ -152,7 +151,6 @@ function attachModuleManifest(
     hasHealthCheck: mod.healthCheck !== undefined,
   });
   state.moduleManifests.set(mod.name, projection);
-  registerModuleCapabilityManifestProjection(projection);
 }
 
 export async function attachModuleMetadata(

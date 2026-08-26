@@ -9,9 +9,9 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
-	getRepoTasksProvider,
 	REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
@@ -57,14 +57,11 @@ function resolveRepoTasksScope(
 
 function createLocalDefaultProviderResolver(
 	defaultScopeRoot: string,
+	registered: () => RepoTasksProvider | null,
 ): () => RepoTasksProvider {
 	const fallback = new RepoTasksDefaultStore(defaultScopeRoot);
 	return () => {
-		try {
-			return getRepoTasksProvider();
-		} catch {
-			return fallback;
-		}
+		return registered() ?? fallback;
 	};
 }
 
@@ -79,7 +76,11 @@ const repoTasksModule: KotaModule = {
 		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
-			createRepoTasksReadinessSource(() => getRepoTasksProvider()),
+			createRepoTasksReadinessSource(() => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}),
 		);
 	},
 
@@ -91,17 +92,29 @@ const repoTasksModule: KotaModule = {
 
 	routes: (ctx) =>
 		taskRoutes(
-			createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 		),
 	controlRoutes: (ctx) =>
 		taskControlRoutes(
-			createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 		),
 
 	localClient: (ctx) => {
 		const scopeStores = createRepoTasksScopeStores(
 			ctx.cwd,
-			createLocalDefaultProviderResolver(ctx.cwd),
+			createLocalDefaultProviderResolver(
+				ctx.cwd,
+				() => ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN),
+			),
+			() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
 		);
 		const handler: RepoTasksClient = {
 			async list(states, scopeSelector) {

@@ -26,6 +26,11 @@ import type {
 import type { UiSurfaceSource } from "./module-ui-surfaces.js";
 import type { ModuleSetupRequirement } from "./setup-requirements.js";
 
+/** Host-owned runtime instance returned by module activation. */
+export type ModuleActivation = {
+  dispose: () => Promise<void> | void;
+};
+
 /** The single declaration boundary for every project or installed module. */
 export type KotaModule = {
   name: string;
@@ -54,7 +59,10 @@ export type KotaModule = {
     | ((ctx: ModuleContext) => ModuleCapabilityManifestInput);
   localClient?: (ctx: ModuleContext) => Partial<LocalClientHandlers>;
   daemonClient?: (link: DaemonTransport) => Partial<DaemonClientHandlers>;
-  onLoad?: (ctx: ModuleRuntimeContext) => Promise<void> | void;
+  onLoad?: (
+    ctx: ModuleRuntimeContext,
+  ) => Promise<ModuleActivation | void> | ModuleActivation | void;
+  /** @deprecated Return a disposer from `onLoad`; retained until module migrations finish. */
   onUnload?: () => Promise<void> | void;
   getHealth?: () => ModuleHealth;
   healthCheck?: () => HealthCheckResult | Promise<HealthCheckResult>;

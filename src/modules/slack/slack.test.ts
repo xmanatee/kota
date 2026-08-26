@@ -255,8 +255,8 @@ describe("slackModule notifications", () => {
 
   it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    await slackModule.onUnload?.();
+    const activation = await slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await activation?.dispose();
     bus.emit("workflow.failure.alert", { text: "alert" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();

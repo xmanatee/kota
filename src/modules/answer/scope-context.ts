@@ -6,6 +6,7 @@ import {
   directoryScopesFromProjection,
   type ScopeId,
 } from "#core/daemon/scope-registry.js";
+import type { ProviderLookupContext } from "#core/modules/module-context-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import {
   type AnswerHistoryStore,
@@ -27,14 +28,14 @@ export type ResolveAnswerScopeContext = (
 export function createAnswerScopeContextResolver(
   defaultScopeRoot: string,
   getDefaultHistory?: () => AnswerHistoryStore | null,
+  providers?: ProviderLookupContext,
 ): ResolveAnswerScopeContext {
   const fallbackScope = buildDirectoryScope({ scopeRoot: defaultScopeRoot });
   const stores = new Map<ScopeId, AnswerHistoryStore>();
 
   function snapshot(): ScopeSnapshot {
-    const daemonScope = getProviderRegistry()?.get(
-      DAEMON_SCOPE_PROVIDER_TYPE,
-    );
+    const daemonScope = providers?.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)
+      ?? getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
     if (daemonScope) {
       const projection = daemonScope.getScopeRegistryProjection();
       return {

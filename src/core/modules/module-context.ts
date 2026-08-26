@@ -30,7 +30,7 @@ import { getModuleLogStore } from "./module-log.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
-import { getProviderRegistry, initProviderRegistry } from "./provider-registry.js";
+import type { ProviderRegistry } from "./provider-registry.js";
 import type { ProviderToken } from "./provider-token.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -53,6 +53,7 @@ export interface ModuleContextParams {
   callTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   probeHealthChecks: () => Promise<Record<string, HealthCheckResult>>;
   getRegisteredConfigKeys: () => ReadonlySet<string>;
+  providerRegistry: ProviderRegistry;
 }
 
 function getOrCreateStorage(
@@ -145,7 +146,7 @@ function createEventProxy(
 }
 
 export function createModuleContext(params: ModuleContextParams, moduleName?: string): ModuleRuntimeContext {
-  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys } = params;
+  const { cwd, verbose, config, moduleStorages, getBus, trackEventSubscription, getRoutes, getContributedControlRoutes, getContributedWorkflows, getContributedChannels, getContributedUiSurfaces, getModuleSummaries, resolveAgentDef, resolveSkillsPrompt, getSessionFactory, callTool, probeHealthChecks, getRegisteredConfigKeys, providerRegistry } = params;
   const storage = moduleName
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
@@ -206,13 +207,17 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
         log.warn(`Cannot register provider without a module name`);
         return;
       }
-      const reg = getProviderRegistry() ?? initProviderRegistry();
-      reg.register(token, moduleName, provider);
+      providerRegistry.register(token, moduleName, provider);
       log.info(`Registered as provider for "${token}"`);
     },
     getProvider: <T>(token: ProviderToken<T>): T | null => {
-      const reg = getProviderRegistry();
-      return reg?.get(token) ?? null;
+      return providerRegistry.get(token);
+    },
+    listProviders: <T>(token: ProviderToken<T>): readonly T[] => {
+      return providerRegistry.list(token).flatMap((name) => {
+        const provider = providerRegistry.getByName(token, name);
+        return provider ? [provider] : [];
+      });
     },
     callTool,
     registerMiddleware: (name, fn, priority) => {

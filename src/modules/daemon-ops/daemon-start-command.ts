@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { Daemon } from "#core/daemon/daemon.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -46,7 +46,7 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   };
   preflightDaemonPresetAuth(preset, effectiveHarness);
   const verbose = opts.verbose || effectiveConfig.verbose || false;
-  const eventBus = initEventBus();
+  const eventBus = new EventBus();
   const loader = await loadRuntimeModules({
     config: effectiveConfig,
     cwd: scopeRoot,

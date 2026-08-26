@@ -24,7 +24,7 @@ import {
   warnIgnoredUntrustedScopeConfig,
   warnUnknownConfigKeys,
 } from "#core/config/config-warnings.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { type ServerListeningInfo, startServer } from "#core/server/server.js";
@@ -67,7 +67,7 @@ export function localWebClient(ctx: ModuleContext): WebClient {
   return {
     async start(options: WebStartOptions): Promise<WebStartResult> {
       const verbose = (options.verbose ?? false) || ctx.config.verbose;
-      const eventBus = initEventBus();
+      const eventBus = new EventBus();
       const runtimeLoader = await loadRuntimeModules({
         config: ctx.config,
         cwd: ctx.cwd,

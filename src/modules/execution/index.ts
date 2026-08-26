@@ -133,13 +133,15 @@ const executionModule: KotaModule = {
     ],
   },
   tools,
-  onLoad: (ctx) => {
+  onLoad: () => {
     registerExecutionCodeRunners();
-    ctx.registerCleanupHook(() => {
-      cleanupProcesses();
-      cleanupSessions();
-      deregisterExecutionCodeRunners();
-    });
+    return {
+      dispose: () => {
+        cleanupProcesses();
+        cleanupSessions();
+        deregisterExecutionCodeRunners();
+      },
+    };
   },
 };
 

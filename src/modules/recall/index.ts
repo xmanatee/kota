@@ -13,12 +13,13 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
-  getHistoryProvider,
-  getKnowledgeProvider,
-  getMemoryProvider,
-  getRepoTasksProvider,
+  HISTORY_PROVIDER_TOKEN,
+  KNOWLEDGE_PROVIDER_TOKEN,
+  MEMORY_PROVIDER_TOKEN,
+  REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createHistoryScopeStores } from "#modules/history/scope.js";
@@ -86,7 +87,7 @@ const recallModule: KotaModule = {
   uiSurfaces: [recallUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveScopeContext = createRecallScopeContextResolver(ctx.cwd);
+    const resolveScopeContext = createRecallScopeContextResolver(ctx.cwd, ctx);
     const provider = new RecallProviderImpl({
       resolveScopeContext,
       onContributorError: (source, err) => {
@@ -95,16 +96,32 @@ const recallModule: KotaModule = {
       },
     });
     provider.register(createScopeKnowledgeContributor(
-      createKnowledgeScopeStores(ctx.cwd, () => getKnowledgeProvider()),
+      createKnowledgeScopeStores(ctx.cwd, () => {
+        const value = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
+        if (!value) throw new Error("knowledge provider is not registered");
+        return value;
+      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
     ));
     provider.register(createScopeMemoryContributor(
-      createMemoryScopeStores(ctx.cwd, () => getMemoryProvider()),
+      createMemoryScopeStores(ctx.cwd, () => {
+        const value = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
+        if (!value) throw new Error("memory provider is not registered");
+        return value;
+      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
     ));
     provider.register(createScopeHistoryContributor(
-      createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
+      createHistoryScopeStores(ctx.cwd, () => {
+        const value = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
+        if (!value) throw new Error("history provider is not registered");
+        return value;
+      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
     ));
     provider.register(createScopeTasksContributor(
-      createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
+      createRepoTasksScopeStores(ctx.cwd, () => {
+        const value = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+        if (!value) throw new Error("repo-tasks provider is not registered");
+        return value;
+      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
     ));
     activeProvider = provider;
     // Expose the live provider through the provider-registry seam so other
@@ -124,6 +141,11 @@ const recallModule: KotaModule = {
     ctx.log.info(
       `recall: registered ${provider.contributors().length} contributor(s)`,
     );
+    return {
+      dispose: () => {
+        if (activeProvider === provider) activeProvider = null;
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -137,13 +159,13 @@ const recallModule: KotaModule = {
   controlRoutes: (ctx) =>
     recallControlRoutes(
       resolveActiveProvider,
-      createRecallScopeContextResolver(ctx.cwd),
+      createRecallScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     recallApiRoutes(
       resolveActiveProvider,
-      createRecallScopeContextResolver(ctx.cwd),
+      createRecallScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: () => {
@@ -162,9 +184,6 @@ const recallModule: KotaModule = {
 
   daemonClient: (link) => ({ recall: buildRecallDaemonHandler(link) }),
 
-  onUnload() {
-    activeProvider = null;
-  },
 };
 
 export default recallModule;

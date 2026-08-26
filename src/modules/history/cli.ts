@@ -7,7 +7,7 @@ import { isAbsolute } from "node:path";
 import { createInterface } from "node:readline";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import { expandAlias, type KotaConfig, loadConfig } from "#core/config/config.js";
-import { getScheduler, resetScheduler } from "#core/daemon/scheduler.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
 import { AgentSession, type LoopOptions, runAgentLoop } from "#core/loop/loop.js";
 import {
   createAskUserMcpAuthorizationResolver,
@@ -296,12 +296,12 @@ const REPL_COMMANDS: Record<string, string> = {
   "/cost": "Show accumulated cost summary",
 };
 
-function handleReplCommand(
+async function handleReplCommand(
   command: string,
   session: AgentSession,
   options: LoopOptions,
-  resetSession: () => void,
-): boolean {
+  resetSession: () => Promise<void>,
+): Promise<boolean> {
   const stderr = stderrTransport();
   switch (command) {
     case "/help": {
@@ -336,7 +336,7 @@ function handleReplCommand(
     }
     case "/reset":
     case "/clear": {
-      resetSession();
+      await resetSession();
       stderr.write(line(span("Conversation cleared.", "success")));
       return true;
     }
@@ -358,8 +358,8 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
   let session = new AgentSession(options);
   const stderr = stderrTransport();
 
-  const resetSession = () => {
-    session.close();
+  const resetSession = async () => {
+    await session.dispose();
     session = new AgentSession(options);
   };
 
@@ -369,7 +369,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     prompt: "kota> ",
   });
 
-  const scheduler = getScheduler();
+  const scheduler = new Scheduler(session.scopeRoot);
   const stopScheduler = scheduler.startTimer(30_000, (dueItems) => {
     for (const item of dueItems) {
       stderr.write(blank());
@@ -391,13 +391,12 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     }
     if (input === "exit" || input === "quit") {
       stopScheduler();
-      resetScheduler();
-      session.close();
+      await session.dispose();
       rl.close();
       return;
     }
 
-    if (handleReplCommand(input, session, options, resetSession)) {
+    if (await handleReplCommand(input, session, options, resetSession)) {
       print(blank());
       rl.prompt();
       return;
@@ -418,10 +417,9 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     rl.prompt();
   });
 
-  rl.on("close", () => {
+  rl.on("close", async () => {
     stopScheduler();
-    resetScheduler();
-    session.close();
+    await session.dispose();
     stderr.write(blank());
     stderr.write(line(span("Goodbye.", "muted")));
     process.exit(0);

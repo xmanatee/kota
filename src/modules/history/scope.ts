@@ -1,3 +1,4 @@
+import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
   buildDirectoryScope,
@@ -27,6 +28,7 @@ export type HistoryScopeStoresOptions = {
   defaultScopeId?: ScopeId;
   getActiveScopeId?: () => ScopeId | null;
   getDefaultProvider?: () => HistoryProvider | null;
+  getDaemonScopeProvider?: () => DaemonScopeProvider | null;
 };
 
 export class HistoryScopeStores {
@@ -36,6 +38,7 @@ export class HistoryScopeStores {
   private readonly getFallbackActiveScopeId: () => ScopeId | null;
   private readonly getDefaultProvider: (() => HistoryProvider | null) | undefined;
   private readonly stores = new Map<ScopeId, HistoryProvider>();
+  private readonly getDaemonScopeProvider: () => DaemonScopeProvider | null;
 
   constructor(options: HistoryScopeStoresOptions) {
     this.fallbackScope = buildDirectoryScope({
@@ -59,6 +62,8 @@ export class HistoryScopeStores {
     }
     this.getFallbackActiveScopeId = options.getActiveScopeId ?? (() => null);
     this.getDefaultProvider = options.getDefaultProvider;
+    this.getDaemonScopeProvider = options.getDaemonScopeProvider
+      ?? (() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null);
   }
 
   resolve(
@@ -94,9 +99,7 @@ export class HistoryScopeStores {
   }
 
   private snapshot(): ScopeSnapshot {
-    const daemonScope = getProviderRegistry()?.get(
-      DAEMON_SCOPE_PROVIDER_TYPE,
-    );
+    const daemonScope = this.getDaemonScopeProvider();
     if (daemonScope) {
       const projection = daemonScope.getScopeRegistryProjection();
       return {
@@ -131,6 +134,7 @@ export class HistoryScopeStores {
 export function createHistoryScopeStores(
   defaultScopeRoot: string,
   getDefaultProvider?: () => HistoryProvider | null,
+  getDaemonScopeProvider?: () => DaemonScopeProvider | null,
 ): HistoryScopeStores {
-  return new HistoryScopeStores({ defaultScopeRoot, getDefaultProvider });
+  return new HistoryScopeStores({ defaultScopeRoot, getDefaultProvider, getDaemonScopeProvider });
 }

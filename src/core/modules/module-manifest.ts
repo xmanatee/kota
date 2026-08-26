@@ -305,42 +305,6 @@ const TOOL_EFFECT_SCOPES = [
   "operator-surface",
 ] as const;
 
-const moduleManifestProjections = new Map<string, ModuleCapabilityManifestProjection>();
-
-export function registerModuleCapabilityManifestProjection(
-  projection: ModuleCapabilityManifestProjection,
-): void {
-  moduleManifestProjections.set(projection.moduleName, projection);
-}
-
-export function unregisterModuleCapabilityManifestProjection(
-  moduleName: string,
-): void {
-  moduleManifestProjections.delete(moduleName);
-}
-
-export function clearModuleCapabilityManifestProjections(): void {
-  moduleManifestProjections.clear();
-}
-
-export function getModuleCapabilityManifestProjections(): readonly ModuleCapabilityManifestProjection[] {
-  return [...moduleManifestProjections.values()];
-}
-
-export function findModuleManifestToolEffect(
-  toolName: string,
-): ModuleManifestEffectLookup | undefined {
-  for (const projection of moduleManifestProjections.values()) {
-    const effect = projection.effects.find(
-      (candidate) =>
-        candidate.source === "tool" &&
-        candidate.target === toolName,
-    );
-    if (effect) return { ...effect, moduleName: projection.moduleName };
-  }
-  return undefined;
-}
-
 function isLiteral<T extends string>(
   value: string,
   allowed: readonly T[],

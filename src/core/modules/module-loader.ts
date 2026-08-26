@@ -50,6 +50,7 @@ import {
   type RegisteredUiSurfaceSource,
   type UiSurfaceProjectionRequest,
 } from "./module-ui-surfaces.js";
+import { ProviderRegistry } from "./provider-registry.js";
 import type { ModuleSetupRequirementContribution } from "./setup-requirements.js";
 
 export type { ModuleSource, ModuleSummary } from "./module-types.js";
@@ -64,6 +65,8 @@ export type ModuleLoaderOptions = {
   globalConfigPath?: string;
   /** Trusted source directory for installed-module re-imports. */
   installedModuleSourceDir?: string;
+  /** Provider authority owned by the surrounding host. A fresh registry is used by default. */
+  providerRegistry?: ProviderRegistry;
 };
 
 type RuntimeOnlyGetter = "getRoutes" | "getContributedControlRoutes" | "probeHealthChecks";
@@ -75,6 +78,7 @@ export class ModuleLoader {
   private readonly mode: ModuleLoaderMode;
   private readonly globalConfigPath?: string;
   private readonly installedModuleSourceDir?: string;
+  private readonly providerRegistry: ProviderRegistry;
   private cwd: string;
   private bus: EventBus | null = null;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
@@ -87,9 +91,11 @@ export class ModuleLoader {
     this.mode = options?.mode ?? "runtime";
     this.globalConfigPath = options?.globalConfigPath;
     this.installedModuleSourceDir = options?.installedModuleSourceDir;
+    this.providerRegistry = options?.providerRegistry ?? new ProviderRegistry();
   }
 
   getMode(): ModuleLoaderMode { return this.mode; }
+  getProviderRegistry(): ProviderRegistry { return this.providerRegistry; }
   setSessionFactory(factory: (opts: CreateSessionOptions) => ModuleSession): void { this.sessionFactory = factory; }
   setCwd(cwd: string): void { this.cwd = cwd; }
   setBus(bus: EventBus): void { this.bus = bindModuleEventBus(this.bus, bus, this.state.modules.length); }
@@ -108,11 +114,21 @@ export class ModuleLoader {
   }
 
   private get lifecycleEnv(): LifecycleEnv {
-    return { resetBus: () => { this.bus = null; }, verbose: this.verbose };
+    return {
+      resetBus: () => { this.bus = null; },
+      verbose: this.verbose,
+      providerRegistry: this.providerRegistry,
+    };
   }
 
   private get loadAllEnv(): LoadAllEnv {
-    return { config: this.config, cwd: this.cwd, verbose: this.verbose, isCommandsMode: this.isCommandsMode };
+    return {
+      config: this.config,
+      cwd: this.cwd,
+      verbose: this.verbose,
+      isCommandsMode: this.isCommandsMode,
+      providerRegistry: this.providerRegistry,
+    };
   }
 
   private createContext(moduleName?: string): ModuleRuntimeContext {
@@ -135,6 +151,7 @@ export class ModuleLoader {
         getSessionFactory: () => this.sessionFactory,
         probeHealthChecks: () => this.probeHealthChecks(),
         getRegisteredConfigKeys: () => this.getRegisteredConfigKeys(),
+        providerRegistry: this.providerRegistry,
       },
       this.toolCallDepth,
       moduleName,
@@ -155,7 +172,7 @@ export class ModuleLoader {
       const ctx = this.createContext(mod.name);
       await runModuleLoadPhases(state, policy, mod, ctx, this.verbose);
     } catch (err) {
-      discardModuleLoadState(mod.name, state);
+      discardModuleLoadState(mod.name, state, this.providerRegistry);
       throw err;
     }
   }

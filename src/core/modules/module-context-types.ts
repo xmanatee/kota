@@ -66,6 +66,7 @@ export type ModuleEventContext = { events: ModuleEventProxy };
 
 export type ProviderLookupContext = {
   getProvider: <T>(token: ProviderToken<T>) => T | null;
+  listProviders?: <T>(token: ProviderToken<T>) => readonly T[];
 };
 
 export type ModuleSessionContext = {

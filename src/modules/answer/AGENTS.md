@@ -97,7 +97,7 @@ The answer module owns its recall adapter end-to-end.
 from its own `onLoad` against the live `RecallProvider` (looked up
 through `ctx.getProvider(RECALL_PROVIDER_TOKEN)` — the same typed
 registry seam every other cross-module provider access uses) and
-`onUnload` calls `recallProvider.unregister("answer")`. The recall
+the returned activation disposer calls `recallProvider.unregister("answer")`. The recall
 module does not import answer code; registration flows one-way
 through the public `RecallProvider` API.
 

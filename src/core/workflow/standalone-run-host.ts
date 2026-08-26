@@ -7,11 +7,9 @@ import {
   createScopeRuntime,
   type ScopeRuntime,
 } from "#core/daemon/scope-runtime.js";
-import type { EventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import {
-  getProviderRegistry,
-  initProviderRegistry,
-  resetProviderRegistry,
+  ProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { resolveWorkflowConcurrency } from "./concurrency.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
@@ -55,7 +53,7 @@ export type StandaloneNestedRun = Readonly<{
 export type StandaloneRunHostOptions = Readonly<{
   stateDir: string;
   scope: DirectoryScope;
-  bus: EventBus;
+  bus?: EventBus;
   workflows: readonly RegisteredWorkflowDefinitionInput[];
   config?: KotaConfig;
   model?: string;
@@ -67,6 +65,7 @@ export type StandaloneRunHostOptions = Readonly<{
     context: RunContext,
   ) => StandaloneRunExecutionOptions;
   onLog?: (message: string) => void;
+  providerRegistry?: ProviderRegistry;
 }>;
 
 /**
@@ -78,13 +77,14 @@ export class StandaloneRunHost {
   readonly state: RunStateDatabase;
   readonly coordinator: RunCoordinator;
   readonly scopeRuntime: ScopeRuntime;
+  readonly providerRegistry: ProviderRegistry;
+  readonly bus: EventBus;
 
   private readonly epoch: number;
   private readonly lifecycle: RunLifecycle;
   private readonly definitions: readonly WorkflowDefinition[];
   private readonly onLog: (message: string) => void;
   private readonly nestedRuns = new Map<string, StandaloneNestedRun>();
-  private readonly ownsProviderRegistry: boolean;
   private started = false;
   private closed = false;
 
@@ -152,8 +152,8 @@ export class StandaloneRunHost {
         ),
     });
     this.coordinator.pauseScopeAdmission(options.scope.scopeId);
-    this.ownsProviderRegistry = getProviderRegistry() === null;
-    const registry = getProviderRegistry() ?? initProviderRegistry();
+    this.providerRegistry = options.providerRegistry ?? new ProviderRegistry();
+    this.bus = options.bus ?? new EventBus();
 
     // Standalone commands admit only explicit work. Definition triggers are
     // intentionally disabled so schedules and file watchers cannot add work.
@@ -165,7 +165,7 @@ export class StandaloneRunHost {
     try {
       createdRuntime = createScopeRuntime({
         scope: options.scope,
-        bus: options.bus,
+        bus: this.bus,
         config: options.config,
         workflows: explicitWorkflows,
         model: options.model,
@@ -181,7 +181,7 @@ export class StandaloneRunHost {
       this.scopeRuntime = createdRuntime;
       this.scopeRuntime.workflowRuntime.start("paused");
       this.definitions = this.scopeRuntime.workflowRuntime.getDefinitions();
-      registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
+      this.providerRegistry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "standalone-run-host", {
         resolve: (scopeId) => scopeId === options.scope.scopeId
           ? { ok: true, runtime: this.scopeRuntime }
           : { ok: false, scopeId },
@@ -189,7 +189,7 @@ export class StandaloneRunHost {
     } catch (error) {
       void createdRuntime?.workflowRuntime.stop(0);
       this.state.close();
-      if (this.ownsProviderRegistry) resetProviderRegistry();
+      this.providerRegistry.unregisterOwner("standalone-run-host");
       throw error;
     }
   }
@@ -285,7 +285,8 @@ export class StandaloneRunHost {
     await this.scopeRuntime.workflowRuntime.stop(0);
     await this.coordinator.dispose();
     this.state.close();
-    if (this.ownsProviderRegistry) resetProviderRegistry();
+    this.providerRegistry.unregisterOwner("standalone-run-host");
+    if (!this.options.bus) this.bus.clear();
     this.closed = true;
   }
 
@@ -314,7 +315,7 @@ export class StandaloneRunHost {
     const { promise } = executeWorkflowRun(definition, run.trigger, {
       runContext: context,
       authorityConfigPath: this.options.authorityConfigPath,
-      bus: this.options.bus,
+      bus: this.bus,
       pbus: this.scopeRuntime.pbus,
       store: this.scopeRuntime.runStore,
       deadLetterQueue: this.scopeRuntime.deadLetterQueue,

@@ -54,16 +54,14 @@ function getConfig(ctx: ModuleContext): EmailConfig | null {
 }
 
 let mailer: Mailer | null = null;
-let unsubs: (() => void)[] = [];
-
 function makeEmailSender(
   cfg: EmailConfig,
   log: ModuleContext["log"],
+  activeMailer: Mailer,
 ): (event: string, payload: Record<string, unknown>) => void {
   return (event, payload) => {
-    if (!mailer) return;
     const { subject, text } = formatEmail(event, payload);
-    mailer.send({ from: cfg.from, to: cfg.to, subject, text }).catch((err: unknown) => {
+    activeMailer.send({ from: cfg.from, to: cfg.to, subject, text }).catch((err: unknown) => {
       log.warn(`email: failed to send (${event}): ${(err as Error).message}`);
     });
   };
@@ -92,7 +90,7 @@ const emailAlertsChannel: ChannelDef = {
           }
         },
         stop() {
-          // no-op: mailer is closed in onUnload
+          // no-op: the module activation disposer closes the mailer
         },
       },
     };
@@ -260,22 +258,23 @@ const emailModule: KotaModule = {
       return;
     }
 
-    mailer = createMailer(cfg.smtp);
-    const send = makeEmailSender(cfg, ctx.log);
-    unsubs = [
+    const activeMailer = createMailer(cfg.smtp);
+    mailer = activeMailer;
+    const send = makeEmailSender(cfg, ctx.log, activeMailer);
+    const unsubs = [
       ...NOTIFICATION_EVENTS.map((event) =>
         ctx.events.subscribe(event, (payload) => {
           send(event, payload as Record<string, unknown>);
         }),
       ),
     ];
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
-    mailer?.close();
-    mailer = null;
+    return {
+      dispose: () => {
+        unsubs.forEach((unsubscribe) => unsubscribe());
+        activeMailer.close();
+        if (mailer === activeMailer) mailer = null;
+      },
+    };
   },
 };
 

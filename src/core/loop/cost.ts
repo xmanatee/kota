@@ -2,6 +2,7 @@ import {
   getModelPricingProvider,
   type ModelPricing,
   type ModelPricingRates,
+  type ProviderRegistry,
 } from "#core/modules/provider-registry.js";
 
 type Usage = {
@@ -36,6 +37,8 @@ export class CostTracker {
   private totalCacheWrite = 0;
   private totalCost = 0;
 
+  constructor(private readonly providerRegistry?: ProviderRegistry) {}
+
   /**
    * Token tallies always accumulate. Dollar cost only accumulates for models
    * with a registered pricing row from the active model-pricing provider —
@@ -49,7 +52,7 @@ export class CostTracker {
     this.totalCacheRead += cacheReadTokens;
     this.totalCacheWrite += cacheWriteTokens;
 
-    const pricing = getModelPricingProvider()?.getPricing(model) ?? null;
+    const pricing = getModelPricingProvider(this.providerRegistry)?.getPricing(model) ?? null;
     if (!pricing) return;
     const rates = selectPricingRates(
       pricing,

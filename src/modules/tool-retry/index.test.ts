@@ -49,10 +49,10 @@ describe("tool-retry module", () => {
 		expect(result.content).toContain("auto-retry");
 	});
 
-	it("cleans up on unload", () => {
-		toolRetryModule.onLoad!(ctx as any);
+	it("cleans up on unload", async () => {
+		const activation = await toolRetryModule.onLoad!(ctx as any);
 		expect(getToolMiddleware().size).toBe(1);
-		toolRetryModule.onUnload!();
+		await activation?.dispose();
 		// Stats reset (middleware removal is handled by module loader)
 	});
 

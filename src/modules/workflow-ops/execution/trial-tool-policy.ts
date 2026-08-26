@@ -1,11 +1,11 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import type { AgentCanUseTool } from "#core/agent-harness/index.js";
 import {
-  findModuleManifestToolEffect,
   type ModuleManifestEffectLookup,
   simulationBlockReasonFromEffect,
 } from "#core/modules/module-manifest.js";
 import { executeTool, getToolEffect } from "#core/tools/index.js";
+import { getModuleToolManifestEffect } from "#core/tools/tool-effect-registry.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowTrialBlockedSideEffect } from "../client.js";
 import type { TrialResolvedToolEffect } from "./trial-internal-types.js";
@@ -159,7 +159,7 @@ function resolvedManifestToolEffect(
 }
 
 function resolveTrialToolEffect(tool: string): TrialResolvedToolEffect | undefined {
-  const manifestEffect = findModuleManifestToolEffect(tool);
+  const manifestEffect = getModuleToolManifestEffect(tool);
   if (manifestEffect) return resolvedManifestToolEffect(manifestEffect);
   const effect = getToolEffect(tool);
   return effect ? { effect } : undefined;

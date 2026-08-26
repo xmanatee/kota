@@ -1071,6 +1071,19 @@ describe("ModuleLoader", () => {
     expect(r3.content).toBe("result from tool_b");
   });
 
+  it("disposes the runtime instance returned by module activation", async () => {
+    const dispose = vi.fn();
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "activated-module",
+      onLoad: () => ({ dispose }),
+    });
+
+    expect(dispose).not.toHaveBeenCalled();
+    await loader.unload("activated-module");
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
   it("unloads a single module and removes its loop and harness registrations", async () => {
     const loader = new ModuleLoader({});
     await loader.load({

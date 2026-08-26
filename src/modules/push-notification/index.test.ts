@@ -67,8 +67,9 @@ describe("pushNotificationModule bus subscriptions", () => {
   let originalFetch: typeof globalThis.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
   let bus: EventBus;
+  let dispose: () => Promise<void> | void;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-module-"));
     mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
@@ -89,11 +90,12 @@ describe("pushNotificationModule bus subscriptions", () => {
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     bus = new EventBus();
-    pushNotificationModule.onLoad!(makeStubCtx(scopeRoot, bus));
+    const activation = await pushNotificationModule.onLoad!(makeStubCtx(scopeRoot, bus));
+    dispose = activation?.dispose ?? (() => undefined);
   });
 
-  afterEach(() => {
-    pushNotificationModule.onUnload!();
+  afterEach(async () => {
+    await dispose();
     globalThis.fetch = originalFetch;
     rmSync(scopeRoot, { recursive: true, force: true });
   });
@@ -167,7 +169,7 @@ describe("pushNotificationModule bus subscriptions", () => {
   });
 
   it("releases every subscription on unload", () => {
-    pushNotificationModule.onUnload!();
+    dispose();
     expect(bus.listenerCount("approval.requested")).toBe(0);
     expect(bus.listenerCount("workflow.daily.digest")).toBe(0);
     expect(bus.listenerCount("workflow.attention.digest")).toBe(0);
