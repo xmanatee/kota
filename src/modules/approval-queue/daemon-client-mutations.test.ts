@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import {
   ENCODING_SENSITIVE_ID,
   makeApproval,
@@ -143,14 +141,4 @@ describe("approval-queue daemon client mutations", () => {
       .rejects.toThrow(/Unknown scope: missing-scope/);
   });
 
-  it("requires and accepts the approvals namespace in assembled clients", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.approvals;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(/missing daemon handler/);
-
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    expect(() => assembleDaemonClientHandlers(transport, { ...others, ...contributed }))
-      .not.toThrow();
-  });
 });

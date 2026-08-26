@@ -60,8 +60,6 @@ import type {
   ConversationData,
   ConversationRecord,
 } from "#core/modules/provider-types.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   HistoryDetail,
@@ -521,27 +519,5 @@ describe("history module daemonClient(link)", () => {
     const contributed = historyModule.daemonClient!(transport);
     await contributed.history!.reindex({ scopeId: "scope-b" });
     expect(calls[0]!.path).toBe("/history/reindex?scopeId=scope-b");
-  });
-
-  it("the assembly path fails loudly when the history module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.history;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /history/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the history module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = historyModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.history;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

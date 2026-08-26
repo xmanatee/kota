@@ -24,6 +24,7 @@ import {
 	resetActiveKotaClient,
 	setActiveKotaClient,
 } from "#core/server/client-holder.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import {
 	setTerminalTransport,
@@ -151,19 +152,19 @@ function makeMetadataDetail(record = makeRecord()): HistoryDetail {
 }
 
 function installClient(stub: SearchStub): void {
-	const client = {
+	const client = createKotaClientTestDouble({
 		history: {
 			async search(query: string, filter?: HistorySearchFilter) {
 				stub.calls.push({ query, filter });
 				return stub.respond(query, filter);
 			},
 		},
-	} as unknown as KotaClient;
+	});
 	setActiveKotaClient(client);
 }
 
 function installShowClient(stub: ShowStub, records: ConversationRecord[]): void {
-	const client = {
+	const client = createKotaClientTestDouble({
 		history: {
 			async list() {
 				return { conversations: records };
@@ -173,7 +174,7 @@ function installShowClient(stub: ShowStub, records: ConversationRecord[]): void 
 				return stub.respond(id, options);
 			},
 		},
-	} as unknown as KotaClient;
+	});
 	setActiveKotaClient(client);
 }
 
@@ -182,7 +183,7 @@ function makeHistoryClient(records: ConversationRecord[]): {
 	calls: ListCall[];
 } {
 	const calls: ListCall[] = [];
-	const client = {
+	const client = createKotaClientTestDouble({
 		history: {
 			async list(filter?: HistoryListFilter) {
 				calls.push({ filter });
@@ -199,7 +200,7 @@ function makeHistoryClient(records: ConversationRecord[]): {
 				};
 			},
 		},
-	} as unknown as KotaClient;
+	});
 	return { client, calls };
 }
 

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type {
   AnswerClient,
   AnswerHistoryEntry,
@@ -18,7 +19,6 @@ import type {
   RetractClient,
   RetractResult,
 } from "#modules/retract/client.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import {
   acquireTelegramPollingOwner,
@@ -336,8 +336,7 @@ describe("startTelegramStatusPoll", () => {
       pendingAbort: false,
       concurrency: 4,
     }));
-    const client = {
-      forScope: vi.fn(() => ({
+    const scopedClient = createKotaClientTestDouble({
         workflow: {
           status: scopeWorkflowStatus,
         },
@@ -349,8 +348,8 @@ describe("startTelegramStatusPoll", () => {
         answer: makeAnswerStub(),
         capture: makeCaptureStub(),
         retract: makeRetractStub(),
-      })),
-    } as unknown as KotaClient;
+    });
+    const client = createKotaClientTestDouble({}, vi.fn(() => scopedClient));
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: true as const,
@@ -2696,7 +2695,8 @@ describe("startTelegramStatusPoll", () => {
       switchChat: vi.fn(),
       renderScopeLabelPrefix: vi.fn(),
     } as unknown as TelegramScopeSelection;
-    const client = { forScope: vi.fn() } as unknown as KotaClient;
+    const client = createKotaClientTestDouble();
+    vi.spyOn(client, "forScope");
 
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "hello")])
@@ -2761,8 +2761,7 @@ describe("startTelegramStatusPoll", () => {
       }],
     }));
     const scopeTasks = makeTasksStub(scopeTasksSearch);
-    const client = {
-      forScope: vi.fn(() => ({
+    const scopedClient = createKotaClientTestDouble({
         workflow: {
           status: vi.fn(),
         },
@@ -2774,8 +2773,8 @@ describe("startTelegramStatusPoll", () => {
         answer: makeAnswerStub(),
         capture: makeCaptureStub(),
         retract: makeRetractStub(),
-      })),
-    } as unknown as KotaClient;
+    });
+    const client = createKotaClientTestDouble({}, vi.fn(() => scopedClient));
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: true as const,
@@ -2822,7 +2821,8 @@ describe("startTelegramStatusPoll", () => {
       switchChat: vi.fn(),
       renderScopeLabelPrefix: vi.fn(),
     } as unknown as TelegramScopeSelection;
-    const client = { forScope: vi.fn() } as unknown as KotaClient;
+    const client = createKotaClientTestDouble();
+    vi.spyOn(client, "forScope");
     const tasksSearch = vi.fn();
 
     mockedCallTelegramApi
@@ -2873,7 +2873,8 @@ describe("startTelegramStatusPoll", () => {
       })),
       renderScopeLabelPrefix: vi.fn(),
     } as unknown as TelegramScopeSelection;
-    const client = { forScope: vi.fn() } as unknown as KotaClient;
+    const client = createKotaClientTestDouble();
+    vi.spyOn(client, "forScope");
 
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/scope scope-b")])

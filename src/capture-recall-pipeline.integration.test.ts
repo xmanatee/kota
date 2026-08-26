@@ -55,7 +55,7 @@ import type {
   HistoryProvider,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -308,7 +308,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
         token: "",
       },
       (link) => ({
-        ...buildMigratedNamespaceTestStubs(),
+        ...completeDaemonClientHandlers(),
         ...captureModule.daemonClient!(link),
         ...recallModule.daemonClient!(link),
       }),

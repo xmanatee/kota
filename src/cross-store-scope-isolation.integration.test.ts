@@ -13,10 +13,11 @@ import {
   initProviderRegistry,
   KNOWLEDGE_PROVIDER_TOKEN,
   MEMORY_PROVIDER_TOKEN,
+  type ProviderToken,
   REPO_TASKS_PROVIDER_TOKEN,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { buildLocalKotaClient } from "#core/server/local-kota-client.js";
 import {
   answerHistoryRootForScope,
@@ -233,9 +234,12 @@ describe("scope-scoped cross-store daemon routes", () => {
     answer = createAnswerRouteHandler(() => answerProvider, answerScope);
     retract = createRetractRouteHandler(() => retractProvider, retractScope);
 
-    const moduleCtx = { cwd: scopeA.scopeRoot } as ModuleContext;
+    const moduleCtx = {
+      cwd: scopeA.scopeRoot,
+      getProvider: <T>(token: ProviderToken<T>) => registry.get(token),
+    } as ModuleContext;
     const handlers = {
-      ...buildMigratedNamespaceTestStubs(),
+      ...completeDaemonClientHandlers(),
       ...memoryModule.localClient!(moduleCtx),
       ...knowledgeModule.localClient!(moduleCtx),
       ...historyModule.localClient!(moduleCtx),

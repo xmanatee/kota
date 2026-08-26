@@ -90,8 +90,8 @@ describe("ScheduleTriggerManager", () => {
 
     manager.setup([makeDefinition("global-review", trigger)]);
 
-    const timers = (manager as unknown as { timers: Map<string, unknown> }).timers;
-    expect(timers.size).toBe(0);
+    const state = new WorkflowRunStore(workspaceRoot).readState();
+    expect(state.workflows["global-review"]?.nextScheduledAt).toBeUndefined();
   });
 
   it("installs default-scope schedules in the default runtime", () => {
@@ -104,8 +104,8 @@ describe("ScheduleTriggerManager", () => {
 
     manager.setup([makeDefinition("global-review", trigger)]);
 
-    const timers = (manager as unknown as { timers: Map<string, unknown> }).timers;
-    expect(timers.size).toBe(1);
+    const state = new WorkflowRunStore(workspaceRoot).readState();
+    expect(state.workflows["global-review"]?.nextScheduledAt).toEqual(expect.any(String));
   });
 
   it("clears stale schedule state when a workflow is disabled", () => {

@@ -56,8 +56,6 @@
 
 import { describe, expect, it } from "vitest";
 import type { KnowledgeEntry } from "#core/modules/provider-types.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   KnowledgeReindexResult,
@@ -439,27 +437,5 @@ describe("knowledge module daemonClient(link)", () => {
     const contributed = knowledgeModule.daemonClient!(transport);
     await contributed.knowledge!.reindex({ scopeId: "scope-b" });
     expect(calls[0]!.path).toBe("/api/knowledge/reindex?scopeId=scope-b");
-  });
-
-  it("the assembly path fails loudly when the knowledge module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.knowledge;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /knowledge/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the knowledge module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = knowledgeModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.knowledge;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

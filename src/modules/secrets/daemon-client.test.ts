@@ -1,8 +1,6 @@
 /** Secrets namespace daemon transport and selector propagation tests. */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   SecretListEntry,
@@ -273,27 +271,5 @@ describe("secrets module daemonClient(link)", () => {
         scopeId: "missing",
       }),
     ).rejects.toThrow("Unknown scope: missing");
-  });
-
-  it("the assembly path fails loudly when the secrets module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.secrets;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /secrets/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the secrets module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = secretsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.secrets;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

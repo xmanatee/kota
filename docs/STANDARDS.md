@@ -145,14 +145,16 @@ commands are discovery surfaces, not a checklist that every edit must run.
 | --- | --- | --- |
 | deterministic | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. |
 | owner behavior | `pnpm test <owner paths>` or `pnpm test:changed` | Exercise the decisions and observable behavior owned by the changed component. |
+| protocol | `pnpm test:protocol` | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
+| resilience | `pnpm test:resilience` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
 | component integration | `pnpm test:integration` | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
 | evaluation | `pnpm test:eval` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
 | broad confidence | `pnpm check` | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
 
-Tests without an integration declaration stay with their behavior owner.
-Security, restart, protocol, and resilience scenarios stay beside that owner
-and are selected when the boundary changes; they do not need parallel global
-copies. Vitest's changed-file selection is useful feedback, but changes to
+Tests without an explicit cadence stay with their behavior owner. Security and
+restart scenarios stay beside that owner; protocol and resilience scenarios
+use their explicit projects and do not need parallel global copies. Vitest's
+changed-file selection is useful feedback, but changes to
 schemas, configuration, generated data, or runtime reach still require
 engineering judgment about affected owners.
 

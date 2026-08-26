@@ -1,10 +1,44 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 
 function projectionClient(): KotaClient {
-  return { ...buildMigratedNamespaceTestStubs() } as unknown as KotaClient;
+  return createKotaClientTestDouble({
+    recall: {
+      recall: async () => ({ ok: false, reason: "semantic_unavailable" }),
+    },
+    answer: {
+      answer: async () => ({ ok: false, reason: "no_hits" }),
+      log: async () => ({ entries: [] }),
+      show: async () => ({ ok: false, reason: "not_found" }),
+    },
+    capture: {
+      capture: async () => ({ ok: false, reason: "no_contributors" }),
+    },
+    retract: {
+      retract: async () => ({ ok: false, reason: "no_contributors" }),
+    },
+    config: {
+      validate: async () => ({ sources: [], warnings: [], resolved: {} }),
+      get: async () => ({ found: false, reason: "not_found" }),
+      set: async () => ({
+        ok: true,
+        unknownKey: false,
+        topKey: "defaultAgentHarness",
+        value: "codex",
+      }),
+    },
+    audit: {
+      list: async () => ({ entries: [] }),
+    },
+    workflow: {
+      getRun: async () => ({ found: false }),
+    },
+    history: {
+      show: async () => ({ found: false }),
+    },
+  });
 }
 
 describe("capability shared UI actions", () => {
@@ -100,7 +134,6 @@ describe("capability shared UI actions", () => {
   });
 
   it("executes preserved task, approval, owner-question, session, and knowledge controls through real namespaces", async () => {
-    const base = projectionClient();
     const approve = vi.fn(async () => ({
       ok: true as const,
       approval: {} as never,
@@ -143,14 +176,13 @@ describe("capability shared UI actions", () => {
         meta: {},
       }],
     }));
-    const client = {
-      ...base,
-      approvals: { ...base.approvals, approve, reject },
-      ownerQuestions: { ...base.ownerQuestions, answer, dismiss },
-      tasks: { ...base.tasks, move, updateBody },
-      sessions: { ...base.sessions, setAutonomyMode },
-      knowledge: { ...base.knowledge, search },
-    } as KotaClient;
+    const client = createKotaClientTestDouble({
+      approvals: { approve, reject },
+      ownerQuestions: { answer, dismiss },
+      tasks: { move, updateBody },
+      sessions: { setAutonomyMode },
+      knowledge: { search },
+    });
 
     await expect(executeCapabilityUiAction({
       client,

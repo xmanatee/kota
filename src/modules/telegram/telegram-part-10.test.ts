@@ -5,6 +5,10 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import {
+  createKotaClientTestDouble,
+  type DeclaredKotaClientHandlers,
+} from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, } from "./client.js";
 import telegramModule from "./index.js";
@@ -66,9 +70,9 @@ const TEST_SCOPE: DirectoryScope = {
 };
 
 function makeStubClient(
-  overrides: Partial<KotaClient> = {},
+  overrides: DeclaredKotaClientHandlers = {},
 ): KotaClient {
-  const client = {
+  return createKotaClientTestDouble({
     scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
@@ -83,10 +87,8 @@ function makeStubClient(
       answer: vi.fn(),
       dismiss: vi.fn(),
     },
-  } as Partial<KotaClient>;
-  client.forScope = vi.fn(() => client as KotaClient);
-  Object.assign(client, overrides);
-  return client as KotaClient;
+    ...overrides,
+  });
 }
 
 function makeStubCtx(

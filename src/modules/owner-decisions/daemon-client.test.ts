@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import ownerDecisionsModule from "./index.js";
 
@@ -36,11 +34,6 @@ describe("owner-decisions daemon client", () => {
     const { transport } = makeTransport();
     const contributed = ownerDecisionsModule.daemonClient!(transport);
     expect(contributed.ownerDecisions).toBeDefined();
-    const handlers = assembleDaemonClientHandlers(transport, {
-      ...buildMigratedNamespaceTestStubs(),
-      ownerDecisions: contributed.ownerDecisions!,
-    });
-    expect(handlers.ownerDecisions).toBe(contributed.ownerDecisions);
   });
 
   it("uses owner-decision daemon-control routes", async () => {

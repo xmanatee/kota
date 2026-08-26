@@ -10,6 +10,22 @@ const CLI_TEST_FILES = [
 ];
 const EVAL_TEST_FILES = "src/modules/eval-harness/**/*.test.ts";
 const INTEGRATION_TEST_FILES = "src/**/*.integration.test.ts";
+const PROTOCOL_TEST_FILES = [
+  "src/core/agent-harness/neutral-protocol-shape.test.ts",
+  "src/core/mcp/client-http-redirect-policy.test.ts",
+  "src/core/mcp/client-oauth-endpoint-policy.test.ts",
+  "src/core/mcp/client-oauth-redirect-policy.test.ts",
+  "src/core/mcp/client.test.ts",
+  "src/modules/agent-client-protocol/**/*.test.ts",
+  "src/modules/mcp-server/mcp-protocol-types.test.ts",
+  "src/modules/mcp-server/server-card.test.ts",
+  "src/modules/mcp-server/server.test.ts",
+  "src/modules/mcp-server/streamable-http.test.ts",
+];
+const RESILIENCE_TEST_FILES = [
+  "src/core/modules/foreign-module-resilient.test.ts",
+  "src/module-error-resilience.integration.test.ts",
+];
 const TEST_EXCLUDES = [
   "**/node_modules/**",
   "**/dist/**",
@@ -26,6 +42,8 @@ const OWNER_PROJECT_EXCLUDES = [
   ...CLI_TEST_FILES,
   EVAL_TEST_FILES,
   INTEGRATION_TEST_FILES,
+  ...PROTOCOL_TEST_FILES,
+  ...RESILIENCE_TEST_FILES,
 ];
 const REAL_NETWORK_TEST_FILES = [
   "src/core/agent-harness/native-cli-egress-proxy.test.ts",
@@ -82,8 +100,8 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "network",
-          include: REAL_NETWORK_TEST_FILES,
+          name: "protocol",
+          include: PROTOCOL_TEST_FILES,
           exclude: TEST_EXCLUDES,
           maxWorkers: 2,
           sequence: { groupOrder: 1 },
@@ -92,11 +110,36 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "integration",
-          include: [INTEGRATION_TEST_FILES],
-          exclude: [...TEST_EXCLUDES, EVAL_TEST_FILES, ...CLI_TEST_FILES],
+          name: "resilience",
+          include: RESILIENCE_TEST_FILES,
+          exclude: TEST_EXCLUDES,
           maxWorkers: 2,
           sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "network",
+          include: REAL_NETWORK_TEST_FILES,
+          exclude: TEST_EXCLUDES,
+          maxWorkers: 2,
+          sequence: { groupOrder: 3 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: [INTEGRATION_TEST_FILES],
+          exclude: [
+            ...TEST_EXCLUDES,
+            EVAL_TEST_FILES,
+            ...CLI_TEST_FILES,
+            ...RESILIENCE_TEST_FILES,
+          ],
+          maxWorkers: 2,
+          sequence: { groupOrder: 4 },
         },
       },
       {
@@ -106,7 +149,7 @@ export default defineConfig({
           include: [EVAL_TEST_FILES],
           exclude: TEST_EXCLUDES,
           maxWorkers: 2,
-          sequence: { groupOrder: 3 },
+          sequence: { groupOrder: 5 },
         },
       },
       {
@@ -118,7 +161,7 @@ export default defineConfig({
           // project rerun unrelated focused tests.
           exclude: CLI_PROJECT_EXCLUDES,
           maxWorkers: 1,
-          sequence: { groupOrder: 4 },
+          sequence: { groupOrder: 6 },
         },
       },
     ],

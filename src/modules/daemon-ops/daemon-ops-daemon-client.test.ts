@@ -43,8 +43,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { DAEMON_STOP_ATTEMPTS_RELATIVE_PATH } from "./daemon-ops-operations.js";
 import daemonOpsModule from "./index.js";
@@ -267,28 +265,5 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
     const contributed = daemonOpsModule.daemonClient!(transport);
     const result = await contributed.daemonOps!.reload();
     expect(result).toEqual({ ok: false, reason: "reload_failed" });
-  });
-
-  it("supplying the daemon-ops daemonOps contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = daemonOpsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.daemonOps;
-    delete others.sessions;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the daemon-ops daemonOps contribution is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.daemonOps;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /daemonOps/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
   });
 });

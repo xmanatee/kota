@@ -38,7 +38,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -228,7 +228,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
         token: "",
       },
       (link) => ({
-        ...buildMigratedNamespaceTestStubs(),
+        ...completeDaemonClientHandlers(),
         ...captureModule.daemonClient!(link),
       }),
     );
@@ -459,7 +459,7 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
         token: "",
       },
       (link) => ({
-        ...buildMigratedNamespaceTestStubs(),
+        ...completeDaemonClientHandlers(),
         ...captureModule.daemonClient!(link),
       }),
     );

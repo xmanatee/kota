@@ -48,6 +48,8 @@
     "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks",
     "test": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true",
     "test:owner": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner --project=cli",
+    "test:protocol": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=protocol",
+    "test:resilience": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=resilience",
     "test:network": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=network",
     "test:integration": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=integration",
     "test:eval": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=eval",

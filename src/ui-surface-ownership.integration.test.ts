@@ -1,11 +1,9 @@
 import {
   mkdtempSync,
-  readdirSync,
-  readFileSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { KotaModule } from "#core/modules/module-types.js";
 import {
@@ -13,7 +11,7 @@ import {
   type RegisteredUiSurfaceSource,
   type UiSurfaceSource,
 } from "#core/modules/module-ui-surfaces.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import answerModule from "#modules/answer/index.js";
 import approvalQueueModule from "#modules/approval-queue/index.js";
 import autonomyModule from "#modules/autonomy/index.js";
@@ -62,40 +60,82 @@ function staticUiSources(mod: KotaModule): readonly UiSurfaceSource[] {
 }
 
 function projectionClient(): KotaClient {
-  const handlers = buildMigratedNamespaceTestStubs();
-  const client = {
-    ...handlers,
-  } as unknown as KotaClient;
-  client.forScope = () => client;
-  return client;
-}
-
-function productionTypeScriptFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) return productionTypeScriptFiles(path);
-    const isTypeScript = entry.name.endsWith(".ts") || entry.name.endsWith(".tsx");
-    const isTest = entry.name.endsWith(".test.ts") || entry.name.endsWith(".test.tsx");
-    return entry.isFile() && isTypeScript && !isTest
-      ? [path]
-      : [];
+  return createKotaClientTestDouble({
+    scopes: {
+      list: async () => ({ ok: false, reason: "daemon_required" }),
+    },
+    sessions: {
+      list: async () => ({ sessions: [] }),
+    },
+    tasks: {
+      list: async () => ({ tasks: [] }),
+    },
+    workflow: {
+      status: async () => ({
+        activeRuns: [],
+        pendingRuns: [],
+        queueLength: 0,
+        completedRuns: 0,
+        workflows: {},
+        paused: false,
+        pendingAbort: false,
+        concurrency: 4,
+      }),
+      listRuns: async () => ({ runs: [] }),
+      listDefinitions: async () => ({ source: "static", definitions: [] }),
+    },
+    approvals: {
+      list: async () => ({ approvals: [] }),
+    },
+    ownerQuestions: {
+      list: async () => ({ questions: [] }),
+    },
+    ownerDecisions: {
+      list: async () => ({ decisions: [] }),
+    },
+    setup: {
+      list: async () => ({
+        visibility: "full",
+        requirements: [],
+        summary: {
+          ready: 0,
+          missing: 0,
+          pending: 0,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      }),
+    },
+    memory: {
+      list: async () => ({ entries: [] }),
+    },
+    knowledge: {
+      list: async () => ({ entries: [] }),
+    },
+    history: {
+      list: async () => ({ conversations: [] }),
+    },
+    modules: {
+      list: async () => ({ modules: [] }),
+    },
+    agents: {
+      list: async () => ({ agents: [] }),
+    },
+    answer: {
+      log: async () => ({ entries: [] }),
+    },
+    config: {
+      validate: async () => ({ sources: [], warnings: [], resolved: {} }),
+    },
+    audit: {
+      list: async () => ({ entries: [] }),
+    },
   });
 }
 
 describe("module-owned UI surface assembly", () => {
-  it("keeps raw bundle assembly inside the canonical core boundary", () => {
-    const sourceDir = join(process.cwd(), "src");
-    const directAssemblers = productionTypeScriptFiles(sourceDir)
-      .filter((path) => readFileSync(path, "utf8").includes("buildUiSurfaceBundle"))
-      .map((path) => relative(process.cwd(), path))
-      .sort();
-
-    expect(directAssemblers).toEqual([
-      "src/core/daemon/ui-surface.ts",
-      "src/core/modules/module-ui-surfaces.ts",
-    ]);
-  });
-
   it("keeps each live source declaration with its capability owner", () => {
     expect(OWNERS.map(([mod, expected]) => ({
       module: mod.name,

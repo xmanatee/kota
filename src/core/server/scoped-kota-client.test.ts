@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import { createKotaClientTestDouble } from "./daemon-client-test-support.js";
 import { ScopeSelectorConflictError } from "./scope-selector.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 describe("createScopedKotaClient", () => {
   it("binds representative domain operations to one scope", async () => {
     const calls: unknown[] = [];
-    const base = {
+    const base = createKotaClientTestDouble({
       workflow: {
         status: async (filter: unknown) => {
           calls.push(["workflow.status", filter]);
@@ -34,7 +34,7 @@ describe("createScopedKotaClient", () => {
           return { tasks: [] };
         },
       },
-    } as unknown as KotaClient;
+    });
 
     const scoped = createScopedKotaClient(base, "scope-b");
     await scoped.workflow.status();
@@ -50,7 +50,7 @@ describe("createScopedKotaClient", () => {
 
   it("rejects a caller selector that conflicts with the bound scope", async () => {
     const calls: unknown[] = [];
-    const base = {
+    const base = createKotaClientTestDouble({
       approvals: {
         approve: async (
           id: string,
@@ -62,7 +62,7 @@ describe("createScopedKotaClient", () => {
           return { ok: false as const, reason: "not_found" as const };
         },
       },
-    } as unknown as KotaClient;
+    });
 
     const scoped = createScopedKotaClient(base, "scope-a");
     await expect(

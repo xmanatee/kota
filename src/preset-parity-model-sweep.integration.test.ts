@@ -20,10 +20,8 @@
  * autonomy module-load) — the root layout guard reserves bare `*.test.ts`
  * for entrypoint-paired unit tests.
  *
- * Pairs with `src/no-hardcoded-model-defaults.integration.test.ts`, which
- * forbids literal vendor model ids in production source. That test guards
- * the static side; this one guards the runtime side — the resolved string
- * each consumer surface would actually send to its adapter.
+ * It observes the resolved string each consumer surface sends to its adapter;
+ * source syntax and literal placement are not part of the behavior contract.
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

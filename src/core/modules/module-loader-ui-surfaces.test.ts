@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { UiSurface } from "#core/daemon/ui-surface.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
 
 function uiProjectionClient(): KotaClient {
-  const client = {
+  return createKotaClientTestDouble({
     scopes: {
       list: async () => ({
         ok: true as const,
@@ -13,9 +14,7 @@ function uiProjectionClient(): KotaClient {
         activeScopeId: null,
       }),
     },
-  } as unknown as KotaClient;
-  client.forScope = () => client;
-  return client;
+  });
 }
 
 function demoSurface() {
@@ -126,13 +125,17 @@ describe("ModuleLoader live UI surfaces", () => {
     expectedScopeId,
   }) => {
     const loader = createRuntimeModuleLoader({});
-    const baseMemoryList = vi.fn(async () => ({ entries: [{ content: "base" }] }));
-    const scopedMemoryList = vi.fn(async () => ({ entries: [{ content: "scoped" }] }));
-    const scopedClient = {
+    const baseMemoryList = vi.fn(async () => ({
+      entries: [{ id: "base", created: "2026-01-01", content: "base" }],
+    }));
+    const scopedMemoryList = vi.fn(async () => ({
+      entries: [{ id: "scoped", created: "2026-01-01", content: "scoped" }],
+    }));
+    const scopedClient = createKotaClientTestDouble({
       memory: { list: scopedMemoryList },
-    } as unknown as KotaClient;
+    });
     const forScope = vi.fn(() => scopedClient);
-    const client = {
+    const client = createKotaClientTestDouble({
       scopes: {
         list: async () => ({
           ok: true as const,
@@ -142,8 +145,7 @@ describe("ModuleLoader live UI surfaces", () => {
         }),
       },
       memory: { list: baseMemoryList },
-      forScope,
-    } as unknown as KotaClient;
+    }, forScope);
     await loader.load({
       name: "scoped-ui-provider",
       uiSurfaces: [{

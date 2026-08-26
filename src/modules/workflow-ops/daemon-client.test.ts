@@ -22,8 +22,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
   DaemonRequestInit,
   DaemonTransport,
@@ -859,27 +857,5 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       },
       eventId: "evt-1",
     });
-  });
-
-  it("supplying the workflow contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport();
-    const contributed = workflowOpsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.workflow;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the workflow contribution is removed", () => {
-    const { transport } = makeRecordingTransport();
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.workflow;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /workflow/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
   });
 });

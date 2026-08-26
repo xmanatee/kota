@@ -10,7 +10,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import historyModule from "./index.js";
 
 type SearchResponder = (
@@ -88,11 +88,7 @@ describe("DaemonControlClient.history.search", () => {
         startedAt: new Date().toISOString(),
         token: "test-token",
       },
-      (link) => {
-        const stubs = buildMigratedNamespaceTestStubs();
-        delete stubs.history;
-        return { ...stubs, ...historyModule.daemonClient!(link) };
-      },
+      (link) => completeDaemonClientHandlers(historyModule.daemonClient!(link)),
     );
   });
 

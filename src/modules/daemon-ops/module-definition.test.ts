@@ -5,13 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import daemonModule, { buildOperatorControlUiSurface } from "./index.js";
 
 function migratedClient(): ModuleRuntimeContext["client"] {
-  const client = buildMigratedNamespaceTestStubs() as ModuleRuntimeContext["client"];
-  client.forScope = () => client;
-  return client;
+  return createKotaClientTestDouble();
 }
 
 const stubCtx: ModuleRuntimeContext = {

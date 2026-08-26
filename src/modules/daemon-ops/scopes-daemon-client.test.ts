@@ -21,8 +21,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import daemonOpsModule from "./index.js";
 import {
   jsonResponse,
@@ -131,25 +129,5 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
     });
     const contributed = daemonOpsModule.daemonClient!(transport);
     await expect(contributed.scopes!.use("p1")).rejects.toThrow(/fetch failed/);
-  });
-
-  it("supplying the scopes contribution satisfies assembly coverage", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const contributed = daemonOpsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.scopes;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the scopes contribution is removed", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.scopes;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(/scopes/);
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
   });
 });

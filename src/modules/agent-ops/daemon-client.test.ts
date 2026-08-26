@@ -25,8 +25,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   AgentInspectResult,
@@ -253,27 +251,5 @@ describe("agent-ops module daemonClient(link)", () => {
     });
     const contributed = agentsModule.daemonClient!(transport);
     await expect(contributed.agents!.inspect("any")).rejects.toThrow(/boom/);
-  });
-
-  it("the assembly path fails loudly when the agent-ops module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.agents;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /agents/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the agent-ops module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = agentsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.agents;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

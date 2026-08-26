@@ -31,8 +31,6 @@
 
 import { describe, expect, it } from "vitest";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { OwnerQuestionsListResult } from "./client.js";
 import ownerQuestionsModule from "./index.js";
@@ -330,27 +328,5 @@ describe("owner-questions module daemonClient(link)", () => {
     });
     const contributed = ownerQuestionsModule.daemonClient!(transport);
     await expect(contributed.ownerQuestions!.list()).rejects.toThrow(/boom/);
-  });
-
-  it("the assembly path fails loudly when the owner-questions module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.ownerQuestions;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /ownerQuestions/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the owner-questions module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = ownerQuestionsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.ownerQuestions;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

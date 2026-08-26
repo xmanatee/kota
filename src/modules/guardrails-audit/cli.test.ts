@@ -1,15 +1,15 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { AuditEntry } from "#core/tools/audit-store.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { registerAuditCommands } from "./cli.js";
 import type { AuditClient, AuditListEntry } from "./client.js";
 
 function makeFakeCtx(client: AuditClient): ModuleContext {
 	return {
-		client: { audit: client } as unknown as KotaClient,
+		client: createKotaClientTestDouble({ audit: client }),
 	} as unknown as ModuleContext;
 }
 

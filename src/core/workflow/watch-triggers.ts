@@ -16,6 +16,12 @@ type EnqueueFn = (
   runTrigger: WorkflowRunTrigger,
 ) => void;
 
+export type WatchTriggerFileWatcher = {
+  start(path: string, options: { recursive: boolean }): Promise<string>;
+  stop(id: string): boolean;
+  closeAll(): void;
+};
+
 export type PendingWatchTriggerBuffer = {
   workflowName: string;
   triggerIndex: number;
@@ -36,7 +42,6 @@ type WatchEntry = {
  * Only active when the daemon is running; silently skipped in standalone CLI mode.
  */
 export class WatchTriggerManager {
-  private readonly watcher = new WatcherManager();
   /** Key: `${workflowName}:${triggerIndex}` */
   private readonly entries = new Map<string, WatchEntry>();
   private unsubscribe: (() => void) | null = null;
@@ -47,6 +52,7 @@ export class WatchTriggerManager {
     private readonly enqueueRun: EnqueueFn,
     private readonly maybeStartNext: () => void,
     private readonly log: (message: string) => void = () => {},
+    private readonly watcher: WatchTriggerFileWatcher = new WatcherManager(),
   ) {}
 
   /**

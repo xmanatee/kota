@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T15:52:00.000Z
+updated_at: 2026-08-26T16:47:00.000Z
 ---
 
 ## Problem
@@ -72,7 +72,7 @@ dropped with dispositions.
 - [x] Stage 11 — correct transport, capability, and mutation ports.
 - [x] Stage 12 — normalize persistence and typed projections.
 - [x] Stage 13 — decompose remaining mixed owners by responsibility.
-- [ ] Stage 14 — consolidate tests and fixtures by behavior owner.
+- [x] Stage 14 — consolidate tests and fixtures by behavior owner.
 - [ ] Stage 15 — reconnect self-improvement to real feedback.
 - [ ] Stage 16 — remove migration residue and verify the program.
 
@@ -420,6 +420,35 @@ TypeScript projects, repository lint, and 169 focused MCP, manifest-loader, and
 dead-letter behavior checks passed. The three normalized Stage 13 tasks moved
 to done through the task domain and queue validation remains the stage-close
 gate.
+
+## Stage 14 Result
+
+Tests now depend on the public behavior they exercise instead of reproducing
+the aggregate production container. The 395-line copied daemon-client stub
+stack was replaced by a 53-line strict helper driven by the generated namespace
+list. Ordinary tests declare only the methods they use and undeclared calls
+fail immediately; full handler completion remains only where aggregate daemon
+composition is itself the behavior. All remaining whole-`KotaClient` casts in
+server tests were removed, exposing and correcting drift in setup, memory, and
+approval fixtures.
+
+Repeated namespace propagation checks were removed from 26 module suites,
+working-memory store semantics now have one owning suite, and private workflow
+timer/watcher state is observed through durable schedule state, injected file
+watching, pending buffers, and emitted runs. Two exact helper-call tests and
+history tests that reached through private initialization/context state were
+deleted while their owner-level masking, persistence, and resume behaviors
+remain. Five source/catalog guard suites and the UI source-absence assertion
+were retired after generated contracts, typed provider tokens, manifest
+validation, build boundaries, and canonical owners made them redundant.
+
+MCP wire/OAuth/stream behavior and module failure recovery now have explicit
+`protocol` and `resilience` Vitest projects; real-network, integration, and eval
+projects remain separately selected. The stage changed 84 files and removed a
+net 1,795 lines. Both TypeScript projects passed, the 49-file affected-owner run
+passed 572 tests, and the additional narrow-client/Telegram/UI owner run passed
+159 tests. Protocol and resilience project discovery assigns their named
+scenarios without returning them to ordinary owner cadence.
 
 ## Finding Ownership
 

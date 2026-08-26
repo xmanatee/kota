@@ -28,16 +28,16 @@ import { localWebClient } from "./web-operations.js";
 // The daemon-link inside startServer asks the runtime loader to assemble
 // module-contributed daemon handlers. As namespaces migrate out of
 // buildCoreStubDaemonClientHandlers, the hermetic stub here must cover
-// each migrated namespace through `buildMigratedNamespaceTestStubs`.
+// each migrated namespace through `completeDaemonClientHandlers`.
 vi.mock("#core/modules/runtime-loader.js", async () => {
-  const stubs = await import("#core/server/daemon-client-test-stubs.js");
+  const stubs = await import("#core/server/daemon-client-test-support.js");
   const { ProviderRegistry } = await import("#core/modules/provider-registry.js");
   const registry = new ProviderRegistry();
   return {
     loadRuntimeModules: vi.fn(async () => ({
       getRoutes: () => [],
       getRegisteredConfigKeys: () => new Set<string>(),
-      assembleDaemonClientHandlers: () => stubs.buildMigratedNamespaceTestStubs(),
+      assembleDaemonClientHandlers: () => stubs.completeDaemonClientHandlers(),
       setSessionFactory: () => {},
       getProviderRegistry: () => registry,
     })),

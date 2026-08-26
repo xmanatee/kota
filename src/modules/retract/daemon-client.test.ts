@@ -23,8 +23,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { RetractRequest, RetractResult } from "./client.js";
 import retractModule from "./index.js";
@@ -189,27 +187,5 @@ describe("retract module daemonClient(link)", () => {
       path: "data/inbox/note-x.md",
     });
     expect(result).toEqual(expected);
-  });
-
-  it("the assembly path fails loudly when the retract module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.retract;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /retract/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the retract module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = retractModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.retract;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

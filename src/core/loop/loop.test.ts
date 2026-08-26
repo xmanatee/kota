@@ -88,7 +88,6 @@ vi.mock("#core/modules/module-discovery.js", () => ({
 // --- Import after mocks ---
 
 import { createModelClient } from "#core/model/model-client.js";
-import { Context } from "./context.js";
 import { AgentSession, runAgentLoop } from "./loop.js";
 import { BufferTransport } from "./transport.js";
 
@@ -364,37 +363,6 @@ describe("AgentSession", () => {
 
       expect(replacement.changed).toBe(false);
       expect(session.getGuardrailsSnapshot()).toEqual(before);
-    });
-  });
-
-  describe("observation masking timing", () => {
-    it("calls maskOldObservations before LLM call each turn", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
-      mockStreamMessage.mockResolvedValueOnce(textResponse("ok", 110_000));
-
-      await session.send("test");
-
-      // maskOldObservations called once per turn (pre-LLM call)
-      expect(maskSpy).toHaveBeenCalledTimes(1);
-      maskSpy.mockRestore();
-    });
-
-    it("calls maskOldObservations once per turn in multi-turn loop", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }], 110_000),
-        )
-        .mockResolvedValueOnce(textResponse("done", 110_000));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "r" }]));
-
-      await session.send("search");
-
-      // 2 turns × 1 mask call = 2
-      expect(maskSpy).toHaveBeenCalledTimes(2);
-      maskSpy.mockRestore();
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import {
   executeLocalSetupRoute,
   setupRouteBody,
@@ -25,12 +25,20 @@ describe("setup UI completion routes", () => {
       status: {
         moduleName: "telegram",
         requirementId: "bot-credentials",
+        kind: "secret" as const,
+        title: "Telegram credentials",
+        required: true,
+        scope: "scope" as const,
+        sensitivity: "secret" as const,
+        setup: { mode: "form" as const, fields: [] },
         state: "ready" as const,
+        reason: "configured",
+        message: "configured",
       },
     }));
-    const client = {
+    const client = createKotaClientTestDouble({
       setup: { complete },
-    } as unknown as KotaClient;
+    });
 
     const result = await executeLocalSetupRoute(
       client,

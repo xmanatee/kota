@@ -58,7 +58,7 @@ import type {
   HistoryProvider,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
   type AnswerHistorySink,
@@ -327,20 +327,17 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     });
     // Migrated namespaces normally land on the assembled client through their
     // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the answer and capture namespace handlers against
-    // the test transport explicitly and stub the rest.
-    const otherMigratedStubs = buildMigratedNamespaceTestStubs();
-    delete otherMigratedStubs.answer;
-    delete otherMigratedStubs.capture;
-    delete otherMigratedStubs.recall;
+    // load modules, so build the participating namespace handlers against the
+    // test transport explicitly; undeclared namespaces fail if invoked.
     const answerDaemonHandler = answerModule.daemonClient!(transport);
     const captureDaemonHandler = captureModule.daemonClient!(transport);
     const recallDaemonHandler = recallModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
-      ...otherMigratedStubs,
-      ...answerDaemonHandler,
-      ...captureDaemonHandler,
-      ...recallDaemonHandler,
+      ...completeDaemonClientHandlers({
+        ...answerDaemonHandler,
+        ...captureDaemonHandler,
+        ...recallDaemonHandler,
+      }),
     });
     recallSeam = {
       async recall(query, filter) {

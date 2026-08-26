@@ -44,8 +44,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   MemoryListEntry,
@@ -363,27 +361,5 @@ describe("memory module daemonClient(link)", () => {
     const contributed = memoryModule.daemonClient!(transport);
     await contributed.memory!.reindex({ scopeId: "scope-b" });
     expect(calls[0]!.path).toBe("/api/memory/reindex?scopeId=scope-b");
-  });
-
-  it("the assembly path fails loudly when the memory module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.memory;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /memory/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the memory module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = memoryModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.memory;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

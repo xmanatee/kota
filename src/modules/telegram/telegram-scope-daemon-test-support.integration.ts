@@ -5,7 +5,7 @@ import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { Scheduler } from "#core/daemon/scheduler.js";
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import { createScopedKotaClient } from "#core/server/scoped-kota-client.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
@@ -147,7 +147,7 @@ export function buildDaemonScopeClient(
   address: DaemonControlAddress,
 ): KotaClient {
   const transport = daemonTransportFromAddress(address);
-  const stubs = buildMigratedNamespaceTestStubs();
+  const stubs = completeDaemonClientHandlers();
   let client: KotaClient;
   client = {
     ...stubs,

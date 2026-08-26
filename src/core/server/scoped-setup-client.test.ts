@@ -1,19 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import { createKotaClientTestDouble } from "./daemon-client-test-support.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 describe("scope-scoped setup client", () => {
   it("injects scopeId into every setup operation", async () => {
     const calls: unknown[] = [];
     const mutation = { ok: false as const, reason: "not_found" as const, message: "missing" };
-    const base = {
-      forScope: () => {
-        throw new Error("unexpected call");
-      },
+    const base = createKotaClientTestDouble({
       setup: {
         list: async (scope: unknown) => {
           calls.push(["setup.list", scope]);
           return {
+            visibility: "full" as const,
             requirements: [],
             summary: {
               ready: 0,
@@ -61,7 +59,7 @@ describe("scope-scoped setup client", () => {
           return mutation;
         },
       },
-    } as unknown as KotaClient;
+    });
 
     const scoped = createScopedKotaClient(base, "scope-b");
     await scoped.setup.list();

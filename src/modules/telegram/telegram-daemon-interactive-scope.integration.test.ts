@@ -9,6 +9,7 @@ import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
@@ -93,7 +94,11 @@ describe("telegram scope integration", () => {
     process.env.TELEGRAM_ALERT_CHAT_ID = "99";
     let clientRef: KotaClient | null = null;
     const bus = new EventBus();
-    const ctx = makeCtx(bus, {} as KotaClient, new ModuleStorage(dir, "telegram"));
+    const ctx = makeCtx(
+      bus,
+      createKotaClientTestDouble(),
+      new ModuleStorage(dir, "telegram"),
+    );
     Object.defineProperty(ctx, "client", {
       get: () => {
         if (!clientRef) throw new Error("daemon client not ready");

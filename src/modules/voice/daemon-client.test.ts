@@ -42,8 +42,6 @@
  */
 
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   VoiceClient,
@@ -279,27 +277,5 @@ describe("voice module daemonClient(link)", () => {
     // namespace contract; only the local handler emits the daemon_required arm.
     expectTypeOf<TranscribeReturn>().toEqualTypeOf<VoiceTranscribeResult>();
     expectTypeOf<SynthesizeReturn>().toEqualTypeOf<VoiceSynthesizeResult>();
-  });
-
-  it("supplying the voice module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const contributed = voiceModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.voice;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the voice module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.voice;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /voice/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
   });
 });

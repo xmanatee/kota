@@ -59,8 +59,8 @@ do not add process singletons or let nested hosts clean up CLI state.
   their declared dependencies without loading unrelated module side effects.
 - Provider registration and lookup use typed `ProviderToken<T>` values.
   Cross-cutting tokens live in `provider-registry.ts`; domain tokens live with
-  their owning type. `provider-registration-guard.test.ts` rejects raw string
-  registrations.
+  their owning type. TypeScript rejects raw string registrations at the
+  registry boundary.
 - Keep provider base protocols minimal. Optional behavior is exposed through a
   typed capability property only by implementations that actually provide it;
   do not add support booleans, required throwing methods, or successful no-op

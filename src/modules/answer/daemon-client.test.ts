@@ -26,8 +26,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   AnswerHistoryListResult,
@@ -227,27 +225,5 @@ describe("answer module daemonClient(link)", () => {
     await expect(contributed.answer!.show("any")).rejects.toThrow(
       /reason=expired/,
     );
-  });
-
-  it("the assembly path fails loudly when the answer module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.answer;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /answer/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the answer module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = answerModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.answer;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });
