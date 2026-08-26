@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import {
   defineDaemonWideModuleEvent,
@@ -314,33 +315,51 @@ describe("workflowUsesAgent", () => {
 });
 
 describe("runHasSuccessfulAgentExecution", () => {
-  const stepResult = (
-    overrides: Partial<WorkflowStepResult>,
-  ): WorkflowStepResult => ({
+  const resultTiming = {
     id: "step",
-    type: "code",
-    status: "success",
     startedAt: "2026-08-04T00:00:00.000Z",
     completedAt: "2026-08-04T00:00:01.000Z",
     durationMs: 1000,
-    ...overrides,
-  });
+  };
+
+  function successfulAgentResult(reused = false): WorkflowStepResult {
+    return {
+      ...resultTiming,
+      type: "agent",
+      status: "success",
+      usage: UNKNOWN_AGENT_USAGE,
+      ...(reused ? { reused: true } : {}),
+    };
+  }
+
+  function skippedAgentResult(): WorkflowStepResult {
+    return {
+      ...resultTiming,
+      type: "agent",
+      status: "skipped",
+      skipReason: { kind: "when-predicate" },
+    };
+  }
+
+  function successfulCodeResult(): WorkflowStepResult {
+    return { ...resultTiming, type: "code", status: "success" };
+  }
 
   it("requires a fresh successful agent result", () => {
     expect(
       runHasSuccessfulAgentExecution([
-        stepResult({ type: "agent", status: "skipped" }),
-        stepResult({ type: "code", status: "success" }),
+        skippedAgentResult(),
+        successfulCodeResult(),
       ]),
     ).toBe(false);
     expect(
       runHasSuccessfulAgentExecution([
-        stepResult({ type: "agent", status: "success", reused: true }),
+        successfulAgentResult(true),
       ]),
     ).toBe(false);
     expect(
       runHasSuccessfulAgentExecution([
-        stepResult({ type: "agent", status: "success" }),
+        successfulAgentResult(),
       ]),
     ).toBe(true);
   });

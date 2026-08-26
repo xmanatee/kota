@@ -1,3 +1,5 @@
+import type { AgentUsage } from "#core/agent-harness/usage.js";
+import { completeAgentCostUsd } from "#core/agent-harness/usage.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import {
   getPreset,
@@ -45,7 +47,7 @@ export type RunSummary = {
   workflow: string;
   status: string;
   durationMs?: number;
-  totalCostUsd?: number;
+  usage?: AgentUsage;
   warnings?: WorkflowRunWarning[];
 };
 
@@ -55,7 +57,7 @@ export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
     workflow: metadata.workflow,
     status: metadata.status,
     ...(metadata.durationMs != null ? { durationMs: metadata.durationMs } : {}),
-    ...(metadata.totalCostUsd != null ? { totalCostUsd: metadata.totalCostUsd } : {}),
+    ...(metadata.usage !== undefined ? { usage: metadata.usage } : {}),
     ...(metadata.warnings != null ? { warnings: metadata.warnings } : {}),
   };
 }
@@ -68,8 +70,9 @@ export function loadRecentRuns(runsDir: string): RunSummary[] {
 export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number> {
   const result: Record<string, number> = {};
   for (const run of runs) {
-    if (run.totalCostUsd != null) {
-      result[run.workflow] = (result[run.workflow] ?? 0) + run.totalCostUsd;
+    const costUsd = completeAgentCostUsd(run.usage);
+    if (costUsd !== undefined) {
+      result[run.workflow] = (result[run.workflow] ?? 0) + costUsd;
     }
   }
   return result;

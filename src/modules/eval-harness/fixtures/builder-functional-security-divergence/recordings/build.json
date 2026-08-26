@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-05-29T01-50-05-123Z-builder-djv073",
@@ -7,10 +7,15 @@
     "text": "Functional/security divergence fixture task completed. The note reader now trims normal note bodies, rejects invalid note ids before path resolution, preserves the notesDir override, and moves the seeded task to done.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-functional-security-divergence-replay"
+    "sessionId": "builder-functional-security-divergence-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

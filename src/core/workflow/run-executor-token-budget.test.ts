@@ -7,6 +7,7 @@ import type {
   AgentHarness,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/types.js";
+import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
@@ -140,8 +141,7 @@ describe("workflow agent token budget", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
-        inputTokens: 50,
-        outputTokens: 10,
+        usage: unpricedAgentUsage(50, 10),
         isError: false,
       };
     });

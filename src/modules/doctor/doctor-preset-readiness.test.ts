@@ -4,6 +4,7 @@ import {
   type AgentHarnessReadinessRequest,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import { getPreset } from "#core/model/preset.js";
@@ -70,6 +71,7 @@ function registerUnavailableSelectionHarness(
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }),
   };

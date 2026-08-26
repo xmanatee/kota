@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-06-24T04-39-44-641Z-builder-gfdmek",
@@ -7,10 +7,15 @@
     "text": "{\"redacted\":true,\"reason\":\"provider-payload\",\"bytes\":211}",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-source-grounded-research-synthesis-replay"
+    "sessionId": "builder-source-grounded-research-synthesis-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { resolveScopePolicy } from "#core/daemon/scope-policy.js";
 import { runAgentHarness } from "./runner.js";
 import type { AgentHarness } from "./types.js";
+import { UNKNOWN_AGENT_USAGE } from "./usage.js";
 
 describe("runAgentHarness scope policy boundary", () => {
   it("rejects an unsupported scope policy before native adapter launch", async () => {
@@ -9,6 +10,7 @@ describe("runAgentHarness scope policy boundary", () => {
       text: "unexpected",
       streamedText: "unexpected",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }));
     const harness: AgentHarness = {

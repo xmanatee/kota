@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
@@ -28,8 +28,7 @@ type StepDiff = {
 };
 
 function stepCost(step: WorkflowStepResult): number | null {
-  const out = step.output as { totalCostUsd?: unknown } | null | undefined;
-  return typeof out?.totalCostUsd === "number" ? out.totalCostUsd : null;
+  return step.usage?.cost.state === "complete" ? step.usage.cost.usd : null;
 }
 
 export function buildRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): StepDiff[] {
@@ -165,7 +164,7 @@ function resolveRunId(store: WorkflowRunStore, runId: string): string {
 function loadRun(store: WorkflowRunStore, runId: string): WorkflowRunMetadata {
   const resolved = resolveRunId(store, runId);
   const path = join(store.runsDir, resolved, "metadata.json");
-  const meta = readOptionalJsonFile<WorkflowRunMetadata>(path);
+  const meta = readWorkflowRunMetadataFile(path);
   if (!meta) throw new Error(`Run "${runId}" not found.`);
   return meta;
 }

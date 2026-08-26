@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "skill-ablation-focused-skill",
   "stepId": "solve-focused-skill",
   "sourceRunId": "fixture-skill-ablation-replay-2026-05-29",
@@ -7,10 +7,17 @@
     "text": "Completed the ticket normalization with the focused explicit skill and applied the release routing rule.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 1350,
-    "outputTokens": 130,
-    "sessionId": "skill-ablation-focused-skill"
+    "sessionId": "skill-ablation-focused-skill",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 1350,
+        "outputTokens": 130
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

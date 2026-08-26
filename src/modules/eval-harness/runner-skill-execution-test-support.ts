@@ -57,11 +57,16 @@ export function writeAgentStepArtifact(params: {
     join(stepsDir, `${params.agentStepId}.json`),
     JSON.stringify(
       {
+        usage: {
+          tokens: {
+            state: "complete",
+            inputTokens: params.inputTokens,
+            outputTokens: params.outputTokens,
+          },
+          cost: { state: "complete", usd: 0.01 },
+        },
         output: {
           turns: 1,
-          totalCostUsd: 0.01,
-          inputTokens: params.inputTokens,
-          outputTokens: params.outputTokens,
           subtype: "success",
         },
       },

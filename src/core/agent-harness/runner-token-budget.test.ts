@@ -16,8 +16,10 @@ describe("runAgentHarness token budget", () => {
       text: "done",
       streamedText: "done",
       turns: 3,
-      inputTokens: 10,
-      outputTokens: 4,
+      usage: {
+        tokens: { state: "complete", inputTokens: 10, outputTokens: 4 },
+        cost: { state: "unknown" },
+      },
       isError: false,
     });
     const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 100 });
@@ -51,8 +53,10 @@ describe("runAgentHarness token budget", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
-        inputTokens: 10,
-        outputTokens: 4,
+        usage: {
+          tokens: { state: "complete", inputTokens: 10, outputTokens: 4 },
+          cost: { state: "unknown" },
+        },
         isError: false,
       };
     });
@@ -94,8 +98,10 @@ describe("runAgentHarness token budget", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
-        inputTokens: 6,
-        outputTokens: 2,
+        usage: {
+          tokens: { state: "complete", inputTokens: 6, outputTokens: 2 },
+          cost: { state: "unknown" },
+        },
         isError: false,
       };
     });

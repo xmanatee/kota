@@ -7,6 +7,7 @@ import {
   agentHarnessToolExecutionOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   type ResolvedScopePolicy,
@@ -176,6 +177,7 @@ describe("workflow hosted tool live scope policy", () => {
               text: delegateResult?.content ?? "delegate returned no result",
               streamedText: delegateResult?.content ?? "delegate returned no result",
               turns: 1,
+              usage: UNKNOWN_AGENT_USAGE,
               isError: delegateResult?.is_error === true,
             };
           }
@@ -198,6 +200,7 @@ describe("workflow hosted tool live scope policy", () => {
             text: "hosted calls complete",
             streamedText: "hosted calls complete",
             turns: 1,
+            usage: UNKNOWN_AGENT_USAGE,
             isError: false,
           };
         },

@@ -30,7 +30,7 @@ function delivery(
     completedAt: "2026-06-24T00:00:00.000Z",
     taskId: "task-eval-harness",
     taskTitle: "Fix eval-harness recorder guard",
-    costUsd: null,
+    cost: { state: "unknown" },
     durationMs: null,
     ...overrides,
   };

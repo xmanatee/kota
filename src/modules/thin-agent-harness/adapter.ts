@@ -7,6 +7,7 @@ import type {
   KotaMessage,
   KotaModelResponse,
 } from "#core/agent-harness/index.js";
+import { unpricedAgentUsage } from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 
@@ -183,8 +184,7 @@ export const thinAgentHarness: AgentHarness = {
       streamedText: text,
       sessionId: response.id,
       turns: 1,
-      inputTokens: usage?.input_tokens,
-      outputTokens: usage?.output_tokens,
+      usage: unpricedAgentUsage(usage?.input_tokens, usage?.output_tokens),
       isError: false,
     };
   },

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
@@ -144,6 +145,7 @@ describe("runDelegate model output-token limits", () => {
           text: "delegated",
           streamedText: "delegated",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),

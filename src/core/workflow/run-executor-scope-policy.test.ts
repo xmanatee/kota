@@ -256,12 +256,20 @@ describe("workflow scope policy execution", () => {
             type: "result",
             text: "stale success",
             isError: false,
+            usage: {
+              tokens: { state: "unknown" },
+              cost: { state: "unknown" },
+            },
           });
           markHarnessFinished();
           return {
             text: "stale success",
             streamedText: "stale success",
             turns: 1,
+            usage: {
+              tokens: { state: "unknown" },
+              cost: { state: "unknown" },
+            },
             isError: false,
           };
         },
@@ -377,6 +385,10 @@ describe("workflow scope policy execution", () => {
             text: "stale success after timeout",
             streamedText: "stale success after timeout",
             turns: 1,
+            usage: {
+              tokens: { state: "unknown" },
+              cost: { state: "unknown" },
+            },
             isError: false,
           };
         },

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-05-27T18-07-36-755Z-builder-3j23nw",
@@ -7,10 +7,15 @@
     "text": "Product requirements canary fixture task completed. The reimbursement service now applies locale formatting, role authorization, audit history, validation, follow-up exception handling, and dynamic holdout behavior through the scorer artifact.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-product-requirements-canary-replay"
+    "sessionId": "builder-product-requirements-canary-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

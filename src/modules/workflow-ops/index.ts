@@ -153,7 +153,7 @@ const workflowModule: KotaModule = {
             triggerSchemaRef: r.trigger.schemaRef,
             startedAt: r.startedAt,
             durationMs: r.durationMs,
-            totalCostUsd: r.totalCostUsd,
+            usage: r.usage,
             triggeredByRunId: r.triggeredByRunId,
             causedBy: r.causedBy,
             retryOf: r.retryOf,
@@ -753,7 +753,7 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     status: step.status,
     durationMs: step.durationMs,
     ...(step.error !== undefined && { error: redactSensitiveText(step.error) }),
-    ...(step.costUsd !== undefined && { costUsd: step.costUsd }),
+    ...(step.usage !== undefined && { usage: step.usage }),
     ...(step.skipReason !== undefined && { skipReason: step.skipReason }),
   }));
   const triggerPayload =
@@ -769,7 +769,7 @@ function runDetailFromMetadata(meta: WorkflowRunMetadata): WorkflowRunDetail {
     startedAt: meta.startedAt,
     ...(meta.completedAt !== undefined && { completedAt: meta.completedAt }),
     ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),
-    ...(meta.totalCostUsd !== undefined && { totalCostUsd: meta.totalCostUsd }),
+    ...(meta.usage !== undefined && { usage: meta.usage }),
     ...(meta.triggeredByRunId !== undefined && { triggeredByRunId: meta.triggeredByRunId }),
     ...(meta.causedBy !== undefined && { causedBy: meta.causedBy }),
     ...(meta.retryOf !== undefined && { retryOf: meta.retryOf }),

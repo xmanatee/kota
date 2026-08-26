@@ -14,6 +14,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowMetricsEmitter } from "./metrics.js";
 
 const METER_NAME = "kota-workflow";
+const PROJECT_ID = "project-tracing-test";
+const DEFINITION_PATH = ".kota/workflows/test.yaml";
 
 function makeTmpDir(): string {
   return join(tmpdir(), `kota-metrics-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -127,25 +129,32 @@ describe("WorkflowMetricsEmitter", () => {
     expect(point?.value).toBe(1);
   });
 
-  it("records step cost and duration histograms for step completion", async () => {
+  it("records complete step usage and duration for step completion", async () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
 
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-3",
       stepId: "build",
       stepType: "agent",
       status: "success",
       durationMs: 9000,
-      costUsd: 0.25,
+      usage: {
+        tokens: { state: "complete", inputTokens: 1200, outputTokens: 300 },
+        cost: { state: "complete", usd: 0.25 },
+      },
       runDir: ".kota/runs/run-3",
+      definitionPath: DEFINITION_PATH,
     });
 
     const metrics = await collectMetrics(provider, exporter);
     const cost = findMetric(metrics, "kota.workflow.step.cost");
     const duration = findMetric(metrics, "kota.workflow.step.duration");
+    const tokens = findMetric(metrics, "kota.workflow.agent.tokens");
     expect(cost).toBeDefined();
     expect(duration).toBeDefined();
+    expect(tokens).toBeDefined();
     const costPoint = cost!.dataPoints[0] as unknown as {
       value: { count: number; sum: number };
     };
@@ -156,6 +165,74 @@ describe("WorkflowMetricsEmitter", () => {
     };
     expect(durationPoint.value.count).toBe(1);
     expect(durationPoint.value.sum).toBe(9000);
+    const inputPoint = tokens!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, { "token.direction": "input" }),
+    );
+    const outputPoint = tokens!.dataPoints.find((p) =>
+      attrsMatch(p.attributes, { "token.direction": "output" }),
+    );
+    expect(inputPoint?.value).toBe(1200);
+    expect(outputPoint?.value).toBe(300);
+  });
+
+  it("records measured tokens when step cost is unavailable", async () => {
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+
+    emitter.onStepCompleted({
+      projectId: PROJECT_ID,
+      workflow: "builder",
+      runId: "run-unavailable",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 500,
+      usage: {
+        tokens: { state: "complete", inputTokens: 700, outputTokens: 80 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
+      runDir: ".kota/runs/run-unavailable",
+      definitionPath: DEFINITION_PATH,
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    expect(findMetric(metrics, "kota.workflow.step.cost")).toBeUndefined();
+    const tokens = findMetric(metrics, "kota.workflow.agent.tokens");
+    expect(tokens).toBeDefined();
+    expect(
+      tokens!.dataPoints.find((p) =>
+        attrsMatch(p.attributes, { "token.direction": "input" }),
+      )?.value,
+    ).toBe(700);
+    expect(
+      tokens!.dataPoints.find((p) =>
+        attrsMatch(p.attributes, { "token.direction": "output" }),
+      )?.value,
+    ).toBe(80);
+  });
+
+  it("omits cost and token metrics when step usage is unknown", async () => {
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+
+    emitter.onStepCompleted({
+      projectId: PROJECT_ID,
+      workflow: "builder",
+      runId: "run-unknown",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 500,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
+      runDir: ".kota/runs/run-unknown",
+      definitionPath: DEFINITION_PATH,
+    });
+
+    const metrics = await collectMetrics(provider, exporter);
+    expect(findMetric(metrics, "kota.workflow.step.cost")).toBeUndefined();
+    expect(findMetric(metrics, "kota.workflow.agent.tokens")).toBeUndefined();
+    expect(findMetric(metrics, "kota.workflow.step.duration")).toBeDefined();
   });
 
   it("records repair-loop hits from the step output file", async () => {
@@ -169,9 +246,6 @@ describe("WorkflowMetricsEmitter", () => {
         type: "agent",
         status: "success",
         output: {
-          totalCostUsd: 0.8,
-          inputTokens: 1000,
-          outputTokens: 200,
           repairIterations: [
             {
               attempt: 1,
@@ -191,6 +265,7 @@ describe("WorkflowMetricsEmitter", () => {
 
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-4",
       stepId: "build",
@@ -198,6 +273,7 @@ describe("WorkflowMetricsEmitter", () => {
       status: "success",
       durationMs: 12_000,
       runDir,
+      definitionPath: DEFINITION_PATH,
     });
 
     const metrics = await collectMetrics(provider, exporter);
@@ -220,24 +296,12 @@ describe("WorkflowMetricsEmitter", () => {
     expect(lintPoint?.value).toBe(2);
     expect(typecheckPoint?.value).toBe(1);
 
-    const tokens = findMetric(metrics, "kota.workflow.agent.tokens");
-    expect(tokens).toBeDefined();
-    const inputPoint = tokens!.dataPoints.find((p) =>
-      attrsMatch(p.attributes, { "token.direction": "input" }),
-    );
-    expect(inputPoint?.value).toBe(1000);
-
-    const cost = findMetric(metrics, "kota.workflow.step.cost");
-    const costPoint = cost!.dataPoints[0] as unknown as {
-      value: { count: number; sum: number };
-    };
-    expect(costPoint.value.count).toBe(1);
-    expect(costPoint.value.sum).toBeCloseTo(0.8);
   });
 
   it("ignores repair-loop enrichment when the step output file is missing", async () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-5",
       stepId: "missing",
@@ -245,6 +309,7 @@ describe("WorkflowMetricsEmitter", () => {
       status: "success",
       durationMs: 50,
       runDir: ".kota/runs/run-5",
+      definitionPath: DEFINITION_PATH,
     });
 
     const metrics = await collectMetrics(provider, exporter);
@@ -270,6 +335,7 @@ describe("WorkflowMetricsEmitter", () => {
 
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-scalar-repairs",
       stepId: "build",
@@ -277,6 +343,7 @@ describe("WorkflowMetricsEmitter", () => {
       status: "success",
       durationMs: 100,
       runDir,
+      definitionPath: DEFINITION_PATH,
     });
 
     const metrics = await collectMetrics(provider, exporter);
@@ -299,6 +366,7 @@ describe("WorkflowMetricsEmitter", () => {
       },
     );
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-broken",
       stepId: "build",
@@ -306,13 +374,14 @@ describe("WorkflowMetricsEmitter", () => {
       status: "success",
       durationMs: 100,
       runDir,
+      definitionPath: DEFINITION_PATH,
     });
 
     expect(errors).toHaveLength(1);
     expect(errors[0].msg).toContain("build.json");
   });
 
-  it("tags run, step, and cost metrics with autonomy_mode when present", async () => {
+  it("tags run and step metrics with autonomy_mode when present", async () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
 
     emitter.onWorkflowCompleted({
@@ -327,14 +396,15 @@ describe("WorkflowMetricsEmitter", () => {
       autonomyMode: "autonomous",
     });
     emitter.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-auto",
       stepId: "build",
       stepType: "agent",
       status: "success",
       durationMs: 500,
-      costUsd: 0.1,
       runDir: ".kota/runs/run-auto",
+      definitionPath: DEFINITION_PATH,
       autonomyMode: "autonomous",
     });
 

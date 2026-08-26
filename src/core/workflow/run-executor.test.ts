@@ -39,6 +39,10 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",
   streamedText: "done",
   turns: 1,
+  usage: {
+    tokens: { state: "unknown" },
+    cost: { state: "unknown" },
+  },
   isError: false,
 };
 const AGENT_IDLE_TIMEOUT_MS = 100;
@@ -590,6 +594,10 @@ describe("step timeout", () => {
         text: responseText,
         streamedText: responseText,
         turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
         isError: false,
       };
     });
@@ -635,6 +643,7 @@ describe("step timeout", () => {
     const prompts: string[] = [];
     registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
       prompts.push(options.prompt);
+      const attempt = prompts.length;
       const text = prompts.length === 1
         ? "```json\n{ invalid\n```"
         : ["```json", JSON.stringify({ body: "ok" }), "```"].join("\n");
@@ -642,6 +651,14 @@ describe("step timeout", () => {
         text,
         streamedText: text,
         turns: 1,
+        usage: {
+          tokens: {
+            state: "complete",
+            inputTokens: attempt === 1 ? 10 : 20,
+            outputTokens: attempt === 1 ? 2 : 3,
+          },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
         isError: false,
       };
     });
@@ -669,6 +686,10 @@ describe("step timeout", () => {
     expect(prompts).toHaveLength(2);
     expect(prompts[1]).toContain("Previous JSON output was invalid: the fenced block contains invalid JSON");
     expect(result.metadata.steps[0]?.output).toEqual({ body: "ok" });
+    expect(result.metadata.steps[0]?.usage).toEqual({
+      tokens: { state: "complete", inputTokens: 30, outputTokens: 5 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
   }, 10_000);
 
   it("retries missing fenced JSON output with a targeted correction prompt", async () => {
@@ -683,6 +704,10 @@ describe("step timeout", () => {
         text,
         streamedText: text,
         turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
         isError: false,
       };
     });

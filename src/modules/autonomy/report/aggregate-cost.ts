@@ -5,32 +5,62 @@ export function buildCostBreakdown(
   runs: WorkflowRunMetadata[],
 ): CostBreakdown {
   const finished = runs.filter(
-    (r) => r.status !== "running" && r.totalCostUsd !== undefined,
+    (r) => r.status !== "running" && r.steps.some((step) => step.type === "agent"),
   );
-  const totalCostUsd = finished.reduce(
-    (sum, r) => sum + (r.totalCostUsd ?? 0),
-    0,
-  );
-  const groups = new Map<string, { runs: number; totalCostUsd: number }>();
+  let totalCostUsd = 0;
+  let measuredRuns = 0;
+  let unavailableRuns = 0;
+  let unknownRuns = 0;
+  const groups = new Map<string, {
+    runs: number;
+    measuredRuns: number;
+    unavailableRuns: number;
+    unknownRuns: number;
+    totalCostUsd: number;
+  }>();
   for (const run of finished) {
-    const existing = groups.get(run.workflow) ?? { runs: 0, totalCostUsd: 0 };
+    const existing = groups.get(run.workflow) ?? {
+      runs: 0,
+      measuredRuns: 0,
+      unavailableRuns: 0,
+      unknownRuns: 0,
+      totalCostUsd: 0,
+    };
     existing.runs += 1;
-    existing.totalCostUsd += run.totalCostUsd ?? 0;
+    if (run.usage?.cost.state === "complete") {
+      existing.measuredRuns += 1;
+      existing.totalCostUsd += run.usage.cost.usd;
+      measuredRuns += 1;
+      totalCostUsd += run.usage.cost.usd;
+    } else if (run.usage?.cost.state === "unavailable") {
+      existing.unavailableRuns += 1;
+      unavailableRuns += 1;
+    } else {
+      existing.unknownRuns += 1;
+      unknownRuns += 1;
+    }
     groups.set(run.workflow, existing);
   }
   const byWorkflow: WorkflowCostRow[] = [...groups.entries()]
     .map(([workflow, agg]) => ({
       workflow,
       finishedRuns: agg.runs,
-      totalCostUsd: agg.totalCostUsd,
-      averageCostUsd: agg.runs > 0 ? agg.totalCostUsd / agg.runs : 0,
+      measuredRuns: agg.measuredRuns,
+      unavailableRuns: agg.unavailableRuns,
+      unknownRuns: agg.unknownRuns,
+      totalCostUsd: agg.measuredRuns > 0 ? agg.totalCostUsd : null,
+      averageMeasuredCostUsd:
+        agg.measuredRuns > 0 ? agg.totalCostUsd / agg.measuredRuns : null,
     }))
-    .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
+    .sort((a, b) => (b.totalCostUsd ?? -1) - (a.totalCostUsd ?? -1));
   return {
-    totalCostUsd,
+    totalCostUsd: measuredRuns > 0 ? totalCostUsd : null,
     finishedRuns: finished.length,
-    averagePerFinishedRun:
-      finished.length > 0 ? totalCostUsd / finished.length : 0,
+    measuredRuns,
+    unavailableRuns,
+    unknownRuns,
+    averageMeasuredCostUsd:
+      measuredRuns > 0 ? totalCostUsd / measuredRuns : null,
     byWorkflow,
   };
 }

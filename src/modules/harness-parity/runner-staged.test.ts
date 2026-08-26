@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import { runScenarioAcrossHarnesses, runScenarioOnHarness } from "./runner.js";
 import { cleanupRunnerTestState, makeHarness, setupRunnerTestState, writeStagedScenario } from "./runner.test-support.js";
 import { loadScenario } from "./scenario.js";
@@ -21,20 +22,27 @@ afterEach(() => {
     writeStagedScenario(scenariosRoot);
     const scenario = loadScenario(scenariosRoot, "staged-upgrade");
     const prompts: string[] = [];
-    const harness = makeHarness("staged-fixing", (workingDir, options) => {
-      prompts.push(options.prompt);
-      if (options.prompt.includes("stage 1")) {
-        writeFileSync(join(workingDir, "state.js"), 'exports.state = () => "v2";\n');
-        return;
-      }
-      const inherited = readFileSync(join(workingDir, "state.js"), "utf-8");
-      writeFileSync(
-        join(workingDir, "state.js"),
-        inherited.includes('"v2"')
-          ? 'exports.state = () => "v2+v3";\n'
-          : 'exports.state = () => "missing-v2";\n',
-      );
-    });
+    const harness = makeHarness(
+      "staged-fixing",
+      (workingDir, options) => {
+        prompts.push(options.prompt);
+        if (options.prompt.includes("stage 1")) {
+          writeFileSync(
+            join(workingDir, "state.js"),
+            'exports.state = () => "v2";\n',
+          );
+          return;
+        }
+        const inherited = readFileSync(join(workingDir, "state.js"), "utf-8");
+        writeFileSync(
+          join(workingDir, "state.js"),
+          inherited.includes('"v2"')
+            ? 'exports.state = () => "v2+v3";\n'
+            : 'exports.state = () => "missing-v2";\n',
+        );
+      },
+      { usage: pricedAgentUsage(10, 4, 0.002) },
+    );
 
     const artifact = await runScenarioOnHarness({
       scenario,
@@ -61,6 +69,12 @@ afterEach(() => {
     ]);
     expect(artifact.stages[0]?.verification.passed).toBe(true);
     expect(artifact.stages[1]?.verification.passed).toBe(true);
+    expect(artifact.usage).toEqual(
+      pricedAgentUsage(20, 8, 0.004),
+    );
+    expect(artifact.stages[0]?.usage).toEqual(
+      pricedAgentUsage(10, 4, 0.002),
+    );
 
     const stageOneDir = join(artifact.artifactDir, "stages", "upgrade-v2");
     const stageTwoDir = join(artifact.artifactDir, "stages", "upgrade-v3");
@@ -88,7 +102,14 @@ afterEach(() => {
     expect(meta.stages[0]).toMatchObject({
       stageId: "upgrade-v2",
       verification: { passed: true },
+      usage: pricedAgentUsage(10, 4, 0.002),
     });
+    expect(meta).not.toHaveProperty("inputTokens");
+    expect(meta).not.toHaveProperty("outputTokens");
+    expect(meta).not.toHaveProperty("totalCostUsd");
+    expect(meta.stages[0]).not.toHaveProperty("inputTokens");
+    expect(meta.stages[0]).not.toHaveProperty("outputTokens");
+    expect(meta.stages[0]).not.toHaveProperty("totalCostUsd");
     expect(readFileSync(join(artifact.artifactDir, "trace-summary.md"), "utf-8")).toContain(
       "## Stages",
     );

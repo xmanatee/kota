@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   commitFixtureFiles,
@@ -126,6 +127,7 @@ describe("Daemon failure and lifecycle", () => {
       text: "done",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       subtype: "success",
       isError: false,
     });
@@ -173,6 +175,7 @@ describe("Daemon failure and lifecycle", () => {
       text: "done",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       subtype: "success",
       isError: false,
     });

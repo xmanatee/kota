@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowStepResult } from "#core/workflow/run-types.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+} from "#core/workflow/run-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
   computeHistoryStats,
@@ -22,7 +25,28 @@ const minimalWorkflow = (name: string): WorkflowDefinition => ({
   steps: [],
 });
 
-function makeAgentStep(id: string, costUsd: number, durationMs: number): WorkflowStepResult {
+function storedMetadata(
+  id: string,
+  workflow: string,
+  startedAt: string,
+): WorkflowRunMetadata {
+  return {
+    id,
+    workflow,
+    definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
+    trigger: { event: "test", schemaRef: null, payload: {} },
+    startedAt,
+    status: "success",
+    runDir: id,
+    steps: [],
+  };
+}
+
+function makeAgentStep(
+  id: string,
+  measuredCostUsd: number,
+  durationMs: number,
+): Extract<WorkflowStepResult, { type: "agent" }> {
   return {
     id,
     type: "agent",
@@ -31,7 +55,10 @@ function makeAgentStep(id: string, costUsd: number, durationMs: number): Workflo
     completedAt: new Date().toISOString(),
     durationMs,
     output: { content: "ok" },
-    costUsd,
+    usage: {
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+      cost: { state: "complete", usd: measuredCostUsd },
+    },
   };
 }
 
@@ -85,12 +112,13 @@ describe("workflow history", () => {
       mkdirSync(sampleDir, { recursive: true });
       writeFileSync(
         join(sampleDir, "metadata.json"),
-        JSON.stringify({
-          id: "sample-run",
-          workflow: "sample",
-          status: "success",
-          startedAt: new Date(Date.now() - 30 * 86400_000).toISOString(),
-        }),
+        JSON.stringify(
+          storedMetadata(
+            "sample-run",
+            "sample",
+            new Date(Date.now() - 30 * 86400_000).toISOString(),
+          ),
+        ),
       );
 
       const trigger = { event: "test", schemaRef: null, payload: {} };
@@ -115,12 +143,7 @@ describe("workflow history", () => {
         mkdirSync(runDir, { recursive: true });
         writeFileSync(
           join(runDir, "metadata.json"),
-          JSON.stringify({
-            id: metadataId,
-            workflow: "builder",
-            status: "success",
-            startedAt,
-          }),
+          JSON.stringify(storedMetadata(metadataId, "builder", startedAt)),
         );
       }
 
@@ -128,12 +151,9 @@ describe("workflow history", () => {
       mkdirSync(authenticRunDir, { recursive: true });
       writeFileSync(
         join(authenticRunDir, "metadata.json"),
-        JSON.stringify({
-          id: "authentic-alternate-run",
-          workflow: "builder",
-          status: "success",
-          startedAt,
-        }),
+        JSON.stringify(
+          storedMetadata("authentic-alternate-run", "builder", startedAt),
+        ),
       );
 
       expect(listStoredWorkflowRuns(store.runsDir).map((run) => run.id)).toEqual([
@@ -185,6 +205,9 @@ describe("workflow history", () => {
 
       expect(stats.totalCostUsd).toBeCloseTo(0.40);
       expect(stats.avgCostUsd).toBeCloseTo(0.20);
+      expect(stats.measuredCostRuns).toBe(2);
+      expect(stats.unavailableCostRuns).toBe(0);
+      expect(stats.unknownCostRuns).toBe(0);
     });
 
     it("computes duration stats including p95", () => {
@@ -204,15 +227,47 @@ describe("workflow history", () => {
       expect(stats.p95DurationMs).toBe(10_000);
     });
 
-    it("handles missing cost data by treating as zero", () => {
+    it("does not represent runs without agent usage as zero cost", () => {
       const trigger = { event: "test", schemaRef: null, payload: {} };
       const run = store.createRun(minimalWorkflow("builder"), trigger);
       run.finish({ status: "success", durationMs: 5000 });
 
       const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
       const stats = computeHistoryStats(runs);
-      expect(stats.totalCostUsd).toBe(0);
-      expect(stats.avgCostUsd).toBe(0);
+      expect(stats.totalCostUsd).toBeNull();
+      expect(stats.avgCostUsd).toBeNull();
+      expect(stats.measuredCostRuns).toBe(0);
+      expect(stats.unavailableCostRuns).toBe(0);
+      expect(stats.unknownCostRuns).toBe(0);
+    });
+
+    it("counts unavailable and unknown agent costs separately", () => {
+      const trigger = { event: "test", schemaRef: null, payload: {} };
+      const unavailableRun = store.createRun(minimalWorkflow("builder"), trigger);
+      unavailableRun.recordStep({
+        ...makeAgentStep("unavailable", 1, 1000),
+        usage: {
+          tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
+      });
+      unavailableRun.finish({ status: "success", durationMs: 1000 });
+
+      const unknownRun = store.createRun(minimalWorkflow("builder"), trigger);
+      unknownRun.recordStep({
+        ...makeAgentStep("unknown", 1, 1000),
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+      });
+      unknownRun.finish({ status: "success", durationMs: 1000 });
+
+      const stats = computeHistoryStats(
+        loadRunsInWindow(store.runsDir, Date.now() - 86400_000),
+      );
+      expect(stats.totalCostUsd).toBeNull();
+      expect(stats.avgCostUsd).toBeNull();
+      expect(stats.measuredCostRuns).toBe(0);
+      expect(stats.unavailableCostRuns).toBe(1);
+      expect(stats.unknownCostRuns).toBe(1);
     });
 
     it("returns null durations when no finished runs have durationMs", () => {

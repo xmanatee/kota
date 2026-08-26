@@ -7,6 +7,7 @@ import {
   resolveAgentHarness,
 } from "./index.js";
 import type { AgentHarness } from "./types.js";
+import { UNKNOWN_AGENT_USAGE } from "./usage.js";
 
 function stubHarness(name: string): AgentHarness {
   return {
@@ -21,6 +22,7 @@ function stubHarness(name: string): AgentHarness {
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }),
   };

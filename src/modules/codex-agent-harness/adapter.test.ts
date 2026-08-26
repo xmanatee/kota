@@ -204,6 +204,7 @@ describe("codexAgentHarness", () => {
 
     const writer = { write: vi.fn().mockReturnValue(true) };
     const onMessage = vi.fn();
+    const onUsage = vi.fn();
     const onProcessSpawn = vi.fn();
     const result = await codexAgentHarness.run(
       {
@@ -218,6 +219,7 @@ describe("codexAgentHarness", () => {
           KOTA_TEST_ENV: "preserved",
         },
         onMessage,
+        onUsage,
         onProcessSpawn,
       },
       writer,
@@ -297,10 +299,16 @@ describe("codexAgentHarness", () => {
         sessionId: "thread-1",
         isError: false,
         numTurns: 1,
-        inputTokens: 18,
-        outputTokens: 7,
+        usage: {
+          tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
       },
     ]);
+    expect(onUsage).toHaveBeenLastCalledWith({
+      tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
     expect(onProcessSpawn).toHaveBeenCalledOnce();
     expect(onProcessSpawn).toHaveBeenCalledWith(identity);
     expect(result).toMatchObject({
@@ -308,8 +316,10 @@ describe("codexAgentHarness", () => {
       streamedText: "all done",
       sessionId: "thread-1",
       turns: 1,
-      inputTokens: 18,
-      outputTokens: 7,
+      usage: {
+        tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
   });
@@ -523,6 +533,13 @@ describe("codexAgentHarness", () => {
       isError: true,
       subtype: "codex_cli_error",
       text: "provider failed",
+      usage: {
+        tokens: { state: "unknown" },
+        cost: {
+          state: "unavailable",
+          reason: "provider-does-not-report",
+        },
+      },
     });
   });
 

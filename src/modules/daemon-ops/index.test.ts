@@ -156,6 +156,7 @@ describe("formatDaemonStatus", () => {
 
     expect(output).not.toMatch(/Work\s*$/m);
     expect(output).not.toMatch(/Cost.*Defs/);
+    expect(output).not.toMatch(/^\s+Cost:/m);
     expect(output).toContain("1 active · 1 pending · 4 completed");
   });
 

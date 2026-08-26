@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-05-27T15-30-07-269Z-builder-5av2hq",
@@ -7,10 +7,15 @@
     "text": "Multi-service integration fixture task completed. The stale catalog API route now matches the worker contract, the integration scorer starts both components and writes evidence, shortcut guards pass, and the seeded task is moved to done.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-multi-service-integration-replay"
+    "sessionId": "builder-multi-service-integration-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

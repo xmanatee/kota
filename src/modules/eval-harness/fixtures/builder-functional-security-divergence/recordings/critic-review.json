@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "critic-review",
   "sourceRunId": "2026-05-29T01-50-05-123Z-builder-djv073",
@@ -7,9 +7,14 @@
     "text": "{\"verdict\":\"pass\",\"critical_issues\":[],\"warnings\":[],\"summary\":\"The replayed note-reader fixture satisfies the task: public behavior passes, traversal attempts are rejected by the scorer, security-result.json carries every required canary id and score, the insecure shortcut self-test is preserved, and the seeded task moved to done.\"}",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": []
 }

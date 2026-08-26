@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
+  pricedAgentUsage,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -152,9 +153,15 @@ describe("executeStep repair loop", () => {
   });
 
   it("repair success: agent fixes issue on first repair attempt", async () => {
+    const onUsage = vi.fn();
     mockedExecuteWithAgentSDK
       .mockResolvedValueOnce(SUCCESS_RESULT) // initial agent run
-      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed", turns: 2, totalCostUsd: 0.02 }); // repair agent
+      .mockResolvedValueOnce({
+        ...SUCCESS_RESULT,
+        text: "fixed",
+        turns: 2,
+        usage: pricedAgentUsage(undefined, undefined, 0.02),
+      }); // repair agent
 
     const runTool = vi
       .fn()
@@ -178,7 +185,7 @@ describe("executeStep repair loop", () => {
       new AbortController(),
       () => {},
       () => {},
-      agentConfig,
+      { ...agentConfig, onUsage },
       new EventBus(),
     ) as { output: Record<string, unknown>; harness: string; model: string };
     const result = wrapped.output;
@@ -190,7 +197,10 @@ describe("executeStep repair loop", () => {
 
     expect(result.content).toBe("fixed");
     expect(result.turns).toBe(3); // 1 initial + 2 repair
-    expect(result.totalCostUsd).toBeCloseTo(0.03); // 0.01 + 0.02
+    expect(onUsage.mock.calls.map(([usage]) => usage)).toEqual([
+      pricedAgentUsage(undefined, undefined, 0.01),
+      pricedAgentUsage(undefined, undefined, 0.02),
+    ]);
     expect(wrapped.harness).toBe("claude-agent-sdk");
     expect(wrapped.model).toBe("claude-opus-4-7");
 

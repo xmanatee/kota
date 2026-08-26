@@ -10,7 +10,7 @@ import {
 } from "./agent-step-recording.js";
 
 const VALID = {
-  version: 1,
+  version: 2,
   workflowName: "decomposer",
   stepId: "decompose",
   sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
@@ -18,9 +18,10 @@ const VALID = {
     text: "ok",
     subtype: "success",
     turns: 3,
-    totalCostUsd: 0.125,
-    inputTokens: 10,
-    outputTokens: 20,
+    usage: {
+      tokens: { state: "complete", inputTokens: 10, outputTokens: 20 },
+      cost: { state: "complete", usd: 0.125 },
+    },
   },
   fileOperations: [
     { op: "write", path: "data/tasks/ready/task-a.md", content: "a" },
@@ -43,7 +44,7 @@ describe("parseAgentStepRecording", () => {
   });
 
   it("rejects unsupported version", () => {
-    const raw = { ...VALID, version: 2 };
+    const raw = { ...VALID, version: 1 };
     expect(() => parseAgentStepRecording(JSON.stringify(raw), "/x.json")).toThrow(
       AgentStepRecordingError,
     );
@@ -56,10 +57,35 @@ describe("parseAgentStepRecording", () => {
     );
   });
 
-  it("rejects a non-numeric cost", () => {
-    const raw = { ...VALID, response: { ...VALID.response, totalCostUsd: "nope" } };
+  it("rejects invalid typed usage", () => {
+    const raw = {
+      ...VALID,
+      response: {
+        ...VALID.response,
+        usage: {
+          ...VALID.response.usage,
+          cost: { state: "complete", usd: "nope" },
+        },
+      },
+    };
     expect(() => parseAgentStepRecording(JSON.stringify(raw), "/x.json")).toThrow(
-      /totalCostUsd/,
+      /response\.usage\.cost\.usd/,
+    );
+  });
+
+  it("rejects the legacy scalar usage envelope", () => {
+    const { usage: _, ...response } = VALID.response;
+    const raw = {
+      ...VALID,
+      response: {
+        ...response,
+        totalCostUsd: 0.125,
+        inputTokens: 10,
+        outputTokens: 20,
+      },
+    };
+    expect(() => parseAgentStepRecording(JSON.stringify(raw), "/x.json")).toThrow(
+      /response\.usage/,
     );
   });
 

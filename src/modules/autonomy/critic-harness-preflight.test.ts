@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
@@ -105,6 +106,7 @@ describe("critic harness tool-control preflight", () => {
       text: '{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"should not run"}',
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }));
     const harness: AgentHarness = {

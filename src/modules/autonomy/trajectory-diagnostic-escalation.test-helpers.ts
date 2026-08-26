@@ -6,6 +6,7 @@ import type {
   TrajectoryDiagnosticCode,
   TrajectoryDiagnosticsArtifact,
 } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { detectRecurringTrajectoryDiagnosticPatterns } from "./trajectory-diagnostic-escalation.js";
 
@@ -119,6 +120,7 @@ export function seedTrajectoryRun(
         startedAt: completedAt,
         completedAt,
         durationMs: 1000,
+        usage: UNKNOWN_AGENT_USAGE,
       },
     ],
   };

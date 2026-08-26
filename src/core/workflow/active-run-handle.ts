@@ -1,6 +1,7 @@
 import { appendFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { AgentUsageAccumulator } from "#core/agent-harness/usage.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
@@ -17,6 +18,7 @@ import {
   projectWorkflowStepResultForStorage,
 } from "./run-evidence.js";
 import { safeJsonStringify, validateWorkflowRunId, writeJsonFile } from "./run-io.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
@@ -44,28 +46,6 @@ export type ActiveWorkflowRunHandle = {
   recordStep(result: WorkflowStepResult): void;
   finish(update: FinishUpdate): WorkflowRunMetadata;
 };
-
-function stepInputTokens(step: WorkflowStepResult): number {
-  if (step.inputTokens !== undefined) return step.inputTokens;
-  if (step.type !== "agent") return 0;
-  const output = step.output;
-  if (output === null || typeof output !== "object" || Array.isArray(output)) {
-    return 0;
-  }
-  const value = (output as { inputTokens?: number }).inputTokens;
-  return typeof value === "number" ? value : 0;
-}
-
-function stepOutputTokens(step: WorkflowStepResult): number {
-  if (step.outputTokens !== undefined) return step.outputTokens;
-  if (step.type !== "agent") return 0;
-  const output = step.output;
-  if (output === null || typeof output !== "object" || Array.isArray(output)) {
-    return 0;
-  }
-  const value = (output as { outputTokens?: number }).outputTokens;
-  return typeof value === "number" ? value : 0;
-}
 
 export function createActiveRunHandle(opts: {
   id: string;
@@ -154,7 +134,7 @@ export function createActiveRunHandle(opts: {
     for (const sourceRunId of linkedSourceRunIds(completed)) {
       const sourceRunDirPath = linkedSourceRunDirPath(sourceRunId);
       if (sourceRunDirPath === null) continue;
-      const sourceMetadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      const sourceMetadata = readWorkflowRunMetadataFile(
         join(sourceRunDirPath, "metadata.json"),
       );
       if (!sourceMetadata) continue;
@@ -206,17 +186,13 @@ export function createActiveRunHandle(opts: {
       persistMetadata();
     },
     finish: (update) => {
-      const totalCostUsd = metadata.steps
-        .filter((s) => s.type === "agent")
-        .reduce((sum, step) => sum + (step.costUsd ?? 0), 0);
-      const inputTokens = metadata.steps.reduce(
-        (sum, step) => sum + stepInputTokens(step),
-        0,
+      const agentSteps = metadata.steps.filter(
+        (step) => step.type === "agent" && step.status !== "skipped",
       );
-      const outputTokens = metadata.steps.reduce(
-        (sum, step) => sum + stepOutputTokens(step),
-        0,
-      );
+      const usageAccumulator = new AgentUsageAccumulator();
+      for (const step of agentSteps) {
+        usageAccumulator.observe(step.usage);
+      }
       const completed: WorkflowRunMetadata = {
         ...metadata,
         status: update.status,
@@ -228,9 +204,7 @@ export function createActiveRunHandle(opts: {
         ...(update.hostSuspendedMs !== undefined
           ? { hostSuspendedMs: update.hostSuspendedMs }
           : {}),
-        totalCostUsd,
-        inputTokens,
-        outputTokens,
+        ...(agentSteps.length > 0 ? { usage: usageAccumulator.snapshot() } : {}),
         ...(update.warnings && update.warnings.length > 0 ? { warnings: update.warnings } : {}),
       };
       if (update.error) {

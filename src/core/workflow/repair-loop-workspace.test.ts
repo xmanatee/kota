@@ -9,7 +9,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
+import {
+  type TrajectoryDiagnosticsMetadata,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarness } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -185,6 +188,7 @@ describe("runAgentRepairLoop workspaceDir", () => {
         text: "repair wrote a workspace file",
         streamedText: "repair wrote a workspace file",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

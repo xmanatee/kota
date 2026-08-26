@@ -60,6 +60,10 @@ afterEach(() => {
           text: "done",
           isError: false,
           numTurns: 1,
+          usage: {
+            tokens: { state: "complete", inputTokens: 3, outputTokens: 1 },
+            cost: { state: "unknown" },
+          },
         });
       },
       {},
@@ -125,6 +129,10 @@ afterEach(() => {
         type: "result",
         isError: false,
         numTurns: 1,
+        usage: {
+          tokens: { state: "complete", inputTokens: 3, outputTokens: 1 },
+          cost: { state: "unknown" },
+        },
       },
     });
 

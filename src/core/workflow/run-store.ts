@@ -1,19 +1,17 @@
 import { existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { redactSensitiveText } from "#core/evidence/policy.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import { ensureDir, writeStrictJsonFile } from "./run-io.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
 import { createWorkflowRun } from "./run-store-creation.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
 } from "./run-types.js";
-import type {
-  WorkflowRunTrigger,
-} from "./trigger-types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
@@ -53,7 +51,7 @@ export class WorkflowRunStore {
     const dirs = readdirSync(this.runsDir).sort().reverse();
     const runs: WorkflowRunMetadata[] = [];
     for (const dir of dirs) {
-      const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, dir, "metadata.json"));
+      const meta = readWorkflowRunMetadataFile(join(this.runsDir, dir, "metadata.json"));
       if (!meta) continue;
       if (opts?.workflow && meta.workflow !== opts.workflow) continue;
       if (opts?.tag && !(meta.tags ?? []).includes(opts.tag)) continue;
@@ -69,7 +67,7 @@ export class WorkflowRunStore {
   }
 
   getRun(id: string): WorkflowRunMetadata | null {
-    return readOptionalJsonFile<WorkflowRunMetadata>(join(this.runsDir, id, "metadata.json"));
+    return readWorkflowRunMetadataFile(join(this.runsDir, id, "metadata.json"));
   }
 
   reconcileTerminalStatus(

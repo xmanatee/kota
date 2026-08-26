@@ -1,16 +1,12 @@
 /**
  * MCP `sampling/createMessage` handler. Forwards the request to the
- * configured model client, writes a synthetic run-artifact entry for cost
- * tracking, and returns the assistant turn in MCP wire shape.
+ * configured model client and returns the assistant turn in MCP wire shape.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import type {
 	KotaMessage,
 	KotaModelResponse,
 } from "#core/agent-harness/message-protocol.js";
-import { CostTracker } from "#core/loop/cost.js";
 import type { MessageCreateParams, ModelClient } from "#core/model/model-client.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
 import {
@@ -22,7 +18,6 @@ export type SamplingOptions = {
 	enabled: boolean;
 	modelClient: ModelClient | null;
 	samplingModel: string;
-	projectDir: string;
 };
 
 export class SamplingHandler {
@@ -89,8 +84,6 @@ export class SamplingHandler {
 			return;
 		}
 
-		this.writeSamplingRunArtifact(response.usage, response.model);
-
 		const textBlock = response.content.find((b) => b.type === "text");
 		const text = textBlock && "text" in textBlock ? textBlock.text : "";
 
@@ -107,50 +100,5 @@ export class SamplingHandler {
 			model: response.model,
 			stopReason,
 		});
-	}
-
-	private writeSamplingRunArtifact(
-		usage: { input_tokens: number; output_tokens: number },
-		model: string,
-	): void {
-		try {
-			const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-			const suffix = Math.random().toString(36).slice(2, 8);
-			const runId = `${stamp}-mcp-sampling-${suffix}`;
-			const runDir = join(this.options.projectDir, ".kota", "runs", runId);
-
-			let costUsd = 0;
-			try {
-				const tracker = new CostTracker();
-				tracker.addUsage(model, {
-					input_tokens: usage.input_tokens,
-					output_tokens: usage.output_tokens,
-				});
-				costUsd = tracker.getTotalCost();
-			} catch {
-				this.ctx.log("Warning: failed to calculate sampling cost");
-			}
-
-			const now = new Date().toISOString();
-			const metadata = {
-				id: runId,
-				workflow: "mcp-sampling",
-				definitionPath: "",
-				trigger: { event: "mcp.sampling", schemaRef: null, payload: {} },
-				startedAt: now,
-				completedAt: now,
-				durationMs: 0,
-				status: "success",
-				runDir,
-				steps: [],
-				totalCostUsd: costUsd,
-			};
-
-			mkdirSync(runDir, { recursive: true });
-			writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
-		} catch {
-			// Non-fatal: cost tracking failure should not break the sampling response
-			this.ctx.log("Warning: failed to write sampling run artifact");
-		}
 	}
 }

@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { Daemon } from "#core/daemon/daemon.js";
 import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
@@ -71,6 +72,7 @@ describe("Telegram daemon scheduling", () => {
       text: "done",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       subtype: "success",
       isError: false,
     });

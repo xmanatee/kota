@@ -67,17 +67,17 @@ describe("renderAutonomyReport with populated data", () => {
         totalCommittedRuns: 2,
         unresolvedClosures: 1,
         byArea: [
-          { area: "architecture", commits: 1, totalCostUsd: 0.4 },
-          { area: "client", commits: 1, totalCostUsd: 0.1 },
+          { area: "architecture", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
+          { area: "client", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
         ],
         byPriority: [
-          { priority: "p1", commits: 1, totalCostUsd: 0.4 },
-          { priority: "p2", commits: 1, totalCostUsd: 0.1 },
+          { priority: "p1", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
+          { priority: "p2", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
         ],
         byClassification: [
-          { classification: "strategic", commits: 1, totalCostUsd: 0.4 },
-          { classification: "fan-out", commits: 1, totalCostUsd: 0.1 },
-          { classification: "other", commits: 0, totalCostUsd: 0 },
+          { classification: "strategic", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
+          { classification: "fan-out", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
+          { classification: "other", commits: 0, measuredCostRuns: 0, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: null },
         ],
         closures: [],
       },
@@ -194,26 +194,40 @@ describe("renderAutonomyReport with populated data", () => {
       },
       cost: {
         totalCostUsd: 0.5,
-        finishedRuns: 2,
-        averagePerFinishedRun: 0.25,
+        finishedRuns: 4,
+        measuredRuns: 2,
+        unavailableRuns: 1,
+        unknownRuns: 1,
+        averageMeasuredCostUsd: 0.25,
         byWorkflow: [
           {
             workflow: "builder",
-            finishedRuns: 1,
+            finishedRuns: 2,
+            measuredRuns: 1,
+            unavailableRuns: 1,
+            unknownRuns: 0,
             totalCostUsd: 0.4,
-            averageCostUsd: 0.4,
+            averageMeasuredCostUsd: 0.4,
           },
           {
             workflow: "explorer",
-            finishedRuns: 1,
+            finishedRuns: 2,
+            measuredRuns: 1,
+            unavailableRuns: 0,
+            unknownRuns: 1,
             totalCostUsd: 0.1,
-            averageCostUsd: 0.1,
+            averageMeasuredCostUsd: 0.1,
           },
         ],
       },
     };
 
     const text = renderReport(populated);
+    expect(populated.cost).toMatchObject({
+      measuredRuns: 2,
+      unavailableRuns: 1,
+      unknownRuns: 1,
+    });
     expect(text).toContain("Total: 3");
     expect(text).toContain("architecture");
     expect(text).toContain("client");

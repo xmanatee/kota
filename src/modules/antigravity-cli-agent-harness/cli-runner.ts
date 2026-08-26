@@ -17,6 +17,7 @@ import {
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
 import type { AgentOutputSchema } from "#core/agent-harness/types.js";
+import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import {
   type CollectedAntigravityOutput,
@@ -155,8 +156,7 @@ async function runAntigravityCliProcess(
         streamedText: output.streamedText,
         ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
         turns: output.turns,
-        ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-        ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+        usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
         isError: true,
         subtype: ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE,
       };
@@ -166,8 +166,7 @@ async function runAntigravityCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.turns,
-      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
       subtype: "aborted",
     };
@@ -180,6 +179,7 @@ async function runAntigravityCliProcess(
       text: detail,
       streamedText: output.streamedText,
       turns: output.turns,
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
       subtype: spawnError === undefined
         ? "antigravity_cli_parse_error"
@@ -197,8 +197,7 @@ async function runAntigravityCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.turns,
-      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
       subtype: isNativeCliSandboxBootstrapError(detail)
         ? "native_cli_sandbox_error"
@@ -212,8 +211,7 @@ async function runAntigravityCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.turns,
-      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
       subtype: "antigravity_cli_incomplete_output",
     };
@@ -226,8 +224,7 @@ async function runAntigravityCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.turns,
-      ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-      ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+      usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
       isError: true,
       subtype: toolFailure.subtype,
     };
@@ -242,8 +239,7 @@ async function runAntigravityCliProcess(
     streamedText: output.streamedText,
     ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
     turns: output.turns,
-    ...(output.inputTokens !== undefined ? { inputTokens: output.inputTokens } : {}),
-    ...(output.outputTokens !== undefined ? { outputTokens: output.outputTokens } : {}),
+    usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
     isError: false,
   };
 }

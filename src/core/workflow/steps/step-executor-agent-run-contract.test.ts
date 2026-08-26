@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AgentHarness } from "#core/agent-harness/index.js";
+import {
+  type AgentHarness,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import { resolveWorkflowAgentRunContract } from "./step-executor-agent-run-contract.js";
 
 describe("resolveWorkflowAgentRunContract", () => {
@@ -21,6 +24,7 @@ describe("resolveWorkflowAgentRunContract", () => {
         text: "",
         streamedText: "",
         turns: 0,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }),
     };

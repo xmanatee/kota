@@ -87,8 +87,10 @@ describe("geminiAgentHarness — happy path", () => {
       streamedText: "all done",
       sessionId: "resp-1",
       turns: 1,
-      inputTokens: 18,
-      outputTokens: 7,
+      usage: {
+        tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
   });
@@ -126,5 +128,9 @@ describe("geminiAgentHarness — happy path", () => {
     expect(writer.write).toHaveBeenCalledTimes(1);
     expect(writer.write).toHaveBeenCalledWith("visible answer");
     expect(result.text).toBe("visible answer");
+    expect(result.usage).toEqual({
+      tokens: { state: "unknown" },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
   });
 });

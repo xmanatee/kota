@@ -33,6 +33,7 @@ describe("agent-sdk executor", () => {
           result: "Final answer",
           num_turns: 2,
           total_cost_usd: 0.12,
+          usage: { input_tokens: 10, output_tokens: 4 },
           subtype: "success",
         },
       ]),
@@ -46,7 +47,10 @@ describe("agent-sdk executor", () => {
     expect(result.streamedText).toBe("Hello world");
     expect(result.sessionId).toBe("sess-123");
     expect(result.turns).toBe(2);
-    expect(result.totalCostUsd).toBe(0.12);
+    expect(result.usage).toEqual({
+      tokens: { state: "complete", inputTokens: 10, outputTokens: 4 },
+      cost: { state: "complete", usd: 0.12 },
+    });
     expect(result.subtype).toBe("success");
     expect(result.isError).toBe(false);
   });

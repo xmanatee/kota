@@ -7,7 +7,10 @@ import type {
   HarnessCapabilitySnapshot,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
-import { runAgentHarness } from "#core/agent-harness/index.js";
+import {
+  runAgentHarness,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import { TRACE_TAIL_LIMIT } from "./runner-constants.js";
 import {
   writeContextRetrievalDiagnosticsArtifact,
@@ -127,6 +130,7 @@ export async function runScenarioStageOnHarness(args: {
     durationMs,
     turns: runResult?.turns ?? 0,
     isError: runError !== null || runResult?.isError === true,
+    usage: runResult?.usage ?? UNKNOWN_AGENT_USAGE,
     verification,
     capability,
     changedFiles,
@@ -136,15 +140,6 @@ export async function runScenarioStageOnHarness(args: {
     trajectoryDiagnostics,
     ...(contextRetrievalDiagnostics !== undefined
       ? { contextRetrievalDiagnostics }
-      : {}),
-    ...(runResult?.inputTokens !== undefined
-      ? { inputTokens: runResult.inputTokens }
-      : {}),
-    ...(runResult?.outputTokens !== undefined
-      ? { outputTokens: runResult.outputTokens }
-      : {}),
-    ...(runResult?.totalCostUsd !== undefined
-      ? { totalCostUsd: runResult.totalCostUsd }
       : {}),
     ...(runResult?.subtype !== undefined ? { subtype: runResult.subtype } : {}),
     ...(runResult?.sessionId !== undefined ? { sessionId: runResult.sessionId } : {}),

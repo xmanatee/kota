@@ -6,7 +6,10 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
-import { resetHarnessHooks } from "#core/agent-harness/index.js";
+import {
+  resetHarnessHooks,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 
 export const SHIPPED_SCENARIOS_ROOT = join(import.meta.dirname, "scenarios");
 
@@ -228,6 +231,7 @@ export function makeHarness(
         text: `[${name}] done`,
         streamedText: `[${name}] done`,
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
         ...overrides,
       };

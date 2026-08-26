@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -329,7 +330,8 @@ describe("WorkflowRunStore tags", () => {
       startedAt: new Date(1700000000000).toISOString(),
       completedAt: new Date(1700000001000).toISOString(),
       durationMs: 1000,
-      output: { toolResult: `raw output ${secret}`, totalCostUsd: 0.01 },
+      output: { toolResult: `raw output ${secret}` },
+      usage: UNKNOWN_AGENT_USAGE,
     });
     handle.finish({
       status: "failed",

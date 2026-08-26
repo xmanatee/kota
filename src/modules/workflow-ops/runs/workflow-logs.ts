@@ -9,7 +9,7 @@ import type {
   KotaAgentToolResultMessage,
 } from "#core/agent-harness/index.js";
 import { formatToolCallLogLabel } from "#core/loop/tool-observations.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
@@ -63,8 +63,11 @@ function renderResultMessage(
     `[result]    ${message.subtype ?? (message.isError ? "error" : "done")}`,
   ];
   if (message.numTurns !== undefined) parts.push(`turns=${message.numTurns}`);
-  if (message.totalCostUsd !== undefined)
-    parts.push(`cost=$${message.totalCostUsd.toFixed(4)}`);
+  parts.push(
+    message.usage.cost.state === "complete"
+      ? `cost=$${message.usage.cost.usd.toFixed(4)}`
+      : `cost=${message.usage.cost.state}`,
+  );
   const lines = [parts.join("  ")];
   if (message.text) lines.push(`            ${truncateContent(message.text, maxLen)}`);
   return lines;
@@ -205,7 +208,7 @@ export async function followRunLogs(
 ): Promise<void> {
   if (runId) {
     const metadataPath = join(runsDir, runId, "metadata.json");
-    const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+    const metadata = readWorkflowRunMetadataFile(metadataPath);
     if (metadata && metadata.status !== "running") {
       const stepLogs = buildRunLogs(runsDir, runId, metadata, filterStep, maxLen);
       for (const { stepId, lines } of stepLogs) {
@@ -247,7 +250,7 @@ export async function followRunLogs(
       }
 
       const metadataPath = join(runsDir, activeRunId, "metadata.json");
-      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      const metadata = readWorkflowRunMetadataFile(metadataPath);
       if (!metadata) return;
 
       const agentSteps = metadata.steps.filter(

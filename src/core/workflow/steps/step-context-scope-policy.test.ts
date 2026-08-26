@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
+  type AgentHarnessResult,
   agentHarnessToolExecutionOptions,
 } from "#core/agent-harness/index.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -379,7 +380,7 @@ describe("workflow step context scope policy", () => {
       let firstResult: ToolResultEntry | undefined;
       let secondResult: ToolResultEntry | undefined;
       const runAgentHarness: WorkflowAgentHarnessRunner = vi.fn(
-        async (_harness, options) => {
+        async (_harness, options): Promise<AgentHarnessResult> => {
           expect(options.scopePolicy).toBe(snapshot.policy);
           expect(options.getScopePolicySnapshot).toEqual(expect.any(Function));
           expect(options.approvalQueue).toBeDefined();
@@ -408,6 +409,10 @@ describe("workflow step context scope policy", () => {
             text: "direct harness complete",
             streamedText: "direct harness complete",
             turns: 1,
+            usage: {
+              tokens: { state: "unknown" },
+              cost: { state: "unknown" },
+            },
             isError: false,
           };
         },

@@ -37,11 +37,12 @@ function writeCoverage(
   runId: string,
   gapCount: number,
   averageMs: number,
+  unknownCount = 0,
 ): void {
   writeFileSync(
     join(runsDir, runId, "control-monitor-coverage.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 3,
       generatedAt: new Date(NOW).toISOString(),
       artifactPath: `.kota/runs/${runId}/control-monitor-coverage.json`,
       run: {
@@ -68,6 +69,8 @@ function writeCoverage(
         denominator: 5,
         gapCount,
         unsupportedCount: gapCount === 0 ? 1 : 0,
+        unavailableCount: 0,
+        unknownCount,
         pendingCount: gapCount,
         blockedCount: 0,
         warnedCount: gapCount === 0 ? 2 : 0,
@@ -85,6 +88,15 @@ function writeCoverage(
               evidenceRefs: [`.kota/runs/${runId}/metadata.json`],
             },
           ],
+      unknowns: unknownCount === 0
+        ? []
+        : [{
+            id: "agent-step-stream:interrupted-before-agent-step-events-finalized:1",
+            family: "agent-step-stream",
+            reason: "interrupted-before-agent-step-events-finalized",
+            subject: "build",
+            evidenceRefs: [`.kota/runs/${runId}/metadata.json`],
+          }],
       asyncReviewResponseMs: {
         observations: 1,
         min: averageMs,
@@ -141,6 +153,32 @@ describe("control coverage report aggregation", () => {
     );
     runsDir = join(projectDir, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
+  });
+
+  it("surfaces terminal unknown coverage separately from pending and gaps", () => {
+    const runId = "2026-04-28T15-00-00-000Z-builder-unknown";
+    writeRun(runsDir, runId, "builder", new Date(NOW - 60 * 60 * 1000).toISOString());
+    writeCoverage(runsDir, runId, 0, 0, 1);
+
+    const report = buildControlCoverageReportForWindow({
+      runsDir,
+      windowEndMs: NOW,
+      windowStartMs: NOW - 7 * MS_PER_DAY,
+    });
+
+    expect(report).toMatchObject({
+      runsWithUnknownCoverage: 1,
+      unknownFamilies: 1,
+      pendingFamilies: 0,
+      totalGaps: 0,
+    });
+    expect(report.topUnknowns).toEqual([
+      expect.objectContaining({
+        family: "agent-step-stream",
+        reason: "interrupted-before-agent-step-events-finalized",
+        count: 1,
+      }),
+    ]);
   });
 
   afterEach(() => {

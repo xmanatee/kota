@@ -84,10 +84,7 @@ export function emitResultMessage(
     ...(result.text.length > 0 ? { text: result.text } : {}),
     ...(result.subtype !== undefined ? { subtype: result.subtype } : {}),
     ...(result.turns !== undefined ? { numTurns: result.turns } : {}),
-    ...(result.inputTokens !== undefined ? { inputTokens: result.inputTokens } : {}),
-    ...(result.outputTokens !== undefined
-      ? { outputTokens: result.outputTokens }
-      : {}),
+    usage: result.usage,
     ...(sessionId !== undefined ? { sessionId } : {}),
   });
 }

@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { formatCsv, loadRunSummaries } from "./run-export.js";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
+import { formatCsv, loadRunSummaries, type RunSummary } from "./run-export.js";
 
 let counter = 0;
 function makeRunsDir(): string {
@@ -19,7 +20,7 @@ function writeRun(
     status: string;
     startedAt: string;
     durationMs?: number;
-    totalCostUsd?: number;
+    usage?: AgentUsage;
     steps?: unknown[];
     trigger?: { event: string; payload: Record<string, unknown> };
   },
@@ -34,6 +35,13 @@ function writeRun(
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(record));
 }
 
+function completeUsage(costUsd: number): AgentUsage {
+  return {
+    tokens: { state: "complete", inputTokens: 10, outputTokens: 2 },
+    cost: { state: "complete", usd: costUsd },
+  };
+}
+
 describe("loadRunSummaries", () => {
   it("returns empty array when no runs exist", () => {
     const runsDir = makeRunsDir();
@@ -43,8 +51,8 @@ describe("loadRunSummaries", () => {
   it("returns run summaries sorted by id descending", () => {
     const runsDir = makeRunsDir();
     const now = new Date().toISOString();
-    writeRun(runsDir, { id: "2024-01-01-builder-aaa", workflow: "builder", status: "success", startedAt: now, durationMs: 60000, totalCostUsd: 0.1, steps: [{}, {}] });
-    writeRun(runsDir, { id: "2024-01-02-explorer-bbb", workflow: "explorer", status: "failed", startedAt: now, durationMs: 30000, totalCostUsd: 0.05 });
+    writeRun(runsDir, { id: "2024-01-01-builder-aaa", workflow: "builder", status: "success", startedAt: now, durationMs: 60000, usage: completeUsage(0.1), steps: [{}, {}] });
+    writeRun(runsDir, { id: "2024-01-02-explorer-bbb", workflow: "explorer", status: "failed", startedAt: now, durationMs: 30000, usage: completeUsage(0.05) });
     const summaries = loadRunSummaries(runsDir, {});
     expect(summaries).toHaveLength(2);
     expect(summaries[0].id).toBe("2024-01-02-explorer-bbb");
@@ -60,7 +68,7 @@ describe("loadRunSummaries", () => {
       status: "success",
       startedAt,
       durationMs: 5000,
-      totalCostUsd: 0.25,
+      usage: completeUsage(0.25),
       steps: [{ id: "a" }, { id: "b" }, { id: "c" }],
       trigger: { event: "workflow.completed", payload: {} },
     });
@@ -72,7 +80,11 @@ describe("loadRunSummaries", () => {
     expect(s.startedAt).toBe(startedAt);
     expect(s.durationMs).toBe(5000);
     expect(s.stepCount).toBe(3);
-    expect(s.totalCostUsd).toBe(0.25);
+    expect(s.tokenState).toBe("complete");
+    expect(s.inputTokens).toBe(10);
+    expect(s.outputTokens).toBe(2);
+    expect(s.costState).toBe("complete");
+    expect(s.costUsd).toBe(0.25);
   });
 
   it("uses null for missing optional fields", () => {
@@ -80,8 +92,50 @@ describe("loadRunSummaries", () => {
     writeRun(runsDir, { id: "run-no-cost", workflow: "builder", status: "failed", startedAt: new Date().toISOString() });
     const [s] = loadRunSummaries(runsDir, {});
     expect(s.durationMs).toBeNull();
-    expect(s.totalCostUsd).toBeNull();
+    expect(s.tokenState).toBeNull();
+    expect(s.inputTokens).toBeNull();
+    expect(s.outputTokens).toBeNull();
+    expect(s.costState).toBeNull();
+    expect(s.costUsd).toBeNull();
     expect(s.stepCount).toBe(0);
+  });
+
+  it("keeps unavailable and unknown cost distinct from zero", () => {
+    const runsDir = makeRunsDir();
+    const now = new Date().toISOString();
+    writeRun(runsDir, {
+      id: "run-unavailable",
+      workflow: "builder",
+      status: "success",
+      startedAt: now,
+      usage: {
+        tokens: { state: "partial", inputTokens: 10, outputTokens: 0 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
+    });
+    writeRun(runsDir, {
+      id: "run-unknown",
+      workflow: "builder",
+      status: "success",
+      startedAt: now,
+      usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
+    });
+
+    const summaries = loadRunSummaries(runsDir, {});
+    expect(summaries.find((summary) => summary.id === "run-unavailable")).toMatchObject({
+      tokenState: "partial",
+      inputTokens: 10,
+      outputTokens: 0,
+      costState: "unavailable",
+      costUsd: null,
+    });
+    expect(summaries.find((summary) => summary.id === "run-unknown")).toMatchObject({
+      tokenState: "unknown",
+      inputTokens: null,
+      outputTokens: null,
+      costState: "unknown",
+      costUsd: null,
+    });
   });
 
   it("filters by workflow", () => {
@@ -129,7 +183,7 @@ describe("loadRunSummaries", () => {
 
 describe("formatCsv", () => {
   it("outputs header row and one data row", () => {
-    const summaries = [
+    const summaries: RunSummary[] = [
       {
         id: "run-abc",
         workflow: "builder",
@@ -138,13 +192,17 @@ describe("formatCsv", () => {
         startedAt: "2024-01-01T00:00:00.000Z",
         durationMs: 60000,
         stepCount: 2,
-        totalCostUsd: 0.1,
+        tokenState: "complete",
+        inputTokens: 10,
+        outputTokens: 2,
+        costState: "complete",
+        costUsd: 0.1,
       },
     ];
     const csv = formatCsv(summaries);
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,totalCostUsd");
-    expect(lines[1]).toBe("run-abc,builder,success,manual,2024-01-01T00:00:00.000Z,60000,2,0.1");
+    expect(lines[0]).toBe("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd");
+    expect(lines[1]).toBe("run-abc,builder,success,manual,2024-01-01T00:00:00.000Z,60000,2,complete,10,2,complete,0.1");
   });
 
   it("outputs only header row for empty summaries", () => {
@@ -155,7 +213,7 @@ describe("formatCsv", () => {
   });
 
   it("writes empty string for null fields", () => {
-    const summaries = [
+    const summaries: RunSummary[] = [
       {
         id: "run-x",
         workflow: "builder",
@@ -164,16 +222,20 @@ describe("formatCsv", () => {
         startedAt: "2024-06-01T10:00:00.000Z",
         durationMs: null,
         stepCount: 0,
-        totalCostUsd: null,
+        tokenState: null,
+        inputTokens: null,
+        outputTokens: null,
+        costState: null,
+        costUsd: null,
       },
     ];
     const csv = formatCsv(summaries);
     const dataLine = csv.trim().split("\n")[1];
-    expect(dataLine).toBe("run-x,builder,failed,cron,2024-06-01T10:00:00.000Z,,0,");
+    expect(dataLine).toBe("run-x,builder,failed,cron,2024-06-01T10:00:00.000Z,,0,,,,,");
   });
 
   it("escapes commas in values with double quotes", () => {
-    const summaries = [
+    const summaries: RunSummary[] = [
       {
         id: "run-y",
         workflow: "has,comma",
@@ -182,7 +244,11 @@ describe("formatCsv", () => {
         startedAt: "2024-01-01T00:00:00.000Z",
         durationMs: 1000,
         stepCount: 1,
-        totalCostUsd: 0.01,
+        tokenState: "unknown",
+        inputTokens: null,
+        outputTokens: null,
+        costState: "unknown",
+        costUsd: null,
       },
     ];
     const csv = formatCsv(summaries);
@@ -191,6 +257,6 @@ describe("formatCsv", () => {
 
   it("produces stable column order", () => {
     const csv = formatCsv([]);
-    expect(csv.startsWith("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,totalCostUsd")).toBe(true);
+    expect(csv.startsWith("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd")).toBe(true);
   });
 });

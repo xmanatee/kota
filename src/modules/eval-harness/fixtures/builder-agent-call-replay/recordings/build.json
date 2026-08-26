@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-04-24T15-11-48-347Z-builder-gnt9c6",
@@ -7,10 +7,18 @@
     "text": "Step complete. New decomposer smoke fixture lands at `src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/`, exercises `triggerPayload` forwarding plus the `assess-failure` decision gate via deterministic-path `file-contains` against the decomposer's own metadata.json, passes end-to-end (188 ms / 60 s budget) and trips loudly under a probed gate inversion. `uncovered/notes.md` narrowed to flag only the agent-call path. Task moved to `done/`, run artifacts and `commit-message.txt` written, all changes staged for the workflow's commit step.",
     "subtype": "success",
     "turns": 92,
-    "totalCostUsd": 7.386985750000001,
-    "inputTokens": 82,
-    "outputTokens": 54723,
-    "sessionId": "128280f0-cfc7-4152-a2fa-b9291632851b"
+    "sessionId": "128280f0-cfc7-4152-a2fa-b9291632851b",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 82,
+        "outputTokens": 54723
+      },
+      "cost": {
+        "state": "complete",
+        "usd": 7.386985750000001
+      }
+    }
   },
   "fileOperations": [
     {

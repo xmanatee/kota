@@ -37,7 +37,7 @@ describe("agent-step recording provenance", () => {
   }
 
   const VALID_RECORDING = {
-    version: 1,
+    version: 2,
     workflowName: "decomposer",
     stepId: "decompose",
     sourceRunId: REAL_FAILURE_PROVENANCE.sourceRunId,
@@ -45,9 +45,10 @@ describe("agent-step recording provenance", () => {
       text: "ok",
       subtype: "success",
       turns: 1,
-      totalCostUsd: 0,
-      inputTokens: 0,
-      outputTokens: 0,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
     },
     fileOperations: [],
   };

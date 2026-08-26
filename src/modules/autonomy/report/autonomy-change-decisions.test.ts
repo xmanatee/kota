@@ -24,7 +24,10 @@ function metadata(id: string): WorkflowRunMetadata {
     startedAt: "2026-07-07T00:00:00.000Z",
     completedAt: "2026-07-07T00:01:00.000Z",
     durationMs: 60_000,
-    totalCostUsd: 1,
+    usage: {
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+      cost: { state: "complete", usd: 1 },
+    },
     steps: [],
     warnings: [],
   };

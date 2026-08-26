@@ -1,6 +1,6 @@
 export const CONTROL_MONITOR_COVERAGE_ARTIFACT =
   "control-monitor-coverage.json";
-export const CONTROL_MONITOR_COVERAGE_SCHEMA_VERSION = 1;
+export const CONTROL_MONITOR_COVERAGE_SCHEMA_VERSION = 2;
 
 export const CONTENT_INGEST_TOOL_NAMES = new Set([
   "WebFetch",
@@ -39,6 +39,7 @@ export type ControlCoverageStatus =
   | "partial"
   | "missing"
   | "unsupported"
+  | "unknown"
   | "pending"
   | "not-applicable";
 
@@ -51,16 +52,26 @@ export type ControlCoverageGap = {
   evidenceRefs: string[];
 };
 
+export type ControlCoverageUnknown = {
+  id: string;
+  family: ControlCoverageFamilyName;
+  reason: string;
+  subject: string;
+  evidenceRefs: string[];
+};
+
 export type ControlCoverageFamily = {
   family: ControlCoverageFamilyName;
   status: ControlCoverageStatus;
   numerator: number;
   denominator: number;
   pending: number;
+  unknown: number;
   blocked: number;
   warned: number;
   evidenceRefs: string[];
   gapIds: string[];
+  unknownIds: string[];
 };
 
 export type ControlCoverageFamilyBuilder = Omit<
@@ -98,12 +109,14 @@ export type ControlMonitorCoverageArtifact = {
     denominator: number;
     gapCount: number;
     unsupportedCount: number;
+    unknownCount: number;
     pendingCount: number;
     blockedCount: number;
     warnedCount: number;
   };
   families: ControlCoverageFamily[];
   gaps: ControlCoverageGap[];
+  unknowns: ControlCoverageUnknown[];
   asyncReviewResponseMs: {
     observations: number;
     min: number | null;

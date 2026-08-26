@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
@@ -22,7 +23,7 @@ type RunRow = {
   workflow: string;
   status: string;
   durationMs?: number;
-  totalCostUsd?: number;
+  usage?: AgentUsage;
   startedAt: string;
   trigger: { event: string };
   retryOf?: string;
@@ -63,7 +64,7 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
         workflow: r.workflow,
         status: r.status,
         durationMs: r.durationMs,
-        totalCostUsd: r.totalCostUsd,
+        usage: r.usage,
         startedAt: r.startedAt,
         trigger: { event: r.triggerEvent },
         retryOf: r.retryOf,
@@ -148,7 +149,9 @@ export function buildRunListNode(page: RunRow[]): ColumnsNode {
     ],
     page.map((r) => {
       const dur = r.durationMs != null ? formatDuration(r.durationMs) : "…";
-      const cost = r.totalCostUsd != null ? `$${r.totalCostUsd.toFixed(3)}` : "—";
+      const cost = r.usage?.cost.state === "complete"
+        ? `$${r.usage.cost.usd.toFixed(3)}`
+        : r.usage?.cost.state ?? "—";
       const triggerText = r.retryOf
         ? `retry ← ${r.retryOf}`
         : r.triggeredByRunId
@@ -175,9 +178,12 @@ export type HistoryTotals = {
   successes: number;
   failures: number;
   interrupted: number;
-  totalCostUsd: number;
+  totalCostUsd: number | null;
+  measuredCostRuns: number;
+  unavailableCostRuns: number;
+  unknownCostRuns: number;
   successRate: number;
-  avgCostUsd: number;
+  avgCostUsd: number | null;
   avgDurationMs: number | null;
   p95DurationMs: number | null;
 };
@@ -186,18 +192,46 @@ export function computeHistoryTotals(
   stats: HistoryStats[],
   filteredRuns: Array<{ status: string; durationMs?: number }>,
 ): HistoryTotals {
-  const acc = stats.reduce(
+  const acc = stats.reduce<Pick<
+    HistoryTotals,
+    | "total"
+    | "successes"
+    | "failures"
+    | "interrupted"
+    | "totalCostUsd"
+    | "measuredCostRuns"
+    | "unavailableCostRuns"
+    | "unknownCostRuns"
+  >>(
     (a, s) => ({
       total: a.total + s.total,
       successes: a.successes + s.successes,
       failures: a.failures + s.failures,
       interrupted: a.interrupted + s.interrupted,
-      totalCostUsd: a.totalCostUsd + s.totalCostUsd,
+      totalCostUsd: a.totalCostUsd === null
+        ? s.totalCostUsd
+        : s.totalCostUsd === null
+          ? a.totalCostUsd
+          : a.totalCostUsd + s.totalCostUsd,
+      measuredCostRuns: a.measuredCostRuns + s.measuredCostRuns,
+      unavailableCostRuns: a.unavailableCostRuns + s.unavailableCostRuns,
+      unknownCostRuns: a.unknownCostRuns + s.unknownCostRuns,
     }),
-    { total: 0, successes: 0, failures: 0, interrupted: 0, totalCostUsd: 0 },
+    {
+      total: 0,
+      successes: 0,
+      failures: 0,
+      interrupted: 0,
+      totalCostUsd: null,
+      measuredCostRuns: 0,
+      unavailableCostRuns: 0,
+      unknownCostRuns: 0,
+    },
   );
   const successRate = acc.total > 0 ? (acc.successes / acc.total) * 100 : 0;
-  const avgCostUsd = acc.total > 0 ? acc.totalCostUsd / acc.total : 0;
+  const avgCostUsd = acc.totalCostUsd === null || acc.measuredCostRuns === 0
+    ? null
+    : acc.totalCostUsd / acc.measuredCostRuns;
   const durations = filteredRuns
     .filter((r) => r.status !== "running" && r.durationMs != null)
     .map((r) => r.durationMs as number)
@@ -245,8 +279,8 @@ export function buildHistoryNode(
         },
         { spans: [{ text: String(s.interrupted), role: "warn" as SemanticRole }] },
         { spans: [{ text: `${s.successRate.toFixed(1)}%` }] },
-        { spans: [{ text: `$${s.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
-        { spans: [{ text: `$${s.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: s.totalCostUsd === null ? "—" : `$${s.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: s.avgCostUsd === null ? "—" : `$${s.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
         { spans: [{ text: avgDur }] },
         { spans: [{ text: p95Dur }] },
       ],
@@ -272,8 +306,8 @@ export function buildHistoryNode(
         },
         { spans: [{ text: String(totals.interrupted), role: "warn" as SemanticRole }] },
         { spans: [{ text: `${totals.successRate.toFixed(1)}%` }] },
-        { spans: [{ text: `$${totals.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
-        { spans: [{ text: `$${totals.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: totals.totalCostUsd === null ? "—" : `$${totals.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: totals.avgCostUsd === null ? "—" : `$${totals.avgCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
         { spans: [{ text: avgDur }] },
         { spans: [{ text: p95Dur }] },
       ],

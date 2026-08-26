@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentHarness } from "#core/agent-harness/index.js";
+import {
+	type AgentHarness,
+	UNKNOWN_AGENT_USAGE,
+	unpricedAgentUsage,
+} from "#core/agent-harness/index.js";
 import {
 	runAgentHarnessWithConversationResume,
 	transcriptFromKotaMessages,
@@ -47,6 +51,7 @@ describe("harness conversation resume", () => {
 			text: "plain answer",
 			streamedText: "plain answer",
 			turns: 1,
+			usage: UNKNOWN_AGENT_USAGE,
 			isError: false,
 		}));
 		const harness = makeHarness(run);
@@ -68,7 +73,7 @@ describe("harness conversation resume", () => {
 			text: "continued answer",
 			streamedText: "continued answer",
 			turns: 1,
-			inputTokens: 123,
+			usage: unpricedAgentUsage(123, undefined),
 			isError: false,
 		}));
 		const harness = makeHarness(run);

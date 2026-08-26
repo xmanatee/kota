@@ -23,6 +23,11 @@ export function renderControlCoverage(
       span(String(report.runsWithGaps), report.runsWithGaps > 0 ? "warn" : "success"),
       plain("   Gaps: "),
       span(String(report.totalGaps), report.totalGaps > 0 ? "warn" : "success"),
+      plain("   Unknown: "),
+      span(
+        String(report.unknownFamilies),
+        report.unknownFamilies > 0 ? "warn" : "success",
+      ),
       plain("   Evidence gaps: "),
       span(
         String(report.evidenceGapCount),
@@ -67,6 +72,21 @@ export function renderControlCoverage(
       );
     }
   }
+  if (report.topUnknowns.length > 0) {
+    lines.push(blank(), line(span("Inconclusive terminal evidence", "muted", true)));
+    for (const unknown of report.topUnknowns) {
+      lines.push(
+        line(
+          plain("  "),
+          span(`${String(unknown.count).padStart(2)}x`, "warn"),
+          plain(" "),
+          plain(unknown.family.padEnd(24)),
+          plain(" "),
+          span(unknown.reason, "warn"),
+        ),
+      );
+    }
+  }
   if (report.recentArtifactPaths.length > 0) {
     lines.push(blank(), line(span("Recent artifacts", "muted", true)));
     for (const artifactPath of report.recentArtifactPaths) {
@@ -79,6 +99,7 @@ export function renderControlCoverage(
 function controlStateEntries(report: ControlMonitorCoverageReport): KVEntry[] {
   return [
     { label: "pending", value: String(report.pendingFamilies) },
+    { label: "unknown", value: String(report.unknownFamilies) },
     { label: "unsupported", value: String(report.unsupportedFamilies) },
     { label: "blocked", value: String(report.blockedFamilies) },
     { label: "warned", value: String(report.warnedFamilies) },

@@ -265,6 +265,7 @@ export const codexAgentHarness: AgentHarness = {
       abortController: options.abortController,
       writer,
       onMessage: options.onMessage,
+      onUsage: options.onUsage,
       onProcessSpawn: options.onProcessSpawn,
     });
     options.abortQuarantine?.register(async () => {

@@ -17,12 +17,13 @@
  * `<runDir>/<label>.json` (`handleVerdict` writes it via `JSON.stringify`
  * with 2-space indent) rather than a workflow-step artifact. Judges have
  * no tool access by contract (see `AUTONOMY_DISALLOWED_TOOLS`), so
- * `fileOperations` is always empty. Turns/tokens/cost stay at the
- * `1/0/0/0` placeholder the judge artifact does not carry on disk.
+ * `fileOperations` is always empty. Judge artifacts do not carry usage,
+ * so recordings preserve that absence as unknown telemetry.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { parseAgentUsage, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type {
   AgentStepRecording,
   AgentStepRecordingResponse,
@@ -39,15 +40,13 @@ type StepArtifactOutput = {
   content?: unknown;
   sessionId?: unknown;
   turns?: unknown;
-  totalCostUsd?: unknown;
-  inputTokens?: unknown;
-  outputTokens?: unknown;
   subtype?: unknown;
 };
 
 type StepArtifact = {
   id?: unknown;
   type?: unknown;
+  usage?: unknown;
   output?: StepArtifactOutput;
 };
 
@@ -136,9 +135,7 @@ function extractResponse(
     text: responseContentText(out.content),
     subtype: requireString(out.subtype, "output.subtype"),
     turns: requireNumber(out.turns, "output.turns"),
-    totalCostUsd: requireNumber(out.totalCostUsd, "output.totalCostUsd"),
-    inputTokens: requireNumber(out.inputTokens, "output.inputTokens"),
-    outputTokens: requireNumber(out.outputTokens, "output.outputTokens"),
+    usage: parseAgentUsage(artifact.usage, "usage"),
     ...(typeof out.sessionId === "string" && { sessionId: out.sessionId }),
   };
 }
@@ -188,7 +185,7 @@ export function extractAgentStepRecording(
     extractRunDirWriteOperations(params.projectDir, sourceRunId, stepId);
 
   const recording: AgentStepRecording = {
-    version: 1,
+    version: 2,
     workflowName,
     stepId,
     sourceRunId,
@@ -228,10 +225,7 @@ export type ExtractJudgeRecordingResult = {
  *
  * Judge calls have no tool access (see `AUTONOMY_DISALLOWED_TOOLS` in
  * `src/modules/autonomy/shared.ts`), so `fileOperations` is always empty.
- * The `turns`/`totalCostUsd`/`inputTokens`/`outputTokens` placeholders
- * match today's hand-authored judge recordings — the judge artifact does
- * not carry those fields on disk, and the replay adapter does not need
- * them for dispatch.
+ * Usage is unknown because the judge artifact does not carry telemetry.
  *
  * Safe to re-run: overwrites the target file on each call. A missing or
  * unparseable `<runDir>/<label>.json` is a hard error naming the run id
@@ -266,7 +260,7 @@ export function extractJudgeCallRecording(
 
   const workflowName = readWorkflowName(params.projectDir, sourceRunId);
   const recording: AgentStepRecording = {
-    version: 1,
+    version: 2,
     workflowName,
     stepId: label,
     sourceRunId,
@@ -274,9 +268,7 @@ export function extractJudgeCallRecording(
       text: JSON.stringify(parsed, null, 2),
       subtype: "success",
       turns: 1,
-      totalCostUsd: 0,
-      inputTokens: 0,
-      outputTokens: 0,
+      usage: UNKNOWN_AGENT_USAGE,
     },
     fileOperations: [],
   };

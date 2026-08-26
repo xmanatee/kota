@@ -36,6 +36,7 @@ function emptyInspected(): RuntimeHealthAudit["inspected"] {
     interruptedRuns: 0,
     controlCoverageArtifacts: 0,
     controlCoverageGapRuns: 0,
+    controlCoverageUnknownRuns: 0,
     policyPrunedEvidenceRefs: 0,
     producerMissingEvidenceRefs: 0,
     daemonEvidenceFiles: 0,

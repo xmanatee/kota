@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { RunCoordinator } from "./run-coordinator.js";
 import type { RepositoryAccess } from "./run-sandbox.js";
@@ -227,6 +228,7 @@ describe("runtime dispatch write-scope attribution", () => {
           text: "done",
           streamedText: "done",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowStepContext,
@@ -170,6 +171,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -211,6 +213,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -250,6 +253,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -292,6 +296,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -321,6 +326,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -382,6 +388,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });
@@ -442,6 +449,7 @@ describe("writeCalibrationArtifact", () => {
           startedAt: "2026-04-20T11:59:00.000Z",
           completedAt: "2026-04-20T12:00:00.000Z",
           durationMs: 60000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       },
     });

@@ -9,7 +9,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
+import {
+  type TrajectoryDiagnosticsMetadata,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type {
   AgentCanUseToolContext,
@@ -286,6 +289,7 @@ describe("runAgentRepairLoop", () => {
         text: "repair complete",
         streamedText: "repair complete",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -352,6 +356,7 @@ describe("runAgentRepairLoop", () => {
         text: "repair complete",
         streamedText: "repair complete",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -423,6 +428,7 @@ describe("runAgentRepairLoop", () => {
         text: "no changes",
         streamedText: "no changes",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -481,6 +487,7 @@ describe("runAgentRepairLoop", () => {
         text: "no changes",
         streamedText: "no changes",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -529,6 +536,7 @@ describe("runAgentRepairLoop", () => {
         text: "repair wrote a file",
         streamedText: "repair wrote a file",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

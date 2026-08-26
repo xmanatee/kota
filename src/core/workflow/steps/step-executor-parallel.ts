@@ -1,3 +1,4 @@
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
@@ -187,16 +188,18 @@ export async function executeParallelStepGroup(
       }
     } else {
       const err = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
-      const failed: WorkflowStepResult = {
+      const failedBase = {
         id: childStep.id,
-        type: childStep.type,
         status: "failed",
         startedAt: new Date(stepStartedAt).toISOString(),
         completedAt: new Date().toISOString(),
         durationMs: Date.now() - stepStartedAt,
         error: err.message,
         ...(childStep.continueOnFailure ? { continueOnFailure: true } : {}),
-      };
+      } as const;
+      const failed: WorkflowStepResult = childStep.type === "agent"
+        ? { ...failedBase, type: "agent", usage: UNKNOWN_AGENT_USAGE }
+        : { ...failedBase, type: "code" };
       agentDeps.run.recordStep(failed);
       agentDeps.acc.stepResultsById[childStep.id] = failed;
       innerResults.push(failed);

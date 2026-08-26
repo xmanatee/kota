@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "synthetic-builder-spec-conditioned-protocol-compliance",
@@ -7,10 +7,15 @@
     "text": "Spec-conditioned protocol compliance fixture task completed. The handler now applies the local Window Envelope Protocol clauses, writes structured compliance evidence, preserves shortcut guards, and moves the seeded task to done.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-spec-conditioned-protocol-compliance-replay"
+    "sessionId": "builder-spec-conditioned-protocol-compliance-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

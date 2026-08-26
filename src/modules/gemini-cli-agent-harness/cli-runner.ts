@@ -6,6 +6,7 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import { unpricedAgentUsage } from "#core/agent-harness/index.js";
 import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
 import {
   NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
@@ -70,6 +71,7 @@ type CollectTextFromGeminiCliArgs = {
   writer: AgentHarnessWriter | undefined;
   onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
   onProcessSpawn: AgentHarnessRunOptions["onProcessSpawn"] | undefined;
+  onUsage: AgentHarnessRunOptions["onUsage"] | undefined;
 };
 
 async function runGeminiCliProcess(
@@ -131,6 +133,11 @@ async function runGeminiCliProcess(
   });
   removeAbortListener?.();
   const [output] = await Promise.all([outputPromise, stderrDone]);
+  const usage = unpricedAgentUsage(
+    output.tokenCounts.inputTokens,
+    output.tokenCounts.outputTokens,
+  );
+  args.onUsage?.(usage);
 
   if (args.abortController?.signal.aborted) {
     return {
@@ -138,12 +145,7 @@ async function runGeminiCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.sawStructuredOutput ? 1 : 0,
-      ...(output.tokenCounts.inputTokens !== undefined
-        ? { inputTokens: output.tokenCounts.inputTokens }
-        : {}),
-      ...(output.tokenCounts.outputTokens !== undefined
-        ? { outputTokens: output.tokenCounts.outputTokens }
-        : {}),
+      usage,
       isError: true,
       subtype: "aborted",
     };
@@ -158,6 +160,7 @@ async function runGeminiCliProcess(
       text: detail,
       streamedText: output.streamedText,
       turns: output.sawStructuredOutput ? 1 : 0,
+      usage,
       isError: true,
       subtype: spawnError !== undefined ? "gemini_cli_error" : "gemini_cli_parse_error",
     };
@@ -173,12 +176,7 @@ async function runGeminiCliProcess(
       streamedText: output.streamedText,
       ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
       turns: output.sawStructuredOutput ? 1 : 0,
-      ...(output.tokenCounts.inputTokens !== undefined
-        ? { inputTokens: output.tokenCounts.inputTokens }
-        : {}),
-      ...(output.tokenCounts.outputTokens !== undefined
-        ? { outputTokens: output.tokenCounts.outputTokens }
-        : {}),
+      usage,
       isError: true,
       subtype: isNativeCliSandboxBootstrapError(detail)
         ? "native_cli_sandbox_error"
@@ -192,6 +190,7 @@ async function runGeminiCliProcess(
       text: "Gemini CLI completed without structured output.",
       streamedText: "",
       turns: output.sawStructuredOutput ? 1 : 0,
+      usage,
       isError: true,
       subtype: "gemini_cli_empty_output",
     };
@@ -202,12 +201,7 @@ async function runGeminiCliProcess(
     streamedText: output.streamedText,
     ...(output.sessionId !== undefined ? { sessionId: output.sessionId } : {}),
     turns: 1,
-    ...(output.tokenCounts.inputTokens !== undefined
-      ? { inputTokens: output.tokenCounts.inputTokens }
-      : {}),
-    ...(output.tokenCounts.outputTokens !== undefined
-      ? { outputTokens: output.tokenCounts.outputTokens }
-      : {}),
+    usage,
     isError: false,
   };
 }

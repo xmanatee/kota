@@ -1,40 +1,59 @@
 import { describe, expect, it } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { renderContext } from "#modules/rendering/render.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
-import { buildRunBreakdownNode, buildSummaryTableNode } from "./run-cost.js";
+import { buildRunBreakdownNode, buildSummaryTableNode, type WorkflowCostRow } from "./run-cost.js";
 
-const ROWS = [
+const ROWS: WorkflowCostRow[] = [
   {
     workflow: "builder",
     runs: 12,
-    totalCostUsd: 1.234,
-    averageCostUsd: 0.103,
-    maxRunCostUsd: 0.42,
+    measuredRuns: 10,
+    unavailableRuns: 1,
+    unknownRuns: 1,
+    measuredCostUsd: 1.234,
+    averageMeasuredCostUsd: 0.103,
+    maxMeasuredRunCostUsd: 0.42,
   },
   {
     workflow: "explorer",
     runs: 4,
-    totalCostUsd: 0.20,
-    averageCostUsd: 0.05,
-    maxRunCostUsd: 0.07,
+    measuredRuns: 4,
+    unavailableRuns: 0,
+    unknownRuns: 0,
+    measuredCostUsd: 0.20,
+    averageMeasuredCostUsd: 0.05,
+    maxMeasuredRunCostUsd: 0.07,
   },
 ];
 
-const RUN_ENTRIES = [
+const RUN_ENTRIES: Array<{
+  id: string;
+  workflow: string;
+  status: string;
+  startedAt: string;
+  usage: AgentUsage;
+}> = [
   {
     id: "2026-04-20T10-00-00Z-builder-aaaa",
     workflow: "builder",
     status: "success",
     startedAt: "2026-04-20T10:00:00.000Z",
-    totalCostUsd: 0.42,
+    usage: {
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+      cost: { state: "complete", usd: 0.42 },
+    },
   },
   {
     id: "2026-04-20T11-00-00Z-builder-bbbb",
     workflow: "builder",
     status: "failed",
     startedAt: "2026-04-20T11:00:00.000Z",
-    totalCostUsd: 0.05,
+    usage: {
+      tokens: { state: "complete", inputTokens: 80, outputTokens: 10 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    },
   },
 ];
 
@@ -57,6 +76,22 @@ describe("buildSummaryTableNode", () => {
   it("returns null when given an empty rows array", () => {
     expect(buildSummaryTableNode([])).toBeNull();
   });
+
+  it("renders absent measurements as unknown rather than zero", () => {
+    const node = buildSummaryTableNode([{
+      workflow: "unmeasured",
+      runs: 1,
+      measuredRuns: 0,
+      unavailableRuns: 0,
+      unknownRuns: 1,
+      measuredCostUsd: null,
+      averageMeasuredCostUsd: null,
+      maxMeasuredRunCostUsd: null,
+    }]);
+    const out = renderToString(node!, renderContext({ theme: NO_COLOR_THEME, width: 120 }));
+    expect(out).toContain("unknown");
+    expect(out).not.toContain("$0.0000");
+  });
 });
 
 describe("buildRunBreakdownNode", () => {
@@ -67,6 +102,8 @@ describe("buildRunBreakdownNode", () => {
     );
     expect(out).toContain("2026-04-20T10-00-00Z-builder-aaaa");
     expect(out).toContain("$0.4200");
+    expect(out).toContain("unavailable");
+    expect(out).not.toContain("$0.0000");
     expect(out).toContain("success");
     expect(out).toContain("failed");
   });

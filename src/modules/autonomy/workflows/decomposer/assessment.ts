@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import {
   labeledPredicate,
   type WorkflowRunMetadata,
@@ -94,7 +94,7 @@ function readSourceMetadata(
   stateDir: string,
   source: ResolvedSource,
 ): WorkflowRunMetadata | null {
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+  const metadata = readWorkflowRunMetadataFile(
     join(stateDir, "runs", source.runId, "metadata.json"),
   );
   if (metadata !== null) assertBuilderFailureMetadata(metadata, source);
@@ -209,7 +209,7 @@ export function assertDecompositionOwnership(
       `Decomposer assessment runDir must equal canonical run directory ${canonicalRunDir}`,
     );
   }
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+  const metadata = readWorkflowRunMetadataFile(
     join(stateDir, "runs", runId, "metadata.json"),
   );
   if (metadata === null) {

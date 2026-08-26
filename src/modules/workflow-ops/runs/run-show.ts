@@ -3,10 +3,15 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { parseWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { RepairSummary } from "#core/workflow/run-store-snapshot.js";
 import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
-import type { WorkflowRunMetadata, WorkflowStepSkipReason } from "#core/workflow/run-types.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+  WorkflowStepSkipReason,
+} from "#core/workflow/run-types.js";
 import {
   blank,
   group,
@@ -36,11 +41,10 @@ export function formatWarningsSection(warnings: Array<{ type: string; message: s
 
 export function formatRepairLine(summary: RepairSummary): string {
   const noun = summary.attempts === 1 ? "repair" : "repairs";
-  const costPart = summary.totalCostUsd > 0 ? ` ($${summary.totalCostUsd.toFixed(3)})` : "";
   const parts = summary.failedChecksByAttempt.map(
     (failures, i) => `[${i + 1}] ${failures.length > 0 ? failures.join(", ") : "passed"}`,
   );
-  return `Repairs: ${summary.attempts} ${noun}${costPart} — ${parts.join(" / ")}`;
+  return `Repairs: ${summary.attempts} ${noun} — ${parts.join(" / ")}`;
 }
 
 export type ChainNode = {
@@ -191,10 +195,10 @@ function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): Re
   if (metadata.durationMs != null) {
     entries.push({ label: "Duration", value: formatDuration(metadata.durationMs) });
   }
-  if (metadata.totalCostUsd != null) {
+  if (metadata.usage !== undefined) {
     entries.push({
       label: "Cost",
-      value: `$${metadata.totalCostUsd.toFixed(4)}`,
+      value: formatUsageCost(metadata.usage),
       role: "muted",
     });
   }
@@ -227,17 +231,8 @@ function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
     if (step.status === "skipped" && step.skipReason) {
       detail.push(line(plain(`      Skipped: ${formatSkipReason(step.skipReason)}`)));
     }
-    const inner = (step.output as {
-      steps?: Array<{
-        id: string;
-        type: string;
-        status: string;
-        durationMs: number;
-        costUsd?: number;
-        error?: string;
-        continueOnFailure?: boolean;
-      }>;
-    } | null)?.steps ?? [];
+    const inner = (step.output as { steps?: WorkflowStepResult[] } | null)
+      ?.steps ?? [];
     for (const childStep of inner) {
       const childIcon =
         childStep.status === "failed" && childStep.continueOnFailure
@@ -245,7 +240,10 @@ function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
           : statusIcon(childStep.status);
       const childSuffix =
         childStep.status === "failed" && childStep.continueOnFailure ? " (continued)" : "";
-      const childCost = childStep.costUsd != null ? ` $${childStep.costUsd.toFixed(3)}` : " —";
+      const childCost =
+        childStep.usage === undefined
+          ? " —"
+          : ` ${formatUsageCost(childStep.usage)}`;
       detail.push(
         line(
           plain(
@@ -261,12 +259,7 @@ function buildStepSpans(step: WorkflowRunMetadata["steps"][number]): {
   }
 
   const repairSummary = extractRepairSummary(step.output);
-  const baseCost = step.costUsd ?? null;
-  const totalStepCost =
-    baseCost !== null
-      ? baseCost + (repairSummary?.totalCostUsd ?? 0)
-      : (repairSummary?.totalCostUsd ?? null);
-  const cost = totalStepCost !== null ? ` $${totalStepCost.toFixed(3)}` : " —";
+  const cost = step.usage === undefined ? " —" : ` ${formatUsageCost(step.usage)}`;
   const header = line(plain(`  ${iconStr} ${step.id} [${step.type}] ${dur}${cost}${suffix}`));
   if (step.error) detail.push(line(plain(`      Error: ${step.error}`)));
   if (step.status === "skipped" && step.skipReason) {
@@ -299,7 +292,7 @@ function errorSpans(message: string): TextSpan[] {
  * `completedAt` come from the run start time as a best-effort placeholder.
  */
 function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
-  return {
+  return parseWorkflowRunMetadata({
     id: run.id,
     workflow: run.workflow,
     definitionPath: "",
@@ -309,28 +302,34 @@ function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
       payload: run.triggerPayload ?? {},
     },
     startedAt: run.startedAt,
-    status: run.status as WorkflowRunMetadata["status"],
+    status: run.status,
     runDir: "",
     steps: run.steps.map((s) => ({
       id: s.id,
-      type: s.type as WorkflowRunMetadata["steps"][number]["type"],
-      status: s.status as "success" | "failed" | "skipped",
+      type: s.type,
+      status: s.status,
       startedAt: run.startedAt,
       completedAt: run.completedAt ?? run.startedAt,
       durationMs: s.durationMs,
       ...(s.error !== undefined && { error: s.error }),
-      ...(s.costUsd != null && { costUsd: s.costUsd, output: { totalCostUsd: s.costUsd } }),
+      ...(s.usage !== undefined && { usage: s.usage }),
       ...(s.skipReason !== undefined && { skipReason: s.skipReason }),
     })),
     ...(run.completedAt != null && { completedAt: run.completedAt }),
     ...(run.durationMs != null && { durationMs: run.durationMs }),
-    ...(run.totalCostUsd != null && { totalCostUsd: run.totalCostUsd }),
+    ...(run.usage !== undefined && { usage: run.usage }),
     ...(run.triggeredByRunId != null && { triggeredByRunId: run.triggeredByRunId }),
     ...(run.causedBy != null && { causedBy: run.causedBy }),
     ...(run.retryOf != null && { retryOf: run.retryOf }),
     ...(run.resumedFromRunId != null && { resumedFromRunId: run.resumedFromRunId }),
     ...(run.warnings && run.warnings.length > 0 && { warnings: run.warnings }),
-  };
+  }, "workflow run detail");
+}
+
+function formatUsageCost(usage: NonNullable<WorkflowRunMetadata["usage"]>): string {
+  return usage.cost.state === "complete"
+    ? `$${usage.cost.usd.toFixed(4)}`
+    : usage.cost.state;
 }
 
 export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void {

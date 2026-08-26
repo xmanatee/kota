@@ -4,6 +4,7 @@ import type {
   AgentHarness,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 
 export const FIX_ADD_SCENARIO_ID = "fix-add";
 
@@ -59,10 +60,8 @@ export function createFixingHarness(name: string): AgentHarness {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: pricedAgentUsage(10, 5, 0.002),
         isError: false,
-        inputTokens: 10,
-        outputTokens: 5,
-        totalCostUsd: 0.002,
       };
     },
   };

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "critic-review",
   "sourceRunId": "synthetic-builder-dialogue-driven-coding-2026-06-20",
@@ -7,9 +7,14 @@
     "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed dialogue-driven coding fixture satisfies the task: the builder used a bounded relevant simulator dialogue, implemented the SMS Text alert pattern from elicited facts, left machine-readable dialogue-result evidence, covered negative dialogue paths, and moved the task to done with changes limited to the accepted fixture paths.\"\n}",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": []
 }

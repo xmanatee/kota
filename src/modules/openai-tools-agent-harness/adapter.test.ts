@@ -263,9 +263,50 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
       streamedText: "all done",
       sessionId: "msg_2",
       turns: 2,
-      inputTokens: 18,
-      outputTokens: 7,
+      usage: {
+        tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
+    });
+  });
+
+  it("keeps measured turns as a lower bound when another turn lacks usage", async () => {
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_usage_1",
+          stop_reason: "tool_use",
+          content: [{
+            type: "tool_use",
+            id: "call_usage",
+            name: "echo_tool",
+            input: { text: "hello" },
+          } as KotaContentBlock],
+          usage: { input_tokens: 7, output_tokens: 3 },
+        },
+      }),
+    );
+    queueStream(
+      makeStubStream({
+        final: {
+          id: "msg_usage_2",
+          stop_reason: "end_turn",
+          content: [{ type: "text", text: "done" } as KotaContentBlock],
+        },
+      }),
+    );
+    executeToolMock.mockResolvedValue({ content: "echo: hello" });
+
+    const result = await openaiToolsAgentHarness.run({
+      prompt: "please echo",
+      model: "openai/gpt-5.6-luna",
+      effort: "xhigh",
+    });
+
+    expect(result.usage).toEqual({
+      tokens: { state: "partial", inputTokens: 7, outputTokens: 3 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
     });
   });
 
@@ -421,8 +462,10 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
       isError: false,
       text: "done",
       numTurns: 2,
-      inputTokens: 13,
-      outputTokens: 5,
+      usage: {
+        tokens: { state: "complete", inputTokens: 13, outputTokens: 5 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       sessionId: "msg_frames_2",
     });
   });

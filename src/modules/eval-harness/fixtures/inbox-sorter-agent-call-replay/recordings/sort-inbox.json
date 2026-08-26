@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "inbox-sorter",
   "stepId": "sort-inbox",
   "sourceRunId": "2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9",
@@ -7,10 +7,18 @@
     "text": "Graduated the lone inbox note (broken `decomposer-agent-call-replay` fixture, dragging weekly cadence `pass^k`) into `data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md` (p1, modules), preserving the source run + capture provenance and naming both fix routes. Removed the inbox file, staged the changes, and wrote `commit-message.txt` for the workflow's commit step.",
     "subtype": "success",
     "turns": 27,
-    "totalCostUsd": 0.93550225,
-    "inputTokens": 23,
-    "outputTokens": 7293,
-    "sessionId": "c60247de-1843-4f52-9181-53c4a8ba60b1"
+    "sessionId": "c60247de-1843-4f52-9181-53c4a8ba60b1",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 23,
+        "outputTokens": 7293
+      },
+      "cost": {
+        "state": "complete",
+        "usd": 0.93550225
+      }
+    }
   },
   "fileOperations": [
     {

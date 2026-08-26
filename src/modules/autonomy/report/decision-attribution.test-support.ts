@@ -48,7 +48,7 @@ export function run(
     steps: attrs.steps ?? [],
     ...(attrs.completedAt !== undefined ? { completedAt: attrs.completedAt } : {}),
     ...(attrs.durationMs !== undefined ? { durationMs: attrs.durationMs } : {}),
-    ...(attrs.totalCostUsd !== undefined ? { totalCostUsd: attrs.totalCostUsd } : {}),
+    ...(attrs.usage !== undefined ? { usage: attrs.usage } : {}),
   };
 }
 

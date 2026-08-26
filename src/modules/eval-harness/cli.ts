@@ -525,8 +525,13 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         line(
           plain("  response turns="),
           span(String(result.recording.response.turns), "info"),
-          plain(" totalCostUsd="),
-          span(result.recording.response.totalCostUsd.toFixed(6), "info"),
+          plain(" cost="),
+          span(
+            result.recording.response.usage.cost.state === "complete"
+              ? `$${result.recording.response.usage.cost.usd.toFixed(6)}`
+              : result.recording.response.usage.cost.state,
+            "info",
+          ),
         ),
         line(
           plain("  file operations extracted: "),

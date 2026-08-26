@@ -38,6 +38,10 @@ afterEach(() => {
     expect(artifact.changedFiles).toContain("add.js");
     expect(artifact.harnessName).toBe("fixing");
     expect(artifact.isError).toBe(false);
+    expect(artifact.usage).toEqual({
+      tokens: { state: "unknown" },
+      cost: { state: "unknown" },
+    });
     expect(artifact.effort).toBe("xhigh");
     expect(artifact.stageMode).toBe("single");
     expect(artifact.stagedSummary).toMatchObject({
@@ -68,6 +72,10 @@ afterEach(() => {
       timedOut: false,
     });
     expect(artifactMetadata.effort).toBe("xhigh");
+    expect(artifactMetadata.usage).toEqual(artifact.usage);
+    expect(artifactMetadata).not.toHaveProperty("inputTokens");
+    expect(artifactMetadata).not.toHaveProperty("outputTokens");
+    expect(artifactMetadata).not.toHaveProperty("totalCostUsd");
     expect(artifactMetadata.capability).toMatchObject({
       emitsAgentMessageStream: false,
       toolControl: "kota",
@@ -196,6 +204,10 @@ afterEach(() => {
     expect(parity.artifacts[1].verificationPassed).toBe(false);
     expect(parity.artifacts[0].effort).toBe("xhigh");
     expect(parity.artifacts[1].effort).toBe("xhigh");
+    expect(parity.artifacts[0].usage).toEqual(artifacts[0]?.usage);
+    expect(parity.artifacts[0]).not.toHaveProperty("inputTokens");
+    expect(parity.artifacts[0]).not.toHaveProperty("outputTokens");
+    expect(parity.artifacts[0]).not.toHaveProperty("totalCostUsd");
   });
 
   it("leaves the scenario initial/ tree untouched", async () => {

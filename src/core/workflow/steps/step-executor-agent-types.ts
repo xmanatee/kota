@@ -4,6 +4,7 @@ import type {
   KotaAgentMessage,
   TrajectoryDiagnosticsMetadata,
 } from "#core/agent-harness/index.js";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -25,9 +26,6 @@ export type WorkflowStepOutput =
       content: string;
       sessionId?: string;
       turns?: number;
-      totalCostUsd?: number;
-      inputTokens?: number;
-      outputTokens?: number;
       subtype?: string;
     }
   | object
@@ -62,6 +60,7 @@ export type AgentStepConfig = {
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
   delegateBudget?: DelegateBudget;
   runTokenBudget?: AgentTokenBudgetLedger;
+  onUsage?: (usage: AgentUsage) => void;
   approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
   onProcessSpawn?: ProcessSpawnObserver;

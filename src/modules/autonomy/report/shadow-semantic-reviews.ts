@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseAgentUsage } from "#core/agent-harness/usage.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   isJsonObject,
@@ -125,7 +126,7 @@ export function parseShadowSemanticReviewArtifact(
       ? { skippedReason: stringValue(value.skippedReason)! }
       : {}),
     ...(stringValue(value.error) ? { error: stringValue(value.error)! } : {}),
-    costUsd: numberOrNull(value.costUsd, "costUsd"),
+    usage: parseAgentUsage(value.usage, "usage"),
     durationMs: numberOrNull(value.durationMs, "durationMs"),
   };
 }
@@ -170,7 +171,7 @@ function toRecord(
     catchCount: countCatches(artifact),
     falsePositiveCount: countFalsePositives(artifact),
     ...(artifact.skippedReason ? { skippedReason: artifact.skippedReason } : {}),
-    costUsd: artifact.costUsd,
+    usage: artifact.usage,
     durationMs: artifact.durationMs,
     promotionCandidateRef: artifact.promotionCandidateRef,
   };
@@ -180,7 +181,9 @@ function summarize(
   records: ShadowSemanticReviewReportRecord[],
   unsupported: ShadowSemanticReviewUnsupportedArtifact[],
 ): ShadowSemanticReviewReport {
-  const totalCostUsd = records.reduce((sum, record) => sum + (record.costUsd ?? 0), 0);
+  const measuredCosts = records.flatMap((record) =>
+    record.usage.cost.state === "complete" ? [record.usage.cost.usd] : []
+  );
   const durations = records
     .map((record) => record.durationMs)
     .filter((value): value is number => value !== null);
@@ -193,14 +196,24 @@ function summarize(
       falsePositiveAnnotations: 0,
       skippedTargetResolution: 0,
       malformedArtifacts: 0,
-      totalCostUsd: 0,
+      measuredCostArtifacts: 0,
+      unavailableCostArtifacts: 0,
+      unknownCostArtifacts: 0,
+      totalCostUsd: null,
     };
     row.artifacts += 1;
     row.catches += record.catchCount;
     row.falsePositiveAnnotations += record.falsePositiveCount;
     if (record.status === "skipped") row.skippedTargetResolution += 1;
     if (record.status === "malformed") row.malformedArtifacts += 1;
-    row.totalCostUsd += record.costUsd ?? 0;
+    if (record.usage.cost.state === "unknown") {
+      row.unknownCostArtifacts += 1;
+    } else if (record.usage.cost.state === "unavailable") {
+      row.unavailableCostArtifacts += 1;
+    } else {
+      row.measuredCostArtifacts += 1;
+      row.totalCostUsd = (row.totalCostUsd ?? 0) + record.usage.cost.usd;
+    }
     byWorkflow.set(record.workflow, row);
   }
   for (const item of unsupported) {
@@ -211,10 +224,14 @@ function summarize(
       falsePositiveAnnotations: 0,
       skippedTargetResolution: 0,
       malformedArtifacts: 0,
-      totalCostUsd: 0,
+      measuredCostArtifacts: 0,
+      unavailableCostArtifacts: 0,
+      unknownCostArtifacts: 0,
+      totalCostUsd: null,
     };
     row.artifacts += 1;
     row.malformedArtifacts += 1;
+    row.unknownCostArtifacts += 1;
     byWorkflow.set(item.workflow, row);
   }
   return {
@@ -230,7 +247,16 @@ function summarize(
       records.filter((record) => record.status === "malformed").length +
       unsupported.length,
     errorArtifacts: records.filter((record) => record.status === "error").length,
-    totalCostUsd,
+    measuredCostArtifacts: measuredCosts.length,
+    unavailableCostArtifacts: records.filter((record) =>
+      record.usage.cost.state === "unavailable"
+    ).length,
+    unknownCostArtifacts: records.filter((record) =>
+      record.usage.cost.state === "unknown"
+    ).length + unsupported.length,
+    totalCostUsd: measuredCosts.length > 0
+      ? measuredCosts.reduce((sum, cost) => sum + cost, 0)
+      : null,
     averageDurationMs:
       durations.length > 0
         ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)

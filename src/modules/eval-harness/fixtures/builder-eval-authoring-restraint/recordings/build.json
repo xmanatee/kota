@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-05-27T00-16-43-055Z-builder-8b1mx7",
@@ -7,10 +7,15 @@
     "text": "Eval-authoring fixture task completed. Added a focused refund-trace evaluator, wrote bounded JSON evidence, verified good cases pass and bad cases are caught with required violations, moved the task to done, and wrote run-directory success evidence plus a commit message.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-eval-authoring-restraint-replay"
+    "sessionId": "builder-eval-authoring-restraint-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

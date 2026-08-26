@@ -5,8 +5,8 @@
  * enough real evidence from a past `.kota/runs/<id>/steps/<stepId>/` run to
  * let fixture replays exercise an agent-call branch deterministically:
  *
- *  - the final text response envelope (text, subtype, turns, token/cost
- *    counts, optional session id) — lifted verbatim from the source run's
+ *  - the final text response envelope (text, subtype, turns, typed usage,
+ *    optional session id) — lifted verbatim from the source run's
  *    `steps/<stepId>.json`, so the response the replay returns is the one
  *    the real agent produced;
  *  - the post-agent file state the workflow reads afterwards (new/edited
@@ -22,18 +22,18 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
+import { parseAgentUsage } from "#core/agent-harness/usage.js";
 import { requireRecorderIdentifier } from "./recorder-paths.js";
 
-const SUPPORTED_RECORDING_VERSION = 1;
+const SUPPORTED_RECORDING_VERSION = 2;
 
 /** Final agent result envelope replayed as the harness `run` return value. */
 export type AgentStepRecordingResponse = {
   text: string;
   subtype: string;
   turns: number;
-  totalCostUsd: number;
-  inputTokens: number;
-  outputTokens: number;
+  usage: AgentUsage;
   sessionId?: string;
 };
 
@@ -49,7 +49,7 @@ export type AgentStepFileOperation =
   | { op: "delete"; path: string };
 
 export type AgentStepRecording = {
-  version: 1;
+  version: 2;
   workflowName: string;
   stepId: string;
   sourceRunId: string;
@@ -77,7 +77,7 @@ function parseResponse(
   if (!isObject(raw)) {
     throw new AgentStepRecordingError(
       recordingPath,
-      'missing "response" object (text, subtype, turns, totalCostUsd, inputTokens, outputTokens).',
+      'missing "response" object (text, subtype, turns, usage).',
     );
   }
   const requiredStrings: Array<keyof AgentStepRecordingResponse> = [
@@ -94,9 +94,6 @@ function parseResponse(
   }
   const requiredNumbers: Array<keyof AgentStepRecordingResponse> = [
     "turns",
-    "totalCostUsd",
-    "inputTokens",
-    "outputTokens",
   ];
   for (const key of requiredNumbers) {
     if (typeof raw[key] !== "number" || !Number.isFinite(raw[key])) {
@@ -112,13 +109,20 @@ function parseResponse(
       "response.sessionId must be a string when present.",
     );
   }
+  let usage: AgentUsage;
+  try {
+    usage = parseAgentUsage(raw.usage, "response.usage");
+  } catch (error) {
+    throw new AgentStepRecordingError(
+      recordingPath,
+      (error as Error).message,
+    );
+  }
   return {
     text: raw.text as string,
     subtype: raw.subtype as string,
     turns: raw.turns as number,
-    totalCostUsd: raw.totalCostUsd as number,
-    inputTokens: raw.inputTokens as number,
-    outputTokens: raw.outputTokens as number,
+    usage,
     ...(typeof raw.sessionId === "string" && { sessionId: raw.sessionId }),
   };
 }

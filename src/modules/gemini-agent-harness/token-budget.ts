@@ -2,6 +2,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
   AgentTokenBudgetSource,
+  AgentUsage,
 } from "#core/agent-harness/index.js";
 import { TOKEN_BUDGET_EXHAUSTED_SUBTYPE } from "#core/agent-harness/index.js";
 import { GEMINI_AGENT_HARNESS_NAME } from "./constants.js";
@@ -32,8 +33,7 @@ export function geminiTokenBudgetErrorResult(input: {
   streamedChunks: readonly string[];
   lastResponseId: string | undefined;
   turnCount: number;
-  inputTokens: number;
-  outputTokens: number;
+  usage: AgentUsage;
 }): AgentHarnessResult {
   return {
     text: input.message,
@@ -42,8 +42,7 @@ export function geminiTokenBudgetErrorResult(input: {
       ? { sessionId: input.lastResponseId }
       : {}),
     turns: input.turnCount,
-    inputTokens: input.inputTokens,
-    outputTokens: input.outputTokens,
+    usage: input.usage,
     isError: true,
     subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
   };

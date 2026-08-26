@@ -2,6 +2,7 @@ import type {
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
+import { unpricedAgentUsage } from "#core/agent-harness/index.js";
 
 type GeminiCliError = {
   readonly type?: string;
@@ -285,12 +286,10 @@ export function collectGeminiOutput(args: {
               ...(event.status !== undefined ? { subtype: event.status } : {}),
               isError: cliError !== undefined,
               numTurns: 1,
-              ...(tokenCounts.inputTokens !== undefined
-                ? { inputTokens: tokenCounts.inputTokens }
-                : {}),
-              ...(tokenCounts.outputTokens !== undefined
-                ? { outputTokens: tokenCounts.outputTokens }
-                : {}),
+              usage: unpricedAgentUsage(
+                tokenCounts.inputTokens,
+                tokenCounts.outputTokens,
+              ),
             },
             sessionId,
           ),

@@ -242,17 +242,9 @@ export function createReplayAgentHarness(recordingsRoot: string): AgentHarness {
           ...(recording.response.text !== undefined && {
             text: recording.response.text,
           }),
-          ...(recording.response.totalCostUsd !== undefined && {
-            totalCostUsd: recording.response.totalCostUsd,
-          }),
+          usage: recording.response.usage,
           ...(recording.response.turns !== undefined && {
             numTurns: recording.response.turns,
-          }),
-          ...(recording.response.inputTokens !== undefined && {
-            inputTokens: recording.response.inputTokens,
-          }),
-          ...(recording.response.outputTokens !== undefined && {
-            outputTokens: recording.response.outputTokens,
           }),
           ...(recording.response.sessionId !== undefined && {
             sessionId: recording.response.sessionId,
@@ -268,9 +260,7 @@ export function createReplayAgentHarness(recordingsRoot: string): AgentHarness {
           sessionId: recording.response.sessionId,
         }),
         turns: recording.response.turns,
-        totalCostUsd: recording.response.totalCostUsd,
-        inputTokens: recording.response.inputTokens,
-        outputTokens: recording.response.outputTokens,
+        usage: recording.response.usage,
         subtype: recording.response.subtype,
         isError: false,
       };

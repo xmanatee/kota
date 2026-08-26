@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "research-retry",
   "stepId": "retry",
   "sourceRunId": "2026-04-23T00-03-55-062Z-research-retry-u92f1u",
@@ -7,10 +7,18 @@
     "text": "Re-confirmed blocker: rotated spot checks `akshay_pachaar/2041146899319971922` and `tianle_cai/2042459055483207818` both return HTTP 402 on plain WebFetch; Playwright still uninstalled and no browser profile is configured (logs at 2026-04-23 00:02 UTC). Task remains `blocked` with updated status note and staged commit message.",
     "subtype": "success",
     "turns": 10,
-    "totalCostUsd": 0.6526157499999999,
-    "inputTokens": 19,
-    "outputTokens": 2682,
-    "sessionId": "e37284ec-9f9f-42de-b783-e73a0206afa8"
+    "sessionId": "e37284ec-9f9f-42de-b783-e73a0206afa8",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 19,
+        "outputTokens": 2682
+      },
+      "cost": {
+        "state": "complete",
+        "usd": 0.6526157499999999
+      }
+    }
   },
   "fileOperations": [
     {

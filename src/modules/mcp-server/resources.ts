@@ -620,7 +620,7 @@ function readRecentRuns(projectDir: string): unknown {
 		id: r.id,
 		workflow: r.workflow,
 		status: r.status,
-		totalCostUsd: r.totalCostUsd ?? null,
+		usage: r.usage ?? null,
 		durationMs: r.durationMs ?? null,
 		startedAt: r.startedAt,
 		completedAt: r.completedAt ?? null,

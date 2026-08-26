@@ -95,7 +95,7 @@ export function recentRunRows(
     cells: [
       { columnId: "name", value: shortId(run.id), role: "info" },
       { columnId: "state", value: `${run.workflow} ${run.status}`, role: run.status === "failed" ? "error" : run.status === "success" ? "success" : "warn" },
-      { columnId: "detail", value: `${run.startedAt}${run.totalCostUsd !== undefined ? `  $${run.totalCostUsd.toFixed(4)}` : ""}`, role: "muted" },
+      { columnId: "detail", value: `${run.startedAt}${run.usage?.cost.state === "complete" ? `  $${run.usage.cost.usd.toFixed(4)}` : run.usage === undefined ? "" : `  cost ${run.usage.cost.state}`}`, role: "muted" },
     ],
     action: run.status === "failed" || run.status === "interrupted"
       ? actions.retry

@@ -54,9 +54,6 @@ export function workflowOutputFromHarnessResult(
     content: result.text,
     sessionId: result.sessionId,
     turns: result.turns,
-    totalCostUsd: result.totalCostUsd,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
     subtype: result.subtype,
   };
 }

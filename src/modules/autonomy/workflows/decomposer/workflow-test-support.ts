@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepErrorKind,
@@ -147,6 +148,7 @@ export function failedBuilderMetadata(
         startedAt: "2026-08-25T00:00:00.000Z",
         completedAt: "2026-08-25T00:10:00.000Z",
         durationMs,
+        usage: UNKNOWN_AGENT_USAGE,
         error: options.error,
         errorKind: options.errorKind,
       },

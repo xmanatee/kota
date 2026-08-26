@@ -22,6 +22,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { composeTranscriptPrompt, runHarnessRepl } from "#modules/repl/index.js";
@@ -135,12 +136,14 @@ describe("runHarnessRepl", () => {
         text: "sure thing",
         streamedText: "sure thing",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       })
       .mockResolvedValueOnce({
         text: "yes, I recall",
         streamedText: "yes, I recall",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       });
 
@@ -176,7 +179,13 @@ describe("runHarnessRepl", () => {
       toolControl: "kota",
       run: async (options): Promise<AgentHarnessResult> => {
         calls.push(options.prompt);
-        return { text: "ack", streamedText: "ack", turns: 1, isError: false };
+        return {
+          text: "ack",
+          streamedText: "ack",
+          turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
+          isError: false,
+        };
       },
     };
 
@@ -208,7 +217,13 @@ describe("runHarnessRepl", () => {
       run: async (options, writer?: AgentHarnessWriter) => {
         prompts.push(options.prompt);
         writer?.write("ok");
-        return { text: "ok", streamedText: "ok", turns: 1, isError: false };
+        return {
+          text: "ok",
+          streamedText: "ok",
+          turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
+          isError: false,
+        };
       },
     };
 
@@ -242,7 +257,13 @@ describe("runHarnessRepl", () => {
       run: async () => {
         call += 1;
         if (call === 1) throw new Error("boom");
-        return { text: "recovered", streamedText: "recovered", turns: 1, isError: false };
+        return {
+          text: "recovered",
+          streamedText: "recovered",
+          turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
+          isError: false,
+        };
       },
     };
 

@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
@@ -83,7 +84,7 @@ export const SUCCESS_RESULT = {
   streamedText: "",
   sessionId: "sess-1",
   turns: 1,
-  totalCostUsd: 0.01,
+  usage: pricedAgentUsage(undefined, undefined, 0.01),
   subtype: "success",
   isError: false,
 };

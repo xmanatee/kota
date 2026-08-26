@@ -1,9 +1,8 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
@@ -15,7 +14,11 @@ export type RunSummary = {
   startedAt: string;
   durationMs: number | null;
   stepCount: number;
-  totalCostUsd: number | null;
+  tokenState: "complete" | "partial" | "unknown" | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  costState: "complete" | "unavailable" | "unknown" | null;
+  costUsd: number | null;
 };
 
 const CSV_HEADERS: (keyof RunSummary)[] = [
@@ -26,7 +29,11 @@ const CSV_HEADERS: (keyof RunSummary)[] = [
   "startedAt",
   "durationMs",
   "stepCount",
-  "totalCostUsd",
+  "tokenState",
+  "inputTokens",
+  "outputTokens",
+  "costState",
+  "costUsd",
 ];
 
 export function loadRunSummaries(
@@ -47,7 +54,7 @@ export function loadRunSummaries(
 
   const summaries: RunSummary[] = [];
   for (const dir of dirs) {
-    const meta = readOptionalJsonFile<WorkflowRunMetadata>(join(runsDir, dir, "metadata.json"));
+    const meta = readWorkflowRunMetadataFile(join(runsDir, dir, "metadata.json"));
     if (!meta) continue;
     if (opts.workflow && meta.workflow !== opts.workflow) continue;
     if (opts.status && meta.status !== opts.status) continue;
@@ -60,7 +67,15 @@ export function loadRunSummaries(
       startedAt: meta.startedAt,
       durationMs: meta.durationMs ?? null,
       stepCount: meta.steps?.length ?? 0,
-      totalCostUsd: meta.totalCostUsd ?? null,
+      tokenState: meta.usage?.tokens.state ?? null,
+      inputTokens: meta.usage?.tokens.state === "complete" || meta.usage?.tokens.state === "partial"
+        ? meta.usage.tokens.inputTokens
+        : null,
+      outputTokens: meta.usage?.tokens.state === "complete" || meta.usage?.tokens.state === "partial"
+        ? meta.usage.tokens.outputTokens
+        : null,
+      costState: meta.usage?.cost.state ?? null,
+      costUsd: meta.usage?.cost.state === "complete" ? meta.usage.cost.usd : null,
     });
     if (opts.last !== undefined && summaries.length >= opts.last) break;
   }

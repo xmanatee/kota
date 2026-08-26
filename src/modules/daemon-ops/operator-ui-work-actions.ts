@@ -1,3 +1,4 @@
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { UiActionExecutionResult } from "./operator-ui-actions.js";
 import {
@@ -172,12 +173,12 @@ function isRepoTaskState(
 
 function runDetail(run: WorkflowRunDetail): string {
   const steps = run.steps.map((step) =>
-    `${step.id} · ${step.type} · ${step.status} · ${step.durationMs}ms${step.costUsd === undefined ? "" : ` · $${step.costUsd.toFixed(4)}`}${step.error ? ` · ${step.error}` : ""}`,
+    `${step.id} · ${step.type} · ${step.status} · ${step.durationMs}ms${step.usage === undefined ? "" : ` · ${formatUsageCost(step.usage)}`}${step.error ? ` · ${step.error}` : ""}`,
   );
   return [
     `${run.id} · ${run.workflow} · ${run.status}`,
     `Started ${run.startedAt}${run.completedAt ? ` · completed ${run.completedAt}` : ""}`,
-    `Duration ${run.durationMs ?? 0}ms · cost ${run.totalCostUsd === undefined ? "—" : `$${run.totalCostUsd.toFixed(4)}`}`,
+    `Duration ${run.durationMs ?? 0}ms · cost ${run.usage === undefined ? "—" : formatUsageCost(run.usage)}`,
     ...steps,
   ].join("\n");
 }
@@ -185,14 +186,19 @@ function runDetail(run: WorkflowRunDetail): string {
 function runComparison(left: WorkflowRunDetail, right: WorkflowRunDetail): string {
   const durationA = left.durationMs ?? 0;
   const durationB = right.durationMs ?? 0;
-  const costA = left.totalCostUsd ?? 0;
-  const costB = right.totalCostUsd ?? 0;
+  const costA = left.usage?.cost.state === "complete" ? left.usage.cost.usd : undefined;
+  const costB = right.usage?.cost.state === "complete" ? right.usage.cost.usd : undefined;
   return [
     `${left.id} ↔ ${right.id}`,
     `Workflow: ${left.workflow} ↔ ${right.workflow}`,
     `Status: ${left.status} ↔ ${right.status}`,
     `Duration: ${durationA}ms ↔ ${durationB}ms (Δ ${durationB - durationA}ms)`,
-    `Cost: $${costA.toFixed(4)} ↔ $${costB.toFixed(4)} (Δ $${(costB - costA).toFixed(4)})`,
+    `Cost: ${left.usage === undefined ? "—" : formatUsageCost(left.usage)} ↔ ${right.usage === undefined ? "—" : formatUsageCost(right.usage)}${costA === undefined || costB === undefined ? "" : ` (Δ $${(costB - costA).toFixed(4)})`}`,
     `Steps: ${left.steps.length} ↔ ${right.steps.length}`,
   ].join("\n");
+}
+
+function formatUsageCost(usage: AgentUsage): string {
+  if (usage.cost.state === "complete") return `$${usage.cost.usd.toFixed(4)}`;
+  return usage.cost.state;
 }

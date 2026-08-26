@@ -210,3 +210,13 @@ export type {
   AgentPermissionResult,
   AgentSystemPrompt,
 } from "./types.js";
+export type { AgentUsage, AgentUsageCost, AgentUsageTokens } from "./usage.js";
+export {
+  AgentUsageAccumulator,
+  completeAgentCostUsd,
+  parseAgentUsage,
+  pricedAgentUsage,
+  UNKNOWN_AGENT_USAGE,
+  unpricedAgentUsage,
+  ZERO_AGENT_USAGE,
+} from "./usage.js";

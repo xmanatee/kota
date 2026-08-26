@@ -72,8 +72,10 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         sessionId: persisted.sessionId,
         text: "continued with context",
         turns: 1,
-        inputTokens: 1,
-        outputTokens: 1,
+        usage: {
+          tokens: { state: "complete", inputTokens: 1, outputTokens: 1 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
       });
       const replayedMessages = streamCallSnapshots[2].messages;
       expect(replayedMessages[0]).toEqual({ role: "user", content: "please echo" });

@@ -1,3 +1,4 @@
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ChannelStatus } from "#core/channels/channel.js";
 import type {
   EventSchemaReference,
@@ -193,7 +194,7 @@ export type WorkflowRunSummary = {
   triggerSchemaRef: EventSchemaReference | null;
   startedAt: string;
   durationMs?: number;
-  totalCostUsd?: number;
+  usage?: AgentUsage;
   triggeredByRunId?: string;
   causedBy?: { runId: string; workflow: string };
   retryOf?: string;
@@ -207,7 +208,7 @@ export type WorkflowRunStepSummary = {
   status: string;
   durationMs: number;
   error?: string;
-  costUsd?: number;
+  usage?: AgentUsage;
   toolCalls?: ToolCallSummaryEntry[];
   skipReason?: WorkflowStepSkipReason;
 };

@@ -221,8 +221,8 @@ export async function runDelegateHarness(
     completionReason = "circuit_break";
   }
 
-  if (config.costTracker && result.totalCostUsd != null) {
-    config.costTracker.addRawCost(result.totalCostUsd);
+  if (config.costTracker && result.usage.cost.state === "complete") {
+    config.costTracker.addRawCost(result.usage.cost.usd);
   }
 
   if (transport) {

@@ -1,6 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { RESTART_EXIT_CODE } from "#core/daemon/index.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
@@ -21,6 +22,7 @@ describe("Daemon restart recovery", () => {
       text: "",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       subtype: "error_max_turns",
       isError: true,
     });

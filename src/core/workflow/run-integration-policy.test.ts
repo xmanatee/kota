@@ -4,6 +4,7 @@ import {
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { RunContext } from "./run-context.js";
 import {
@@ -69,6 +70,7 @@ function captureHarness(): () => AgentHarnessRunOptions {
         text: "ready",
         streamedText: "ready",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     },

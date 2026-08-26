@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   blank,
@@ -19,40 +20,66 @@ type RunCostEntry = {
   workflow: string;
   status: string;
   startedAt: string;
-  totalCostUsd?: number;
+  usage?: AgentUsage;
 };
 
 export type WorkflowCostRow = {
   workflow: string;
   runs: number;
-  totalCostUsd: number;
-  averageCostUsd: number;
-  maxRunCostUsd: number;
+  measuredRuns: number;
+  unavailableRuns: number;
+  unknownRuns: number;
+  measuredCostUsd: number | null;
+  averageMeasuredCostUsd: number | null;
+  maxMeasuredRunCostUsd: number | null;
 };
 
 export function computeWorkflowCostRows(runs: RunCostEntry[]): WorkflowCostRow[] {
-  const byWf = new Map<string, { runs: number; totalCostUsd: number; maxRunCostUsd: number }>();
+  const byWf = new Map<string, {
+    runs: number;
+    measuredRuns: number;
+    unavailableRuns: number;
+    unknownRuns: number;
+    totalCostUsd: number;
+    maxRunCostUsd: number;
+  }>();
   for (const run of runs) {
     if (run.status === "running") continue;
-    const cost = run.totalCostUsd ?? 0;
-    const existing = byWf.get(run.workflow);
-    if (existing) {
-      existing.runs += 1;
-      existing.totalCostUsd += cost;
-      if (cost > existing.maxRunCostUsd) existing.maxRunCostUsd = cost;
+    const existing = byWf.get(run.workflow) ?? {
+      runs: 0,
+      measuredRuns: 0,
+      unavailableRuns: 0,
+      unknownRuns: 0,
+      totalCostUsd: 0,
+      maxRunCostUsd: 0,
+    };
+    existing.runs += 1;
+    if (run.usage?.cost.state === "complete") {
+      existing.measuredRuns += 1;
+      existing.totalCostUsd += run.usage.cost.usd;
+      if (run.usage.cost.usd > existing.maxRunCostUsd) {
+        existing.maxRunCostUsd = run.usage.cost.usd;
+      }
+    } else if (run.usage?.cost.state === "unavailable") {
+      existing.unavailableRuns += 1;
     } else {
-      byWf.set(run.workflow, { runs: 1, totalCostUsd: cost, maxRunCostUsd: cost });
+      existing.unknownRuns += 1;
     }
+    byWf.set(run.workflow, existing);
   }
   return [...byWf.entries()]
     .map(([workflow, agg]) => ({
       workflow,
       runs: agg.runs,
-      totalCostUsd: agg.totalCostUsd,
-      averageCostUsd: agg.runs > 0 ? agg.totalCostUsd / agg.runs : 0,
-      maxRunCostUsd: agg.maxRunCostUsd,
+      measuredRuns: agg.measuredRuns,
+      unavailableRuns: agg.unavailableRuns,
+      unknownRuns: agg.unknownRuns,
+      measuredCostUsd: agg.measuredRuns > 0 ? agg.totalCostUsd : null,
+      averageMeasuredCostUsd:
+        agg.measuredRuns > 0 ? agg.totalCostUsd / agg.measuredRuns : null,
+      maxMeasuredRunCostUsd: agg.measuredRuns > 0 ? agg.maxRunCostUsd : null,
     }))
-    .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
+    .sort((a, b) => (b.measuredCostUsd ?? -1) - (a.measuredCostUsd ?? -1));
 }
 
 function runStatusRole(status: string): SemanticRole {
@@ -77,27 +104,40 @@ export function buildSummaryTableNode(rows: WorkflowCostRow[]): ColumnsNode | nu
   return columns(
     [
       { header: "Workflow", role: "accent", minWidth: 8 },
-      { header: "Total", align: "right", minWidth: 8 },
+      { header: "Measured", align: "right", minWidth: 8 },
       { header: "Runs", align: "right", minWidth: 4 },
-      { header: "Avg/run", align: "right", minWidth: 8 },
+      { header: "Measured", align: "right", minWidth: 8 },
+      { header: "Unavailable", align: "right", minWidth: 11 },
+      { header: "Unknown", align: "right", minWidth: 7 },
+      { header: "Avg/measured", align: "right", minWidth: 12 },
       { header: "Max run", align: "right", minWidth: 8 },
     ],
     rows.map((row) => ({
       cells: [
         { spans: [{ text: row.workflow, role: "accent" as SemanticRole }] },
-        { spans: [{ text: `$${row.totalCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: formatCost(row.measuredCostUsd), role: "muted" as SemanticRole }] },
         { spans: [{ text: String(row.runs) }] },
-        { spans: [{ text: `$${row.averageCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
-        { spans: [{ text: `$${row.maxRunCostUsd.toFixed(4)}`, role: "muted" as SemanticRole }] },
+        { spans: [{ text: String(row.measuredRuns) }] },
+        { spans: [{ text: String(row.unavailableRuns) }] },
+        { spans: [{ text: String(row.unknownRuns) }] },
+        { spans: [{ text: formatCost(row.averageMeasuredCostUsd), role: "muted" as SemanticRole }] },
+        { spans: [{ text: formatCost(row.maxMeasuredRunCostUsd), role: "muted" as SemanticRole }] },
       ],
     })),
   );
 }
 
+function formatCost(costUsd: number | null): string {
+  return costUsd === null ? "unknown" : `$${costUsd.toFixed(4)}`;
+}
+
 export function buildRunBreakdownNode(runs: RunCostEntry[]): RenderNode {
   const finished = runs.filter((r) => r.status !== "running");
   if (finished.length === 0) return line(plain("  (no completed runs)"));
-  const sorted = [...finished].sort((a, b) => (b.totalCostUsd ?? 0) - (a.totalCostUsd ?? 0));
+  const sorted = [...finished].sort((a, b) =>
+    (b.usage?.cost.state === "complete" ? b.usage.cost.usd : -1) -
+    (a.usage?.cost.state === "complete" ? a.usage.cost.usd : -1)
+  );
   return columns(
     [
       { header: "Run", role: "accent" },
@@ -106,7 +146,9 @@ export function buildRunBreakdownNode(runs: RunCostEntry[]): RenderNode {
       { header: "Status" },
     ],
     sorted.map((run) => {
-      const cost = run.totalCostUsd != null ? `$${run.totalCostUsd.toFixed(4)}` : "—";
+      const cost = run.usage?.cost.state === "complete"
+        ? `$${run.usage.cost.usd.toFixed(4)}`
+        : run.usage?.cost.state ?? "unknown";
       return {
         cells: [
           { spans: [{ text: run.id, role: "accent" as SemanticRole }] },
@@ -140,15 +182,20 @@ export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
           workflow: r.workflow,
           status: r.status,
           startedAt: r.startedAt,
-          ...(r.totalCostUsd !== undefined && { totalCostUsd: r.totalCostUsd }),
+          ...(r.usage !== undefined && { usage: r.usage }),
         }));
       const rows = computeWorkflowCostRows(runs);
       const finished = runs.filter((r) => r.status !== "running");
-      const grandTotal = finished.reduce((s, r) => s + (r.totalCostUsd ?? 0), 0);
+      const measured = finished.flatMap((run) =>
+        run.usage?.cost.state === "complete" ? [run.usage.cost.usd] : []
+      );
+      const measuredTotal = measured.length > 0
+        ? measured.reduce((sum, cost) => sum + cost, 0)
+        : null;
 
       if (opts.json) {
         writeJson(
-          { days, totalCostUsd: grandTotal, runCount: finished.length, workflows: rows },
+          { days, measuredCostUsd: measuredTotal, measuredRuns: measured.length, runCount: finished.length, workflows: rows },
           { pretty: true },
         );
         return;
@@ -161,9 +208,9 @@ export function registerCostCommand(wfCmd: Command, ctx: ModuleContext): void {
 
       const summary = line(
         plain(`Last ${days} day${days === 1 ? "" : "s"} — `),
-        { text: `$${grandTotal.toFixed(4)}`, role: "accent" },
+        { text: measuredTotal === null ? "cost unknown" : `$${measuredTotal.toFixed(4)}`, role: "accent" },
         plain(
-          ` total across ${finished.length} run${finished.length === 1 ? "" : "s"}`,
+          ` measured across ${measured.length}/${finished.length} run${finished.length === 1 ? "" : "s"}; unavailable ${finished.filter((run) => run.usage?.cost.state === "unavailable").length}; unknown ${finished.filter((run) => run.usage?.cost.state !== "complete" && run.usage?.cost.state !== "unavailable").length}`,
         ),
       );
       const summaryTable = buildSummaryTableNode(rows);

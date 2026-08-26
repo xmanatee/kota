@@ -4,6 +4,7 @@ import {
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   type ResolvedScopePolicy,
@@ -100,6 +101,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
         text: "stale successful terminal output",
         streamedText: "stale successful terminal output",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

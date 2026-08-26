@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import { AgentUsageAccumulator } from "#core/agent-harness/usage.js";
 import {
   registerSessionEnvironment,
   unregisterSessionEnvironment,
@@ -141,6 +142,10 @@ export async function executeWorkflowStep(
       sessionId: toolSession.sessionId,
     });
   const capturedAgentMessages: KotaAgentMessage[] = [];
+  const usageAccumulator = step.type === "agent" ? new AgentUsageAccumulator() : undefined;
+  const effectiveAgentConfig = usageAccumulator === undefined
+    ? agentConfig
+    : { ...agentConfig, onUsage: usageAccumulator.observe };
 
   try {
     const stepPromise = executeStep(
@@ -157,7 +162,7 @@ export async function executeWorkflowStep(
         run.appendAgentMessage(step.id, message);
       },
       (systemPromptAppend, prompt) => run.writeAgentInputs(step.id, systemPromptAppend, prompt),
-      agentConfig,
+      effectiveAgentConfig,
       deps.bus,
     );
     const racePromises: Promise<unknown>[] = [stepPromise];
@@ -180,26 +185,6 @@ export async function executeWorkflowStep(
     const isAgentResult = step.type === "agent";
     const agentResult = isAgentResult ? (rawResult as AgentStepResult) : undefined;
     const rawOutput = isAgentResult ? (rawResult as AgentStepResult).output : rawResult;
-    const agentUsage =
-      step.type === "agent" &&
-      rawOutput != null &&
-      typeof rawOutput === "object" &&
-      !Array.isArray(rawOutput)
-        ? (rawOutput as Record<string, unknown>)
-        : undefined;
-    const stepCostUsd =
-      typeof agentUsage?.totalCostUsd === "number"
-        ? agentUsage.totalCostUsd
-        : undefined;
-    const inputTokens =
-      typeof agentUsage?.inputTokens === "number"
-        ? agentUsage.inputTokens
-        : undefined;
-    const outputTokens =
-      typeof agentUsage?.outputTokens === "number"
-        ? agentUsage.outputTokens
-        : undefined;
-
     const { output, warning: truncationWarning } = applyOutputSizeLimit(
       rawOutput,
       agentConfig.config?.workflow?.maxStepOutputBytes,
@@ -212,27 +197,30 @@ export async function executeWorkflowStep(
     const toolCalls = step.type === "agent"
       ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir, deps.log)
       : undefined;
-    const completed: WorkflowStepResult = {
+    const completedBase = {
       id: step.id,
-      type: step.type,
       status: "success",
       startedAt: new Date(stepStartedAt).toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - stepStartedAt,
       ...activeTimingMetadata(timing),
-      ...(stepCostUsd != null ? { costUsd: stepCostUsd } : {}),
-      ...(inputTokens !== undefined ? { inputTokens } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
       output,
       ...(toolCalls != null ? { toolCalls } : {}),
-      ...(agentResult
+    } as const;
+    const completed: WorkflowStepResult = step.type === "agent"
+      ? {
+          ...completedBase,
+          type: "agent",
+          usage: usageAccumulator!.snapshot(),
+          ...(agentResult
         ? {
             harness: agentResult.harness,
             model: agentResult.model,
             trajectoryDiagnostics: agentResult.trajectoryDiagnostics,
           }
         : {}),
-    };
+        }
+      : { ...completedBase, type: step.type };
     run.recordStep(completed);
     acc.stepOutputsById[step.id] = output;
     acc.stepResultsById[step.id] = completed;
@@ -253,9 +241,11 @@ export async function executeWorkflowStep(
       logDetails.push(`host suspended ${completed.hostSuspendedMs}ms`);
     }
     if (completed.type === "agent" && completed.output && typeof completed.output === "object") {
-      const o = completed.output as { turns?: unknown; totalCostUsd?: unknown; subtype?: unknown };
+      const o = completed.output as { turns?: unknown; subtype?: unknown };
       if (typeof o.turns === "number") logDetails.push(`${o.turns} turn(s)`);
-      if (typeof o.totalCostUsd === "number") logDetails.push(`$${o.totalCostUsd.toFixed(2)}`);
+      if (completed.usage?.cost.state === "complete") {
+        logDetails.push(`$${completed.usage.cost.usd.toFixed(2)}`);
+      }
       if (typeof o.subtype === "string" && o.subtype) logDetails.push(o.subtype);
     }
     deps.log(
@@ -273,12 +263,13 @@ export async function executeWorkflowStep(
       run,
       runAbortController,
       stepAbortController,
-      agentConfig,
+      agentConfig: effectiveAgentConfig,
       acc,
       deps,
       stepStartedAt,
       timing,
       capturedAgentMessages,
+      usage: usageAccumulator?.snapshot(),
     });
   } finally {
     unregisterSessionEnvironment(toolSession);

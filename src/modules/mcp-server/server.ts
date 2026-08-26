@@ -422,7 +422,6 @@ export class McpServer {
 			samplingModel:
 				options.samplingModel ??
 				resolveActivePresetFromConfig(undefined).defaultModel,
-			projectDir,
 		});
 		this.initialize = new InitializeHandler(ctx, {
 			serverName: options.name ?? "kota",

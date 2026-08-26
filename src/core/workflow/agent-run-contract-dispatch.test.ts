@@ -13,6 +13,7 @@ import {
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
@@ -27,6 +28,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
     text: "unused",
     streamedText: "",
     turns: 1,
+    usage: UNKNOWN_AGENT_USAGE,
     isError: false,
   }));
   const harness: AgentHarness = {

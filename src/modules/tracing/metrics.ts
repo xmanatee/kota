@@ -19,17 +19,7 @@ type WorkflowCompletedPayload = {
   autonomyMode?: AutonomyMode;
 };
 
-type StepCompletedPayload = {
-  workflow: string;
-  runId: string;
-  stepId: string;
-  stepType: string;
-  status: string;
-  durationMs: number;
-  costUsd?: number;
-  runDir: string;
-  autonomyMode?: AutonomyMode;
-};
+type StepCompletedPayload = BusEvents["workflow.step.completed"];
 
 type SessionAutonomyChangedPayload = {
   sessionId: string;
@@ -38,9 +28,7 @@ type SessionAutonomyChangedPayload = {
 };
 
 type AgentStepOutput = {
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  repairIterations?: unknown;
 };
 
 type MetricsLogger = (msg: string, err: unknown) => void;
@@ -140,35 +128,21 @@ export class WorkflowMetricsEmitter {
     };
     if (payload.autonomyMode !== undefined) attrs.autonomy_mode = payload.autonomyMode;
     this.stepDuration.record(payload.durationMs, attrs);
-    if (payload.costUsd != null) {
-      this.stepCost.record(payload.costUsd, attrs);
+    if (payload.usage?.cost.state === "complete") {
+      this.stepCost.record(payload.usage.cost.usd, attrs);
     }
     if (payload.stepType !== "agent") return;
 
+    const usage = payload.usage;
+    if (usage !== undefined && usage.tokens.state !== "unknown") {
+      const inputAttrs = { ...attrs, "token.direction": "input" };
+      const outputAttrs = { ...attrs, "token.direction": "output" };
+      this.agentTokens.add(usage.tokens.inputTokens, inputAttrs);
+      this.agentTokens.add(usage.tokens.outputTokens, outputAttrs);
+    }
+
     const output = this.readAgentStepOutput(payload.runDir, payload.stepId);
     if (!output) return;
-
-    if (output.totalCostUsd != null) {
-      this.stepCost.record(output.totalCostUsd, attrs);
-    }
-    if (output.inputTokens != null) {
-      const tokenAttrs: Record<string, string> = {
-        "workflow.name": payload.workflow,
-        "workflow.step.id": payload.stepId,
-        "token.direction": "input",
-      };
-      if (payload.autonomyMode !== undefined) tokenAttrs.autonomy_mode = payload.autonomyMode;
-      this.agentTokens.add(output.inputTokens, tokenAttrs);
-    }
-    if (output.outputTokens != null) {
-      const tokenAttrs: Record<string, string> = {
-        "workflow.name": payload.workflow,
-        "workflow.step.id": payload.stepId,
-        "token.direction": "output",
-      };
-      if (payload.autonomyMode !== undefined) tokenAttrs.autonomy_mode = payload.autonomyMode;
-      this.agentTokens.add(output.outputTokens, tokenAttrs);
-    }
     const repairIterations = readRepairIterations(output);
     if (repairIterations.length > 0) {
       for (const iter of repairIterations) {

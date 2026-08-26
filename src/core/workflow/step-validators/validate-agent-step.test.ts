@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type AgentHarness,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import {
@@ -222,6 +223,7 @@ describe("validateAgentStep registered agent resolution", () => {
             text: "unused",
             streamedText: "",
             turns: 1,
+            usage: UNKNOWN_AGENT_USAGE,
             isError: false,
           };
         },

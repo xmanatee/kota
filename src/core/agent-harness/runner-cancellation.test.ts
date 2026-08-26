@@ -7,6 +7,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
 } from "./types.js";
+import { AgentUsageAccumulator, UNKNOWN_AGENT_USAGE } from "./usage.js";
 
 describe("runAgentHarness cancellation", () => {
   afterEach(() => {
@@ -18,6 +19,7 @@ describe("runAgentHarness cancellation", () => {
     const abortController = new AbortController();
     const abortReason = new Error("scope authority revision became restrictive");
     const acceptedMessages = vi.fn();
+    const observedUsage = vi.fn();
     const acceptedWriterOutput = vi.fn(() => true);
     let markStarted = () => {};
     const started = new Promise<void>((resolve) => {
@@ -63,6 +65,10 @@ describe("runAgentHarness cancellation", () => {
           text: "stale success",
           streamedText: "stale success",
           turns: 1,
+          usage: {
+            tokens: { state: "complete", inputTokens: 100, outputTokens: 10 },
+            cost: { state: "complete", usd: 1 },
+          },
           isError: false,
         };
       },
@@ -75,6 +81,7 @@ describe("runAgentHarness cancellation", () => {
         effort: "xhigh",
         abortController,
         onMessage: acceptedMessages,
+        onUsage: observedUsage,
       },
       { write: acceptedWriterOutput },
     );
@@ -88,6 +95,71 @@ describe("runAgentHarness cancellation", () => {
     expect(acceptedMessages).toHaveBeenCalledWith({ type: "status", category: "started" });
     expect(acceptedWriterOutput).not.toHaveBeenCalled();
     expect(lateWriterAccepted).toBe(false);
+    expect(observedUsage).toHaveBeenCalledOnce();
+    expect(observedUsage).toHaveBeenCalledWith({
+      tokens: { state: "unknown" },
+      cost: { state: "unknown" },
+    });
+  });
+
+  it("retains usage observed before native quarantine while rejecting the cancelled result", async () => {
+    const abortController = new AbortController();
+    const usage = new AgentUsageAccumulator();
+    let markStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let release = () => {};
+    const stopped = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const harness: AgentHarness = {
+      name: "usage-native",
+      description: "reports terminal provider usage before cancellation",
+      supportsMultiTurn: false,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "native",
+      nativeAbortQuarantine: "confirmed-stop",
+      async run(options) {
+        options.abortQuarantine?.register(async () => {
+          release();
+          await stopped;
+        });
+        options.onUsage?.({
+          tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        });
+        markStarted();
+        await stopped;
+        return {
+          text: "stale success",
+          streamedText: "",
+          turns: 1,
+          usage: {
+            tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+            cost: { state: "unavailable", reason: "provider-does-not-report" },
+          },
+          isError: false,
+        };
+      },
+    };
+
+    const run = runAgentHarness(harness, {
+      prompt: "x",
+      effort: "xhigh",
+      abortController,
+      onUsage: usage.observe,
+    });
+    await started;
+    abortController.abort(new Error("cancelled"));
+
+    await expect(run).rejects.toThrow("cancelled");
+    expect(usage.snapshot()).toEqual({
+      tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
   });
 
   it("rejects a cancellable native harness before launch without a stop contract", async () => {
@@ -140,6 +212,7 @@ describe("runAgentHarness cancellation", () => {
           text: "ok",
           streamedText: "ok",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },
@@ -156,7 +229,16 @@ describe("runAgentHarness cancellation", () => {
   });
 
   it.each([
-    { terminal: "success", run: async () => ({ text: "ok", streamedText: "ok", turns: 1, isError: false }) },
+    {
+      terminal: "success",
+      run: async () => ({
+        text: "ok",
+        streamedText: "ok",
+        turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
+        isError: false,
+      }),
+    },
     { terminal: "failure", run: async () => { throw new Error("adapter failed"); } },
   ])("removes its cancellation listener after adapter $terminal", async ({ run }) => {
     const abortController = new AbortController();

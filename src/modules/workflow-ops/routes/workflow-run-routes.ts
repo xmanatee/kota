@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { extname, join } from "node:path";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import {
   type EvidenceArtifactReference,
   type EvidenceJsonObject,
@@ -12,6 +13,7 @@ import {
 } from "#core/evidence/policy.js";
 import { jsonResponse, SseTransport, setCors } from "#core/server/session-pool.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
@@ -32,7 +34,7 @@ type RunSummary = {
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
-  totalCostUsd?: number;
+  usage?: AgentUsage;
   triggerEvent?: string;
   tags?: string[];
   provenance: EvidenceProvenance;
@@ -46,7 +48,7 @@ function toSummary(meta: WorkflowRunMetadata): RunSummary {
     startedAt: meta.startedAt,
     ...(meta.completedAt !== undefined && { completedAt: meta.completedAt }),
     ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),
-    ...(meta.totalCostUsd !== undefined && { totalCostUsd: meta.totalCostUsd }),
+    ...(meta.usage !== undefined && { usage: meta.usage }),
     ...(meta.trigger?.event !== undefined && { triggerEvent: meta.trigger.event }),
     ...(meta.tags !== undefined && { tags: meta.tags }),
     provenance: workflowRunProvenance(meta),
@@ -167,7 +169,7 @@ export function handleWorkflowRunDetail(
     return;
   }
   const runDir = join(store.runsDir, runId);
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(join(runDir, "metadata.json"));
+  const metadata = readWorkflowRunMetadataFile(join(runDir, "metadata.json"));
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -196,7 +198,7 @@ export function handleWorkflowRunStream(
   const metadataPath = join(runDir, "metadata.json");
   const stepsDir = join(runDir, "steps");
 
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+  const metadata = readWorkflowRunMetadataFile(metadataPath);
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -265,7 +267,7 @@ export function handleWorkflowRunStream(
   function poll(): void {
     if (sse.isClosed) return;
 
-    const meta = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+    const meta = readWorkflowRunMetadataFile(metadataPath);
     if (!meta) return;
 
     // Completed steps from metadata
@@ -296,7 +298,7 @@ export function handleWorkflowRunStream(
       sse.send("run_completed", {
         status: meta.status,
         ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),
-        ...(meta.totalCostUsd !== undefined && { totalCostUsd: meta.totalCostUsd }),
+        ...(meta.usage !== undefined && { usage: meta.usage }),
       });
       sse.end();
       clearInterval(intervalId);
@@ -414,7 +416,7 @@ export function handleWorkflowRunThinking(
     return;
   }
   const runDir = join(store.runsDir, runId);
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(join(runDir, "metadata.json"));
+  const metadata = readWorkflowRunMetadataFile(join(runDir, "metadata.json"));
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;

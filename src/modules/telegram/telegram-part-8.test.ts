@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentHarness } from "#core/agent-harness/index.js";
+import {
+  type AgentHarness,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -38,6 +41,7 @@ function makeTestHarness(name: string): AgentHarness {
         text: "ok",
         streamedText: "ok",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     },

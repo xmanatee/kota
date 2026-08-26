@@ -132,8 +132,10 @@ describe("run executor repair-result usage", () => {
             text: "done",
             streamedText: "done",
             turns: 1,
-            inputTokens: 10,
-            outputTokens: 2,
+            usage: {
+              tokens: { state: "complete", inputTokens: 10, outputTokens: 2 },
+              cost: { state: "unavailable", reason: "provider-does-not-report" },
+            },
             isError: false,
           };
         }
@@ -141,8 +143,10 @@ describe("run executor repair-result usage", () => {
           text: "Individual quota reached. Resets in 1h.",
           streamedText: "",
           turns: 1,
-          inputTokens: 31,
-          outputTokens: 4,
+          usage: {
+            tokens: { state: "complete", inputTokens: 31, outputTokens: 4 },
+            cost: { state: "unavailable", reason: "provider-does-not-report" },
+          },
           subtype: "antigravity_cli_error",
           isError: true,
         };
@@ -159,18 +163,18 @@ describe("run executor repair-result usage", () => {
 
     expect(result.metadata).toMatchObject({
       status: "failed",
-      inputTokens: 41,
-      outputTokens: 6,
+      usage: {
+        tokens: { state: "complete", inputTokens: 41, outputTokens: 6 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       steps: [{
         status: "failed",
-        inputTokens: 41,
-        outputTokens: 6,
+        usage: {
+          tokens: { state: "complete", inputTokens: 41, outputTokens: 6 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
         output: {
-          inputTokens: 41,
-          outputTokens: 6,
           repairIterations: [{
-            agentInputTokens: 31,
-            agentOutputTokens: 4,
             agentError: expect.stringContaining("Individual quota reached"),
           }],
         },

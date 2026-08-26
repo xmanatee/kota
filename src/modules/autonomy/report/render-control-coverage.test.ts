@@ -16,8 +16,10 @@ describe("renderControlCoverage", () => {
     expect(render({
       artifactCount: 0,
       runsWithGaps: 0,
+      runsWithUnknownCoverage: 0,
       totalGaps: 0,
       pendingFamilies: 0,
+      unknownFamilies: 0,
       unsupportedFamilies: 0,
       blockedFamilies: 0,
       warnedFamilies: 0,
@@ -32,6 +34,7 @@ describe("renderControlCoverage", () => {
       },
       evidenceGaps: [],
       topGaps: [],
+      topUnknowns: [],
       recentArtifactPaths: [],
     })).toContain("(no control coverage artifacts)");
   });
@@ -40,8 +43,10 @@ describe("renderControlCoverage", () => {
     const text = render({
       artifactCount: 2,
       runsWithGaps: 1,
+      runsWithUnknownCoverage: 0,
       totalGaps: 1,
       pendingFamilies: 1,
+      unknownFamilies: 0,
       unsupportedFamilies: 0,
       blockedFamilies: 0,
       warnedFamilies: 0,
@@ -83,6 +88,7 @@ describe("renderControlCoverage", () => {
           evidenceArtifactPaths: [".kota/runs/r1/control-monitor-coverage.json"],
         },
       ],
+      topUnknowns: [],
       recentArtifactPaths: [
         ".kota/runs/r2/control-monitor-coverage.json",
         ".kota/runs/r1/control-monitor-coverage.json",

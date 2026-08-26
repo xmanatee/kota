@@ -24,6 +24,7 @@ vi.mock("node:os", async (importOriginal) => {
 
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId, ScopeRegistry } from "#core/daemon/scope-registry.js";
 import {
@@ -809,6 +810,7 @@ describe("workflow trial execution", () => {
           text: "agent finished",
           streamedText: "agent finished",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },
@@ -893,6 +895,7 @@ describe("workflow trial execution", () => {
           text: "agent finished",
           streamedText: "agent finished",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },

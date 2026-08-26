@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type AgentUsage,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/usage.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { getEligibleAtMs } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -180,11 +184,34 @@ const minimalWorkflow: WorkflowDefinition = {
   steps: [],
 };
 
-function makeStepResult(
+function completeUsage(costUsd: number): AgentUsage {
+  return {
+    tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+    cost: { state: "complete", usd: costUsd },
+  };
+}
+
+function makeAgentStepResult(
   id: string,
-  type: WorkflowStepResult["type"],
   output?: unknown,
-  costUsd?: number,
+  usage: AgentUsage = UNKNOWN_AGENT_USAGE,
+): WorkflowStepResult {
+  return {
+    id,
+    type: "agent",
+    status: "success",
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    durationMs: 100,
+    output,
+    usage,
+  };
+}
+
+function makeNonAgentStepResult(
+  id: string,
+  type: Exclude<WorkflowStepResult["type"], "agent">,
+  output?: unknown,
 ): WorkflowStepResult {
   return {
     id,
@@ -194,7 +221,6 @@ function makeStepResult(
     completedAt: new Date().toISOString(),
     durationMs: 100,
     output,
-    costUsd,
   };
 }
 
@@ -215,37 +241,57 @@ describe("WorkflowRunStore cost aggregation", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("sets totalCostUsd to 0 when no agent steps exist", () => {
+  it("omits usage when no agent steps exist", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
     const completed = run.finish({ status: "success", durationMs: 100 });
-    expect(completed.totalCostUsd).toBe(0);
+    expect(completed.usage).toBeUndefined();
   });
 
-  it("sums costUsd across agent step results", () => {
+  it("sums measured usage across agent step results", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("step1", "agent", { content: "ok" }, 0.01));
-    run.recordStep(makeStepResult("step2", "agent", { content: "ok" }, 0.02));
+    run.recordStep(makeAgentStepResult("step1", { content: "ok" }, completeUsage(0.01)));
+    run.recordStep(makeAgentStepResult("step2", { content: "ok" }, completeUsage(0.02)));
     const completed = run.finish({ status: "success", durationMs: 200 });
-    expect(completed.totalCostUsd).toBeCloseTo(0.03);
+    expect(completed.usage).toEqual({
+      tokens: { state: "complete", inputTokens: 200, outputTokens: 40 },
+      cost: { state: "complete", usd: 0.03 },
+    });
   });
 
-  it("ignores cost from non-agent steps", () => {
+  it("ignores usage from non-agent steps", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.05));
-    run.recordStep(makeStepResult("s2", "code", { result: "done" }));
-    run.recordStep(makeStepResult("s3", "tool", { content: "ok", totalCostUsd: 99 }));
+    run.recordStep(makeAgentStepResult("s1", { content: "ok" }, completeUsage(0.05)));
+    run.recordStep(makeNonAgentStepResult("s2", "code", { result: "done" }));
+    run.recordStep(makeNonAgentStepResult("s3", "tool", { content: "ok" }));
     const completed = run.finish({ status: "success", durationMs: 300 });
-    expect(completed.totalCostUsd).toBeCloseTo(0.05);
+    expect(completed.usage).toEqual(completeUsage(0.05));
   });
 
-  it("treats agent steps with no cost output as zero", () => {
+  it("keeps aggregate usage partial when an agent step reports unknown usage", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }));
-    run.recordStep(makeStepResult("s2", "agent", { content: "ok" }, 0.03));
+    run.recordStep(makeAgentStepResult("s1", { content: "ok" }));
+    run.recordStep(makeAgentStepResult("s2", { content: "ok" }, completeUsage(0.03)));
     const completed = run.finish({ status: "success", durationMs: 200 });
-    expect(completed.totalCostUsd).toBeCloseTo(0.03);
+    expect(completed.usage).toEqual({
+      tokens: { state: "partial", inputTokens: 100, outputTokens: 20 },
+      cost: { state: "unknown" },
+    });
   });
 
+  it("preserves unavailable cost instead of representing it as zero", () => {
+    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
+    run.recordStep(makeAgentStepResult("s1", { content: "ok" }, {
+      tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    }));
+    run.recordStep(makeAgentStepResult("s2", { content: "ok" }, completeUsage(0.05)));
+    const completed = run.finish({ status: "success", durationMs: 100 });
+
+    expect(completed.usage).toEqual({
+      tokens: { state: "complete", inputTokens: 140, outputTokens: 28 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -253,21 +299,25 @@ describe("WorkflowRunStore cost aggregation", () => {
 // ---------------------------------------------------------------------------
 
 describe("workflow show step cost display", () => {
-  it("appends cost to agent steps with totalCostUsd in output", () => {
-    const step = {
+  function formatStepCost(step: WorkflowStepResult): string {
+    if (step.usage === undefined) return "";
+    return step.usage.cost.state === "complete"
+      ? ` $${step.usage.cost.usd.toFixed(3)}`
+      : ` ${step.usage.cost.state}`;
+  }
+
+  it("appends measured cost from typed usage", () => {
+    const step: WorkflowStepResult = {
       id: "build",
-      type: "agent" as const,
-      status: "success" as const,
+      type: "agent",
+      status: "success",
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: 5000,
-      output: { content: "done", totalCostUsd: 1.791 },
+      output: { content: "done" },
+      usage: completeUsage(1.791),
     };
-    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
-    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
-      : "";
-    expect(cost).toBe(" $1.791");
+    expect(formatStepCost(step)).toBe(" $1.791");
   });
 
   it("omits cost for non-agent steps", () => {
@@ -278,47 +328,41 @@ describe("workflow show step cost display", () => {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: 100,
-      output: { totalCostUsd: 99 },
+      output: { result: 99 },
     };
-    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
-    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
-      : "";
-    expect(cost).toBe("");
+    expect(formatStepCost(step)).toBe("");
   });
 
-  it("omits cost for agent steps without totalCostUsd", () => {
-    const step = {
+  it("shows unknown cost explicitly", () => {
+    const step: WorkflowStepResult = {
       id: "build",
-      type: "agent" as const,
-      status: "success" as const,
+      type: "agent",
+      status: "success",
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: 5000,
       output: { content: "done" },
+      usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
     };
-    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
-    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
-      : "";
-    expect(cost).toBe("");
+    expect(formatStepCost(step)).toBe(" unknown");
   });
 
-  it("omits cost for agent steps with null output", () => {
-    const step = {
+  it("shows unavailable cost explicitly and never as zero", () => {
+    const step: WorkflowStepResult = {
       id: "build",
-      type: "agent" as const,
-      status: "success" as const,
+      type: "agent",
+      status: "success",
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       durationMs: 5000,
       output: null,
+      usage: {
+        tokens: { state: "complete", inputTokens: 10, outputTokens: 2 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     };
-    const stepOutput = step.output as { totalCostUsd?: unknown } | null | undefined;
-    const cost = step.type === "agent" && typeof stepOutput?.totalCostUsd === "number"
-      ? ` $${stepOutput.totalCostUsd.toFixed(3)}`
-      : "";
-    expect(cost).toBe("");
+    expect(formatStepCost(step)).toBe(" unavailable");
+    expect(formatStepCost(step)).not.toContain("$0");
   });
 });
 
@@ -345,7 +389,7 @@ describe("workflow show --step flag", () => {
 
   it("returns full JSON output for a step with output", () => {
     const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("inspect-queue", "code", { taskCounts: { ready: 2 } }));
+    run.recordStep(makeNonAgentStepResult("inspect-queue", "code", { taskCounts: { ready: 2 } }));
     run.finish({ status: "success", durationMs: 100 });
 
     const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
@@ -367,6 +411,7 @@ describe("workflow show --step flag", () => {
       completedAt: new Date().toISOString(),
       durationMs: 50,
       error: "Something went wrong",
+      usage: UNKNOWN_AGENT_USAGE,
     });
     run.finish({ status: "failed", durationMs: 50, error: "Something went wrong" });
 

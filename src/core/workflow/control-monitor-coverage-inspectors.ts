@@ -34,6 +34,12 @@ type AddGap = (
   refs: string[],
   severity?: "warning" | "error",
 ) => void;
+type AddUnknown = (
+  family: ControlCoverageFamilyName,
+  reason: string,
+  subject: string,
+  refs: string[],
+) => void;
 
 function addEvidence(family: ControlCoverageFamilyBuilder, ref: string | null): void {
   if (ref) family.evidenceRefs.push(ref);
@@ -116,6 +122,7 @@ export function inspectAgentStream(args: {
   streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
+  addUnknown: AddUnknown;
 }): void {
   const stream = args.family("agent-step-stream");
   stream.denominator += 1;
@@ -130,15 +137,25 @@ export function inspectAgentStream(args: {
     stream.numerator += 1;
     addEvidence(stream, artifactRef(args.projectDir, eventsPath));
   } else if (args.runStatus === "interrupted" && args.stepStatus === null) {
-    stream.pending += 1;
-    addEvidence(stream, capabilityRef);
+    args.addUnknown(
+      "agent-step-stream",
+      "interrupted-before-agent-step-events-finalized",
+      args.stepId,
+      [capabilityRef],
+    );
   } else if (
     args.stepStatus === "failed" &&
     args.streamPolicy === "buffer-until-validation-success"
   ) {
-    stream.pending += 1;
-    addEvidence(stream, capabilityRef);
-    addEvidence(stream, artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)));
+    args.addUnknown(
+      "agent-step-stream",
+      "validation-buffer-discarded-agent-step-events",
+      args.stepId,
+      [
+        capabilityRef,
+        artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)),
+      ],
+    );
   } else {
     const missingFrames = missingStreamingFrameCount(args.runDirPath, args.stepId);
     if (missingFrames > 0) {
@@ -180,6 +197,7 @@ export function inspectTrajectory(args: {
   streamPolicy: AgentMessageStreamPolicy | null;
   family: FamilyAccessor;
   addGap: AddGap;
+  addUnknown: AddUnknown;
 }): void {
   const trajectory = args.family("trajectory-diagnostics");
   trajectory.denominator += 1;
@@ -187,10 +205,11 @@ export function inspectTrajectory(args: {
   const artifact = readJsonObject(path);
   if (!artifact) {
     if (args.runStatus === "interrupted" && args.stepStatus === null) {
-      trajectory.pending += 1;
-      addEvidence(
-        trajectory,
-        runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
+      args.addUnknown(
+        "trajectory-diagnostics",
+        "interrupted-before-trajectory-diagnostics-finalized",
+        args.stepId,
+        [runArtifactRef(args.projectDir, args.runDirPath, "metadata.json")],
       );
       return;
     }
@@ -198,8 +217,12 @@ export function inspectTrajectory(args: {
       args.stepStatus === "failed" &&
       args.streamPolicy === "buffer-until-validation-success"
     ) {
-      trajectory.pending += 1;
-      addEvidence(trajectory, artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)));
+      args.addUnknown(
+        "trajectory-diagnostics",
+        "validation-buffer-discarded-trajectory-diagnostics",
+        args.stepId,
+        [artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`))],
+      );
       return;
     }
     args.addGap("trajectory-diagnostics", "missing-trajectory-diagnostics", args.stepId, [
@@ -285,8 +308,10 @@ export function inspectApprovalOwnerGates(args: {
   steps: WorkflowRunMetadata["steps"];
   approvalRequestedEvents: CoverageEvent[];
   approvalResolvedEvents: CoverageEvent[];
+  runStatus: WorkflowRunMetadata["status"];
   family: FamilyAccessor;
   addGap: AddGap;
+  addUnknown: AddUnknown;
 }): number {
   const approvals = args.family("approval-owner-gates");
   const requestedById = approvalEventsById(args.approvalRequestedEvents);
@@ -310,7 +335,16 @@ export function inspectApprovalOwnerGates(args: {
       addEvidence(approvals, resolved.evidenceRef);
       if (boolField(resolved.payload.approved) === false) approvals.blocked += 1;
     } else {
-      approvals.pending += 1;
+      if (args.runStatus === "running") {
+        approvals.pending += 1;
+      } else {
+        args.addUnknown(
+          "approval-owner-gates",
+          "terminal-run-with-unresolved-approval",
+          id,
+          [requested.evidenceRef],
+        );
+      }
     }
   }
   return args.steps.filter((step) => step.type === "approval").length + requestedById.size;

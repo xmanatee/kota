@@ -79,7 +79,16 @@ describe("findResumeFromIndex", () => {
   const defSteps = [{ id: "step-a" }, { id: "step-b" }, { id: "step-c" }];
 
   function makeStep(id: string, status: WorkflowStepResult["status"] = "success"): WorkflowStepResult {
-    return { id, type: "code", status, startedAt: "", completedAt: "", durationMs: 0 };
+    const timing = { id, startedAt: "", completedAt: "", durationMs: 0 };
+    if (status === "skipped") {
+      return {
+        ...timing,
+        type: "code",
+        status,
+        skipReason: { kind: "when-predicate" },
+      };
+    }
+    return { ...timing, type: "code", status };
   }
 
   it("returns 0 when resuming from the first step with no prerequisites to check", () => {

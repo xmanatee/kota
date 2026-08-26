@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { computeWorkflowCostRows } from "./run-cost.js";
 
-type RunEntry = { id: string; workflow: string; status: string; startedAt: string; totalCostUsd?: number };
+type RunEntry = { id: string; workflow: string; status: string; startedAt: string; usage?: AgentUsage };
 
 function makeRun(id: string, workflow: string, status: string, totalCostUsd?: number): RunEntry {
-  return { id, workflow, status, startedAt: new Date().toISOString(), totalCostUsd };
+  return {
+    id,
+    workflow,
+    status,
+    startedAt: new Date().toISOString(),
+    ...(totalCostUsd === undefined
+      ? {}
+      : {
+          usage: {
+            tokens: { state: "unknown" },
+            cost: { state: "complete", usd: totalCostUsd },
+          } satisfies AgentUsage,
+        }),
+  };
 }
 
 describe("computeWorkflowCostRows", () => {
@@ -28,15 +42,15 @@ describe("computeWorkflowCostRows", () => {
 
     const builder = rows.find((r) => r.workflow === "builder")!;
     expect(builder.runs).toBe(2);
-    expect(builder.totalCostUsd).toBeCloseTo(0.40);
-    expect(builder.averageCostUsd).toBeCloseTo(0.20);
-    expect(builder.maxRunCostUsd).toBeCloseTo(0.30);
+    expect(builder.measuredCostUsd).toBeCloseTo(0.40);
+    expect(builder.averageMeasuredCostUsd).toBeCloseTo(0.20);
+    expect(builder.maxMeasuredRunCostUsd).toBeCloseTo(0.30);
 
     const explorer = rows.find((r) => r.workflow === "explorer")!;
     expect(explorer.runs).toBe(1);
-    expect(explorer.totalCostUsd).toBeCloseTo(0.05);
-    expect(explorer.averageCostUsd).toBeCloseTo(0.05);
-    expect(explorer.maxRunCostUsd).toBeCloseTo(0.05);
+    expect(explorer.measuredCostUsd).toBeCloseTo(0.05);
+    expect(explorer.averageMeasuredCostUsd).toBeCloseTo(0.05);
+    expect(explorer.maxMeasuredRunCostUsd).toBeCloseTo(0.05);
   });
 
   it("sorts by total cost descending", () => {
@@ -49,10 +63,14 @@ describe("computeWorkflowCostRows", () => {
     expect(rows[1].workflow).toBe("explorer");
   });
 
-  it("treats missing totalCostUsd as zero", () => {
+  it("preserves missing cost as unknown", () => {
     const rows = computeWorkflowCostRows([makeRun("r1", "builder", "success", undefined)]);
-    expect(rows[0].totalCostUsd).toBe(0);
-    expect(rows[0].averageCostUsd).toBe(0);
-    expect(rows[0].maxRunCostUsd).toBe(0);
+    expect(rows[0]).toMatchObject({
+      measuredRuns: 0,
+      unknownRuns: 1,
+      measuredCostUsd: null,
+      averageMeasuredCostUsd: null,
+      maxMeasuredRunCostUsd: null,
+    });
   });
 });

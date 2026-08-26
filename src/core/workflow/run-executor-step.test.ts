@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
 import { RepairLoopError } from "./repair-loop.js";
 import {
@@ -8,7 +9,10 @@ import {
   HARD_MAX_STEP_OUTPUT_BYTES,
   type StepAccumulators,
 } from "./run-executor-step.js";
-import { AgentStepRuntimeError } from "./steps/step-executor.js";
+import {
+  type AgentStepConfig,
+  AgentStepRuntimeError,
+} from "./steps/step-executor.js";
 
 const executeStepMock = vi.hoisted(() => vi.fn());
 vi.mock("./steps/step-executor.js", () => ({
@@ -102,7 +106,7 @@ describe("applyOutputSizeLimit", () => {
   });
 });
 
-describe("executeWorkflowStep — costUsd capture", () => {
+describe("executeWorkflowStep agent usage capture", () => {
   function makeAcc(): StepAccumulators {
     return { stepOutputsById: {}, stepResultsById: {}, stepOutputs: [], warnings: [] };
   }
@@ -149,12 +153,22 @@ describe("executeWorkflowStep — costUsd capture", () => {
   } as any;
   const log = vi.fn();
   const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
-  it("captures costUsd from agent step output onto WorkflowStepResult", async () => {
-    const agentOutput = { content: "done", totalCostUsd: 0.42, turns: 3 };
-    executeStepMock.mockResolvedValueOnce({
-      output: agentOutput,
-      harness: "claude-agent-sdk",
-      model: "claude-opus-4-7",
+  const observeUsage = (args: unknown[], usage: AgentUsage): void => {
+    (args[8] as AgentStepConfig).onUsage?.(usage);
+  };
+
+  it("captures typed usage reported by an agent step", async () => {
+    const usage: AgentUsage = {
+      tokens: { state: "complete", inputTokens: 120, outputTokens: 18 },
+      cost: { state: "complete", usd: 0.42 },
+    };
+    executeStepMock.mockImplementationOnce(async (...args: unknown[]) => {
+      observeUsage(args, usage);
+      return {
+        output: { content: "done", turns: 3 },
+        harness: "claude-agent-sdk",
+        model: "claude-opus-4-7",
+      };
     });
 
     const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
@@ -164,16 +178,16 @@ describe("executeWorkflowStep — costUsd capture", () => {
       new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
-    expect(result.completed.costUsd).toBe(0.42);
+    expect(result.completed.usage).toEqual(usage);
     expect(result.completed.harness).toBe("claude-agent-sdk");
     expect(result.completed.model).toBe("claude-opus-4-7");
     expect(bus.emit).toHaveBeenCalledWith(
       "workflow.step.completed",
-      expect.objectContaining({ costUsd: 0.42 }),
+      expect.objectContaining({ usage }),
     );
   });
 
-  it("does not set costUsd on non-agent steps", async () => {
+  it("does not set usage on non-agent steps", async () => {
     executeStepMock.mockResolvedValueOnce("ok");
     const step = { id: "emit-step", type: "emit" as const, event: "test.event", payload: {} };
     const acc = makeAcc();
@@ -182,7 +196,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
       new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
-    expect(result.completed.costUsd).toBeUndefined();
+    expect(result.completed.usage).toBeUndefined();
   });
 
   it("binds direct workflow tools to an invocation session and tears it down", async () => {
@@ -226,7 +240,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
-  it("does not set costUsd when agent output lacks totalCostUsd", async () => {
+  it("records unknown usage when the agent step reports no observation", async () => {
     executeStepMock.mockResolvedValueOnce({
       output: { content: "done" },
       harness: "claude-agent-sdk",
@@ -239,7 +253,10 @@ describe("executeWorkflowStep — costUsd capture", () => {
       new AbortController(), agentConfig, acc, { bus, pbus, log }, Date.now(),
     );
 
-    expect(result.completed.costUsd).toBeUndefined();
+    expect(result.completed.usage).toEqual({
+      tokens: { state: "unknown" },
+      cost: { state: "unknown" },
+    });
   });
 
   it("discards code-step emits when the attempt fails with continuation", async () => {
@@ -306,13 +323,18 @@ describe("executeWorkflowStep — costUsd capture", () => {
     expect(durableEmit).toHaveBeenCalledWith("work.prepared", { value: 1 }, undefined);
   });
 
-  it("records terminal repair evidence and cost on the failed step", async () => {
+  it("records terminal repair evidence and typed usage on the failed step", async () => {
+    const usage: AgentUsage = {
+      tokens: {
+        state: "complete",
+        inputTokens: 92_328,
+        outputTokens: 3_189,
+      },
+      cost: { state: "complete", usd: 0.21 },
+    };
     const output = {
       content: "repair did not resolve the check",
       turns: 3,
-      totalCostUsd: 0.21,
-      inputTokens: 92_328,
-      outputTokens: 3_189,
       repairIterations: [
         {
           attempt: 1,
@@ -323,16 +345,17 @@ describe("executeWorkflowStep — costUsd capture", () => {
       ],
       repairWarnings: [],
     };
-    executeStepMock.mockRejectedValueOnce(
-      new RepairLoopError(
+    executeStepMock.mockImplementationOnce(async (...args: unknown[]) => {
+      observeUsage(args, usage);
+      throw new RepairLoopError(
         "repair-no-progress",
         "build",
         ["lint"],
         output,
         "repair made no progress",
         new AgentStepRuntimeError("provider repair failed", "provider", false),
-      ),
-    );
+      );
+    });
 
     const step = { id: "build", type: "agent" as const, promptPath: "prompt.md" };
     const result = await executeWorkflowStep(
@@ -351,9 +374,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
     expect(result.completed).toMatchObject({
       status: "failed",
       errorKind: "repair-no-progress",
-      costUsd: 0.21,
-      inputTokens: 92_328,
-      outputTokens: 3_189,
+      usage,
       output: { repairIterations: output.repairIterations },
     });
     expect(result.agentBackoff).toMatchObject({

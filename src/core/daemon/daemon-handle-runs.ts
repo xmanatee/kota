@@ -43,7 +43,7 @@ export function buildDaemonRunHandle(
         triggerSchemaRef: run.trigger.schemaRef,
         startedAt: run.startedAt,
         ...(run.durationMs != null && { durationMs: run.durationMs }),
-        ...(run.totalCostUsd != null && { totalCostUsd: run.totalCostUsd }),
+        ...(run.usage !== undefined && { usage: run.usage }),
         ...(run.triggeredByRunId != null && { triggeredByRunId: run.triggeredByRunId }),
         ...(run.causedBy != null && { causedBy: run.causedBy }),
         ...(run.retryOf != null && { retryOf: run.retryOf }),
@@ -67,7 +67,7 @@ export function buildDaemonRunHandle(
         startedAt: run.startedAt,
         ...(run.completedAt != null && { completedAt: run.completedAt }),
         ...(run.durationMs != null && { durationMs: run.durationMs }),
-        ...(run.totalCostUsd != null && { totalCostUsd: run.totalCostUsd }),
+        ...(run.usage !== undefined && { usage: run.usage }),
         ...(run.triggeredByRunId != null && { triggeredByRunId: run.triggeredByRunId }),
         ...(run.causedBy != null && { causedBy: run.causedBy }),
         ...(run.retryOf != null && { retryOf: run.retryOf }),
@@ -81,18 +81,13 @@ export function buildDaemonRunHandle(
           })),
         }),
         steps: run.steps.map((step) => {
-          const agentCost = step.type === "agent"
-            && typeof (step.output as { totalCostUsd?: number } | null | undefined)?.totalCostUsd
-              === "number"
-            ? (step.output as { totalCostUsd: number }).totalCostUsd
-            : undefined;
           return {
             id: step.id,
             type: step.type,
             status: step.status,
             durationMs: step.durationMs,
             ...(step.error != null && { error: step.error }),
-            ...(agentCost != null && { costUsd: agentCost }),
+            ...(step.usage !== undefined && { usage: step.usage }),
             ...(step.toolCalls != null && { toolCalls: step.toolCalls }),
             ...(step.skipReason != null && { skipReason: step.skipReason }),
           };
@@ -122,8 +117,8 @@ export function buildDaemonRunHandle(
         if (!run.workflow || !run.status || run.status === "running") continue;
         const countKey = `${run.workflow}\x00${run.status}`;
         countMap.set(countKey, (countMap.get(countKey) ?? 0) + 1);
-        if (typeof run.totalCostUsd === "number") {
-          costMap.set(run.workflow, (costMap.get(run.workflow) ?? 0) + run.totalCostUsd);
+        if (run.usage?.cost.state === "complete") {
+          costMap.set(run.workflow, (costMap.get(run.workflow) ?? 0) + run.usage.cost.usd);
         }
         if (typeof run.durationMs !== "number") continue;
         const durationSeconds = run.durationMs / 1000;

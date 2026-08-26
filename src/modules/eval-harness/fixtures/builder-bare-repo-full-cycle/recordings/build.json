@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-05-26T19-29-17-202Z-builder-9ao2vd",
@@ -7,10 +7,15 @@
     "text": "Full-cycle fixture task completed. The bare project now has package metadata, a runnable pnpm test command, verification tests for the documented normalization cases, a corrected implementation, task state moved to done, and run-directory success evidence plus commit message artifacts.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-bare-repo-full-cycle-replay"
+    "sessionId": "builder-bare-repo-full-cycle-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

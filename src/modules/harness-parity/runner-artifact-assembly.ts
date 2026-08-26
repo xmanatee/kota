@@ -1,9 +1,10 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  AgentEffort,
-  AgentHarness,
-  HarnessCapabilitySnapshot,
+import {
+  type AgentEffort,
+  type AgentHarness,
+  AgentUsageAccumulator,
+  type HarnessCapabilitySnapshot,
 } from "#core/agent-harness/index.js";
 import {
   aggregateContextRetrievalDiagnosticsMetadata,
@@ -82,17 +83,6 @@ function buildStagedSummary(
   };
 }
 
-function sumOptionalNumber(
-  stages: readonly HarnessParityStageArtifact[],
-  getValue: (stage: HarnessParityStageArtifact) => number | undefined,
-): number | undefined {
-  const values = stages
-    .map((stage) => getValue(stage))
-    .filter((value): value is number => value !== undefined);
-  if (values.length === 0) return undefined;
-  return values.reduce((sum, value) => sum + value, 0);
-}
-
 function buildStagedPromptText(stages: readonly ScenarioStageSpec[]): string {
   return `${stages
     .map((stage) => `## ${stage.id}\n\n${stage.prompt}`)
@@ -147,6 +137,8 @@ export function buildHarnessArtifact(args: {
     args.scenario.spec.stageMode === "single"
       ? finalStage.contextRetrievalDiagnostics
       : aggregateContextRetrieval(stages, args.artifactDir);
+  const usage = new AgentUsageAccumulator();
+  for (const stage of stages) usage.observe(stage.usage);
 
   return {
     scenarioId: args.scenario.spec.id,
@@ -157,6 +149,7 @@ export function buildHarnessArtifact(args: {
     durationMs: args.durationMs,
     turns: stages.reduce((sum, stage) => sum + stage.turns, 0),
     isError: stages.some((stage) => stage.isError),
+    usage: usage.snapshot(),
     verification,
     capability: args.capability,
     changedFiles: finalStage.changedFiles,
@@ -170,20 +163,6 @@ export function buildHarnessArtifact(args: {
     stageMode: args.scenario.spec.stageMode,
     stages,
     stagedSummary,
-    ...(sumOptionalNumber(stages, (stage) => stage.inputTokens) !== undefined
-      ? { inputTokens: sumOptionalNumber(stages, (stage) => stage.inputTokens) }
-      : {}),
-    ...(sumOptionalNumber(stages, (stage) => stage.outputTokens) !== undefined
-      ? { outputTokens: sumOptionalNumber(stages, (stage) => stage.outputTokens) }
-      : {}),
-    ...(sumOptionalNumber(stages, (stage) => stage.totalCostUsd) !== undefined
-      ? {
-          totalCostUsd: sumOptionalNumber(
-            stages,
-            (stage) => stage.totalCostUsd,
-          ),
-        }
-      : {}),
     ...(args.scenario.spec.stageMode === "single" && finalStage.subtype !== undefined
       ? { subtype: finalStage.subtype }
       : {}),

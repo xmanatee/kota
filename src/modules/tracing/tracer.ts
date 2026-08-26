@@ -3,28 +3,13 @@ import { join, resolve } from "node:path";
 import { ROOT_CONTEXT, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import type { BusEvents } from "#core/events/event-bus-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 
 const TRACER_NAME = "kota-workflow";
 
-type StepCompletedPayload = {
-  workflow: string;
-  runId: string;
-  stepId: string;
-  stepType: string;
-  status: string;
-  durationMs: number;
-  costUsd?: number;
-  runDir: string;
-  autonomyMode?: AutonomyMode;
-  skipReason?: WorkflowStepSkipReason;
-};
+type StepCompletedPayload = BusEvents["workflow.step.completed"];
 
 type AgentStepOutput = {
   turns?: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
 };
 
 type TracerLogger = (msg: string, err: unknown) => void;
@@ -106,10 +91,6 @@ export class WorkflowTracer {
     span.setAttribute("workflow.step.status", payload.status);
     span.setAttribute("workflow.step.duration_ms", payload.durationMs);
 
-    if (payload.costUsd != null) {
-      span.setAttribute("workflow.step.cost_usd", payload.costUsd);
-    }
-
     if (payload.skipReason) {
       span.setAttribute("workflow.step.skip_reason", payload.skipReason.kind);
       if (payload.skipReason.label) {
@@ -136,15 +117,14 @@ export class WorkflowTracer {
         if (agentOutput.turns != null) {
           span.setAttribute("workflow.step.turns", agentOutput.turns);
         }
-        if (agentOutput.totalCostUsd != null) {
-          span.setAttribute("workflow.step.total_cost_usd", agentOutput.totalCostUsd);
-        }
-        if (agentOutput.inputTokens != null) {
-          span.setAttribute("workflow.step.input_tokens", agentOutput.inputTokens);
-        }
-        if (agentOutput.outputTokens != null) {
-          span.setAttribute("workflow.step.output_tokens", agentOutput.outputTokens);
-        }
+      }
+      if (payload.usage?.cost.state === "complete") {
+        span.setAttribute("workflow.step.total_cost_usd", payload.usage.cost.usd);
+      }
+      const usage = payload.usage;
+      if (usage !== undefined && usage.tokens.state !== "unknown") {
+        span.setAttribute("workflow.step.input_tokens", usage.tokens.inputTokens);
+        span.setAttribute("workflow.step.output_tokens", usage.tokens.outputTokens);
       }
     }
 

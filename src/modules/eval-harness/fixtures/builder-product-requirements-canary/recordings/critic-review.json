@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "critic-review",
   "sourceRunId": "2026-05-27T18-07-36-755Z-builder-3j23nw",
@@ -7,9 +7,14 @@
     "text": "{\n  \"verdict\": \"pass\",\n  \"critical_issues\": [],\n  \"warnings\": [],\n  \"summary\": \"The replayed product-requirements fixture satisfies the task: the service implements data-driven reimbursement decisions, the scorer writes all required canaries with observed evidence, shortcut guards reject UI/prose and hardcoded artifacts, the objective canary score is available, and the seeded task moved to done.\"\n}",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": []
 }

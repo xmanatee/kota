@@ -1,3 +1,4 @@
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
@@ -161,7 +162,7 @@ export type RuntimeBusEvents = {
     durationMs: number;
     activeDurationMs?: number;
     hostSuspendedMs?: number;
-    costUsd?: number;
+    usage?: AgentUsage;
     runDir: string;
     definitionPath: string;
     trajectoryDiagnostics?: {

@@ -12,6 +12,7 @@ import {
   type AgentHarness,
   type AgentHarnessRunOptions,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   createWorkflowDispatchDeadLetter,
@@ -527,6 +528,7 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -1921,6 +1923,7 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -2086,6 +2089,7 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

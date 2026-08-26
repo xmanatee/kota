@@ -120,7 +120,10 @@ describe("quality stratification", () => {
 
   it("omits prompts, raw tool payloads, diffs, costs, and credentials from JSON", () => {
     const unsafeRun = run("unsafe-run", "builder", WINDOW_START + MS_PER_DAY, "harness-a");
-    unsafeRun.totalCostUsd = 999;
+    unsafeRun.usage = {
+      tokens: { state: "complete", inputTokens: 999, outputTokens: 999 },
+      cost: { state: "complete", usd: 999 },
+    };
     unsafeRun.steps[0]!.output = {
       prompt: "raw prompt should not appear",
       rawToolPayload: "raw tool payload",

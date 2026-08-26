@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resetModuleEventRegistry } from "#core/events/module-event.js";
@@ -137,6 +138,7 @@ describe("progress-reviewer evidence integrity", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

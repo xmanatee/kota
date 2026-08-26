@@ -1,4 +1,6 @@
-export const SHADOW_SEMANTIC_REVIEW_SCHEMA_VERSION = 1;
+import type { AgentUsage } from "#core/agent-harness/usage.js";
+
+export const SHADOW_SEMANTIC_REVIEW_SCHEMA_VERSION = 2;
 export const SHADOW_SEMANTIC_REVIEW_ARTIFACT_TYPE = "shadow-semantic-review";
 export const SHADOW_SEMANTIC_REVIEW_DIR = "shadow-review";
 
@@ -97,7 +99,7 @@ export type ShadowSemanticReviewArtifact = {
   findings: ShadowSemanticReviewFinding[];
   skippedReason?: string;
   error?: string;
-  costUsd: number | null;
+  usage: AgentUsage;
   durationMs: number | null;
 };
 
@@ -115,7 +117,7 @@ export type ShadowSemanticReviewReportRecord = {
   catchCount: number;
   falsePositiveCount: number;
   skippedReason?: string;
-  costUsd: number | null;
+  usage: AgentUsage;
   durationMs: number | null;
   promotionCandidateRef: string;
 };
@@ -135,7 +137,10 @@ export type ShadowSemanticReviewReport = {
   skippedTargetResolution: number;
   malformedArtifacts: number;
   errorArtifacts: number;
-  totalCostUsd: number;
+  measuredCostArtifacts: number;
+  unavailableCostArtifacts: number;
+  unknownCostArtifacts: number;
+  totalCostUsd: number | null;
   averageDurationMs: number | null;
   byWorkflow: {
     workflow: string;
@@ -144,7 +149,10 @@ export type ShadowSemanticReviewReport = {
     falsePositiveAnnotations: number;
     skippedTargetResolution: number;
     malformedArtifacts: number;
-    totalCostUsd: number;
+    measuredCostArtifacts: number;
+    unavailableCostArtifacts: number;
+    unknownCostArtifacts: number;
+    totalCostUsd: number | null;
   }[];
   records: ShadowSemanticReviewReportRecord[];
   unsupported: ShadowSemanticReviewUnsupportedArtifact[];

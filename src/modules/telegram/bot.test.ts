@@ -39,8 +39,10 @@ const harnessResult: AgentHarnessResult = {
   text: "harness response",
   streamedText: "harness response",
   turns: 1,
-  inputTokens: 3,
-  outputTokens: 4,
+  usage: {
+    tokens: { state: "complete", inputTokens: 3, outputTokens: 4 },
+    cost: { state: "unknown" },
+  },
   isError: false,
 };
 

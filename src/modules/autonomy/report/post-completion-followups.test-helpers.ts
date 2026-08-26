@@ -70,7 +70,10 @@ export function writeRun(
       trigger: { event: "schedule", payload: {} },
       runDir: `.kota/runs/${id}`,
       durationMs: 1000,
-      totalCostUsd: null,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
       steps: [],
       ...metadata,
     }),

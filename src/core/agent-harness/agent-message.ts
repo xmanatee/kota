@@ -13,6 +13,7 @@
  */
 import type { KotaAgentCommandTrace } from "./command-trace.js";
 import type { KotaContentBlock } from "./message-protocol.js";
+import type { AgentUsage } from "./usage.js";
 
 /** Session id the adapter assigned to this run, if any. */
 export type KotaAgentMessageEnvelope = {
@@ -83,9 +84,7 @@ export type KotaAgentResultMessage = KotaAgentMessageEnvelope & {
   subtype?: string;
   isError: boolean;
   numTurns?: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  usage: AgentUsage;
 };
 
 /**

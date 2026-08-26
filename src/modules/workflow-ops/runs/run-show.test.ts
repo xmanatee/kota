@@ -41,7 +41,7 @@ describe("extractRepairSummary", () => {
   });
 
   it("returns null when repairIterations is absent", () => {
-    expect(extractRepairSummary({ totalCostUsd: 0.05 })).toBeNull();
+    expect(extractRepairSummary({ content: "done" })).toBeNull();
   });
 
   it("returns null when repairIterations is empty", () => {
@@ -50,12 +50,10 @@ describe("extractRepairSummary", () => {
 
   it("returns summary for a single repair iteration", () => {
     const output = {
-      totalCostUsd: 0.03,
       repairIterations: [
         {
           attempt: 1,
           failures: [{ id: "check-lint", passed: false, output: "lint error" }],
-          agentCostUsd: 0.02,
         },
       ],
     };
@@ -63,12 +61,10 @@ describe("extractRepairSummary", () => {
     expect(summary).not.toBeNull();
     expect(summary!.attempts).toBe(1);
     expect(summary!.failedChecksByAttempt).toEqual([["check-lint"]]);
-    expect(summary!.totalCostUsd).toBeCloseTo(0.02);
   });
 
   it("returns summary for multiple repair iterations", () => {
     const output = {
-      totalCostUsd: 0.06,
       repairIterations: [
         {
           attempt: 1,
@@ -76,12 +72,10 @@ describe("extractRepairSummary", () => {
             { id: "check-lint", passed: false, output: "lint error" },
             { id: "check-typecheck", passed: false, output: "type error" },
           ],
-          agentCostUsd: 0.01,
         },
         {
           attempt: 2,
           failures: [{ id: "check-lint", passed: false, output: "lint error" }],
-          agentCostUsd: 0.02,
         },
       ],
     };
@@ -92,7 +86,6 @@ describe("extractRepairSummary", () => {
       ["check-lint", "check-typecheck"],
       ["check-lint"],
     ]);
-    expect(summary!.totalCostUsd).toBeCloseTo(0.03);
   });
 
   it("handles iteration with no failures (all passed in last repair)", () => {
@@ -101,7 +94,6 @@ describe("extractRepairSummary", () => {
         {
           attempt: 1,
           failures: [],
-          agentCostUsd: 0.01,
         },
       ],
     };
@@ -110,16 +102,6 @@ describe("extractRepairSummary", () => {
     expect(summary!.failedChecksByAttempt).toEqual([[]]);
   });
 
-  it("sums repair cost across iterations", () => {
-    const output = {
-      repairIterations: [
-        { attempt: 1, failures: [], agentCostUsd: 0.01 },
-        { attempt: 2, failures: [], agentCostUsd: 0.03 },
-      ],
-    };
-    const summary = extractRepairSummary(output);
-    expect(summary!.totalCostUsd).toBeCloseTo(0.04);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -131,10 +113,8 @@ describe("formatRepairLine", () => {
     const line = formatRepairLine({
       attempts: 1,
       failedChecksByAttempt: [["check-lint"]],
-      totalCostUsd: 0.01,
     });
     expect(line).toContain("1 repair");
-    expect(line).toContain("$0.010");
     expect(line).toContain("[1] check-lint");
   });
 
@@ -142,18 +122,16 @@ describe("formatRepairLine", () => {
     const line = formatRepairLine({
       attempts: 2,
       failedChecksByAttempt: [["check-lint", "check-typecheck"], ["check-lint"]],
-      totalCostUsd: 0.03,
     });
     expect(line).toContain("2 repairs");
     expect(line).toContain("[1] check-lint, check-typecheck");
     expect(line).toContain("[2] check-lint");
   });
 
-  it("omits cost when zero", () => {
+  it("does not include compatibility cost output", () => {
     const line = formatRepairLine({
       attempts: 1,
       failedChecksByAttempt: [["check-lint"]],
-      totalCostUsd: 0,
     });
     expect(line).not.toContain("$");
     expect(line).toContain("1 repair");
@@ -163,7 +141,6 @@ describe("formatRepairLine", () => {
     const line = formatRepairLine({
       attempts: 1,
       failedChecksByAttempt: [[]],
-      totalCostUsd: 0.01,
     });
     expect(line).toContain("[1] passed");
   });

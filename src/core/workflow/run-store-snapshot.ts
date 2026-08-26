@@ -16,7 +16,6 @@ export type WorkflowSnapshot = {
 export type RepairSummary = {
   attempts: number;
   failedChecksByAttempt: string[][];
-  totalCostUsd: number;
 };
 
 function summarizeStep(step: WorkflowStep): Record<string, unknown> {
@@ -100,13 +99,11 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
 export function extractRepairSummary(output: unknown): RepairSummary | null {
   const iterations = readRepairIterations(output);
   if (iterations.length === 0) return null;
-  let totalCostUsd = 0;
   const failedChecksByAttempt: string[][] = [];
   for (const iter of iterations) {
     failedChecksByAttempt.push(iter.failures.map((f) => f.id));
-    totalCostUsd += iter.agentCostUsd ?? 0;
   }
-  return { attempts: iterations.length, failedChecksByAttempt, totalCostUsd };
+  return { attempts: iterations.length, failedChecksByAttempt };
 }
 
 export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSnapshot {

@@ -22,9 +22,10 @@ describe("workflow run evidence projection", () => {
         content: "provider output with secret=raw-token",
         sessionId: "session-1",
         turns: 3,
-        totalCostUsd: 0.01,
-        inputTokens: 12,
-        outputTokens: 34,
+      },
+      usage: {
+        tokens: { state: "complete", inputTokens: 12, outputTokens: 34 },
+        cost: { state: "complete", usd: 0.01 },
       },
     };
 
@@ -37,10 +38,8 @@ describe("workflow run evidence projection", () => {
       },
       sessionId: "session-1",
       turns: 3,
-      totalCostUsd: 0.01,
-      inputTokens: 12,
-      outputTokens: 34,
     });
+    expect(projected.usage).toEqual(result.usage);
     expect(JSON.stringify(projected)).not.toContain("raw-token");
   });
 

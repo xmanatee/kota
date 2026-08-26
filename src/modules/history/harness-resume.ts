@@ -60,8 +60,8 @@ export function openHarnessResumeConversation(
     },
     appendAssistantResult(result: AgentHarnessResult): void {
       if (result.text) messages.push({ role: "assistant", content: result.text });
-      if (typeof result.inputTokens === "number") {
-        lastInputTokens = result.inputTokens;
+      if (result.usage.tokens.state !== "unknown") {
+        lastInputTokens = result.usage.tokens.inputTokens;
       }
       save();
     },

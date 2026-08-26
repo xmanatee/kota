@@ -11,7 +11,9 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
+  pricedAgentUsage,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#modules/claude-agent-harness/kota-tools-mcp.js";
@@ -565,6 +567,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       text: "should not run",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }));
     registerAgentHarness({
@@ -619,6 +622,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
           text: "done",
           streamedText: "",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },
@@ -681,6 +685,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
           text: "done",
           streamedText: "",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },
@@ -773,7 +778,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
         streamedText: "",
         sessionId: undefined,
         turns: 1,
-        totalCostUsd: 0.01,
+        usage: pricedAgentUsage(undefined, undefined, 0.01),
         subtype: undefined,
         isError: false,
       };
@@ -1015,7 +1020,7 @@ describe("executeAgentStep — records resolved harness and model", () => {
         streamedText: "",
         sessionId: undefined,
         turns: 1,
-        totalCostUsd: 0.01,
+        usage: pricedAgentUsage(undefined, undefined, 0.01),
         subtype: undefined,
         isError: false,
       };

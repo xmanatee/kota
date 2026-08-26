@@ -7,6 +7,7 @@ import {
   agentHarnessToolExecutionOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef, AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -111,6 +112,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
           text: childResult?.content ?? "missing child result",
           streamedText: childResult?.content ?? "missing child result",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },
@@ -229,6 +231,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
           text: "inspected inherited context",
           streamedText: "inspected inherited context",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },

@@ -19,7 +19,7 @@ import {
 } from "./replay-harness.js";
 
 const RECORDING: AgentStepRecording = {
-  version: 1,
+  version: 2,
   workflowName: "decomposer",
   stepId: "decompose",
   sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
@@ -27,9 +27,10 @@ const RECORDING: AgentStepRecording = {
     text: "decomposed fixture",
     subtype: "success",
     turns: 12,
-    totalCostUsd: 0.5,
-    inputTokens: 100,
-    outputTokens: 200,
+    usage: {
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 200 },
+      cost: { state: "complete", usd: 0.5 },
+    },
     sessionId: "s-1",
   },
   fileOperations: [
@@ -97,7 +98,10 @@ describe("createReplayAgentHarness", () => {
     expect(result.isError).toBe(false);
     expect(result.text).toBe("decomposed fixture");
     expect(result.turns).toBe(12);
-    expect(result.totalCostUsd).toBe(0.5);
+    expect(result.usage).toEqual({
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 200 },
+      cost: { state: "complete", usd: 0.5 },
+    });
     expect(result.sessionId).toBe("s-1");
 
     expect(
@@ -188,7 +192,7 @@ describe("createReplayAgentHarness", () => {
 
   it("replays a critic-style judge prompt against the critic-review recording", async () => {
     const criticRecording: AgentStepRecording = {
-      version: 1,
+      version: 2,
       workflowName: "builder",
       stepId: "critic-review",
       sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
@@ -201,9 +205,10 @@ describe("createReplayAgentHarness", () => {
         }),
         subtype: "success",
         turns: 3,
-        totalCostUsd: 0.1,
-        inputTokens: 50,
-        outputTokens: 25,
+        usage: {
+          tokens: { state: "complete", inputTokens: 50, outputTokens: 25 },
+          cost: { state: "complete", usd: 0.1 },
+        },
       },
       fileOperations: [],
     };
@@ -237,7 +242,7 @@ describe("createReplayAgentHarness", () => {
 
   it("replays an improver semantic-gate prompt against the semantic-gate-review recording", async () => {
     const gateRecording: AgentStepRecording = {
-      version: 1,
+      version: 2,
       workflowName: "improver",
       stepId: "semantic-gate-review",
       sourceRunId: "2026-04-24T17-23-37-109Z-improver-tqqgmc",
@@ -250,9 +255,10 @@ describe("createReplayAgentHarness", () => {
         }),
         subtype: "success",
         turns: 1,
-        totalCostUsd: 0,
-        inputTokens: 0,
-        outputTokens: 0,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
       },
       fileOperations: [],
     };
@@ -287,7 +293,7 @@ describe("createReplayAgentHarness", () => {
     // prompt shape never names a workflow. Recording declares "builder" while
     // the fixture's other recording is "decomposer"; both coexist.
     const criticRecording: AgentStepRecording = {
-      version: 1,
+      version: 2,
       workflowName: "builder",
       stepId: "critic-review",
       sourceRunId: "2026-04-18T15-45-49-339Z-decomposer-zloyo6",
@@ -295,9 +301,10 @@ describe("createReplayAgentHarness", () => {
         text: '{"verdict":"pass","critical_issues":[],"warnings":[],"summary":""}',
         subtype: "success",
         turns: 1,
-        totalCostUsd: 0,
-        inputTokens: 1,
-        outputTokens: 1,
+        usage: {
+          tokens: { state: "complete", inputTokens: 1, outputTokens: 1 },
+          cost: { state: "unknown" },
+        },
       },
       fileOperations: [],
     };

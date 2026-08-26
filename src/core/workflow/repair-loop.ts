@@ -61,9 +61,6 @@ export async function runAgentRepairLoop(
   const iterations: RepairIteration[] = [];
   const base = (initialResult.output && typeof initialResult.output === "object") ? initialResult.output as Record<string, unknown> : {};
   let totalTurns = typeof base.turns === "number" ? base.turns : 0;
-  let totalCostUsd = typeof base.totalCostUsd === "number" ? base.totalCostUsd : 0;
-  let inputTokens = typeof base.inputTokens === "number" ? base.inputTokens : 0;
-  let outputTokens = typeof base.outputTokens === "number" ? base.outputTokens : 0;
   let logicalAttemptSessionId = typeof base.sessionId === "string"
     ? base.sessionId
     : undefined;
@@ -85,9 +82,6 @@ export async function runAgentRepairLoop(
   const failureOutput = (): RepairLoopFailureOutput => ({
     content: lastContent,
     turns: totalTurns,
-    totalCostUsd,
-    inputTokens,
-    outputTokens,
     ...(logicalAttemptSessionId === undefined
       ? {}
       : { sessionId: logicalAttemptSessionId }),
@@ -100,17 +94,11 @@ export async function runAgentRepairLoop(
   ): void => {
     iteration.agentResponse = result.text;
     iteration.agentTurns = result.turns;
-    iteration.agentCostUsd = result.totalCostUsd;
-    iteration.agentInputTokens = result.inputTokens;
-    iteration.agentOutputTokens = result.outputTokens;
     iteration.agentSessionId = result.sessionId;
     iterations.push(iteration);
 
     lastContent = result.text;
     totalTurns += result.turns ?? 0;
-    totalCostUsd += result.totalCostUsd ?? 0;
-    inputTokens += result.inputTokens ?? 0;
-    outputTokens += result.outputTokens ?? 0;
     logicalAttemptSessionId = result.sessionId ?? logicalAttemptSessionId;
   };
   const wrap = createRepairLoopResultWrapper({
@@ -129,9 +117,6 @@ export async function runAgentRepairLoop(
       ...base,
       content: lastContent,
       turns: totalTurns,
-      totalCostUsd,
-      inputTokens,
-      outputTokens,
       repairIterations: iterations,
       repairWarnings: warnings,
     });
@@ -287,9 +272,6 @@ export async function runAgentRepairLoop(
     ...base,
     content: lastContent,
     turns: totalTurns,
-    totalCostUsd,
-    inputTokens,
-    outputTokens,
     ...(logicalAttemptSessionId === undefined
       ? {}
       : { sessionId: logicalAttemptSessionId }),

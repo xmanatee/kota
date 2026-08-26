@@ -4,7 +4,10 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
-import { agentTokenUsageFromModelUsage } from "#core/agent-harness/index.js";
+import {
+  AgentUsageAccumulator,
+  unpricedAgentUsage,
+} from "#core/agent-harness/index.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveModelOutputTokenLimit } from "#core/model/output-token-limits.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
@@ -115,8 +118,7 @@ export async function runOpenaiToolsLoop(
       outputTokenLimit,
     });
     const messages = sessionRuntime.messages;
-    let inputTokens = 0;
-    let outputTokens = 0;
+    const usage = new AgentUsageAccumulator();
     let lastSessionId: string | undefined;
     const streamedChunks: string[] = [];
     const agentMessages = createAgentMessageEmitter(options.onMessage);
@@ -132,8 +134,7 @@ export async function runOpenaiToolsLoop(
         streamedText: streamedChunks.join(""),
         ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
         turns: turnCount,
-        inputTokens,
-        outputTokens,
+        usage: usage.snapshot(),
         isError,
         ...(lastSubtype !== undefined ? { subtype: lastSubtype } : {}),
       };
@@ -175,8 +176,9 @@ export async function runOpenaiToolsLoop(
           streamedChunks,
           lastSessionId,
           turnCount,
-          inputTokens,
-          outputTokens,
+          usage: turnCount === 0
+            ? unpricedAgentUsage(0, 0)
+            : usage.snapshot(),
         }));
       }
 
@@ -195,10 +197,25 @@ export async function runOpenaiToolsLoop(
       const finalMessage = await stream.finalMessage();
       await agentMessages.flush();
       turnCount += 1;
-      inputTokens += finalMessage.usage?.input_tokens ?? 0;
-      outputTokens += finalMessage.usage?.output_tokens ?? 0;
+      const modelUsage = finalMessage.usage;
+      // OpenAI-compatible clients normalize an absent provider usage block to
+      // 0/0. A real model turn cannot establish that as measured telemetry.
+      const missingModelUsage = modelUsage === undefined ||
+        (modelUsage.input_tokens === 0 && modelUsage.output_tokens === 0);
+      const turnUsage = missingModelUsage
+        ? unpricedAgentUsage(undefined, undefined)
+        : unpricedAgentUsage(
+            modelUsage.input_tokens,
+            modelUsage.output_tokens,
+          );
+      usage.observe(turnUsage);
       options.tokenBudget?.debitUsage(
-        agentTokenUsageFromModelUsage(finalMessage.usage),
+        turnUsage.tokens.state === "unknown"
+          ? {}
+          : {
+              inputTokens: turnUsage.tokens.inputTokens,
+              outputTokens: turnUsage.tokens.outputTokens,
+            },
         tokenBudgetSource,
       );
       if (finalMessage.id) lastSessionId = finalMessage.id;
@@ -241,8 +258,7 @@ export async function runOpenaiToolsLoop(
           streamedChunks,
           lastSessionId,
           turnCount,
-          inputTokens,
-          outputTokens,
+          usage: usage.snapshot(),
         }));
       }
 

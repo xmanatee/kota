@@ -21,11 +21,13 @@ export function newControlCoverageFamily(
     numerator: 0,
     denominator: 0,
     pending: 0,
+    unknown: 0,
     blocked: 0,
     warned: 0,
     unsupported: 0,
     evidenceRefs: [],
     gapIds: [],
+    unknownIds: [],
   };
 }
 
@@ -35,6 +37,9 @@ function familyStatus(
   if (family.denominator === 0) return "not-applicable";
   if (family.pending > 0 && family.numerator === 0 && family.gapIds.length === 0) {
     return "pending";
+  }
+  if (family.unknown > 0 && family.numerator === 0 && family.gapIds.length === 0) {
+    return "unknown";
   }
   if (family.gapIds.length === 0 && family.numerator >= family.denominator) {
     return "covered";
@@ -54,6 +59,7 @@ export function finishControlCoverageFamilies(
     status: familyStatus({ ...family, unsupported }),
     evidenceRefs: [...new Set(family.evidenceRefs)].sort(),
     gapIds: [...new Set(family.gapIds)].sort(),
+    unknownIds: [...new Set(family.unknownIds)].sort(),
   }));
 }
 

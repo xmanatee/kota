@@ -16,6 +16,7 @@ import type {
   OwnerQuestionQueue,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import { parseWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
@@ -406,7 +407,7 @@ export function readRunMetadataFile(
   runId: string,
 ): WorkflowRunMetadata | null {
   const raw = readFileFromRun(runsDir, runId, "metadata.json");
-  return raw ? (JSON.parse(raw) as WorkflowRunMetadata) : null;
+  return raw ? parseWorkflowRunMetadata(JSON.parse(raw)) : null;
 }
 
 function readFileFromRun(runsDir: string, runId: string, file: string): string | null {

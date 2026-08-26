@@ -4,6 +4,7 @@ import {
   hasAgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type {
   WorkflowPredicate,
@@ -146,19 +147,21 @@ export async function runShadowSemanticReview(args: {
       citedArtifacts: resolution.citedArtifacts ?? [],
       findings: [],
       skippedReason: resolution.reason,
-      costUsd: null,
+      usage: UNKNOWN_AGENT_USAGE,
       durationMs: null,
     });
     return resultFromArtifact(path, { status: "skipped", decision: "skip" }, false);
   }
 
   const startedAt = Date.now();
+  let observedUsage = UNKNOWN_AGENT_USAGE;
   try {
     const prompt = buildShadowSemanticReviewPrompt(declaration, resolution);
     const cwd = ctx.projectDir;
     const response = args.invoker
       ? await args.invoker(prompt, cwd, declaration)
       : await defaultInvoker(prompt, cwd, declaration, ctx);
+    observedUsage = response.usage;
     const review = parseShadowSemanticReviewerResponse(response.text);
     const { path, artifact } = writeShadowSemanticReviewArtifact(ctx, declaration, {
       status: "reviewed",
@@ -171,7 +174,7 @@ export async function runShadowSemanticReview(args: {
       summary: review.summary,
       citedArtifacts: review.citedArtifacts,
       findings: review.findings,
-      costUsd: response.totalCostUsd ?? null,
+      usage: response.usage,
       durationMs: Date.now() - startedAt,
     });
     const blocked = shadowSemanticReviewShouldBlock(artifact);
@@ -200,7 +203,7 @@ export async function runShadowSemanticReview(args: {
       citedArtifacts: [],
       findings: [],
       error: error instanceof Error ? error.message : String(error),
-      costUsd: null,
+      usage: observedUsage,
       durationMs: Date.now() - startedAt,
     });
     if (declaration.mode === "blocking") throw error;

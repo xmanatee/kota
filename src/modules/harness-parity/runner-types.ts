@@ -2,6 +2,7 @@ import type {
   AgentEffort,
   AgentHarness,
   AgentHarnessWriter,
+  AgentUsage,
   HarnessCapabilitySnapshot,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
@@ -69,9 +70,7 @@ export type HarnessParityArtifact = {
   durationMs: number;
   turns: number;
   isError: boolean;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalCostUsd?: number;
+  usage: AgentUsage;
   subtype?: string;
   sessionId?: string;
   verification: VerificationResult;
@@ -107,9 +106,7 @@ export type HarnessParityStageArtifact = {
   durationMs: number;
   turns: number;
   isError: boolean;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalCostUsd?: number;
+  usage: AgentUsage;
   subtype?: string;
   sessionId?: string;
   verification: VerificationResult;

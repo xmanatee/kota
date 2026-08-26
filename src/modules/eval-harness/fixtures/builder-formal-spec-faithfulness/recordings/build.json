@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "synthetic-builder-formal-spec-faithfulness-2026-07-08",
@@ -7,10 +7,15 @@
     "text": "Formal spec faithfulness fixture task completed. Implemented the executable return-label contract, wrote structured spec-faithfulness evidence, preserved shortcut guards, moved the seeded task to done, and wrote run-directory success evidence plus a commit message.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-formal-spec-faithfulness-replay"
+    "sessionId": "builder-formal-spec-faithfulness-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

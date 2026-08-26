@@ -114,12 +114,14 @@ export function renderCost(cost: CostBreakdown): RenderNode[] {
   }
   const lines: RenderNode[] = [
     line(
-      plain("Total: "),
-      span(fmtUsd(cost.totalCostUsd), "accent"),
+      plain("Measured total: "),
+      span(formatMeasuredCost(cost.totalCostUsd), "accent"),
       plain("   Finished runs: "),
       span(String(cost.finishedRuns), "accent"),
-      plain("   Avg/run: "),
-      span(fmtUsd(cost.averagePerFinishedRun), "accent"),
+      plain("   Avg/measured: "),
+      span(formatMeasuredCost(cost.averageMeasuredCostUsd), "accent"),
+      plain("   Measured/unavailable/unknown: "),
+      span(`${cost.measuredRuns}/${cost.unavailableRuns}/${cost.unknownRuns}`, cost.measuredRuns === cost.finishedRuns ? "accent" : "warn"),
     ),
     blank(),
     line(span("By workflow", "muted", true)),
@@ -127,8 +129,12 @@ export function renderCost(cost: CostBreakdown): RenderNode[] {
   const nameWidth = Math.max(8, ...cost.byWorkflow.map((r) => r.workflow.length));
   for (const row of cost.byWorkflow) {
     lines.push(line(plain(
-      `  ${row.workflow.padEnd(nameWidth)}  ${String(row.finishedRuns).padStart(4)}   ${fmtUsd(row.totalCostUsd).padStart(9)}   avg ${fmtUsd(row.averageCostUsd).padStart(7)}`,
+      `  ${row.workflow.padEnd(nameWidth)}  ${String(row.finishedRuns).padStart(4)}   ${formatMeasuredCost(row.totalCostUsd).padStart(9)}   avg/measured ${formatMeasuredCost(row.averageMeasuredCostUsd).padStart(7)}   measured ${row.measuredRuns} unavailable ${row.unavailableRuns} unknown ${row.unknownRuns}`,
     )));
   }
   return lines;
+}
+
+function formatMeasuredCost(costUsd: number | null): string {
+  return costUsd === null ? "unknown" : fmtUsd(costUsd);
 }

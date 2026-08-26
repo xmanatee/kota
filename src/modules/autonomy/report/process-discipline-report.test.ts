@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { TrajectoryDiagnosticCode } from "#core/agent-harness/trajectory-diagnostics.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { RepoTaskFullRecord, RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -72,6 +73,7 @@ function run(
         startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
         completedAt: new Date(NOW - MS_PER_DAY + 1000).toISOString(),
         durationMs: 1000,
+        usage: UNKNOWN_AGENT_USAGE,
         harness,
         trajectoryDiagnostics: {
           artifactPath: `.kota/runs/${runId}/steps/${stepId}.trajectory-diagnostics.json`,

@@ -1,7 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type {
   RunMetadataSnapshot,
   WorkflowRunMetadataSnapshot,
@@ -26,7 +25,7 @@ export function readWorkflowRunsForWorkflow(
     if (!entry.name.includes(workflowName)) continue;
     const metadataPath = join(runsDir, entry.name, "metadata.json");
     if (!existsSync(metadataPath)) continue;
-    const raw = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+    const raw = readWorkflowRunMetadataFile(metadataPath);
     if (!raw) continue;
     if (raw.workflow !== workflowName) continue;
     if (typeof raw.status !== "string" || typeof raw.id !== "string") continue;

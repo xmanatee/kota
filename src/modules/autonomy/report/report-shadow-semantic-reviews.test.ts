@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { buildReportCommand } from "./report-cli.js";
 
 async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
@@ -49,7 +50,10 @@ function writeRunMetadata(projectDir: string, args: {
         startedAt,
         completedAt: args.completedAt ?? startedAt,
         durationMs: 1_000,
-        totalCostUsd: 0,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "complete", usd: 0 },
+        },
         steps: [],
       },
       null,
@@ -71,7 +75,7 @@ function writeShadowReviewArtifact(runDir: string, file: string, attrs: {
     falsePositive: boolean;
   }>;
   skippedReason?: string;
-  costUsd?: number | null;
+  usage?: AgentUsage;
   durationMs?: number | null;
 }): void {
   const dir = join(runDir, "shadow-review");
@@ -80,7 +84,7 @@ function writeShadowReviewArtifact(runDir: string, file: string, attrs: {
     join(dir, file),
     JSON.stringify(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         artifactType: "shadow-semantic-review",
         runId: runDir.split("/").at(-1),
         workflow: attrs.workflow,
@@ -103,7 +107,10 @@ function writeShadowReviewArtifact(runDir: string, file: string, attrs: {
         citedArtifacts: ["git:staged-diff"],
         findings: attrs.findings ?? [],
         ...(attrs.skippedReason ? { skippedReason: attrs.skippedReason } : {}),
-        costUsd: attrs.costUsd ?? null,
+        usage: attrs.usage ?? {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
         durationMs: attrs.durationMs ?? null,
       },
       null,
@@ -154,7 +161,10 @@ describe("kota report shadow semantic reviews", () => {
           falsePositive: false,
         },
       ],
-      costUsd: 0.04,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.04 },
+      },
       durationMs: 2_000,
     });
     const skippedRunDir = writeRunMetadata(projectDir, {

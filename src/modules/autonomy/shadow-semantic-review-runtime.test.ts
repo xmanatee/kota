@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
+  type AgentHarnessResult,
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
@@ -108,7 +109,10 @@ describe("shadow semantic review runtime", () => {
         }),
         streamedText: "",
         turns: 1,
-        totalCostUsd: 0.02,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "complete", usd: 0.02 },
+        },
         isError: false,
       }),
     });
@@ -118,7 +122,10 @@ describe("shadow semantic review runtime", () => {
     expect(artifact).toMatchObject({
       status: "reviewed",
       decision: "fail",
-      costUsd: 0.02,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.02 },
+      },
       target: { id: "target-one" },
     });
     expect(artifact.findings[0].severity).toBe("critical");
@@ -154,6 +161,10 @@ describe("shadow semantic review runtime", () => {
         text: "not json",
         streamedText: "",
         turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
         isError: false,
       }),
     });
@@ -200,6 +211,10 @@ describe("shadow semantic review runtime", () => {
         text: "unused",
         streamedText: "",
         turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
         isError: false,
       }),
     };
@@ -219,7 +234,7 @@ describe("shadow semantic review runtime", () => {
     const runAgentHarness = vi.fn(async (
       _harness: AgentHarness,
       _options: Omit<AgentHarnessRunOptions, "abortController">,
-    ) => ({
+    ): Promise<AgentHarnessResult> => ({
       text: JSON.stringify({
         decision: "pass",
         summary: "The declared target is sound.",
@@ -228,6 +243,10 @@ describe("shadow semantic review runtime", () => {
       }),
       streamedText: "",
       turns: 1,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
       isError: false,
     }));
     const ctx = {

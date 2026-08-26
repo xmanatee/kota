@@ -5,6 +5,7 @@ import type {
   AgentHarnessWriter,
   TrajectoryDiagnosticsMetadata,
 } from "#core/agent-harness/index.js";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
@@ -58,18 +59,13 @@ export type ToolCallSummaryEntry = {
   totalMs: number;
 };
 
-export type WorkflowStepResult = {
+type WorkflowStepResultBase = {
   id: string;
-  type: WorkflowStep["type"];
-  status: WorkflowStepStatus;
   startedAt: string;
   completedAt: string;
   durationMs: number;
   activeDurationMs?: number;
   hostSuspendedMs?: number;
-  costUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
   output?: unknown;
   error?: string;
   errorKind?: WorkflowStepErrorKind;
@@ -78,7 +74,23 @@ export type WorkflowStepResult = {
   toolCalls?: ToolCallSummaryEntry[];
   /** True when this step result was reused from a prior run (resume-from-step). */
   reused?: boolean;
-  skipReason?: WorkflowStepSkipReason;
+};
+
+type WorkflowSkippedStepResult = WorkflowStepResultBase & {
+  type: WorkflowStep["type"];
+  status: "skipped";
+  skipReason: WorkflowStepSkipReason;
+  usage?: never;
+  harness?: never;
+  model?: never;
+  trajectoryDiagnostics?: never;
+};
+
+type WorkflowAgentStepResult = WorkflowStepResultBase & {
+  type: "agent";
+  status: Exclude<WorkflowStepStatus, "skipped">;
+  usage: AgentUsage;
+  skipReason?: never;
   /**
    * Agent-step only. The adapter name the harness registry actually returned
    * for this step (the result of `resolveAgentHarness(step.harness)`), not the
@@ -97,6 +109,21 @@ export type WorkflowStepResult = {
    */
   trajectoryDiagnostics?: TrajectoryDiagnosticsMetadata;
 };
+
+type WorkflowNonAgentStepResult = WorkflowStepResultBase & {
+  type: Exclude<WorkflowStep["type"], "agent">;
+  status: Exclude<WorkflowStepStatus, "skipped">;
+  usage?: never;
+  skipReason?: never;
+  harness?: never;
+  model?: never;
+  trajectoryDiagnostics?: never;
+};
+
+export type WorkflowStepResult =
+  | WorkflowSkippedStepResult
+  | WorkflowAgentStepResult
+  | WorkflowNonAgentStepResult;
 
 export type WorkflowStepContext = {
   /** The current step's cancellation and timeout signal during runtime execution. */
@@ -286,9 +313,7 @@ export type WorkflowRunMetadata = {
   durationMs?: number;
   activeDurationMs?: number;
   hostSuspendedMs?: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  usage?: AgentUsage;
   runDir: string;
   steps: WorkflowStepResult[];
   warnings?: WorkflowRunWarning[];

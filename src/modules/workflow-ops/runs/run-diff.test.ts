@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
+import type {
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+} from "#core/workflow/run-types.js";
 import { renderContext } from "#modules/rendering/render.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
@@ -19,6 +23,32 @@ function makeRun(
     costUsd?: number;
   }>,
 ): WorkflowRunMetadata {
+  const makeStep = (step: (typeof steps)[number]): WorkflowStepResult => {
+    const common = {
+      id: step.id,
+      type: "agent" as const,
+      startedAt: "2026-01-01T00:00:00Z",
+      completedAt: "2026-01-01T00:00:01Z",
+      durationMs: step.durationMs ?? 1000,
+    };
+    if (step.status === "skipped") {
+      return {
+        ...common,
+        status: "skipped",
+        skipReason: { kind: "when-predicate" },
+      };
+    }
+    return {
+      ...common,
+      status: step.status ?? "success",
+      usage: step.costUsd === undefined
+        ? UNKNOWN_AGENT_USAGE
+        : {
+            tokens: { state: "unknown" },
+            cost: { state: "complete", usd: step.costUsd },
+          },
+    };
+  };
   return {
     id,
     workflow,
@@ -27,15 +57,7 @@ function makeRun(
     startedAt: "2026-01-01T00:00:00Z",
     status: "success",
     runDir: "",
-    steps: steps.map((s) => ({
-      id: s.id,
-      type: "agent" as const,
-      status: s.status ?? "success",
-      startedAt: "2026-01-01T00:00:00Z",
-      completedAt: "2026-01-01T00:00:01Z",
-      durationMs: s.durationMs ?? 1000,
-      output: s.costUsd !== undefined ? { totalCostUsd: s.costUsd } : undefined,
-    })),
+    steps: steps.map(makeStep),
   };
 }
 
@@ -83,7 +105,7 @@ describe("buildRunDiff", () => {
     expect(deploy!.statusB).toBe("success");
   });
 
-  it("extracts cost from step output", () => {
+  it("extracts measured cost from step usage", () => {
     const a = makeRun("a", "builder", [{ id: "build", costUsd: 0.023 }]);
     const b = makeRun("b", "builder", [{ id: "build", costUsd: 0.031 }]);
     const diffs = buildRunDiff(a, b);
@@ -91,7 +113,7 @@ describe("buildRunDiff", () => {
     expect(diffs[0].costB).toBeCloseTo(0.031);
   });
 
-  it("returns null cost when step has no cost output", () => {
+  it("returns null cost when step usage has no measured cost", () => {
     const a = makeRun("a", "builder", [{ id: "build" }]);
     const b = makeRun("b", "builder", [{ id: "build" }]);
     const diffs = buildRunDiff(a, b);

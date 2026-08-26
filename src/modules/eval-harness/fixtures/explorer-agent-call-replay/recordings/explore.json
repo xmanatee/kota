@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "explorer",
   "stepId": "explore",
   "sourceRunId": "2026-04-24T22-26-19-626Z-explorer-tocx88",
@@ -7,10 +7,18 @@
     "text": "Created and staged a p1 ready/ task closing the half-built regression-gate leg of the just-completed eval-harness initiative. The three shipped `*-agent-call-replay` fixtures pin workflow-layer plumbing for decomposer/builder/improver but are exercised only by the weekly cadence and manual CLI — `pnpm test` never runs them, so workflow-layer regressions reach the next live autonomy run before any test catches them. The new task wires at least one fixture into the standard `pnpm test` pass via the same `runFixture` + subprocess executor path the cadence uses, so every autonomy run's own `pnpm test` repair-loop check gates the replay plumbing. `pnpm kota workflow validate` and `pnpm validate-tasks` both pass; `commit-message.txt` is staged for the workflow's terminal commit step.",
     "subtype": "success",
     "turns": 76,
-    "totalCostUsd": 3.6750435,
-    "inputTokens": 48,
-    "outputTokens": 26813,
-    "sessionId": "f5330f89-69ea-48b6-9fe8-99f71d35a33c"
+    "sessionId": "f5330f89-69ea-48b6-9fe8-99f71d35a33c",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 48,
+        "outputTokens": 26813
+      },
+      "cost": {
+        "state": "complete",
+        "usd": 3.6750435
+      }
+    }
   },
   "fileOperations": [
     {

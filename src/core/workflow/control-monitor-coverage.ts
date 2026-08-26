@@ -38,6 +38,7 @@ import {
   type ControlCoverageFamilyBuilder,
   type ControlCoverageFamilyName,
   type ControlCoverageGap,
+  type ControlCoverageUnknown,
   type ControlMonitorCoverageArtifact,
 } from "./control-monitor-coverage-types.js";
 import { writeJsonFile } from "./run-io.js";
@@ -50,6 +51,7 @@ export {
   type ControlCoverageFamilyName,
   type ControlCoverageGap,
   type ControlCoverageStatus,
+  type ControlCoverageUnknown,
   type ControlMonitorCoverageArtifact,
 } from "./control-monitor-coverage-types.js";
 
@@ -79,10 +81,24 @@ export function buildControlMonitorCoverageArtifact(
   const stepResultById = new Map(metadata.steps.map((step) => [step.id, step]));
   const families = new Map<ControlCoverageFamilyName, ControlCoverageFamilyBuilder>();
   const gaps: ControlCoverageGap[] = [];
+  const unknowns: ControlCoverageUnknown[] = [];
   const family = (name: ControlCoverageFamilyName) => {
     const current = families.get(name) ?? newControlCoverageFamily(name);
     families.set(name, current);
     return current;
+  };
+  const addUnknown = (
+    familyName: ControlCoverageFamilyName,
+    reason: string,
+    subject: string,
+    evidenceRefs: string[],
+  ) => {
+    const id = `${familyName}:${reason}:${unknowns.length + 1}`;
+    unknowns.push({ id, family: familyName, reason, subject, evidenceRefs });
+    const target = family(familyName);
+    target.unknown += 1;
+    target.unknownIds.push(id);
+    target.evidenceRefs.push(...evidenceRefs);
   };
   const addGap = (
     familyName: ControlCoverageFamilyName,
@@ -140,6 +156,7 @@ export function buildControlMonitorCoverageArtifact(
       streamPolicy: snapshot?.agentMessageStreamPolicy ?? null,
       family,
       addGap,
+      addUnknown,
     });
     inspectAutonomyMode({ projectDir, runDirPath, stepId, mode: snapshot?.autonomyMode ?? null, family, addGap });
     inspectTrajectory({
@@ -151,6 +168,7 @@ export function buildControlMonitorCoverageArtifact(
       streamPolicy: snapshot?.agentMessageStreamPolicy ?? null,
       family,
       addGap,
+      addUnknown,
     });
     inspectTokenBudget({
       projectDir,
@@ -195,8 +213,10 @@ export function buildControlMonitorCoverageArtifact(
     steps: [...approvalSteps, ...ownerWaitSteps],
     approvalRequestedEvents,
     approvalResolvedEvents,
+    runStatus: metadata.status,
     family,
     addGap,
+    addUnknown,
   });
   const runtimeProbeCount = inspectRuntimeProbe({ projectDir, runDirPath, family });
   const links = inspectAsyncReviewers({ projectDir, runDirPath, metadata, family });
@@ -208,6 +228,7 @@ export function buildControlMonitorCoverageArtifact(
   const unsupportedCount = gaps.filter((gap) =>
     gap.reason.startsWith("unsupported")
   ).length;
+  const unknownCount = completedFamilies.reduce((sum, item) => sum + item.unknown, 0);
   const blockedCount = completedFamilies.reduce((sum, item) => sum + item.blocked, 0);
   const warnedCount = completedFamilies.reduce((sum, item) => sum + item.warned, 0);
 
@@ -239,12 +260,14 @@ export function buildControlMonitorCoverageArtifact(
       denominator,
       gapCount: gaps.length,
       unsupportedCount,
+      unknownCount,
       pendingCount,
       blockedCount,
       warnedCount,
     },
     families: completedFamilies,
     gaps,
+    unknowns,
     asyncReviewResponseMs: {
       observations: links.responseTimes.length,
       min: links.responseTimes.length > 0 ? Math.min(...links.responseTimes) : null,

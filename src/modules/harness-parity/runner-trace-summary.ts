@@ -17,6 +17,8 @@ export function buildStagedTraceSummary(artifact: HarnessParityArtifact): string
   lines.push(`- durationMs: ${artifact.durationMs}`);
   lines.push(`- turns: ${artifact.turns}`);
   lines.push(`- isError: ${artifact.isError}`);
+  lines.push(`- tokenUsage: ${formatTokenUsage(artifact.usage)}`);
+  lines.push(`- cost: ${formatCost(artifact.usage)}`);
   lines.push(
     `- verification: ${artifact.verification.passed ? "pass" : "fail"} (${artifact.stages.filter((stage) => stage.verification.passed).length}/${artifact.stages.length} stages passed)`,
   );
@@ -67,15 +69,8 @@ export function buildTraceSummary(
   lines.push(`- turns: ${artifact.turns}`);
   lines.push(`- isError: ${artifact.isError}`);
   if (artifact.subtype !== undefined) lines.push(`- subtype: ${artifact.subtype}`);
-  if (artifact.inputTokens !== undefined) {
-    lines.push(`- inputTokens: ${artifact.inputTokens}`);
-  }
-  if (artifact.outputTokens !== undefined) {
-    lines.push(`- outputTokens: ${artifact.outputTokens}`);
-  }
-  if (artifact.totalCostUsd !== undefined) {
-    lines.push(`- totalCostUsd: ${artifact.totalCostUsd}`);
-  }
+  lines.push(`- tokenUsage: ${formatTokenUsage(artifact.usage)}`);
+  lines.push(`- cost: ${formatCost(artifact.usage)}`);
   lines.push(
     `- verification: ${artifact.verification.passed ? "pass" : "fail"} (exit ${artifact.verification.exitStatus ?? "null"}${artifact.verification.timedOut ? ", timeout" : ""})`,
   );
@@ -120,6 +115,19 @@ export function buildTraceSummary(
   lines.push(tail(streamedText, 8_000));
   lines.push("```");
   return `${lines.join("\n")}\n`;
+}
+
+function formatTokenUsage(usage: HarnessParityArtifact["usage"]): string {
+  if (usage.tokens.state === "unknown") return "unknown";
+  return `${usage.tokens.state} (${usage.tokens.inputTokens} in, ${usage.tokens.outputTokens} out)`;
+}
+
+function formatCost(usage: HarnessParityArtifact["usage"]): string {
+  if (usage.cost.state === "complete") return `$${usage.cost.usd}`;
+  if (usage.cost.state === "unavailable") {
+    return `unavailable (${usage.cost.reason})`;
+  }
+  return "unknown";
 }
 
 function renderCapabilityBoundary(

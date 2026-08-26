@@ -19,7 +19,7 @@ export function builderTaskAssociation(
     : null;
 }
 
-export function scopeFromPayload(payload: KotaJsonObject): {
+export function scopeFromPayload(payload: Readonly<Record<string, unknown>>): {
   scopeId: string | null;
   projectId: string | null;
 } {
@@ -33,7 +33,7 @@ export function taskIdFromText(value: string): string | null {
   return /\b(task-[a-z0-9-]+)/.exec(value)?.[1] ?? null;
 }
 
-export function stringField(value: KotaJsonValue | undefined): string | null {
+export function stringField(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : null;

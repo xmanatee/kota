@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "skill-ablation-noisy-skill",
   "stepId": "solve-noisy-skill",
   "sourceRunId": "fixture-skill-ablation-replay-2026-05-29",
@@ -7,10 +7,17 @@
     "text": "Completed the ticket normalization with the noisy explicit skill, which applied stale pending-review routing.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 1280,
-    "outputTokens": 125,
-    "sessionId": "skill-ablation-noisy-skill"
+    "sessionId": "skill-ablation-noisy-skill",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 1280,
+        "outputTokens": 125
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

@@ -13,6 +13,7 @@ import {
   type AgentHarnessUnsupportedOption,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
@@ -37,6 +38,7 @@ function harnessFixture(
       text: "unused",
       streamedText: "",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     };
   });

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { runAgentRepairLoop } from "./repair-loop.js";
 import type { WorkflowRunMetadata, WorkflowStepContext } from "./run-types.js";
@@ -44,8 +45,7 @@ describe("repair-loop usage", () => {
           text: "Individual quota reached. Resets in 1h.",
           streamedText: "",
           turns: 1,
-          inputTokens: 31,
-          outputTokens: 4,
+          usage: unpricedAgentUsage(31, 4),
           sessionId: "attempt-1",
           subtype: "antigravity_cli_error",
           isError: true,
@@ -114,9 +114,6 @@ describe("repair-loop usage", () => {
       output: {
         content: "initial",
         turns: 1,
-        totalCostUsd: 0,
-        inputTokens: 10,
-        outputTokens: 2,
         sessionId: "attempt-1",
       },
       harness: harnessName,
@@ -135,6 +132,7 @@ describe("repair-loop usage", () => {
       preStepMutatedPaths: [],
     };
 
+    const onUsage = vi.fn();
     await expect(runAgentRepairLoop(
       step,
       initialResult,
@@ -142,24 +140,22 @@ describe("repair-loop usage", () => {
       metadata,
       new AbortController(),
       vi.fn(),
-      { projectDir },
+      { projectDir, onUsage },
     )).rejects.toMatchObject({
       name: AgentStepRuntimeError.name,
       kind: "rate_limit",
       retryable: false,
       output: {
-        inputTokens: 41,
-        outputTokens: 6,
         sessionId: "attempt-1",
         repairIterations: [{
           agentResponse: "Individual quota reached. Resets in 1h.",
-          agentInputTokens: 31,
-          agentOutputTokens: 4,
           agentSessionId: "attempt-1",
           agentError: expect.stringContaining("Individual quota reached"),
         }],
       },
     });
+    expect(onUsage).toHaveBeenCalledOnce();
+    expect(onUsage).toHaveBeenCalledWith(unpricedAgentUsage(31, 4));
     expect(resumedSessionIds).toEqual(["attempt-1"]);
   });
 
@@ -189,8 +185,7 @@ describe("repair-loop usage", () => {
           text: "repair complete",
           streamedText: "repair complete",
           turns: 1,
-          inputTokens: 20,
-          outputTokens: 3,
+          usage: unpricedAgentUsage(20, 3),
           sessionId: "fresh-repair-session",
           isError: false,
         };
@@ -261,9 +256,6 @@ describe("repair-loop usage", () => {
       output: {
         content: "initial",
         turns: 1,
-        totalCostUsd: 0,
-        inputTokens: 10,
-        outputTokens: 2,
         sessionId: "initial-session",
       },
       harness: harnessName,

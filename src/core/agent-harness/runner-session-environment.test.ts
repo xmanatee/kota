@@ -8,6 +8,7 @@ import {
 import { runAgentHarness } from "./runner.js";
 import type { AgentHarnessSessionContext } from "./session-context.js";
 import type { AgentHarness } from "./types.js";
+import { UNKNOWN_AGENT_USAGE } from "./usage.js";
 
 const workflowContext = {
   workflowName: "security-review",
@@ -50,6 +51,7 @@ describe("runAgentHarness session environment", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -86,6 +88,7 @@ describe("runAgentHarness session environment", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });
@@ -129,6 +132,7 @@ describe("runAgentHarness session environment", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

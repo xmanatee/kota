@@ -38,6 +38,11 @@ import type {
   AgentHarnessRunOptions,
   AgentHarnessWriter,
 } from "./types.js";
+import {
+  type AgentUsage,
+  UNKNOWN_AGENT_USAGE,
+  ZERO_AGENT_USAGE,
+} from "./usage.js";
 
 function createInvocationSessionContext(
   options: AgentHarnessRunOptions,
@@ -116,35 +121,37 @@ function hasSameHarnessTurnDebitSince(
 
 function tokenBudgetErrorResult(
   exhaustion: AgentTokenBudgetExhaustion,
+  usage: AgentUsage = ZERO_AGENT_USAGE,
 ): AgentHarnessResult {
   return {
     text: exhaustion.message,
     streamedText: "",
     turns: 0,
+    usage,
     isError: true,
     subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
   };
 }
 
-function applyResultOnlyTokenBudgetDebit(
+function recordInvocationTokenUsage(
   harness: AgentHarness,
   options: AgentHarnessRunOptions,
-  result: AgentHarnessResult,
+  usage: AgentUsage,
   initialDebitCount: number,
-): AgentHarnessResult {
+): AgentTokenBudgetExhaustion | undefined {
   const tokenBudget = options.tokenBudget;
-  if (tokenBudget === undefined) return result;
+  if (tokenBudget === undefined) return undefined;
   if (hasSameHarnessTurnDebitSince(harness, options, initialDebitCount)) {
-    return result;
+    return undefined;
   }
 
   const source = harnessBudgetSource("harness-result", harness, options);
-  if (result.inputTokens === undefined && result.outputTokens === undefined) {
+  if (usage.tokens.state === "unknown") {
     tokenBudget.recordMissingUsage(
       source,
       `Agent harness "${harness.name}" did not report token usage for budget enforcement.`,
     );
-    return result;
+    return undefined;
   }
 
   tokenBudget.recordNonEnforcing(
@@ -153,15 +160,19 @@ function applyResultOnlyTokenBudgetDebit(
   );
   tokenBudget.debitUsage(
     {
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
+      inputTokens: usage.tokens.inputTokens,
+      outputTokens: usage.tokens.outputTokens,
     },
     source,
   );
+  if (usage.tokens.state === "partial") {
+    tokenBudget.recordMissingUsage(
+      source,
+      `Agent harness "${harness.name}" reported only a measured lower bound for token usage.`,
+    );
+  }
 
-  const exhaustion = tokenBudget.checkAfterDebit(source);
-  if (exhaustion && !result.isError) return tokenBudgetErrorResult(exhaustion);
-  return result;
+  return tokenBudget.checkAfterDebit(source) ?? undefined;
 }
 
 export async function runAgentHarness(
@@ -183,10 +194,23 @@ export async function runAgentHarness(
     );
   }
 
-  const sessionContext = createInvocationSessionContext(options);
-  const sessionOptions = sessionContext === undefined || options.sessionContext !== undefined
+  const usageObserver = options.onUsage;
+  let reportedUsage: AgentUsage | undefined;
+  let nativeResult: AgentHarnessResult | undefined;
+  let invocationStarted = false;
+  let usageFinalized = false;
+  const usageOptions: AgentHarnessRunOptions = usageObserver === undefined
     ? options
-    : { ...options, sessionContext };
+    : {
+        ...options,
+        onUsage: (usage) => {
+          reportedUsage = usage;
+        },
+      };
+  const sessionContext = createInvocationSessionContext(usageOptions);
+  const sessionOptions = sessionContext === undefined || usageOptions.sessionContext !== undefined
+    ? usageOptions
+    : { ...usageOptions, sessionContext };
   const cancellation = createAgentHarnessCancellationBoundary(
     harness.name,
     sessionOptions,
@@ -194,16 +218,19 @@ export async function runAgentHarness(
     requireNativeQuarantine,
   );
   const effectiveOptions = cancellation.options;
+  const tokenBudget = options.tokenBudget;
+  const tokenBudgetSource = tokenBudget
+    ? harnessBudgetSource("harness-run", harness, options)
+    : undefined;
+  const initialDebitCount = tokenBudget?.debitCount() ?? 0;
   if (sessionContext !== undefined) registerSessionEnvironment(sessionContext);
   try {
-    const tokenBudget = options.tokenBudget;
-    const tokenBudgetSource = tokenBudget
-      ? harnessBudgetSource("harness-run", harness, options)
-      : undefined;
-    const initialDebitCount = tokenBudget?.debitCount() ?? 0;
     if (tokenBudget !== undefined && tokenBudgetSource !== undefined) {
       const exhaustion = tokenBudget.checkCanStartTurn(tokenBudgetSource);
-      if (exhaustion) return tokenBudgetErrorResult(exhaustion);
+      if (exhaustion) {
+        usageObserver?.(ZERO_AGENT_USAGE);
+        return tokenBudgetErrorResult(exhaustion);
+      }
     }
 
     const execution = async (): Promise<AgentHarnessResult> => {
@@ -213,6 +240,7 @@ export async function runAgentHarness(
       }
       cancellation.assertActive();
 
+      invocationStarted = true;
       const nativeRun = harness.run(effectiveOptions, cancellation.writer);
       try {
         cancellation.assertNativeQuarantineRegistered();
@@ -220,15 +248,21 @@ export async function runAgentHarness(
         void nativeRun.catch(() => {});
         throw error;
       }
-      const nativeResult = await nativeRun;
+      nativeResult = await nativeRun;
       cancellation.closeOutput();
       cancellation.assertActive();
-      const result = applyResultOnlyTokenBudgetDebit(
+      const usage = nativeResult.usage;
+      const exhaustion = recordInvocationTokenUsage(
         harness,
         effectiveOptions,
-        nativeResult,
+        usage,
         initialDebitCount,
       );
+      usageObserver?.(usage);
+      usageFinalized = true;
+      const result = exhaustion && !nativeResult.isError
+        ? tokenBudgetErrorResult(exhaustion, usage)
+        : { ...nativeResult, usage };
 
       for (const hook of listHarnessHooks("postRun")) {
         cancellation.assertActive();
@@ -241,6 +275,13 @@ export async function runAgentHarness(
     return await cancellation.race(execution);
   } finally {
     cancellation.dispose();
+    if (invocationStarted && !usageFinalized) {
+      const usage = reportedUsage ??
+        (options.abortController?.signal.aborted ? undefined : nativeResult?.usage) ??
+        UNKNOWN_AGENT_USAGE;
+      recordInvocationTokenUsage(harness, sessionOptions, usage, initialDebitCount);
+      usageObserver?.(usage);
+    }
     if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
   }
 }

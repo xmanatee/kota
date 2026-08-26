@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { buildControlMonitorCoverageArtifact } from "./control-monitor-coverage.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
@@ -69,6 +70,7 @@ describe("control monitor coverage telemetry", () => {
           startedAt: STARTED_AT,
           completedAt: "2026-06-22T10:01:00.000Z",
           durationMs: 55_000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       ],
     });
@@ -129,6 +131,7 @@ describe("control monitor coverage telemetry", () => {
           startedAt: STARTED_AT,
           completedAt: "2026-06-22T10:01:00.000Z",
           durationMs: 55_000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       ],
     });

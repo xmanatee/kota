@@ -4,6 +4,7 @@ import {
   type AgentHarnessAuthProbe,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { getPreset } from "./preset.js";
 import {
@@ -42,6 +43,7 @@ function registerGeminiReadinessHarness(): void {
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }),
   };
@@ -80,6 +82,7 @@ function registerCodexReadinessHarness(
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }),
   };
@@ -178,6 +181,7 @@ function registerAntigravityReadinessHarness(): void {
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: true,
     }),
   };
@@ -372,6 +376,7 @@ describe("preset harness readiness", () => {
         text: "",
         streamedText: "",
         turns: 0,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }),
     };

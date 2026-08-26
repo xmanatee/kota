@@ -7,6 +7,7 @@ import type {
   AgentEffort,
   KotaAgentMessage,
 } from "#core/agent-harness/types.js";
+import { type AgentUsage, pricedAgentUsage } from "#core/agent-harness/usage.js";
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
@@ -88,9 +89,7 @@ export type ExecutorResult = {
   streamedText: string;
   sessionId?: string;
   turns: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  usage: AgentUsage;
   subtype?: string;
   isError: boolean;
 };
@@ -226,9 +225,11 @@ export async function executeWithAgentSDK(
     streamedText,
     sessionId,
     turns,
-    totalCostUsd: resultMessage?.total_cost_usd,
-    inputTokens: resultMessage?.usage?.input_tokens,
-    outputTokens: resultMessage?.usage?.output_tokens,
+    usage: pricedAgentUsage(
+      resultMessage?.usage?.input_tokens,
+      resultMessage?.usage?.output_tokens,
+      resultMessage?.total_cost_usd,
+    ),
     subtype: resultMessage?.subtype,
     isError:
       resultMessage?.is_error === true ||

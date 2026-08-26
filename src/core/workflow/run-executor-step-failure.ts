@@ -1,4 +1,5 @@
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import {
   type ActiveTimeoutSnapshot,
@@ -44,6 +45,7 @@ export function recordWorkflowStepFailure(args: {
   stepStartedAt: number;
   timing: ActiveTimeoutSnapshot | undefined;
   capturedAgentMessages: readonly KotaAgentMessage[];
+  usage?: AgentUsage;
 }): SingleStepResult {
   const {
     definition,
@@ -57,6 +59,7 @@ export function recordWorkflowStepFailure(args: {
     stepStartedAt,
     timing,
     capturedAgentMessages,
+    usage,
   } = args;
   // A step deadline is a failed run, while a run-level abort remains an
   // interruption owned by the surrounding executor.
@@ -128,9 +131,8 @@ export function recordWorkflowStepFailure(args: {
       `Failed step "${step.id}" output truncated in workflow "${definition.name}": ${repairFailureOutput.warning.message}`,
     );
   }
-  const failed: WorkflowStepResult = {
+  const failedBase = {
     id: step.id,
-    type: step.type,
     status: "failed",
     startedAt: new Date(stepStartedAt).toISOString(),
     completedAt: new Date().toISOString(),
@@ -138,9 +140,6 @@ export function recordWorkflowStepFailure(args: {
     ...activeTimingMetadata(timing),
     ...(repairFailure !== undefined
       ? {
-          costUsd: repairFailure.output.totalCostUsd,
-          inputTokens: repairFailure.output.inputTokens,
-          outputTokens: repairFailure.output.outputTokens,
           output: repairFailureOutput?.output,
         }
       : {}),
@@ -157,8 +156,18 @@ export function recordWorkflowStepFailure(args: {
           ? { errorKind: repairFailure.kind }
           : {}),
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
-    ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),
-  };
+  } as const;
+  if (step.type === "agent" && usage === undefined) {
+    throw new Error(`Agent step "${step.id}" failed without usage telemetry`);
+  }
+  const failed: WorkflowStepResult = step.type === "agent"
+    ? {
+        ...failedBase,
+        type: "agent",
+        usage: usage!,
+        ...(trajectoryDiagnostics !== undefined ? { trajectoryDiagnostics } : {}),
+      }
+    : { ...failedBase, type: step.type };
   run.recordStep(failed);
   acc.stepResultsById[step.id] = failed;
   deps.pbus.emit(

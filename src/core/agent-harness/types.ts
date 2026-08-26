@@ -19,6 +19,7 @@ import type {
   AgentMcpServers,
 } from "./run-option-types.js";
 import type { AgentTokenBudgetLedger } from "./token-budget.js";
+import type { AgentUsage } from "./usage.js";
 
 export type { KotaAgentMessage } from "./agent-message.js";
 export type { AgentHarness } from "./harness-definition.js";
@@ -195,6 +196,7 @@ export type AgentHarnessRunOptions = {
   abortQuarantine?: AgentHarnessAbortQuarantine;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
+  onUsage?: (usage: AgentUsage) => void;
   thinkingEnabled?: boolean;
   thinkingBudget?: number;
   canUseTool?: AgentCanUseTool;
@@ -241,9 +243,7 @@ export type AgentHarnessResult = {
   streamedText: string;
   sessionId?: string;
   turns: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  usage: AgentUsage;
   subtype?: string;
   isError: boolean;
 };

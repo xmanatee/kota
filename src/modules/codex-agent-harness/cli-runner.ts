@@ -20,6 +20,7 @@ import {
 import {
   nativeCliWorkspaceConfigurationReadRoots,
 } from "#core/agent-harness/native-cli-sandbox-roots.js";
+import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
@@ -109,6 +110,7 @@ type CollectTextFromCodexCliArgs = {
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
   onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
+  onUsage: AgentHarnessRunOptions["onUsage"] | undefined;
   onProcessSpawn: AgentHarnessRunOptions["onProcessSpawn"] | undefined;
 };
 
@@ -215,6 +217,8 @@ async function runCodexCliProcess(
         turns += 1;
         inputTokens = event.usage?.input_tokens;
         outputTokens = event.usage?.output_tokens;
+        const usage = unpricedAgentUsage(inputTokens, outputTokens);
+        args.onUsage?.(usage);
         await emitCodexMessage(
           args.onMessage,
           withSession(
@@ -222,8 +226,7 @@ async function runCodexCliProcess(
               type: "result",
               isError: false,
               numTurns: turns,
-              ...(inputTokens !== undefined ? { inputTokens } : {}),
-              ...(outputTokens !== undefined ? { outputTokens } : {}),
+              usage,
             },
             sessionId,
           ),
@@ -241,6 +244,7 @@ async function runCodexCliProcess(
               isError: true,
               subtype: cliFailure.subtype,
               text: cliFailure.detail,
+              usage: unpricedAgentUsage(undefined, undefined),
             },
             sessionId,
           ),
@@ -285,8 +289,7 @@ async function runCodexCliProcess(
       streamedText: streamedChunks.join(""),
       ...(sessionId !== undefined ? { sessionId } : {}),
       turns,
-      ...(inputTokens !== undefined ? { inputTokens } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      usage: unpricedAgentUsage(inputTokens, outputTokens),
       isError: true,
       subtype: "aborted",
     };
@@ -302,8 +305,7 @@ async function runCodexCliProcess(
       streamedText: streamedChunks.join(""),
       ...(sessionId !== undefined ? { sessionId } : {}),
       turns,
-      ...(inputTokens !== undefined ? { inputTokens } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      usage: unpricedAgentUsage(inputTokens, outputTokens),
       isError: true,
       subtype: cliFailure?.subtype ?? (
         isNativeCliSandboxBootstrapError(detail)
@@ -318,8 +320,7 @@ async function runCodexCliProcess(
     streamedText: streamedChunks.join(""),
     ...(sessionId !== undefined ? { sessionId } : {}),
     turns: turns || (streamedChunks.length > 0 ? 1 : 0),
-    ...(inputTokens !== undefined ? { inputTokens } : {}),
-    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    usage: unpricedAgentUsage(inputTokens, outputTokens),
     isError: false,
   };
 }

@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import {
   createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
@@ -50,6 +51,7 @@ function builderRun(input: {
         startedAt: input.startedAt,
         completedAt: input.completedAt,
         durationMs: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         ...(input.status === "failed"
           ? {
               activeDurationMs: 21_600_000,

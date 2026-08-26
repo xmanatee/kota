@@ -12,6 +12,7 @@ import {
   writeRunWithCoverage,
   writeRunWithSkippedApprovalGateGap,
   writeRunWithSkippedOwnerWaitGateGap,
+  writeRunWithUnknownCoverage,
   writeRunWithUnsupportedAgentStreamCoverageGaps,
 } from "./runtime-health-audit-control-coverage-test-support.js";
 
@@ -96,6 +97,26 @@ describe("runtime health audit control coverage gaps", () => {
     ]) {
       expect(existsSync(readyTaskPath(projectDir, taskId))).toBe(false);
     }
+  });
+
+  it("surfaces terminal unknown evidence without classifying owner interruption as local-code", () => {
+    writeRunWithUnknownCoverage(
+      projectDir,
+      "interrupted-unknown",
+      "2026-06-19T11:00:00.000Z",
+    );
+
+    const audit = collectControlCoverageAudit({
+      projectDir,
+      options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
+    });
+
+    expect(audit.inspected).toMatchObject({
+      controlCoverageArtifacts: 1,
+      controlCoverageUnknownRuns: 1,
+    });
+    expect(audit.patterns).toEqual([]);
+    expect(audit.evidenceGaps).toEqual([]);
   });
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {

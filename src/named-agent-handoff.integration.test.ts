@@ -6,6 +6,7 @@ import {
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -26,7 +27,13 @@ import {
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function harnessError(text: string) {
-  return { text, streamedText: text, turns: 1, isError: true };
+  return {
+    text,
+    streamedText: text,
+    turns: 1,
+    usage: UNKNOWN_AGENT_USAGE,
+    isError: true,
+  };
 }
 
 describe("named agent handoff workflow integration", () => {
@@ -126,6 +133,7 @@ describe("named agent handoff workflow integration", () => {
             streamedText: "reviewed",
             sessionId: "child-review-session",
             turns: 1,
+            usage: UNKNOWN_AGENT_USAGE,
             isError: false,
           };
         }
@@ -202,6 +210,7 @@ describe("named agent handoff workflow integration", () => {
           streamedText: "parent consumed child review",
           sessionId: "parent-session",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),

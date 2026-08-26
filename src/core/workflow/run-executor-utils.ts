@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { matchesFilter } from "./run-executor-filters.js";
-import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
+import type { WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -74,7 +74,7 @@ export function buildRetryInitialState(
   };
   if (!retryOfId) return state;
 
-  const originalMeta = readOptionalJsonFile<WorkflowRunMetadata>(
+  const originalMeta = readWorkflowRunMetadataFile(
     join(runsDir, retryOfId, "metadata.json"),
   );
   if (!originalMeta) return state;
@@ -156,7 +156,7 @@ export function buildResumeInitialState(
   recordStep: (result: WorkflowStepResult) => void,
   runsDir: string,
 ): RetryInitialState {
-  const originalMeta = readOptionalJsonFile<WorkflowRunMetadata>(
+  const originalMeta = readWorkflowRunMetadataFile(
     join(runsDir, resumedFromRunId, "metadata.json"),
   );
   if (!originalMeta) {

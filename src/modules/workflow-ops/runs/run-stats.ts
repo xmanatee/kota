@@ -19,7 +19,7 @@ type StatsRow = {
   successes: number;
   failures: number;
   avgDurationMs: number | null;
-  totalCostUsd: number;
+  totalCostUsd: number | null;
 };
 
 export function computeStatsRows(
@@ -76,7 +76,7 @@ export function buildStatsNode(rows: StatsRow[], windowLabel: string | number): 
               ],
             },
             { spans: [{ text: avgDur }] },
-            { spans: [{ text: `$${row.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
+            { spans: [{ text: row.totalCostUsd === null ? "—" : `$${row.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
           ],
         };
       }),

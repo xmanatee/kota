@@ -72,8 +72,10 @@ describe("vercelAgentHarness token budget", () => {
     });
 
     expect(result).toMatchObject({ isError: false, text: "done", turns: 1 });
-    expect(result.inputTokens).toBeUndefined();
-    expect(result.outputTokens).toBeUndefined();
+    expect(result.usage).toEqual({
+      tokens: { state: "unknown" },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
     expect(tokenBudget.snapshot()).toMatchObject({
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
       debits: [],

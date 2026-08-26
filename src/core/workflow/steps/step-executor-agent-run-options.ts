@@ -148,6 +148,7 @@ export function buildAgentHarnessRunOptions(input: {
         projectId,
       },
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+      ...(agentConfig.onUsage !== undefined ? { onUsage: agentConfig.onUsage } : {}),
       ...(agentConfig.onProcessSpawn !== undefined
         ? { onProcessSpawn: agentConfig.onProcessSpawn }
         : {}),

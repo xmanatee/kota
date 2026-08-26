@@ -7,6 +7,9 @@ import { InMemorySpanExporter, NodeTracerProvider, SimpleSpanProcessor } from "@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildModelLookup, WorkflowTracer } from "./tracer.js";
 
+const PROJECT_ID = "project-tracing-test";
+const DEFINITION_PATH = ".kota/workflows/test.yaml";
+
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-tracer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
@@ -83,6 +86,7 @@ describe("WorkflowTracer", () => {
       startedAt: now.toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-2",
       stepId: "step-a",
@@ -90,6 +94,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 100,
       runDir: ".kota/runs/run-2",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onStepStarted({
       workflow: "builder",
@@ -99,14 +104,15 @@ describe("WorkflowTracer", () => {
       startedAt: now.toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-2",
       stepId: "step-b",
       stepType: "agent",
       status: "success",
       durationMs: 3000,
-      costUsd: 0.42,
       runDir: ".kota/runs/run-2",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -131,7 +137,6 @@ describe("WorkflowTracer", () => {
     expect(stepA!.parentSpanContext?.spanId).toBe(root!.spanContext().spanId);
     expect(stepB!.parentSpanContext?.spanId).toBe(root!.spanContext().spanId);
 
-    expect(stepB!.attributes["workflow.step.cost_usd"]).toBe(0.42);
     expect(root!.attributes["workflow.tags"]).toBe("autonomy");
   });
 
@@ -174,6 +179,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "test-wf",
       runId: "run-sf",
       stepId: "bad-step",
@@ -181,6 +187,7 @@ describe("WorkflowTracer", () => {
       status: "failed",
       durationMs: 50,
       runDir: ".kota/runs/run-sf",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "test-wf",
@@ -215,6 +222,7 @@ describe("WorkflowTracer", () => {
       autonomyMode: "autonomous",
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-am",
       stepId: "build",
@@ -222,6 +230,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 1000,
       runDir: ".kota/runs/run-am",
+      definitionPath: DEFINITION_PATH,
       autonomyMode: "supervised",
     });
     tracer.onWorkflowCompleted({
@@ -261,6 +270,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-no-am",
       stepId: "s",
@@ -268,6 +278,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 1,
       runDir: ".kota/runs/run-no-am",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -304,6 +315,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-m",
       stepId: "build",
@@ -311,6 +323,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 1000,
       runDir: ".kota/runs/run-m",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -326,7 +339,7 @@ describe("WorkflowTracer", () => {
     expect(agentSpan!.attributes["workflow.step.model"]).toBe("claude-sonnet-4-6");
   });
 
-  it("reads turns from agent step result file", () => {
+  it("reads turns from the result file and complete usage from step completion", () => {
     const runDir = ".kota/runs/run-t";
     const stepsDir = join(projectDir, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
@@ -336,7 +349,7 @@ describe("WorkflowTracer", () => {
         id: "build",
         type: "agent",
         status: "success",
-        output: { turns: 12, totalCostUsd: 0.85, inputTokens: 15000, outputTokens: 3200, content: "done" },
+        output: { turns: 12, content: "done" },
       }),
     );
 
@@ -356,13 +369,19 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-t",
       stepId: "build",
       stepType: "agent",
       status: "success",
       durationMs: 2000,
+      usage: {
+        tokens: { state: "complete", inputTokens: 15000, outputTokens: 3200 },
+        cost: { state: "complete", usd: 0.85 },
+      },
       runDir,
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -379,6 +398,100 @@ describe("WorkflowTracer", () => {
     expect(agentSpan!.attributes["workflow.step.total_cost_usd"]).toBe(0.85);
     expect(agentSpan!.attributes["workflow.step.input_tokens"]).toBe(15000);
     expect(agentSpan!.attributes["workflow.step.output_tokens"]).toBe(3200);
+  });
+
+  it("records measured tokens and omits unavailable cost", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+    const runDir = ".kota/runs/run-unavailable";
+    tracer.onWorkflowStarted({
+      workflow: "builder",
+      runId: "run-unavailable",
+      triggerEvent: "test",
+      runDir,
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepStarted({
+      workflow: "builder",
+      runId: "run-unavailable",
+      stepId: "build",
+      stepType: "agent",
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepCompleted({
+      projectId: PROJECT_ID,
+      workflow: "builder",
+      runId: "run-unavailable",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 1000,
+      usage: {
+        tokens: { state: "complete", inputTokens: 900, outputTokens: 100 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
+      runDir,
+      definitionPath: DEFINITION_PATH,
+    });
+    tracer.onWorkflowCompleted({
+      workflow: "builder",
+      runId: "run-unavailable",
+      status: "success",
+      durationMs: 1000,
+      triggerEvent: "test",
+      tags: [],
+    });
+
+    const agentSpan = exporter.getFinishedSpans().find((s) => s.name === "step.agent");
+    expect(agentSpan!.attributes["workflow.step.input_tokens"]).toBe(900);
+    expect(agentSpan!.attributes["workflow.step.output_tokens"]).toBe(100);
+    expect(agentSpan!.attributes["workflow.step.total_cost_usd"]).toBeUndefined();
+  });
+
+  it("omits cost and token attributes when step usage is unknown", () => {
+    const tracer = new WorkflowTracer(projectDir, new Map());
+    const runDir = ".kota/runs/run-unknown";
+    tracer.onWorkflowStarted({
+      workflow: "builder",
+      runId: "run-unknown",
+      triggerEvent: "test",
+      runDir,
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepStarted({
+      workflow: "builder",
+      runId: "run-unknown",
+      stepId: "build",
+      stepType: "agent",
+      startedAt: new Date().toISOString(),
+    });
+    tracer.onStepCompleted({
+      projectId: PROJECT_ID,
+      workflow: "builder",
+      runId: "run-unknown",
+      stepId: "build",
+      stepType: "agent",
+      status: "success",
+      durationMs: 1000,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
+      runDir,
+      definitionPath: DEFINITION_PATH,
+    });
+    tracer.onWorkflowCompleted({
+      workflow: "builder",
+      runId: "run-unknown",
+      status: "success",
+      durationMs: 1000,
+      triggerEvent: "test",
+      tags: [],
+    });
+
+    const agentSpan = exporter.getFinishedSpans().find((s) => s.name === "step.agent");
+    expect(agentSpan!.attributes["workflow.step.input_tokens"]).toBeUndefined();
+    expect(agentSpan!.attributes["workflow.step.output_tokens"]).toBeUndefined();
+    expect(agentSpan!.attributes["workflow.step.total_cost_usd"]).toBeUndefined();
   });
 
   it("handles missing step result file gracefully", () => {
@@ -398,6 +511,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-miss",
       stepId: "build",
@@ -405,6 +519,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 1000,
       runDir: ".kota/runs/run-miss",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -446,6 +561,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "builder",
       runId: "run-broken",
       stepId: "build",
@@ -453,6 +569,7 @@ describe("WorkflowTracer", () => {
       status: "success",
       durationMs: 1000,
       runDir,
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "builder",
@@ -574,6 +691,7 @@ describe("no-op behavior", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
+      projectId: PROJECT_ID,
       workflow: "test",
       runId: "noop-1",
       stepId: "s1",
@@ -581,6 +699,7 @@ describe("no-op behavior", () => {
       status: "success",
       durationMs: 10,
       runDir: ".kota/runs/noop-1",
+      definitionPath: DEFINITION_PATH,
     });
     tracer.onWorkflowCompleted({
       workflow: "test",

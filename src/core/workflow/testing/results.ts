@@ -1,3 +1,4 @@
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type {
   WorkflowPredicate,
   WorkflowStepContext,
@@ -33,7 +34,7 @@ export function whenSkipReason(
 
 export function makeStepResult(
   id: string,
-  type: string,
+  type: WorkflowStepResult["type"],
   status: "success" | "failed" | "skipped",
   output: HarnessOutputValue,
   error: string | undefined,
@@ -48,17 +49,25 @@ export function makeStepResult(
     ...(error !== undefined ? { error } : {}),
     ...(skipReason !== undefined ? { skipReason } : {}),
   };
-  const internal: WorkflowStepResult = {
+  const common = {
     id,
-    type: type as WorkflowStepResult["type"],
-    status,
     startedAt: now,
     completedAt: now,
     durationMs: 0,
     ...(output !== undefined ? { output } : {}),
     ...(error !== undefined ? { error } : {}),
-    ...(skipReason !== undefined ? { skipReason } : {}),
   };
+  let internal: WorkflowStepResult;
+  if (status === "skipped") {
+    if (skipReason === undefined) {
+      throw new Error(`Skipped step "${id}" requires a skip reason`);
+    }
+    internal = { ...common, type, status, skipReason };
+  } else if (type === "agent") {
+    internal = { ...common, type, status, usage: UNKNOWN_AGENT_USAGE };
+  } else {
+    internal = { ...common, type, status };
+  }
   return { harness, internal };
 }
 

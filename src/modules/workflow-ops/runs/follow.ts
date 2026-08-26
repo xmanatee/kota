@@ -6,7 +6,7 @@ import {
   type DaemonTransport,
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
@@ -26,8 +26,11 @@ function printRunSummary(metadata: WorkflowRunMetadata): void {
   if (metadata.durationMs != null) {
     lines.push(line(plain(`Duration: ${formatDuration(metadata.durationMs)}`)));
   }
-  if (metadata.totalCostUsd != null) {
-    lines.push(line(plain(`Cost:     $${metadata.totalCostUsd.toFixed(4)}`)));
+  if (metadata.usage !== undefined) {
+    const cost = metadata.usage.cost.state === "complete"
+      ? `$${metadata.usage.cost.usd.toFixed(4)}`
+      : metadata.usage.cost.state;
+    lines.push(line(plain(`Cost:     ${cost}`)));
   }
   print(stack(...lines));
 }
@@ -108,7 +111,7 @@ async function followWithSse(
 
       if (event.type === "workflow.step.completed") {
         if (!activeRunId || event.payload.runId !== activeRunId) return;
-        const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+        const metadata = readWorkflowRunMetadataFile(
           join(store.runsDir, activeRunId, "metadata.json"),
         );
         if (metadata) emitPendingStepOutput(store, activeRunId, metadata, emittedSteps, stepOutputOffset);
@@ -121,7 +124,7 @@ async function followWithSse(
 
       if (event.type === "workflow.completed") {
         if (!activeRunId || event.payload.runId !== activeRunId) return;
-        const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+        const metadata = readWorkflowRunMetadataFile(
           join(store.runsDir, activeRunId, "metadata.json"),
         );
         if (metadata) {
@@ -178,7 +181,7 @@ export function registerFollowCommand(wfCmd: Command): void {
 
       if (resolvedId) {
         const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
-        const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+        const metadata = readWorkflowRunMetadataFile(metadataPath);
         if (metadata && metadata.status !== "running") {
           const stepLogs = buildRunLogs(store.runsDir, resolvedId, metadata);
           for (const { stepId, lines } of stepLogs) {

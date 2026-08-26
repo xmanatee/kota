@@ -1,19 +1,18 @@
 import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { FixtureJsonValue } from "./fixture-common-types.js";
 
 export type AgentStepArtifact = {
   id: string;
   type: "agent" | "code";
+  usage?: AgentUsage;
   output?: {
     content?: FixtureJsonValue;
     subtype?: string;
     turns?: number;
-    totalCostUsd?: number;
-    inputTokens?: number;
-    outputTokens?: number;
     sessionId?: string;
   };
 };
@@ -90,13 +89,14 @@ export function defaultAgentStep(stepId: string): AgentStepArtifact {
   return {
     id: stepId,
     type: "agent",
+    usage: {
+      tokens: { state: "complete", inputTokens: 1, outputTokens: 1 },
+      cost: { state: "complete", usd: 0 },
+    },
     output: {
       content: "ok",
       subtype: "success",
       turns: 1,
-      totalCostUsd: 0,
-      inputTokens: 1,
-      outputTokens: 1,
     },
   };
 }

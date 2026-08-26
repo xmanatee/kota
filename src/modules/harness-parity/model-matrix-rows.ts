@@ -104,10 +104,16 @@ export function rowFromArtifact(args: {
     durationMs: artifact.durationMs,
     turns: artifact.turns,
     tokenUsage: {
-      inputTokens: artifact.inputTokens ?? null,
-      outputTokens: artifact.outputTokens ?? null,
+      inputTokens: artifact.usage.tokens.state === "unknown"
+        ? null
+        : artifact.usage.tokens.inputTokens,
+      outputTokens: artifact.usage.tokens.state === "unknown"
+        ? null
+        : artifact.usage.tokens.outputTokens,
     },
-    estimatedCostUsd: artifact.totalCostUsd ?? null,
+    estimatedCostUsd: artifact.usage.cost.state === "complete"
+      ? artifact.usage.cost.usd
+      : null,
     toolCounts: {
       toolCalls: sumStageToolCount(artifact, "toolCallCount"),
       toolResults: sumStageToolCount(artifact, "toolResultCount"),

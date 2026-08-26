@@ -38,8 +38,13 @@ export function renderShadowSemanticReviews(
       span(String(report.errorArtifacts), report.errorArtifacts > 0 ? "warn" : "accent"),
     ),
     line(
-      plain("Cost: "),
-      span(fmtUsd(report.totalCostUsd), "accent"),
+      plain("Measured cost: "),
+      span(formatCost(report.totalCostUsd), "accent"),
+      plain("   Measured/unavailable/unknown: "),
+      span(
+        `${report.measuredCostArtifacts}/${report.unavailableCostArtifacts}/${report.unknownCostArtifacts}`,
+        report.unknownCostArtifacts === 0 && report.unavailableCostArtifacts === 0 ? "accent" : "warn",
+      ),
       plain("   Avg duration: "),
       span(fmtDuration(report.averageDurationMs), "muted"),
     ),
@@ -48,7 +53,7 @@ export function renderShadowSemanticReviews(
     lines.push(blank(), line(span("By workflow", "muted", true)));
     for (const row of report.byWorkflow) {
       lines.push(line(plain(
-        `  ${row.workflow.padEnd(18)} ${String(row.artifacts).padStart(3)} artifacts   ${String(row.catches).padStart(3)} catches   ${String(row.falsePositiveAnnotations).padStart(3)} false+   ${String(row.skippedTargetResolution).padStart(3)} skipped   ${String(row.malformedArtifacts).padStart(3)} malformed   ${fmtUsd(row.totalCostUsd).padStart(8)}`,
+        `  ${row.workflow.padEnd(18)} ${String(row.artifacts).padStart(3)} artifacts   ${String(row.catches).padStart(3)} catches   ${String(row.falsePositiveAnnotations).padStart(3)} false+   ${String(row.skippedTargetResolution).padStart(3)} skipped   ${String(row.malformedArtifacts).padStart(3)} malformed   ${formatCost(row.totalCostUsd).padStart(8)}   measured ${row.measuredCostArtifacts} unavailable ${row.unavailableCostArtifacts} unknown ${row.unknownCostArtifacts}`,
       )));
     }
   }
@@ -91,4 +96,8 @@ export function renderShadowSemanticReviews(
     }
   }
   return lines;
+}
+
+function formatCost(costUsd: number | null): string {
+  return costUsd === null ? "unknown" : fmtUsd(costUsd);
 }

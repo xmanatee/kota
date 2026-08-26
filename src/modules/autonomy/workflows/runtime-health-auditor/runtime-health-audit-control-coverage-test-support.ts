@@ -92,6 +92,70 @@ export function writeRunWithCoverage(
   );
 }
 
+export function writeRunWithUnknownCoverage(
+  projectDir: string,
+  id: string,
+  startedAt: string,
+): void {
+  const runDir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, "metadata.json"), JSON.stringify({
+    id,
+    workflow: "builder",
+    status: "interrupted",
+    startedAt,
+    completedAt: startedAt,
+    durationMs: 1000,
+    runDir: `.kota/runs/${id}`,
+    steps: [],
+  }));
+  writeFileSync(join(runDir, "control-monitor-coverage.json"), JSON.stringify({
+    schemaVersion: 3,
+    generatedAt: startedAt,
+    artifactPath: `.kota/runs/${id}/control-monitor-coverage.json`,
+    run: {
+      id,
+      workflow: "builder",
+      triggerEvent: "autonomy.queue.available",
+      status: "interrupted",
+      startedAt,
+      completedAt: startedAt,
+      headSha: "abc123",
+    },
+    monitoredSurfaceCounts: {
+      agentSteps: 1,
+      toolCalls: 0,
+      externalPayloadIngests: 0,
+      approvalRequests: 0,
+      ownerQuestionWaits: 0,
+      daemonHostControlDenials: 0,
+      runtimeProbes: 0,
+      postRunReviewLinks: 0,
+    },
+    summary: {
+      numerator: 0,
+      denominator: 1,
+      gapCount: 0,
+      unsupportedCount: 0,
+      unavailableCount: 0,
+      unknownCount: 1,
+      pendingCount: 0,
+      blockedCount: 0,
+      warnedCount: 0,
+    },
+    families: [],
+    gaps: [],
+    unknowns: [{
+      id: "agent-step-stream:interrupted-before-agent-step-events-finalized:1",
+      family: "agent-step-stream",
+      reason: "interrupted-before-agent-step-events-finalized",
+      subject: "build",
+      evidenceRefs: [`.kota/runs/${id}/metadata.json`],
+    }],
+    asyncReviewResponseMs: { observations: 0, min: null, max: null, average: null },
+  }));
+}
+
 function stepResult(step: StepSeed, startedAt: string) {
   return {
     id: step.id,

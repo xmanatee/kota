@@ -2,6 +2,8 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
+import { parseAgentUsage } from "#core/agent-harness/usage.js";
 import { readImportedSkillRecords } from "#core/modules/imported-skills.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { FixtureJsonValue, SkillAblationVariantSpec } from "./fixture.js";
@@ -146,11 +148,9 @@ export function evaluatePromptResolution(params: {
 }
 
 type AgentStepUsageFile = {
+  usage?: unknown;
   output?: {
     turns?: FixtureJsonValue;
-    totalCostUsd?: FixtureJsonValue;
-    inputTokens?: FixtureJsonValue;
-    outputTokens?: FixtureJsonValue;
     subtype?: FixtureJsonValue;
   };
 };
@@ -161,6 +161,18 @@ function nullableNumber(value: FixtureJsonValue | undefined): number | null {
 
 function nullableString(value: FixtureJsonValue | undefined): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function measuredTokens(usage: AgentUsage | undefined): {
+  inputTokens: number | null;
+  outputTokens: number | null;
+} {
+  return usage === undefined || usage.tokens.state === "unknown"
+    ? { inputTokens: null, outputTokens: null }
+    : {
+        inputTokens: usage.tokens.inputTokens,
+        outputTokens: usage.tokens.outputTokens,
+      };
 }
 
 export function readAgentStepUsage(
@@ -183,11 +195,20 @@ export function readAgentStepUsage(
   } catch {
     return empty;
   }
+  let usage: AgentUsage | undefined;
+  if (parsed.usage !== undefined) {
+    try {
+      usage = parseAgentUsage(parsed.usage, "usage");
+    } catch {
+      return empty;
+    }
+  }
+  const tokens = measuredTokens(usage);
   return {
     turns: nullableNumber(parsed.output?.turns),
-    totalCostUsd: nullableNumber(parsed.output?.totalCostUsd),
-    inputTokens: nullableNumber(parsed.output?.inputTokens),
-    outputTokens: nullableNumber(parsed.output?.outputTokens),
+    totalCostUsd:
+      usage?.cost.state === "complete" ? usage.cost.usd : null,
+    ...tokens,
     subtype: nullableString(parsed.output?.subtype),
   };
 }

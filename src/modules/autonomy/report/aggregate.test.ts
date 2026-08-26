@@ -364,7 +364,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1000,
-      totalCostUsd: 0.5,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.5 },
+      },
       steps: [],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
@@ -401,7 +404,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1000,
-      totalCostUsd: 0.5,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.5 },
+      },
       steps: [],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
@@ -441,7 +447,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1000,
-      totalCostUsd: 0.4,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.4 },
+      },
       trigger: builderTrigger("task-builder-arch", "Arch task"),
       steps: [],
     });
@@ -453,7 +462,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1000,
-      totalCostUsd: 0.1,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.1 },
+      },
       trigger: builderTrigger("task-builder-client", "Client task"),
       steps: [],
     });
@@ -468,8 +480,8 @@ describe("aggregateAutonomyReport", () => {
 
     expect(report.builder.totalCommittedRuns).toBe(2);
     expect(report.builder.byArea).toEqual([
-      { area: "architecture", commits: 1, totalCostUsd: 0.4 },
-      { area: "client", commits: 1, totalCostUsd: 0.1 },
+      { area: "architecture", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
+      { area: "client", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
     ]);
     const byClass = Object.fromEntries(
       report.builder.byClassification.map((r) => [r.classification, r]),
@@ -487,7 +499,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1,
-      totalCostUsd: 0.05,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.05 },
+      },
       steps: [],
     });
     // No writer integration evidence written.
@@ -498,7 +513,10 @@ describe("aggregateAutonomyReport", () => {
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
       durationMs: 1,
-      totalCostUsd: 0.05,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.05 },
+      },
       trigger: builderTrigger("task-no-such-task", "Ghost task"),
       steps: [],
     });
@@ -680,25 +698,34 @@ describe("aggregateAutonomyReport", () => {
       workflow: "builder",
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
-      totalCostUsd: 0.20,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.20 },
+      },
       durationMs: 1,
-      steps: [],
+      steps: [{ type: "agent" }],
     });
     writeRun(runsDir, "2026-04-28T14-00-00-000Z-explorer-ggg", {
       workflow: "explorer",
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
-      totalCostUsd: 0.10,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.10 },
+      },
       durationMs: 1,
-      steps: [],
+      steps: [{ type: "agent" }],
     });
     writeRun(runsDir, "2026-04-28T15-00-00-000Z-builder-hhh", {
       workflow: "builder",
       startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
       status: "success",
-      totalCostUsd: 0.30,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "complete", usd: 0.30 },
+      },
       durationMs: 1,
-      steps: [],
+      steps: [{ type: "agent" }],
     });
     writeRun(runsDir, "2026-04-28T15-30-00-000Z-builder-iii", {
       workflow: "builder",
@@ -719,14 +746,20 @@ describe("aggregateAutonomyReport", () => {
     expect(report.cost.byWorkflow[0]).toEqual({
       workflow: "builder",
       finishedRuns: 2,
+      measuredRuns: 2,
+      unavailableRuns: 0,
+      unknownRuns: 0,
       totalCostUsd: 0.50,
-      averageCostUsd: 0.25,
+      averageMeasuredCostUsd: 0.25,
     });
     expect(report.cost.byWorkflow[1]).toEqual({
       workflow: "explorer",
       finishedRuns: 1,
+      measuredRuns: 1,
+      unavailableRuns: 0,
+      unknownRuns: 0,
       totalCostUsd: 0.10,
-      averageCostUsd: 0.10,
+      averageMeasuredCostUsd: 0.10,
     });
   });
 });

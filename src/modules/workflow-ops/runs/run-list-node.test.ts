@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { renderContext } from "#modules/rendering/render.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildHistoryNode, buildRunListNode } from "./run-list.js";
+
+function usage(cost: AgentUsage["cost"]): AgentUsage {
+  return {
+    tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+    cost,
+  };
+}
 
 const RUNS = [
   {
@@ -10,7 +18,7 @@ const RUNS = [
     workflow: "builder",
     status: "success",
     durationMs: 252_000,
-    totalCostUsd: 0.123,
+    usage: usage({ state: "complete", usd: 0.123 }),
     startedAt: "2026-04-20T10:00:00.000Z",
     trigger: { event: "autonomy.queue.available" },
   },
@@ -19,7 +27,7 @@ const RUNS = [
     workflow: "dispatcher",
     status: "failed",
     durationMs: 8_400,
-    totalCostUsd: 0.012,
+    usage: usage({ state: "unavailable", reason: "provider-does-not-report" }),
     startedAt: "2026-04-20T10:05:00.000Z",
     trigger: { event: "runtime.idle" },
     tags: ["repair"],
@@ -41,6 +49,9 @@ describe("buildRunListNode", () => {
       expect(out).toContain("dispatcher");
       expect(out).toContain("Workflow");
       expect(out).toContain("Trigger");
+      expect(out).toContain("$0.123");
+      expect(out).toContain("unavailable");
+      expect(out).not.toContain("$0.000");
     });
 
     it(`fits within a narrow terminal width in ${name} theme`, () => {
@@ -66,6 +77,9 @@ const HISTORY_ROWS = [
       failures: 2,
       interrupted: 0,
       totalCostUsd: 1.234,
+      measuredCostRuns: 10,
+      unavailableCostRuns: 1,
+      unknownCostRuns: 1,
       successRate: 83.3,
       avgCostUsd: 0.103,
       avgDurationMs: 320_000,
@@ -80,6 +94,9 @@ const HISTORY_ROWS = [
       failures: 0,
       interrupted: 0,
       totalCostUsd: 0,
+      measuredCostRuns: 50,
+      unavailableCostRuns: 0,
+      unknownCostRuns: 0,
       successRate: 100,
       avgCostUsd: 0,
       avgDurationMs: 1500,

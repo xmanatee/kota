@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { buildControlMonitorCoverageArtifact } from "./control-monitor-coverage.js";
 import {
   baseMetadata,
@@ -39,6 +40,7 @@ describe("control monitor coverage artifacts", () => {
           startedAt: STARTED_AT,
           completedAt: COMPLETED_AT,
           durationMs: 55_000,
+          usage: UNKNOWN_AGENT_USAGE,
         },
         {
           id: "approve",
@@ -212,7 +214,7 @@ describe("control monitor coverage artifacts", () => {
     );
   });
 
-  it("treats failed validation-buffered agent streams as pending coverage", () => {
+  it("marks terminal validation-buffered evidence unknown instead of pending", () => {
     const metadata = baseMetadata({
       steps: [
         {
@@ -223,6 +225,7 @@ describe("control monitor coverage artifacts", () => {
           completedAt: COMPLETED_AT,
           durationMs: 55_000,
           error: "Step timed out",
+          usage: UNKNOWN_AGENT_USAGE,
         },
       ],
     });
@@ -258,19 +261,24 @@ describe("control monitor coverage artifacts", () => {
       expect.arrayContaining([
         expect.objectContaining({
           family: "agent-step-stream",
-          status: "pending",
-          pending: 1,
+          status: "unknown",
+          unknown: 1,
         }),
         expect.objectContaining({
           family: "trajectory-diagnostics",
-          status: "pending",
-          pending: 1,
+          status: "unknown",
+          unknown: 1,
         }),
       ]),
     );
+    expect(artifact.summary).toMatchObject({ unknownCount: 2, pendingCount: 0 });
+    expect(artifact.unknowns.map((unknown) => unknown.reason)).toEqual([
+      "validation-buffer-discarded-agent-step-events",
+      "validation-buffer-discarded-trajectory-diagnostics",
+    ]);
   });
 
-  it("treats daemon-interrupted agent steps without results as pending coverage", () => {
+  it("marks terminal interrupted evidence unknown instead of pending", () => {
     const metadata = baseMetadata({
       status: "interrupted",
       steps: [],
@@ -300,16 +308,48 @@ describe("control monitor coverage artifacts", () => {
       expect.arrayContaining([
         expect.objectContaining({
           family: "agent-step-stream",
-          status: "pending",
-          pending: 1,
+          status: "unknown",
+          unknown: 1,
         }),
         expect.objectContaining({
           family: "trajectory-diagnostics",
-          status: "pending",
-          pending: 1,
+          status: "unknown",
+          unknown: 1,
         }),
       ]),
     );
+    expect(artifact.summary).toMatchObject({ unknownCount: 2, pendingCount: 0 });
+    expect(artifact.unknowns.map((unknown) => unknown.reason)).toEqual([
+      "interrupted-before-agent-step-events-finalized",
+      "interrupted-before-trajectory-diagnostics-finalized",
+    ]);
+  });
+
+  it("marks an unresolved approval unknown after the run terminates", () => {
+    const metadata = baseMetadata({ status: "failed", steps: [] });
+    writeJson(join(runDirPath, "workflow.json"), { steps: [] });
+    writeJsonl(join(runDirPath, "emitted-events.jsonl"), [
+      {
+        event: "approval.requested",
+        payload: { id: "approval-1" },
+      },
+    ]);
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata,
+      headSha: null,
+    });
+
+    expect(artifact.summary).toMatchObject({ unknownCount: 1, pendingCount: 0 });
+    expect(artifact.unknowns).toEqual([
+      expect.objectContaining({
+        family: "approval-owner-gates",
+        reason: "terminal-run-with-unresolved-approval",
+        subject: "approval-1",
+      }),
+    ]);
   });
 
   it("uses missing-frame diagnostics as observed stream evidence", () => {
@@ -323,6 +363,7 @@ describe("control monitor coverage artifacts", () => {
           completedAt: COMPLETED_AT,
           durationMs: 55_000,
           error: "Agent step idle timed out",
+          usage: UNKNOWN_AGENT_USAGE,
         },
       ],
     });

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "skill-ablation-no-skill",
   "stepId": "solve-no-skill",
   "sourceRunId": "fixture-skill-ablation-replay-2026-05-29",
@@ -7,10 +7,17 @@
     "text": "Completed the ticket normalization without using a skill, but the routing rule was guessed and remains incorrect.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 900,
-    "outputTokens": 120,
-    "sessionId": "skill-ablation-no-skill"
+    "sessionId": "skill-ablation-no-skill",
+    "usage": {
+      "tokens": {
+        "state": "complete",
+        "inputTokens": 900,
+        "outputTokens": 120
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

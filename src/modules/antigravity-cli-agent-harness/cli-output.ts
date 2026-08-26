@@ -7,6 +7,7 @@ import type {
   KotaJsonObject,
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
+import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 
 type AntigravityUsage = {
   input_tokens?: number;
@@ -214,8 +215,7 @@ export function collectAntigravityOutput(args: {
           ...(result.num_turns !== undefined
             ? { numTurns: result.num_turns }
             : {}),
-          ...(inputTokens !== undefined ? { inputTokens } : {}),
-          ...(outputTokens !== undefined ? { outputTokens } : {}),
+          usage: unpricedAgentUsage(inputTokens, outputTokens),
           ...(sessionId !== undefined ? { sessionId } : {}),
         });
         continue;

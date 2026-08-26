@@ -52,8 +52,11 @@ export function buildStepSummaryLines(step: StepRecord): LineNode[] {
     if (step.model) {
       lines.push(line(plain(`  Model:   ${step.model}`)));
     }
-    if (typeof output.totalCostUsd === "number") {
-      lines.push(line(plain(`  Cost:  $${(output.totalCostUsd as number).toFixed(4)}`)));
+    if (step.usage !== undefined) {
+      const cost = step.usage.cost.state === "complete"
+        ? `$${step.usage.cost.usd.toFixed(4)}`
+        : step.usage.cost.state;
+      lines.push(line(plain(`  Cost:  ${cost}`)));
     }
     if (typeof output.turns === "number") {
       lines.push(line(plain(`  Turns: ${output.turns}`)));

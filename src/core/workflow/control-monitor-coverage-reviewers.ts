@@ -1,12 +1,12 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   artifactRef,
   runArtifactRef,
   triggerPayloadLinkedRunIds,
 } from "./control-monitor-coverage-readers.js";
 import { ASYNC_REVIEW_ARTIFACTS } from "./control-monitor-coverage-types.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
 export type ReviewerLinks = {
@@ -35,7 +35,7 @@ export function reviewerLinks(args: {
   for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === args.metadata.id) continue;
     const dir = join(runsDir, entry.name);
-    const meta = readOptionalJsonFile<WorkflowRunMetadata>(
+    const meta = readWorkflowRunMetadataFile(
       join(dir, "metadata.json"),
     );
     if (!meta) continue;

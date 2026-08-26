@@ -150,9 +150,7 @@ export function projectKotaAgentMessageForStorage(
       }
       if (message.subtype !== undefined) projected.subtype = message.subtype;
       if (message.numTurns !== undefined) projected.numTurns = message.numTurns;
-      if (message.totalCostUsd !== undefined) projected.totalCostUsd = message.totalCostUsd;
-      if (message.inputTokens !== undefined) projected.inputTokens = message.inputTokens;
-      if (message.outputTokens !== undefined) projected.outputTokens = message.outputTokens;
+      projected.usage = message.usage;
       return projected;
     }
     case "raw":

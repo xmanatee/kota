@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
@@ -178,7 +179,12 @@ describe("executeStep repair loop", () => {
   it("supports code-based repair checks", async () => {
     mockedExecuteWithAgentSDK
       .mockResolvedValueOnce(SUCCESS_RESULT)
-      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed queue", turns: 2, totalCostUsd: 0.02 });
+      .mockResolvedValueOnce({
+        ...SUCCESS_RESULT,
+        text: "fixed queue",
+        turns: 2,
+        usage: pricedAgentUsage(undefined, undefined, 0.02),
+      });
 
     const codeCheck = vi
       .fn()
@@ -223,7 +229,12 @@ describe("executeStep repair loop", () => {
   it("reuses agent model overrides and thinking settings during repair attempts", async () => {
     mockedExecuteWithAgentSDK
       .mockResolvedValueOnce(SUCCESS_RESULT)
-      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed", turns: 2, totalCostUsd: 0.02 });
+      .mockResolvedValueOnce({
+        ...SUCCESS_RESULT,
+        text: "fixed",
+        turns: 2,
+        usage: pricedAgentUsage(undefined, undefined, 0.02),
+      });
 
     const runTool = vi
       .fn()

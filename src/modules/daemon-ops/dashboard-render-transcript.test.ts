@@ -50,6 +50,7 @@ describe("renderDashboard owner transcript regression", () => {
       const output = stripAnsi(
         renderDashboard(fixtureSnapshot, fixtureLogs, { width }),
       );
+      expect(output).toMatch(/Completed\s+668\s{2,}Sessions/);
       expect(output).toMatch(/Definitions\s+14/);
       expect(output.match(/KOTA Daemon/g) ?? []).toHaveLength(1);
       expect(output).toContain("Work");

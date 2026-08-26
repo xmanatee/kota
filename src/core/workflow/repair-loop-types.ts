@@ -18,9 +18,6 @@ export type RepairIteration = {
   failures: RepairCheckResult[];
   agentResponse?: string;
   agentTurns?: number;
-  agentCostUsd?: number;
-  agentInputTokens?: number;
-  agentOutputTokens?: number;
   agentSessionId?: string;
   agentError?: string;
 };
@@ -28,9 +25,6 @@ export type RepairIteration = {
 export type RepairLoopFailureOutput = {
   content: string;
   turns: number;
-  totalCostUsd: number;
-  inputTokens: number;
-  outputTokens: number;
   sessionId?: string;
   repairIterations: RepairIteration[];
   repairWarnings: RepairCheckResult[];
@@ -83,7 +77,7 @@ export class RepairLoopError extends Error {
   }
 }
 
-/** A classified repair-agent failure with the repair usage retained. */
+/** A classified repair-agent failure with repair evidence retained. */
 export class RepairAgentRuntimeError extends RepairLoopError {
   constructor(
     error: AgentStepRuntimeError,

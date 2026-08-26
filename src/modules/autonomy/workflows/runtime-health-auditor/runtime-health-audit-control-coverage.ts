@@ -245,6 +245,9 @@ export function scanControlCoverageGaps(
       continue;
     }
     ctx.inspected.controlCoverageArtifacts += 1;
+    if ((artifact.summary.unknownCount ?? artifact.unknowns?.length ?? 0) > 0) {
+      ctx.inspected.controlCoverageUnknownRuns += 1;
+    }
     const observations = observationsFor(ctx, run, artifact);
     if (observations.length > 0) ctx.inspected.controlCoverageGapRuns += 1;
     for (const observation of observations) {

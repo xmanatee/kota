@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -64,6 +65,7 @@ describe("handoff_agent input and policy rejection", () => {
           streamedText: "review complete",
           sessionId: "child-session-1",
           turns: 2,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),
@@ -99,6 +101,7 @@ describe("handoff_agent input and policy rejection", () => {
           text: "native complete",
           streamedText: "native complete",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),

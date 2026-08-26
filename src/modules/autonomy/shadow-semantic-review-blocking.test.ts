@@ -78,6 +78,10 @@ describe("shadow semantic review blocking mode", () => {
           }),
           streamedText: "",
           turns: 1,
+          usage: {
+            tokens: { state: "unknown" },
+            cost: { state: "unknown" },
+          },
           isError: false,
         }),
       }),

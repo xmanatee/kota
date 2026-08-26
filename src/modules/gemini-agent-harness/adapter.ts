@@ -19,7 +19,9 @@ import {
   type AgentHarnessResult,
   type AgentHarnessRunOptions,
   type AgentHarnessWriter,
+  AgentUsageAccumulator,
   agentHarnessToolExecutionOptions,
+  unpricedAgentUsage,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -122,8 +124,7 @@ async function runGeminiLoop(
 
   const conversation: Content[] = [makeUserPromptContent(options.prompt)];
   const streamedChunks: string[] = [];
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const usage = new AgentUsageAccumulator();
   let lastResponseId: string | undefined;
   let finalText = "";
   let turnCount = 0;
@@ -142,8 +143,9 @@ async function runGeminiLoop(
         streamedChunks,
         lastResponseId,
         turnCount,
-        inputTokens,
-        outputTokens,
+        usage: turnCount === 0
+          ? unpricedAgentUsage(0, 0)
+          : usage.snapshot(),
       });
     }
 
@@ -191,8 +193,7 @@ async function runGeminiLoop(
     }
 
     turnCount += 1;
-    inputTokens += turnInputTokens ?? 0;
-    outputTokens += turnOutputTokens ?? 0;
+    usage.observe(unpricedAgentUsage(turnInputTokens, turnOutputTokens));
     options.tokenBudget?.debitUsage(
       {
         inputTokens: turnInputTokens,
@@ -221,8 +222,7 @@ async function runGeminiLoop(
         streamedChunks,
         lastResponseId,
         turnCount,
-        inputTokens,
-        outputTokens,
+        usage: usage.snapshot(),
       });
     }
 
@@ -235,8 +235,7 @@ async function runGeminiLoop(
         streamedText: streamedChunks.join(""),
         ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
         turns: turnCount,
-        inputTokens,
-        outputTokens,
+        usage: usage.snapshot(),
         isError: false,
       };
     }
@@ -263,8 +262,7 @@ async function runGeminiLoop(
         streamedText: streamedChunks.join(""),
         ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
         turns: turnCount,
-        inputTokens,
-        outputTokens,
+        usage: usage.snapshot(),
         isError: true,
         subtype: "interrupted_by_can_use_tool",
       };
@@ -276,8 +274,7 @@ async function runGeminiLoop(
     streamedText: streamedChunks.join(""),
     ...(lastResponseId !== undefined ? { sessionId: lastResponseId } : {}),
     turns: turnCount,
-    inputTokens,
-    outputTokens,
+    usage: usage.snapshot(),
     isError: true,
     subtype: "max_turns_reached",
   };

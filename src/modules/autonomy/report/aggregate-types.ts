@@ -1,3 +1,4 @@
+import type { AgentUsageCost } from "#core/agent-harness/usage.js";
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
 import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
 import type {
@@ -98,24 +99,24 @@ export type BuilderClosure = {
   area: string;
   priority: ReportPriority;
   classification: AreaClassification;
-  costUsd: number | null;
+  cost: AgentUsageCost;
   durationMs: number | null;
+};
+
+export type BuilderCostSummary = {
+  commits: number;
+  measuredCostRuns: number;
+  unavailableCostRuns: number;
+  unknownCostRuns: number;
+  totalCostUsd: number | null;
 };
 
 export type BuilderBreakdown = {
   totalCommittedRuns: number;
   unresolvedClosures: number;
-  byArea: { area: string; commits: number; totalCostUsd: number }[];
-  byPriority: {
-    priority: ReportPriority;
-    commits: number;
-    totalCostUsd: number;
-  }[];
-  byClassification: {
-    classification: AreaClassification;
-    commits: number;
-    totalCostUsd: number;
-  }[];
+  byArea: ({ area: string } & BuilderCostSummary)[];
+  byPriority: ({ priority: ReportPriority } & BuilderCostSummary)[];
+  byClassification: ({ classification: AreaClassification } & BuilderCostSummary)[];
   closures: BuilderClosure[];
 };
 
@@ -132,14 +133,20 @@ export type BlockerClassMix = {
 export type WorkflowCostRow = {
   workflow: string;
   finishedRuns: number;
-  totalCostUsd: number;
-  averageCostUsd: number;
+  measuredRuns: number;
+  unavailableRuns: number;
+  unknownRuns: number;
+  totalCostUsd: number | null;
+  averageMeasuredCostUsd: number | null;
 };
 
 export type CostBreakdown = {
-  totalCostUsd: number;
+  totalCostUsd: number | null;
   finishedRuns: number;
-  averagePerFinishedRun: number;
+  measuredRuns: number;
+  unavailableRuns: number;
+  unknownRuns: number;
+  averageMeasuredCostUsd: number | null;
   byWorkflow: WorkflowCostRow[];
 };
 

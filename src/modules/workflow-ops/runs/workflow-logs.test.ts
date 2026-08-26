@@ -1,8 +1,11 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import {
+  type KotaAgentMessage,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
@@ -115,7 +118,10 @@ describe("formatAgentMessage", () => {
       type: "result",
       isError: false,
       subtype: "success",
-      totalCostUsd: 0.5,
+      usage: {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "complete", usd: 0.5 },
+      },
       numTurns: 10,
       text: "Done.",
     };
@@ -124,6 +130,25 @@ describe("formatAgentMessage", () => {
     expect(lines[0]).toContain("turns=10");
     expect(lines[0]).toContain("cost=$0.5000");
     expect(lines[1]).toContain("Done.");
+  });
+
+  it.each([
+    {
+      usage: {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      } as const,
+      expected: "cost=unavailable",
+    },
+    {
+      usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } } as const,
+      expected: "cost=unknown",
+    },
+  ])("formats $expected cost without inventing a dollar value", ({ usage, expected }) => {
+    const msg: KotaAgentMessage = { type: "result", isError: false, usage };
+    const line = formatAgentMessage(msg)[0];
+    expect(line).toContain(expected);
+    expect(line).not.toContain("$0");
   });
 
   it("returns empty array for status messages with no detail", () => {
@@ -185,7 +210,7 @@ describe("followRunLogs", () => {
       startedAt: new Date().toISOString(),
       status,
       runDir: `.kota/runs/${RUN_ID}`,
-      steps: [{ id: STEP_ID, type: "agent", status: "success", startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), durationMs: 100 }],
+      steps: [{ id: STEP_ID, type: "agent", status: "success", startedAt: new Date().toISOString(), completedAt: new Date().toISOString(), durationMs: 100, usage: UNKNOWN_AGENT_USAGE }],
     };
   }
 
@@ -277,7 +302,7 @@ describe("followRunLogs", () => {
       const runState = new RunStateDatabase(tmpDir);
       runState.registerProject({
         id: "project-follow",
-        rootPath: projectDir,
+        rootPath: realpathSync(projectDir),
         createdAt: new Date().toISOString(),
       });
       const { epoch } = runState.beginDaemonSession(new Date().toISOString());

@@ -12,6 +12,7 @@ import {
   type AgentHarness,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   type HarnessParityDeps,
@@ -47,6 +48,7 @@ function createNoopHarness(): AgentHarness {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     },

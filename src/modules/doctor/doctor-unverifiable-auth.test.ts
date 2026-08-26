@@ -6,6 +6,7 @@ import {
   type AgentHarness,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import type { StrandedDaemonInspection } from "#core/daemon/stranded-daemon.js";
@@ -92,6 +93,7 @@ function registerAntigravityHarnessWithUnverifiableAuth(): void {
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }),
   };

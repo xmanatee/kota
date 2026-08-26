@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepResult,
@@ -21,14 +22,25 @@ function makeStep(
   status: WorkflowStepStatus,
   iterations: Iter[],
 ): WorkflowStepResult {
-  return {
+  const common = {
     id,
-    type: "agent",
-    status,
+    type: "agent" as const,
     startedAt: "2026-04-16T00:00:00.000Z",
     completedAt: "2026-04-16T00:00:01.000Z",
     durationMs: 1000,
     output: { repairIterations: iterations },
+  };
+  if (status === "skipped") {
+    return {
+      ...common,
+      status,
+      skipReason: { kind: "when-predicate" },
+    };
+  }
+  return {
+    ...common,
+    status,
+    usage: UNKNOWN_AGENT_USAGE,
   };
 }
 
@@ -176,6 +188,7 @@ describe("tallyRepairFailures", () => {
         completedAt: "2026-04-16T00:00:01.000Z",
         durationMs: 1000,
         output: { content: "done" },
+        usage: UNKNOWN_AGENT_USAGE,
       },
     ]);
     expect(tallyRepairFailures([run])).toEqual([]);
@@ -205,6 +218,25 @@ function makeWorkflowRun(
   agentStepStatus: WorkflowStepStatus = "success",
   runStatus: WorkflowRunMetadata["status"] = "success",
 ): WorkflowRunMetadata {
+  const agentStep: WorkflowStepResult = agentStepStatus === "skipped"
+    ? {
+        id: "agent-step",
+        type: "agent",
+        status: "skipped",
+        startedAt: "2026-04-16T00:00:00.050Z",
+        completedAt: "2026-04-16T00:00:00.050Z",
+        durationMs: agentStepDurationMs,
+        skipReason: { kind: "when-predicate" },
+      }
+    : {
+        id: "agent-step",
+        type: "agent",
+        status: agentStepStatus,
+        startedAt: "2026-04-16T00:00:00.050Z",
+        completedAt: "2026-04-16T00:00:00.050Z",
+        durationMs: agentStepDurationMs,
+        usage: UNKNOWN_AGENT_USAGE,
+      };
   return {
     id,
     workflow,
@@ -223,14 +255,7 @@ function makeWorkflowRun(
         completedAt: "2026-04-16T00:00:00.050Z",
         durationMs: 50,
       },
-      {
-        id: "agent-step",
-        type: "agent",
-        status: agentStepStatus,
-        startedAt: "2026-04-16T00:00:00.050Z",
-        completedAt: "2026-04-16T00:00:00.050Z",
-        durationMs: agentStepDurationMs,
-      },
+      agentStep,
     ],
   };
 }
@@ -353,6 +378,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           completedAt: "2026-04-16T00:00:00.050Z",
           durationMs: agentDurationMs,
           output: agentStepOutput,
+          usage: UNKNOWN_AGENT_USAGE,
         },
       ],
     };
@@ -590,6 +616,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           startedAt: "2026-04-16T00:00:00.000Z",
           completedAt,
           durationMs: timeoutMs,
+          usage: UNKNOWN_AGENT_USAGE,
           error: `Step "${stepId}" timed out after ${timeoutMs}ms of active runtime`,
           errorKind: "step-timeout",
         },
@@ -657,6 +684,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
           startedAt: "2026-04-16T00:00:00.000Z",
           completedAt,
           durationMs: 599_000,
+          usage: UNKNOWN_AGENT_USAGE,
           error,
         },
       ],

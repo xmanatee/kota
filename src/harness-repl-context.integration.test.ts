@@ -5,6 +5,7 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { ReplChrome } from "#core/modules/provider-types.js";
 import { runHarnessRepl } from "#modules/repl/index.js";
 
@@ -47,6 +48,7 @@ describe("runHarnessRepl context", () => {
         text: "",
         streamedText: "",
         turns: 0,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }),
     };
@@ -80,6 +82,7 @@ describe("runHarnessRepl context", () => {
           text: "ok",
           streamedText: "ok",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       },

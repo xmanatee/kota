@@ -1,4 +1,7 @@
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
+import {
+  type AgentUsageCost,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/usage.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   readWriterIntegrationEvidence,
@@ -10,41 +13,20 @@ export type AutonomyRunDeliveryEvidence = WriterIntegrationEvidence &
   Readonly<{
     taskId: string | null;
     taskTitle: string | null;
-    costUsd: number | null;
+    cost: AgentUsageCost;
     durationMs: number | null;
   }>;
 
 export function reportRunTriggerPayload(
   run: WorkflowRunMetadata,
-): KotaJsonObject | null {
-  const trigger = (run as WorkflowRunMetadata & { trigger?: unknown }).trigger;
-  if (trigger === undefined) {
-    if (run.status === "running") {
-      throw new Error(
-        `Malformed current workflow run "${run.id}": missing trigger`,
-      );
-    }
-    return null;
-  }
-  if (
-    typeof trigger !== "object" ||
-    trigger === null ||
-    Array.isArray(trigger) ||
-    typeof (trigger as { event?: unknown }).event !== "string" ||
-    typeof (trigger as { payload?: unknown }).payload !== "object" ||
-    (trigger as { payload?: unknown }).payload === null ||
-    Array.isArray((trigger as { payload?: unknown }).payload)
-  ) {
-    throw new Error(`Malformed workflow run "${run.id}": invalid trigger`);
-  }
-  return (trigger as { payload: KotaJsonObject }).payload;
+): Record<string, unknown> {
+  return run.trigger.payload;
 }
 
 export function taskIdentityFromRunTrigger(
   run: WorkflowRunMetadata,
 ): Readonly<{ taskId: string | null; taskTitle: string | null }> {
   const payload = reportRunTriggerPayload(run);
-  if (payload === null) return { taskId: null, taskTitle: null };
   if (run.workflow === "builder") {
     try {
       const task = readBuilderTaskPayload(payload);
@@ -72,7 +54,7 @@ export function readAutonomyRunDeliveryEvidence(
   return {
     ...integration,
     ...task,
-    costUsd: run.totalCostUsd ?? null,
+    cost: run.usage?.cost ?? UNKNOWN_AGENT_USAGE.cost,
     durationMs: run.durationMs ?? null,
   };
 }

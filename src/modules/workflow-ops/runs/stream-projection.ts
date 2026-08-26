@@ -2,6 +2,7 @@ import type {
   KotaAgentMessage,
   KotaAgentMessageType,
 } from "#core/agent-harness/index.js";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import {
   type EvidenceRedactionMarker,
   projectEvidenceText,
@@ -69,9 +70,7 @@ export type WorkflowRunStreamEvent =
         subtype?: string;
         text?: EvidenceRedactionMarker | string;
         numTurns?: number;
-        totalCostUsd?: number;
-        inputTokens?: number;
-        outputTokens?: number;
+        usage: AgentUsage;
       };
     }
   | {
@@ -182,9 +181,7 @@ export function projectAgentMessageToRunStreamEvents(
             text: projectDaemonText(message.text, "provider-payload"),
           }),
           ...(message.numTurns !== undefined && { numTurns: message.numTurns }),
-          ...(message.totalCostUsd !== undefined && { totalCostUsd: message.totalCostUsd }),
-          ...(message.inputTokens !== undefined && { inputTokens: message.inputTokens }),
-          ...(message.outputTokens !== undefined && { outputTokens: message.outputTokens }),
+          usage: message.usage,
           ...(message.sessionId !== undefined && { sessionId: message.sessionId }),
         },
       }];

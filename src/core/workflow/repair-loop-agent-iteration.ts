@@ -27,9 +27,6 @@ import {
 export type RepairAgentIterationResult = {
   text: string;
   turns?: number;
-  totalCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
   sessionId?: string;
 };
 
@@ -170,9 +167,6 @@ export async function executeRepairAgentIteration(
   const iterationResult: RepairAgentIterationResult = {
     text: result.text,
     turns: result.turns,
-    totalCostUsd: result.totalCostUsd,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
     sessionId: result.sessionId,
   };
 

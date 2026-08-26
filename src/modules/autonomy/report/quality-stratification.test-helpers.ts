@@ -1,3 +1,4 @@
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type {
   ReviewScrutinyRecord,
@@ -97,6 +98,7 @@ export function run(
         startedAt: new Date(startedMs).toISOString(),
         completedAt: new Date(startedMs + 1000).toISOString(),
         durationMs: 1000,
+        usage: UNKNOWN_AGENT_USAGE,
         harness,
       },
     ],

@@ -1,9 +1,8 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { buildRunLogs, filterWithContext, followRunLogs, stepBanner } from "./workflow-logs.js";
@@ -56,7 +55,7 @@ export function registerLogsCommand(wfCmd: Command): void {
       }
 
       const metadataPath = join(store.runsDir, resolvedId!, "metadata.json");
-      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+      const metadata = readWorkflowRunMetadataFile(metadataPath);
       if (!metadata) {
         print(line(span(`Run "${resolvedId}" not found.`, "error")));
         process.exit(1);

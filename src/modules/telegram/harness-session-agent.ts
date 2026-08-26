@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   type AgentEffort,
   type AgentHarness,
+  type AgentHarnessResult,
   type AgentHarnessSessionContext,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
@@ -118,21 +119,17 @@ export class TelegramHarnessSessionAgent {
     return this.costTracker.getSummary();
   }
 
-  private recordCost(result: {
-    totalCostUsd?: number;
-    inputTokens?: number;
-    outputTokens?: number;
-  }): void {
-    if (result.totalCostUsd !== undefined) {
-      this.costTracker.addRawCost(result.totalCostUsd);
+  private recordCost(result: AgentHarnessResult): void {
+    if (result.usage.cost.state === "complete") {
+      this.costTracker.addRawCost(result.usage.cost.usd);
       return;
     }
-    if (result.inputTokens === undefined && result.outputTokens === undefined) {
+    if (result.usage.tokens.state === "unknown") {
       return;
     }
     this.costTracker.addUsage(this.options.model, {
-      input_tokens: result.inputTokens ?? 0,
-      output_tokens: result.outputTokens ?? 0,
+      input_tokens: result.usage.tokens.inputTokens,
+      output_tokens: result.usage.tokens.outputTokens,
     });
   }
 }

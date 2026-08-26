@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "2026-07-07T21-12-46-665Z-builder-wsjjz3-feature-slice-replay",
@@ -7,10 +7,15 @@
     "text": "Feature-slice development fixture task completed. Gift-wrap checkout now flows through catalog, pricing, fulfillment metadata, and receipt rendering; the verifier records feature and regression evidence; shortcut guards pass; and the seeded task is moved to done.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-feature-slice-development-replay"
+    "sessionId": "builder-feature-slice-development-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

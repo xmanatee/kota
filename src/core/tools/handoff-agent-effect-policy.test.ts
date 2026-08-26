@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -76,6 +77,7 @@ describe("handoff_agent aggregate effect policy", () => {
       text: "must not start",
       streamedText: "must not start",
       turns: 1,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: false,
     }));
     registerAgentHarness({

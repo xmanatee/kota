@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -65,6 +66,7 @@ describe("handoff_agent runtime failure handling", () => {
           streamedText: "review complete",
           sessionId: "child-session-1",
           turns: 2,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),
@@ -154,6 +156,7 @@ describe("handoff_agent runtime failure handling", () => {
         text: "provider failed",
         streamedText: "provider failed",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         subtype: "error_during_execution",
         isError: true,
       })),
@@ -213,6 +216,7 @@ describe("handoff_agent runtime failure handling", () => {
           text: "wrote file",
           streamedText: "wrote file",
           turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
           isError: false,
         };
       }),

@@ -1,4 +1,5 @@
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 
 type ToolCallInput = Extract<KotaAgentMessage, { type: "tool_call" }>["input"];
 type ToolResultContent = string | object[];
@@ -160,15 +161,11 @@ export function toKotaAgentMessages(message: RawSdkMessage): KotaAgentMessage[] 
         ...(text !== undefined ? { text } : {}),
         ...(message.subtype !== undefined ? { subtype: message.subtype } : {}),
         ...(message.num_turns !== undefined ? { numTurns: message.num_turns } : {}),
-        ...(message.total_cost_usd !== undefined
-          ? { totalCostUsd: message.total_cost_usd }
-          : {}),
-        ...(message.usage?.input_tokens !== undefined
-          ? { inputTokens: message.usage.input_tokens }
-          : {}),
-        ...(message.usage?.output_tokens !== undefined
-          ? { outputTokens: message.usage.output_tokens }
-          : {}),
+        usage: pricedAgentUsage(
+          message.usage?.input_tokens,
+          message.usage?.output_tokens,
+          message.total_cost_usd,
+        ),
       }),
     ];
   }

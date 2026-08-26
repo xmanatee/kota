@@ -58,6 +58,7 @@ export type RuntimeHealthAudit = {
     interruptedRuns: number;
     controlCoverageArtifacts: number;
     controlCoverageGapRuns: number;
+    controlCoverageUnknownRuns: number;
     policyPrunedEvidenceRefs: number;
     producerMissingEvidenceRefs: number;
     daemonEvidenceFiles: number;

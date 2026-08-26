@@ -55,7 +55,10 @@ function writeRunMetadata(
     status,
     completedAt: new Date(1700001000000).toISOString(),
     durationMs: 1000,
-    totalCostUsd: 0.05,
+    usage: {
+      tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+      cost: { state: "complete", usd: 0.05 },
+    },
     runDir: `.kota/runs/${id}`,
     steps: [
       {
@@ -833,7 +836,10 @@ describe("workflow-routes", () => {
       expect(run).toHaveProperty("status");
       expect(run).toHaveProperty("startedAt");
       expect(run).toHaveProperty("durationMs");
-      expect(run).toHaveProperty("totalCostUsd");
+      expect(run).toHaveProperty("usage", {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "complete", usd: 0.05 },
+      });
       expect(run).not.toHaveProperty("steps");
     });
 
@@ -1043,7 +1049,7 @@ describe("workflow-routes", () => {
       writeRunMetadata(runsDir, runId, "builder", "running", {
         completedAt: undefined,
         durationMs: undefined,
-        totalCostUsd: undefined,
+        usage: undefined,
         steps: [],
       });
       mkdirSync(join(runsDir, runId, "steps"), { recursive: true });
@@ -1075,7 +1081,10 @@ describe("workflow-routes", () => {
           isError: false,
           subtype: "success",
           numTurns: 2,
-          totalCostUsd: 0.01,
+          usage: {
+            tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+            cost: { state: "complete", usd: 0.01 },
+          },
           text: "Done",
           sessionId: "session-1",
         },
@@ -1154,7 +1163,10 @@ describe("workflow-routes", () => {
           isError: false,
           subtype: "success",
           numTurns: 2,
-          totalCostUsd: 0.01,
+          usage: {
+            tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+            cost: { state: "complete", usd: 0.01 },
+          },
           text: {
             redacted: true,
             reason: "provider-payload",
@@ -1172,7 +1184,10 @@ describe("workflow-routes", () => {
         expect(events.filter((event) => event.event === "step_output")).toHaveLength(1);
 
         writeRunMetadata(runsDir, runId, "builder", "success", {
-          totalCostUsd: 0.01,
+          usage: {
+            tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+            cost: { state: "complete", usd: 0.01 },
+          },
           steps: [
             {
               id: stepId,
@@ -1181,6 +1196,10 @@ describe("workflow-routes", () => {
               startedAt: new Date(1700000000000).toISOString(),
               completedAt: new Date(1700000001000).toISOString(),
               durationMs: 1000,
+              usage: {
+                tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+                cost: { state: "complete", usd: 0.01 },
+              },
               output: { ok: true },
             },
           ],
@@ -1200,7 +1219,10 @@ describe("workflow-routes", () => {
         expect(events.find((event) => event.event === "run_completed")?.data).toMatchObject({
           status: "success",
           durationMs: 1000,
-          totalCostUsd: 0.01,
+          usage: {
+            tokens: { state: "complete", inputTokens: 40, outputTokens: 8 },
+            cost: { state: "complete", usd: 0.01 },
+          },
         });
         expect(sse.result.ended).toBe(true);
       } finally {
@@ -1215,7 +1237,7 @@ describe("workflow-routes", () => {
       writeRunMetadata(runsDir, runId, "builder", "running", {
         completedAt: undefined,
         durationMs: undefined,
-        totalCostUsd: undefined,
+        usage: undefined,
         steps: [],
       });
       mkdirSync(join(runsDir, runId, "steps"), { recursive: true });

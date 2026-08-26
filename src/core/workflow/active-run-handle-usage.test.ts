@@ -13,11 +13,21 @@ afterEach(() => {
   }
 });
 
+function finish(metadata: WorkflowRunMetadata): WorkflowRunMetadata {
+  const root = mkdtempSync(join(tmpdir(), "kota-active-run-usage-"));
+  roots.push(root);
+  const handle = createActiveRunHandle({
+    id: metadata.id,
+    projectDir: root,
+    runDirPath: join(root, metadata.runDir),
+    metadata,
+    headSha: null,
+  });
+  return handle.finish({ status: "failed", durationMs: 60_000 });
+}
+
 describe("active run usage accounting", () => {
-  it("includes repair usage preserved inside a failed step output", () => {
-    const root = mkdtempSync(join(tmpdir(), "kota-active-run-usage-"));
-    roots.push(root);
-    const runDirPath = join(root, ".kota", "runs", "run-1");
+  it("persists measured tokens as a partial lower bound when one agent step is unknown", () => {
     const metadata: WorkflowRunMetadata = {
       id: "run-1",
       workflow: "builder",
@@ -26,28 +36,64 @@ describe("active run usage accounting", () => {
       startedAt: "2026-08-11T00:00:00.000Z",
       status: "running",
       runDir: ".kota/runs/run-1",
+      steps: [
+        {
+          id: "build",
+          type: "agent",
+          status: "success",
+          startedAt: "2026-08-11T00:00:00.000Z",
+          completedAt: "2026-08-11T00:01:00.000Z",
+          durationMs: 60_000,
+          usage: {
+            tokens: { state: "complete", inputTokens: 92_328, outputTokens: 3_189 },
+            cost: { state: "unavailable", reason: "provider-does-not-report" },
+          },
+        },
+        {
+          id: "critic",
+          type: "agent",
+          status: "failed",
+          startedAt: "2026-08-11T00:01:00.000Z",
+          completedAt: "2026-08-11T00:02:00.000Z",
+          durationMs: 60_000,
+          usage: {
+            tokens: { state: "unknown" },
+            cost: { state: "unavailable", reason: "provider-does-not-report" },
+          },
+          error: "cancelled",
+        },
+      ],
+    };
+
+    const completed = finish(metadata);
+
+    expect(completed.usage).toEqual({
+      tokens: { state: "partial", inputTokens: 92_328, outputTokens: 3_189 },
+      cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
+    expect(completed).not.toHaveProperty("inputTokens");
+    expect(completed).not.toHaveProperty("outputTokens");
+    expect(completed).not.toHaveProperty("totalCostUsd");
+  });
+
+  it("omits usage when no agent step executed", () => {
+    const metadata: WorkflowRunMetadata = {
+      id: "run-2",
+      workflow: "fixture",
+      definitionPath: "workflow.ts",
+      trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+      startedAt: "2026-08-11T00:00:00.000Z",
+      status: "running",
+      runDir: ".kota/runs/run-2",
       steps: [{
-        id: "build",
-        type: "agent",
-        status: "failed",
+        id: "inspect",
+        type: "code",
+        status: "success",
         startedAt: "2026-08-11T00:00:00.000Z",
-        completedAt: "2026-08-11T00:01:00.000Z",
-        durationMs: 60_000,
-        output: { inputTokens: 92_328, outputTokens: 3_189 },
-        error: "repair made no progress",
+        completedAt: "2026-08-11T00:00:01.000Z",
+        durationMs: 1_000,
       }],
     };
-    const handle = createActiveRunHandle({
-      id: metadata.id,
-      projectDir: root,
-      runDirPath,
-      metadata,
-      headSha: null,
-    });
-
-    expect(handle.finish({ status: "failed", durationMs: 60_000 })).toMatchObject({
-      inputTokens: 92_328,
-      outputTokens: 3_189,
-    });
+    expect(finish(metadata)).not.toHaveProperty("usage");
   });
 });

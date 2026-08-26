@@ -250,6 +250,7 @@ export const geminiCliAgentHarness: AgentHarness = {
       writer,
       onMessage: options.onMessage,
       onProcessSpawn: options.onProcessSpawn,
+      onUsage: options.onUsage,
     });
     options.abortQuarantine?.register(async () => {
       await execution.then(

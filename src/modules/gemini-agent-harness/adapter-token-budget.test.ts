@@ -59,6 +59,31 @@ beforeEach(() => {
 });
 
 describe("geminiAgentHarness token budget", () => {
+  it("records absent provider usage as unknown instead of debiting zero", async () => {
+    generateContentStreamMock.mockResolvedValue(
+      makeStreamFromChunks([{
+        candidates: [{
+          content: { role: "model", parts: [{ text: "done" }] },
+          finishReason: "STOP",
+        }],
+      }]),
+    );
+    const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 10 });
+
+    const result = await geminiAgentHarness.run({
+      prompt: "answer directly",
+      model: "gemini-2.5-flash",
+      effort: "xhigh",
+      tokenBudget,
+    });
+
+    expect(result.usage.tokens).toEqual({ state: "unknown" });
+    expect(tokenBudget.snapshot()).toMatchObject({
+      usage: { totalTokens: 0 },
+      diagnostics: [{ kind: "missing-usage" }],
+    });
+  });
+
   it("returns token_budget_exhausted when a final response exceeds the budget", async () => {
     generateContentStreamMock.mockResolvedValueOnce(
       makeStreamFromChunks([
@@ -90,8 +115,10 @@ describe("geminiAgentHarness token budget", () => {
       isError: true,
       subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
       turns: 1,
-      inputTokens: 7,
-      outputTokens: 4,
+      usage: {
+        tokens: { state: "complete", inputTokens: 7, outputTokens: 4 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     });
     expect(result.text).toContain("after model usage was reported");
     expect(executeToolMock).not.toHaveBeenCalled();
@@ -137,8 +164,10 @@ describe("geminiAgentHarness token budget", () => {
       isError: true,
       subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
       turns: 1,
-      inputTokens: 7,
-      outputTokens: 3,
+      usage: {
+        tokens: { state: "complete", inputTokens: 7, outputTokens: 3 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     });
     expect(executeToolMock).not.toHaveBeenCalled();
     expect(generateContentStreamMock).toHaveBeenCalledTimes(1);

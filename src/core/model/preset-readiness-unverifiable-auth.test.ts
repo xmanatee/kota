@@ -3,6 +3,7 @@ import {
   type AgentHarness,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { getPreset } from "./preset.js";
 import {
@@ -52,6 +53,7 @@ function registerAntigravityHarnessWithUnverifiableAuth(): void {
       text: "",
       streamedText: "",
       turns: 0,
+      usage: UNKNOWN_AGENT_USAGE,
       isError: true,
     }),
   };

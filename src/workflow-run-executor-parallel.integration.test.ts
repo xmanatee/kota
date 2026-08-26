@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RunContext } from "#core/workflow/run-context.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
@@ -455,7 +456,7 @@ describe("parallel step groups with agent steps", () => {
     streamedText: "",
     sessionId: "sess-1",
     turns: 1,
-    totalCostUsd: 0.01,
+    usage: pricedAgentUsage(undefined, undefined, 0.01),
     subtype: "success",
     isError: false,
   };

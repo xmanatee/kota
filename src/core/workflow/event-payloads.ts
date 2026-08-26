@@ -55,7 +55,7 @@ export function buildStepCompletedPayload(
     ...(result.hostSuspendedMs !== undefined
       ? { hostSuspendedMs: result.hostSuspendedMs }
       : {}),
-    ...(result.costUsd != null ? { costUsd: result.costUsd } : {}),
+    ...(result.usage !== undefined ? { usage: result.usage } : {}),
     runDir: metadata.runDir,
     definitionPath: metadata.definitionPath,
     ...(result.trajectoryDiagnostics !== undefined

@@ -3,6 +3,7 @@ import {
   type AgentHarness,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 
@@ -30,6 +31,7 @@ describe("code-step agent run-contract validation", () => {
         text: "unused",
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }),
     };
@@ -91,6 +93,7 @@ describe("code-step agent run-contract validation", () => {
         text: "unused",
         streamedText: "",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }),
     };

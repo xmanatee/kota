@@ -86,6 +86,30 @@ beforeEach(() => {
 });
 
 describe("openaiToolsAgentHarness token budget", () => {
+  it("records absent provider usage as unknown instead of debiting zero", async () => {
+    messagesStreamMock.mockReturnValueOnce(
+      makeStubStream({
+        id: "msg_missing_usage",
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "done" } as KotaContentBlock],
+      }),
+    );
+    const tokenBudget = new AgentTokenBudgetLedger({ maxTotalTokens: 10 });
+
+    const result = await openaiToolsAgentHarness.run({
+      prompt: "answer directly",
+      model: "openai/gpt-5.6-luna",
+      effort: "xhigh",
+      tokenBudget,
+    });
+
+    expect(result.usage.tokens).toEqual({ state: "unknown" });
+    expect(tokenBudget.snapshot()).toMatchObject({
+      usage: { totalTokens: 0 },
+      diagnostics: [{ kind: "missing-usage" }],
+    });
+  });
+
   it("returns token_budget_exhausted when a final response exceeds the budget", async () => {
     messagesStreamMock.mockReturnValueOnce(
       makeStubStream({
@@ -108,8 +132,10 @@ describe("openaiToolsAgentHarness token budget", () => {
       isError: true,
       subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
       turns: 1,
-      inputTokens: 7,
-      outputTokens: 4,
+      usage: {
+        tokens: { state: "complete", inputTokens: 7, outputTokens: 4 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     });
     expect(result.text).toContain("after model usage was reported");
     expect(executeToolMock).not.toHaveBeenCalled();
@@ -146,8 +172,10 @@ describe("openaiToolsAgentHarness token budget", () => {
       isError: true,
       subtype: TOKEN_BUDGET_EXHAUSTED_SUBTYPE,
       turns: 1,
-      inputTokens: 6,
-      outputTokens: 4,
+      usage: {
+        tokens: { state: "complete", inputTokens: 6, outputTokens: 4 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     });
     expect(executeToolMock).not.toHaveBeenCalled();
     expect(messagesStreamMock).toHaveBeenCalledTimes(1);

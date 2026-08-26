@@ -7,7 +7,6 @@ import type {
   BuilderClosure,
   ReportPriority,
 } from "./aggregate-types.js";
-import type { AreaClassification } from "./task-classification.js";
 import { classifyTaskShape } from "./task-classification.js";
 
 export function buildBuilderBreakdown(
@@ -43,28 +42,21 @@ export function buildBuilderBreakdown(
         title: task.title,
         summary: task.summary,
       }),
-      costUsd: run.totalCostUsd ?? null,
+      cost: delivery.cost,
       durationMs: run.durationMs ?? null,
     });
   }
 
-  const byArea = aggregateClosures(closures, (c) => c.area).sort(
-    (a, b) => b.commits - a.commits || a.area.localeCompare(b.area),
-  );
-  const byPriority = aggregatePriorityClosures(closures).map(
-    ({ key, commits, totalCostUsd }) => ({
-      priority: key,
-      commits,
-      totalCostUsd,
-    }),
-  );
-  const byClassification = aggregateClosures(
+  const byArea = aggregateClosureCosts(closures, (c) => c.area)
+    .map(({ key: area, ...row }) => ({ area, ...row }))
+    .sort((a, b) => b.commits - a.commits || a.area.localeCompare(b.area));
+  const byPriority = sortPriorityClosureRows(
+    aggregateClosureCosts(closures, (c) => c.priority),
+  ).map(({ key: priority, ...row }) => ({ priority, ...row }));
+  const byClassification = aggregateClosureCosts(
     closures,
     (c) => c.classification,
-  ).map(({ area, ...rest }) => ({
-    classification: area as AreaClassification,
-    ...rest,
-  }));
+  ).map(({ key: classification, ...row }) => ({ classification, ...row }));
 
   return {
     totalCommittedRuns: closures.length,
@@ -76,42 +68,59 @@ export function buildBuilderBreakdown(
   };
 }
 
-function aggregateClosures(
+type BuilderCostGroup<TKey extends string> = {
+  key: TKey;
+  commits: number;
+  measuredCostRuns: number;
+  unavailableCostRuns: number;
+  unknownCostRuns: number;
+  totalCostUsd: number | null;
+};
+
+function aggregateClosureCosts<TKey extends string>(
   closures: BuilderClosure[],
-  keyFn: (c: BuilderClosure) => string,
-): { area: string; commits: number; totalCostUsd: number }[] {
-  const groups = new Map<string, { commits: number; totalCostUsd: number }>();
+  keyFn: (c: BuilderClosure) => TKey,
+): BuilderCostGroup<TKey>[] {
+  const groups = new Map<TKey, {
+    commits: number;
+    measuredCostRuns: number;
+    unavailableCostRuns: number;
+    unknownCostRuns: number;
+    measuredCostUsd: number;
+  }>();
   for (const c of closures) {
     const key = keyFn(c);
-    const existing = groups.get(key) ?? { commits: 0, totalCostUsd: 0 };
+    const existing = groups.get(key) ?? {
+      commits: 0,
+      measuredCostRuns: 0,
+      unavailableCostRuns: 0,
+      unknownCostRuns: 0,
+      measuredCostUsd: 0,
+    };
     existing.commits += 1;
-    existing.totalCostUsd += c.costUsd ?? 0;
+    if (c.cost.state === "complete") {
+      existing.measuredCostRuns += 1;
+      existing.measuredCostUsd += c.cost.usd;
+    } else if (c.cost.state === "unavailable") {
+      existing.unavailableCostRuns += 1;
+    } else {
+      existing.unknownCostRuns += 1;
+    }
     groups.set(key, existing);
   }
-  return [...groups.entries()].map(([area, agg]) => ({ area, ...agg }));
-}
-
-function aggregatePriorityClosures(
-  closures: BuilderClosure[],
-): { key: ReportPriority; commits: number; totalCostUsd: number }[] {
-  const groups = new Map<
-    ReportPriority,
-    { commits: number; totalCostUsd: number }
-  >();
-  for (const c of closures) {
-    const existing = groups.get(c.priority) ?? { commits: 0, totalCostUsd: 0 };
-    existing.commits += 1;
-    existing.totalCostUsd += c.costUsd ?? 0;
-    groups.set(c.priority, existing);
-  }
-  return sortPriorityClosureRows(
-    [...groups.entries()].map(([key, agg]) => ({ key, ...agg })),
-  );
+  return [...groups.entries()].map(([key, agg]) => ({
+    key,
+    commits: agg.commits,
+    measuredCostRuns: agg.measuredCostRuns,
+    unavailableCostRuns: agg.unavailableCostRuns,
+    unknownCostRuns: agg.unknownCostRuns,
+    totalCostUsd: agg.measuredCostRuns > 0 ? agg.measuredCostUsd : null,
+  }));
 }
 
 function sortPriorityClosureRows(
-  rows: { key: ReportPriority; commits: number; totalCostUsd: number }[],
-): { key: ReportPriority; commits: number; totalCostUsd: number }[] {
+  rows: BuilderCostGroup<ReportPriority>[],
+): BuilderCostGroup<ReportPriority>[] {
   const order = new Map<ReportPriority, number>([
     ["p0", 0],
     ["p1", 1],

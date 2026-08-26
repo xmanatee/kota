@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { stack } from "#modules/rendering/primitives.js";
@@ -10,20 +11,45 @@ import { buildStepSummaryLines } from "./step-inspect.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
 
-function makeStep(overrides: Partial<StepRecord> = {}): StepRecord {
-  return {
-    id: "build",
-    type: "agent",
-    status: "success",
+type StepOverrides = {
+  id?: string;
+  type?: "agent" | "code";
+  status?: "success" | "failed";
+  output?: unknown;
+  error?: string;
+  harness?: string;
+  model?: string;
+  usage?: AgentUsage;
+};
+
+function makeStep(overrides: StepOverrides = {}): StepRecord {
+  const output = overrides.output === undefined
+    ? { content: "Did the work.", turns: 5 }
+    : overrides.output;
+  const common = {
+    id: overrides.id ?? "build",
+    status: overrides.status ?? "success",
     startedAt: "2026-01-01T00:00:00Z",
     completedAt: "2026-01-01T00:01:00Z",
     durationMs: 60000,
-    output: {
-      content: "Did the work.",
-      totalCostUsd: 0.123,
-      turns: 5,
+    output,
+    error: overrides.error,
+  };
+  if (overrides.type === "code") {
+    return {
+      ...common,
+      type: "code",
+    };
+  }
+  return {
+    ...common,
+    type: "agent",
+    usage: overrides.usage ?? {
+      tokens: { state: "unknown" },
+      cost: { state: "complete", usd: 0.123 },
     },
-    ...overrides,
+    harness: overrides.harness,
+    model: overrides.model,
   };
 }
 

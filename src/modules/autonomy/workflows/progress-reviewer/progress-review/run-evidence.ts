@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import type {
   WorkflowQueuedRun,
@@ -90,7 +91,7 @@ function readScopedRunEvidence(
   runDirName: string,
   excluded: string[],
 ): ScopedRunEvidence | null {
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+  const metadata = readWorkflowRunMetadataFile(
     join(source.stateDir, "runs", runDirName, "metadata.json"),
   );
   if (!metadata) return null;

@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { Scheduler } from "#core/daemon/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
@@ -22,6 +23,7 @@ describe("Daemon runtime state", () => {
       streamedText: "",
       sessionId: "sess-1",
       turns: 2,
+      usage: UNKNOWN_AGENT_USAGE,
       subtype: "success",
       isError: false,
     });

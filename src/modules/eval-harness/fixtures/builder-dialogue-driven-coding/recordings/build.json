@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "build",
   "sourceRunId": "synthetic-builder-dialogue-driven-coding-2026-06-20",
@@ -7,10 +7,15 @@
     "text": "Dialogue-driven coding fixture task completed. Asked the deterministic simulator for the missing Nova launch notification requirement, patched the formatter to use the elicited SMS label pattern, moved the task to done, and wrote run-directory success evidence plus a commit message.",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "sessionId": "builder-dialogue-driven-coding-replay"
+    "sessionId": "builder-dialogue-driven-coding-replay",
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": [
     {

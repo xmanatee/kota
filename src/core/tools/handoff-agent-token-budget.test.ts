@@ -7,6 +7,7 @@ import {
   AgentTokenBudgetLedger,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  unpricedAgentUsage,
 } from "#core/agent-harness/index.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
@@ -63,8 +64,7 @@ describe("handoff_agent token budgets", () => {
           streamedText: "review complete",
           sessionId: "child-session-1",
           turns: 2,
-          inputTokens: 4,
-          outputTokens: 2,
+          usage: unpricedAgentUsage(4, 2),
           isError: false,
         };
       }),

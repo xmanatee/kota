@@ -70,6 +70,10 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",
   streamedText: "done",
   turns: 1,
+  usage: {
+    tokens: { state: "unknown" },
+    cost: { state: "unknown" },
+  },
   isError: false,
 };
 

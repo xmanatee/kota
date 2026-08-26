@@ -88,7 +88,7 @@ export function renderBuilderBreakdown(builder: BuilderBreakdown): RenderNode[] 
   lines.push(line(span("By area", "muted", true)));
   for (const row of builder.byArea) {
     lines.push(line(plain(
-      `  ${row.area.padEnd(16)} ${String(row.commits).padStart(3)}   ${fmtUsd(row.totalCostUsd).padStart(8)}`,
+      `  ${row.area.padEnd(16)} ${formatBuilderCostRow(row)}`,
     )));
   }
   lines.push(blank());
@@ -97,7 +97,7 @@ export function renderBuilderBreakdown(builder: BuilderBreakdown): RenderNode[] 
     lines.push(line(
       plain("  "),
       span(priorityLabel(row.priority).padEnd(4), priorityRole(row.priority)),
-      plain(`   ${String(row.commits).padStart(3)}   ${fmtUsd(row.totalCostUsd).padStart(8)}`),
+      plain(`   ${formatBuilderCostRow(row)}`),
     ));
   }
   lines.push(blank());
@@ -106,10 +106,24 @@ export function renderBuilderBreakdown(builder: BuilderBreakdown): RenderNode[] 
     lines.push(line(
       plain("  "),
       span(row.classification.padEnd(10), classificationRole(row.classification)),
-      plain(` ${String(row.commits).padStart(3)}   ${fmtUsd(row.totalCostUsd).padStart(8)} (${pct(row.commits, builder.totalCommittedRuns)})`),
+      plain(` ${formatBuilderCostRow(row)} (${pct(row.commits, builder.totalCommittedRuns)})`),
     ));
   }
   return lines;
+}
+
+function formatBuilderCost(costUsd: number | null): string {
+  return costUsd === null ? "unknown" : fmtUsd(costUsd);
+}
+
+function formatBuilderCostRow(row: {
+  commits: number;
+  measuredCostRuns: number;
+  unavailableCostRuns: number;
+  unknownCostRuns: number;
+  totalCostUsd: number | null;
+}): string {
+  return `${String(row.commits).padStart(3)}   ${formatBuilderCost(row.totalCostUsd).padStart(8)}   measured ${row.measuredCostRuns} unavailable ${row.unavailableCostRuns} unknown ${row.unknownCostRuns}`;
 }
 
 export function renderReviewScrutiny(report: ReviewScrutinyReport): RenderNode[] {

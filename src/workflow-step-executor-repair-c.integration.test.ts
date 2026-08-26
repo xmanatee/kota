@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
@@ -79,7 +80,12 @@ describe("executeStep repair loop", () => {
   it("skips later-phase checks when an earlier phase fails", async () => {
     mockedExecuteWithAgentSDK
       .mockResolvedValueOnce(SUCCESS_RESULT) // initial agent run
-      .mockResolvedValueOnce({ ...SUCCESS_RESULT, text: "fixed", turns: 2, totalCostUsd: 0.02 }); // repair agent
+      .mockResolvedValueOnce({
+        ...SUCCESS_RESULT,
+        text: "fixed",
+        turns: 2,
+        usage: pricedAgentUsage(undefined, undefined, 0.02),
+      }); // repair agent
 
     let phase1Calls = 0;
     const phase1Check = vi
@@ -171,7 +177,12 @@ describe("executeStep repair loop", () => {
       .mockResolvedValueOnce(SUCCESS_RESULT)
       .mockImplementation(async () => {
         abortController.abort(new Error("step timed out"));
-        return { ...SUCCESS_RESULT, text: "partial fix", turns: 2, totalCostUsd: 0.02 };
+        return {
+          ...SUCCESS_RESULT,
+          text: "partial fix",
+          turns: 2,
+          usage: pricedAgentUsage(undefined, undefined, 0.02),
+        };
       });
 
     const codeCheck = vi.fn().mockImplementation(() => {

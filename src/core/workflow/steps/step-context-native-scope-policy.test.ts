@@ -2,7 +2,10 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { AgentHarness } from "#core/agent-harness/index.js";
+import {
+  type AgentHarness,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import {
   type ResolvedScopePolicy,
   resolveScopePolicy,
@@ -69,6 +72,7 @@ describe("direct workflow native harness scope policy", () => {
         text: "unexpected",
         streamedText: "unexpected",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       }));
       const harness: AgentHarness = {

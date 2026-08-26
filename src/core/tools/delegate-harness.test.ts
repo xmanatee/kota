@@ -4,6 +4,7 @@ import {
   type AgentHarnessRunOptions,
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   type ResolvedScopePolicy,
@@ -22,6 +23,7 @@ const OK_RESULT = {
   text: "done",
   streamedText: "done",
   turns: 1,
+  usage: UNKNOWN_AGENT_USAGE,
   isError: false,
 };
 

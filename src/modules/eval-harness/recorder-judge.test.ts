@@ -54,16 +54,17 @@ describe("extractJudgeCallRecording", () => {
       fixtureDir,
     });
 
-    expect(result.recording.version).toBe(1);
+    expect(result.recording.version).toBe(2);
     expect(result.recording.workflowName).toBe("builder");
     expect(result.recording.stepId).toBe("critic-review");
     expect(result.recording.sourceRunId).toBe(runId);
     expect(result.recording.fileOperations).toEqual([]);
     expect(result.recording.response.subtype).toBe("success");
     expect(result.recording.response.turns).toBe(1);
-    expect(result.recording.response.totalCostUsd).toBe(0);
-    expect(result.recording.response.inputTokens).toBe(0);
-    expect(result.recording.response.outputTokens).toBe(0);
+    expect(result.recording.response.usage).toEqual({
+      tokens: { state: "unknown" },
+      cost: { state: "unknown" },
+    });
     expect(JSON.parse(result.recording.response.text)).toEqual(verdict);
 
     const reloaded = parseAgentStepRecording(

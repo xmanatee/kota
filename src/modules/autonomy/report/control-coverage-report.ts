@@ -30,11 +30,20 @@ export type ControlCoverageGapSummary = {
   evidenceArtifactPaths: string[];
 };
 
+export type ControlCoverageUnknownSummary = {
+  family: string;
+  reason: string;
+  count: number;
+  evidenceArtifactPaths: string[];
+};
+
 export type ControlMonitorCoverageReport = {
   artifactCount: number;
   runsWithGaps: number;
+  runsWithUnknownCoverage: number;
   totalGaps: number;
   pendingFamilies: number;
+  unknownFamilies: number;
   unsupportedFamilies: number;
   blockedFamilies: number;
   warnedFamilies: number;
@@ -49,6 +58,7 @@ export type ControlMonitorCoverageReport = {
   };
   evidenceGaps: ControlCoverageEvidenceGapSummary[];
   topGaps: ControlCoverageGapSummary[];
+  topUnknowns: ControlCoverageUnknownSummary[];
   recentArtifactPaths: string[];
 };
 
@@ -63,6 +73,7 @@ type ControlGapAccumulator = {
   count: number;
   evidenceArtifactPaths: Set<string>;
 };
+type ControlUnknownAccumulator = Omit<ControlGapAccumulator, "severity">;
 
 type ControlEvidenceGapAccumulator = {
   kind: ControlCoverageEvidenceGapKind;
@@ -76,8 +87,10 @@ export function emptyControlMonitorCoverageReport(): ControlMonitorCoverageRepor
   return {
     artifactCount: 0,
     runsWithGaps: 0,
+    runsWithUnknownCoverage: 0,
     totalGaps: 0,
     pendingFamilies: 0,
+    unknownFamilies: 0,
     unsupportedFamilies: 0,
     blockedFamilies: 0,
     warnedFamilies: 0,
@@ -92,6 +105,7 @@ export function emptyControlMonitorCoverageReport(): ControlMonitorCoverageRepor
     },
     evidenceGaps: [],
     topGaps: [],
+    topUnknowns: [],
     recentArtifactPaths: [],
   };
 }
@@ -180,6 +194,25 @@ function recordGaps(
   }
 }
 
+function recordUnknowns(
+  topUnknowns: Map<string, ControlUnknownAccumulator>,
+  artifact: ControlMonitorCoverageArtifact,
+  ref: string,
+): void {
+  for (const unknown of artifact.unknowns ?? []) {
+    const key = `${unknown.family}:${unknown.reason}`;
+    const existing = topUnknowns.get(key) ?? {
+      family: unknown.family,
+      reason: unknown.reason,
+      count: 0,
+      evidenceArtifactPaths: new Set<string>(),
+    };
+    existing.count += 1;
+    existing.evidenceArtifactPaths.add(ref);
+    topUnknowns.set(key, existing);
+  }
+}
+
 function producerMissingEvidenceGap(run: WorkflowRunMetadata): ControlCoverageEvidenceGap {
   return {
     kind: "producer-missing",
@@ -198,6 +231,7 @@ export function buildControlCoverageReport(
 ): ControlMonitorCoverageReport {
   const report = emptyControlMonitorCoverageReport();
   const topGaps = new Map<string, ControlGapAccumulator>();
+  const topUnknowns = new Map<string, ControlUnknownAccumulator>();
   const evidenceGaps = new Map<string, ControlEvidenceGapAccumulator>();
   const timing = { observations: 0, total: 0, min: null, max: null };
 
@@ -218,12 +252,17 @@ export function buildControlCoverageReport(
     report.recentArtifactPaths.push(ref);
     report.totalGaps += artifact.summary.gapCount;
     report.pendingFamilies += artifact.summary.pendingCount;
+    report.unknownFamilies += artifact.summary.unknownCount ?? 0;
     report.unsupportedFamilies += artifact.summary.unsupportedCount;
     report.blockedFamilies += artifact.summary.blockedCount;
     report.warnedFamilies += artifact.summary.warnedCount;
     if (artifact.summary.gapCount > 0) report.runsWithGaps += 1;
+    if ((artifact.summary.unknownCount ?? 0) > 0) {
+      report.runsWithUnknownCoverage += 1;
+    }
     recordTiming(timing, artifact);
     recordGaps(topGaps, artifact, ref);
+    recordUnknowns(topUnknowns, artifact, ref);
   }
 
   return {
@@ -256,6 +295,15 @@ export function buildControlCoverageReport(
         severity: gap.severity,
         count: gap.count,
         evidenceArtifactPaths: [...gap.evidenceArtifactPaths].sort(),
+      }))
+      .sort((a, b) => b.count - a.count || `${a.family}:${a.reason}`.localeCompare(`${b.family}:${b.reason}`))
+      .slice(0, 10),
+    topUnknowns: [...topUnknowns.values()]
+      .map((unknown) => ({
+        family: unknown.family,
+        reason: unknown.reason,
+        count: unknown.count,
+        evidenceArtifactPaths: [...unknown.evidenceArtifactPaths].sort(),
       }))
       .sort((a, b) => b.count - a.count || `${a.family}:${a.reason}`.localeCompare(`${b.family}:${b.reason}`))
       .slice(0, 10),

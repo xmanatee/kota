@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 
 declare const storedWorkflowRunDirectoryId: unique symbol;
@@ -20,8 +20,11 @@ export type HistoryStats = {
   failures: number;
   interrupted: number;
   successRate: number;
-  totalCostUsd: number;
-  avgCostUsd: number;
+  totalCostUsd: number | null;
+  avgCostUsd: number | null;
+  measuredCostRuns: number;
+  unavailableCostRuns: number;
+  unknownCostRuns: number;
   avgDurationMs: number | null;
   p95DurationMs: number | null;
 };
@@ -104,7 +107,7 @@ export function listStoredWorkflowRuns(
   for (const dir of dirs) {
     const metadataPath = join(runsDir, dir, "metadata.json");
     const metadata = storedWorkflowRunForDirectory(
-      readOptionalJsonFile<WorkflowRunMetadata>(metadataPath),
+      readWorkflowRunMetadataFile(metadataPath),
       dir,
     );
     if (!metadata) continue;
@@ -131,8 +134,21 @@ export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
   const failures = finished.filter((r) => r.status === "failed").length;
   const interrupted = finished.filter((r) => r.status === "interrupted").length;
   const successRate = total > 0 ? (successes / total) * 100 : 0;
-  const totalCostUsd = finished.reduce((sum, r) => sum + (r.totalCostUsd ?? 0), 0);
-  const avgCostUsd = total > 0 ? totalCostUsd / total : 0;
+  const measuredCosts = finished.flatMap((run) =>
+    run.usage?.cost.state === "complete" ? [run.usage.cost.usd] : []
+  );
+  const unavailableCostRuns = finished.filter(
+    (run) => run.usage?.cost.state === "unavailable",
+  ).length;
+  const unknownCostRuns = finished.filter(
+    (run) => run.steps.some((step) => step.type === "agent") &&
+      run.usage?.cost.state !== "complete" &&
+      run.usage?.cost.state !== "unavailable",
+  ).length;
+  const totalCostUsd = measuredCosts.length > 0
+    ? measuredCosts.reduce((sum, cost) => sum + cost, 0)
+    : null;
+  const avgCostUsd = totalCostUsd === null ? null : totalCostUsd / measuredCosts.length;
   const durations = finished
     .map((r) => r.durationMs)
     .filter((d): d is number => d != null)
@@ -153,6 +169,9 @@ export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
     successRate,
     totalCostUsd,
     avgCostUsd,
+    measuredCostRuns: measuredCosts.length,
+    unavailableCostRuns,
+    unknownCostRuns,
     avgDurationMs,
     p95DurationMs,
   };

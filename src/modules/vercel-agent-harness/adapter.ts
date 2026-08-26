@@ -5,6 +5,8 @@ import {
   type AgentHarnessRunOptions,
   type AgentHarnessWriter,
   agentHarnessToolExecutionOptions,
+  UNKNOWN_AGENT_USAGE,
+  unpricedAgentUsage,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
 import {
@@ -167,8 +169,7 @@ async function runVercelLoop(
       streamedText: streamedChunks.join(""),
       ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
       turns,
-      ...(inputTokens !== undefined ? { inputTokens } : {}),
-      ...(outputTokens !== undefined ? { outputTokens } : {}),
+      usage: unpricedAgentUsage(inputTokens, outputTokens),
       isError: true,
       subtype: "max_turns_reached",
     };
@@ -179,8 +180,7 @@ async function runVercelLoop(
     streamedText: streamedChunks.join(""),
     ...(lastSessionId !== undefined ? { sessionId: lastSessionId } : {}),
     turns,
-    ...(inputTokens !== undefined ? { inputTokens } : {}),
-    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    usage: unpricedAgentUsage(inputTokens, outputTokens),
     isError: false,
   };
 }
@@ -194,6 +194,7 @@ function interruptedResult(
     text: message,
     streamedText: streamedChunks.join(""),
     turns: 1,
+    usage: UNKNOWN_AGENT_USAGE,
     isError: true,
     subtype: "interrupted_by_can_use_tool",
   };

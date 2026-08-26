@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { redactSensitiveText } from "#core/evidence/policy.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
 import {
@@ -17,11 +16,11 @@ import {
   type RunContext,
 } from "./run-context.js";
 import type { RunExecutionOutcome } from "./run-coordinator.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
 import { RunResourceAllocator } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import { RunSandboxManager } from "./run-sandbox.js";
 import type { RunStateDatabase, StoredRun } from "./run-state-database.js";
-import type { WorkflowRunMetadata } from "./run-types.js";
 import type { WorkflowPostReconcileInvariantResult } from "./types.js";
 import {
   type WriterIntegrationEvidence,
@@ -621,7 +620,7 @@ export class RunLifecycle {
   ): void {
     const runDirPath = join(projectRoot, ".kota", "runs", evidence.runId);
     try {
-      const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+      const metadata = readWorkflowRunMetadataFile(
         join(runDirPath, "metadata.json"),
       );
       if (metadata === null) return;

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "workflowName": "builder",
   "stepId": "critic-review",
   "sourceRunId": "2026-06-24T04-39-44-641Z-builder-gfdmek",
@@ -7,9 +7,14 @@
     "text": "{\n  \"verdict\": \"pass_with_warnings\",\n  \"critical_issues\": [],\n  \"warnings\": [\n    \"Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap. Reviewed diff refs: data/tasks/done/task-synthesize-support-triage-ingestion-decision.md:1, research-synthesis-result.json:1.\"\n  ],\n  \"summary\": \"The replayed source-grounded research synthesis fixture satisfies the task: the decision artifact selects local-first-markdown from decisive security and pilot evidence, cites only real local source ids and paths, rejects stale/speculative/scoped-conflicting sources with reasons, records conflict resolution and objective source-discipline metrics, changed paths stay within the accepted artifact/task set, and the task moved to done.\",\n  \"generatedAt\": \"2026-06-24T04:39:46.679Z\",\n  \"reviewerPromptHash\": \"f6e5054b3887\"\n}",
     "subtype": "success",
     "turns": 1,
-    "totalCostUsd": 0,
-    "inputTokens": 0,
-    "outputTokens": 0
+    "usage": {
+      "tokens": {
+        "state": "unknown"
+      },
+      "cost": {
+        "state": "unknown"
+      }
+    }
   },
   "fileOperations": []
 }
