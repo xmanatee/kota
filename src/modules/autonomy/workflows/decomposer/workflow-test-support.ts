@@ -9,6 +9,7 @@ import {
   type BuilderTaskDispatchPayload,
   listBuilderTaskDispatches,
 } from "#modules/autonomy/workflows/builder/task-contract.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 
 export const FAILED_RUN_ID = "run-failed-builder";
 export const TASK_ID = "task-big-refactor";
@@ -26,6 +27,13 @@ export function taskMarkdown(
   state: "ready" | "doing",
   marker = "Canonical task intent.",
 ): string {
+  const body = renderRepoTaskIntent({
+    problem: marker,
+    desiredOutcome: "The task can be completed in bounded slices.",
+    constraints: "- Preserve the original task intent.",
+    howWeWillKnow: "- Each bounded outcome is independently observable.",
+    context: "Recover a failed builder run without changing its task target.",
+  });
   return `---
 id: ${taskId}
 title: Decompose an exhausted builder task
@@ -37,34 +45,7 @@ summary: Split an exhausted builder task into independently verifiable work.
 created_at: 2026-08-25T00:00:00.000Z
 updated_at: 2026-08-25T00:00:00.000Z
 ---
-
-## Problem
-
-${marker}
-
-## Desired Outcome
-
-The task can be completed in bounded slices.
-
-## Constraints
-
-- Preserve the original task intent.
-
-## Done When
-
-- Focused evidence proves each bounded outcome.
-
-## Source / Intent
-
-Recover a failed builder run without changing its task target.
-
-## Initiative
-
-Reliable autonomous execution.
-
-## Acceptance Evidence
-
-- Focused workflow coverage proves the decomposition.
+${body}
 `;
 }
 

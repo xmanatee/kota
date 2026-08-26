@@ -128,7 +128,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
               workflowCommandOutput(
                 await ctx.runCommand({
                   command: "pnpm",
-                  args: ["run", "validate-tasks", "--", "--min-ready", "0"],
+                  args: ["run", "validate-tasks"],
                   cwd: ctx.projectDir,
                 }),
               ),

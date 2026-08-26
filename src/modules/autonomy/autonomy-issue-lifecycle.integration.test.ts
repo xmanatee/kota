@@ -79,7 +79,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         taskPriority: "p1",
         taskArea: "autonomy",
         taskClass: "Product",
-        taskAcceptanceEvidence:
+        taskHowWeWillKnow:
           "A production-shaped lifecycle fixture reaches a typed clear without another AI review.",
         ownerQuestion: "",
         ownerReason: "",

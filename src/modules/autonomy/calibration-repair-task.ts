@@ -1,4 +1,5 @@
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type { CalibrationRepairContext } from "./calibration-repair.js";
 
 function pct(value: number): string {
@@ -23,23 +24,19 @@ export function buildCalibrationRepairTaskFile(
     updated_at: ctx.nowIso,
   };
   const { aggregate, driftKinds } = ctx;
-  const lines: string[] = [
-    "",
-    "## Problem",
-    "",
+  const problem = [
     "The live-run evaluator calibration gate fired after the latest successful builder run.",
-    "That signal turns into a typed `evaluator-calibration.regression.detected`",
-    "event and an attention-digest entry, but it must also turn into a concrete",
-    "repair: the critic, repair-loop checks, prompt guidance, or the gate",
-    "configuration itself need to change so the rate returns within threshold.",
+    "Determine whether the observation is a real regression, a changed workload,",
+    "or noise before changing the critic, prompt, or threshold.",
     "",
     `Drift kind(s): ${driftKinds.join(", ")}.`,
     "",
     "Decision reason from the monitor:",
     "",
     `> ${ctx.decisionReason.replace(/\n/g, "\n> ")}`,
-    "",
-    "## Calibration Snapshot",
+  ].join("\n");
+  const context = [
+    "Calibration snapshot:",
     "",
     `- Window: ${new Date(aggregate.windowStartMs).toISOString()} → ${new Date(aggregate.windowEndMs).toISOString()}`,
     `- Total runs in window: ${aggregate.totalRuns}`,
@@ -50,8 +47,11 @@ export function buildCalibrationRepairTaskFile(
     `- Pass-contradiction rate: ${pct(aggregate.passContradictionRate)} (${aggregate.passContradictionCount} of ${aggregate.byVerdict.pass}); threshold ${pct(ctx.thresholdRate)}.`,
     `- Pass-with-warnings follow-up rate: ${pct(aggregate.passWithWarningsFollowUpRate)} (${aggregate.passWithWarningsFollowUpCount} of ${aggregate.byVerdict.pass_with_warnings}); threshold ${pct(ctx.passWithWarningsThresholdRate)}.`,
     "",
-    "## Desired Outcome",
-    "",
+    `Observed by evaluator-calibration-monitor at ${ctx.nowIso}.`,
+  ].join("\n");
+  const body = renderRepoTaskIntent({
+    problem,
+    desiredOutcome: [
     "Either:",
     "",
     "- the underlying calibration drift is fixed (tighten critic guidance,",
@@ -63,9 +63,8 @@ export function buildCalibrationRepairTaskFile(
     "Either way, the next monitor run should land back at `under-threshold` or",
     "`insufficient-sample` for the relevant kind, and that result must be",
     "visible in the run artifact rather than only in attention digests.",
-    "",
-    "## Constraints",
-    "",
+    ].join("\n"),
+    constraints: [
     "- Keep critic input artifact-only (diff, repo state, run artifacts,",
     "  optional runtime probe). Do not feed thinking traces or self-reports.",
     "- Do not silence the gate by raising the threshold without a documented",
@@ -73,9 +72,8 @@ export function buildCalibrationRepairTaskFile(
     "- Keep operator-facing notification surfaces (attention digest) working —",
     "  this task is in addition to that bridge, not instead of it.",
     "- Do not add a parallel lessons store or audit surface.",
-    "",
-    "## Done When",
-    "",
+    ].join("\n"),
+    howWeWillKnow: [
     "1. The drift kind named above is no longer firing on the last calibration",
     "   sample, OR the gate config has been deliberately retuned with a",
     "   recorded rationale.",
@@ -83,29 +81,9 @@ export function buildCalibrationRepairTaskFile(
     "   despite weak evidence have been re-classified by tighter guidance, a",
     "   sharper repair-loop check, or follow-up tasks created for accepted",
     "   trade-offs.",
-    "3. A run-directory artifact (`calibration-repair.json` or equivalent)",
-    "   shows the post-fix calibration aggregate moving back within threshold.",
-    "",
-    "## Source / Intent",
-    "",
-    "Auto-created by `evaluator-calibration-monitor` after the live calibration",
-    `gate fired at ${ctx.nowIso}. Replaces the previous notification-only`,
-    "behavior so calibration drift becomes a deterministic next action in the",
-    "queue rather than a recurring attention item.",
-    "",
-    "## Initiative",
-    "",
-    "Autonomy execution quality: builder success should mean proven completion,",
-    "not only successful runtime publication with advisory caveats.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Test output for the calibration repair / critic classification fixtures.",
-    "- A monitor run-directory artifact showing the gate back within threshold,",
-    "  or the recorded rationale for retuning it.",
-    "- Updated scoped autonomy guidance naming which critic warning classes",
-    "  must fail, track follow-up, or pass as harmless.",
-    "",
-  ];
-  return serializeFlatFrontMatter(attrs, lines.join("\n"));
+    "3. The subsequent calibration observation supports the chosen disposition.",
+    ].join("\n"),
+    context,
+  });
+  return serializeFlatFrontMatter(attrs, body);
 }

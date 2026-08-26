@@ -1,19 +1,17 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   assertTaskQueueValid,
-  type TaskQueueValidationOptions,
   type TaskQueueValidationResult,
 } from "./task-queue-validation.js";
 
 export type TaskQueueValidationOperationInput = {
   projectDir: string;
-  options?: TaskQueueValidationOptions;
 };
 
 export function inspectTaskQueueValidation(
   input: TaskQueueValidationOperationInput,
 ): TaskQueueValidationResult {
-  return assertTaskQueueValid(input.projectDir, input.options);
+  return assertTaskQueueValid(input.projectDir);
 }
 
 export const taskQueueValidationOperation = defineWorkflowBlockingOperation<

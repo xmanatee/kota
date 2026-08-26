@@ -13,10 +13,8 @@
  * task. It is intentionally pure code — agents do not decide whether a batch
  * is consolidation-ready, they receive the seeded task and execute it.
  *
- * The seeded task itself is `area: client` so the rendered-evidence
- * validator gate fires: a critic that accepts only per-surface unit tests
- * will fail because the consolidation's `## Acceptance Evidence` requires
- * rendered/runtime artifacts that span the surface family.
+ * The seeded task gives a reviewer the batch context and desired operator
+ * outcome; the reviewer chooses proportionate proof for the actual surfaces.
  */
 
 import { existsSync } from "node:fs";
@@ -403,12 +401,8 @@ export function buildConsolidationTaskFile(
 }
 
 /**
- * Render the consolidation task body. Required check headings are present in
- * `## Done When` so a reviewer can see at a glance which dimensions must be
- * inspected. `## Acceptance Evidence` names rendered/runtime artifact kinds
- * so the rendered-evidence validator gate (which fires for `area: client`
- * tasks declaring rendered evidence in `## Done When`) cannot be cleared by
- * prose-only test logs.
+ * Render the consolidation task body as review guidance, not a validator
+ * contract or an artifact catalog.
  */
 export function buildConsolidationTaskBody(batch: FanOutBatch): string {
   const distinctSurfaces = [...new Set(batch.surfaces.map((s) => s.surface))].sort();
@@ -461,7 +455,7 @@ export function buildConsolidationTaskBody(batch: FanOutBatch): string {
     "- A consolidation task does not block future fan-out. Open follow-up tasks for gaps",
     "  rather than freezing the queue.",
     "",
-    "## Done When",
+    "## How We Will Know",
     "",
     `1. **Information architecture.** The \`${batch.capabilityKey}\` capability is discoverable from`,
     "   each surface's primary navigation/menu without overloading other entries.",
@@ -482,7 +476,7 @@ export function buildConsolidationTaskBody(batch: FanOutBatch): string {
     "   text-only visual proof previously accepted by a critic on these fan-out commits is",
     "   either retired or has a follow-up task naming the retirement plan.",
     "",
-    "## Source / Intent",
+    "## Context",
     "",
     `Auto-seeded by the fan-out-consolidator workflow after the \`${batch.capabilityKey}\` capability`,
     `landed across ${distinctSurfaces.length} client surfaces between ${batch.earliestClosedAt}`,
@@ -490,13 +484,7 @@ export function buildConsolidationTaskBody(batch: FanOutBatch): string {
     "without a holistic consolidation pass left an overloaded operator surface despite green",
     "per-surface tests. This task is the autonomy queue's recurring corrective pass.",
     "",
-    "## Initiative",
-    "",
-    "Autonomy quality control: fan-out should end in a coherent product surface, not just a",
-    "checklist of parity commits. Each capability gets one consolidation review per shipped",
-    "fan-out batch, and the review's output is operator-actionable follow-up tasks.",
-    "",
-    "## Acceptance Evidence",
+    "Signals a reviewer may select when they distinguish the real outcome:",
     "",
     "- Rendered screenshots or screencasts (one per client surface) committed under a run",
     "  directory or as snapshot fixtures, demonstrating the consolidated surface family.",

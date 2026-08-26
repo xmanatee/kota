@@ -12,6 +12,7 @@ import {
   type ClassifiedWorkflowGeneratedTask,
   classifyWorkflowGeneratedTask,
 } from "#modules/autonomy/workflow-generated-task-class.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type {
   ProgressReviewAgentOutput,
   ProgressReviewAppliedAction,
@@ -51,61 +52,30 @@ function normalizeFollowUpTask(
 function buildTaskBody(args: {
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
-  taskClass: ClassifiedWorkflowGeneratedTask;
 }): string {
   const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
-  return [
-    "",
-    "## Problem",
-    "",
-    renderGeneratedTaskProse(args.task.summary),
-    "",
-    "## Desired Outcome",
-    "",
-    `Resolve the progress-review finding identified by topic ${args.task.topicKey}.`,
-    "",
-    "## Constraints",
-    "",
-    "- Preserve the cited evidence ids until the task is resolved.",
-    "- Do not treat this seeded task as proof that the finding is already fixed.",
-    "",
-    "## Done When",
-    "",
-    "- The cited progress gap is fixed or explicitly disproven with evidence.",
-    "- Acceptance evidence is recorded in this task or its run artifact.",
-    "",
-    "## Source / Intent",
-    "",
-    "Created by progress-reviewer from the cited evidence.",
-    "",
-    `review verdict: ${args.review.verdict}`,
-    "review summary:",
-    "",
-    renderGeneratedTaskProse(args.review.summary),
-    "",
-    "Evidence ids:",
-    "",
-    evidenceIds,
-    "",
-    ...(args.taskClass === "Meta"
-      ? [
-        "## Product / Safety Link",
-        "",
-        "This Meta follow-up protects Product and Safety execution by resolving the progress-review steering gap cited by the evidence ids above before it hides regressions or consumes builder capacity.",
-        "",
-      ]
-      : []),
-    "## Initiative",
-    "",
-    "Outcome-aware autonomy progress review.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Review-provided acceptance evidence:",
-    "",
-    renderGeneratedTaskProse(args.task.acceptanceEvidence),
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: renderGeneratedTaskProse(args.task.summary),
+    desiredOutcome:
+      `Resolve the progress-review finding identified by topic ` +
+      `${args.task.topicKey}.`,
+    constraints: [
+      "- Preserve the cited evidence ids until the task is resolved.",
+      "- Do not treat this seeded task as proof that the finding is already fixed.",
+    ].join("\n"),
+    howWeWillKnow: renderGeneratedTaskProse(args.task.howWeWillKnow),
+    context: [
+      "Created by progress-reviewer from the cited evidence.",
+      `review verdict: ${args.review.verdict}`,
+      "review summary:",
+      "",
+      renderGeneratedTaskProse(args.review.summary),
+      "",
+      "Evidence ids:",
+      "",
+      evidenceIds,
+    ].join("\n"),
+  });
 }
 
 function taskActionPath(actions: readonly object[]): string | null {
@@ -235,7 +205,7 @@ export function progressReviewTaskProposal(args: {
     priority: task.priority,
     area: task.area,
     taskClass,
-    body: buildTaskBody({ ...args, task, taskClass }),
+    body: buildTaskBody({ ...args, task }),
     provenance: {
       source: "progress-reviewer",
       runId: args.runId,

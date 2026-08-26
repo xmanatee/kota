@@ -30,10 +30,7 @@ function plan(): DecompositionPlan {
     problem: "The current authorization path retains stale authority.",
     desiredOutcome: "Every authorization boundary reads current authority.",
     constraints: ["Do not weaken the authorization boundary."],
-    doneWhen: ["A focused policy-revocation regression passes."],
-    sourceIntent: "Preserve the confirmed security finding.",
-    initiative: "Safe autonomous coding infrastructure.",
-    acceptanceEvidence: ["A regression transcript proves revoked access is denied."],
+    howWeWillKnow: ["Revoked access is denied at the owning public boundary."],
   };
   return {
     rationale: "Separate authority revision from harness cancellation.",

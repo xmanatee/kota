@@ -8,6 +8,7 @@ import {
   normalizeGeneratedTaskScalar,
   renderGeneratedTaskProse,
 } from "#modules/autonomy/generated-task-text.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import {
   extractTaskSections,
   getRepoTaskStateDir,
@@ -49,56 +50,20 @@ function renderList(values: readonly string[]): string {
 function subtaskBody(args: {
   taskId: string;
   failedRunId: string;
-  taskClass: DecompositionPlan["subtasks"][number]["taskClass"];
   problem: string;
   desiredOutcome: string;
   constraints: readonly string[];
-  doneWhen: readonly string[];
-  sourceIntent: string;
-  initiative: string;
-  acceptanceEvidence: readonly string[];
+  howWeWillKnow: readonly string[];
 }): string {
-  return [
-    "",
-    "## Problem",
-    "",
-    renderGeneratedTaskProse(args.problem),
-    "",
-    "## Desired Outcome",
-    "",
-    renderGeneratedTaskProse(args.desiredOutcome),
-    "",
-    "## Constraints",
-    "",
-    renderList(args.constraints),
-    "",
-    "## Done When",
-    "",
-    renderList(args.doneWhen),
-    "",
-    "## Source / Intent",
-    "",
-    renderGeneratedTaskProse(args.sourceIntent),
-    "",
-    `Decomposed from \`${args.taskId}\` after builder run \`${args.failedRunId}\` exhausted repair.`,
-    "",
-    ...(args.taskClass === "Meta"
-      ? [
-        "## Product / Safety Link",
-        "",
-        `This recovery task unblocks the Product or Safety intent preserved by \`${args.taskId}\`.`,
-        "",
-      ]
-      : []),
-    "## Initiative",
-    "",
-    renderGeneratedTaskProse(args.initiative),
-    "",
-    "## Acceptance Evidence",
-    "",
-    renderList(args.acceptanceEvidence),
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: renderGeneratedTaskProse(args.problem),
+    desiredOutcome: renderGeneratedTaskProse(args.desiredOutcome),
+    constraints: renderList(args.constraints),
+    howWeWillKnow: renderList(args.howWeWillKnow),
+    context:
+      `Decomposed from \`${args.taskId}\` after builder run ` +
+      `\`${args.failedRunId}\` exhausted repair.`,
+  });
 }
 
 export function applyDecompositionPlan(args: {
@@ -176,14 +141,10 @@ export function applyDecompositionPlan(args: {
         subtaskBody({
           taskId: args.taskId,
           failedRunId: args.failedRunId,
-          taskClass: task.taskClass,
           problem: task.problem,
           desiredOutcome: task.desiredOutcome,
           constraints: task.constraints,
-          doneWhen: task.doneWhen,
-          sourceIntent: task.sourceIntent,
-          initiative: task.initiative,
-          acceptanceEvidence: task.acceptanceEvidence,
+          howWeWillKnow: task.howWeWillKnow,
         }),
       ),
     );

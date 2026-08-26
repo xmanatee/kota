@@ -137,7 +137,7 @@ describe("createNormalizedTask", () => {
       expect(content).toContain("priority: p2");
       expect(content).toContain("status: backlog");
       expect(content).toContain("## Problem");
-      expect(content).toContain("## Done When");
+      expect(content).toContain("## How We Will Know");
     }
   });
 

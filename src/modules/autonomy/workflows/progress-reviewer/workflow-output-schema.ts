@@ -24,7 +24,7 @@ const reviewFollowUpTaskOutputSchema = {
     "priority",
     "area",
     "evidenceIds",
-    "acceptanceEvidence",
+    "howWeWillKnow",
   ],
   additionalProperties: false,
   properties: {
@@ -37,7 +37,7 @@ const reviewFollowUpTaskOutputSchema = {
     },
     area: { type: "string" },
     evidenceIds: { type: "array", items: { type: "string" } },
-    acceptanceEvidence: { type: "string" },
+    howWeWillKnow: { type: "string" },
   },
 } satisfies JsonSchemaObject;
 

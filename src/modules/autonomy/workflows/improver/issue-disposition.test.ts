@@ -8,7 +8,7 @@ const base = {
   taskPriority: "p2",
   taskArea: "autonomy",
   taskClass: "Meta",
-  taskAcceptanceEvidence: "",
+  taskHowWeWillKnow: "",
   ownerQuestion: "",
   ownerReason: "",
   proposedAnswers: [],

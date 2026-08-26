@@ -98,7 +98,7 @@ describe("repo task helpers", () => {
     expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
   });
 
-  it("does not count Meta backlog tasks as promotable without a Product or Safety link", () => {
+  it("counts backlog work as promotable without interpreting task labels or prose", () => {
     writeFileSync(
       join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
       [
@@ -120,7 +120,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(0);
+    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
   });
 
   it("summarizes the open task queue by state", () => {
@@ -241,7 +241,7 @@ describe("repo task helpers", () => {
     expect(getRepoTaskQueueSnapshot(projectDir).dependencyBlockedTasks).toEqual([]);
   });
 
-  it("distinguishes open pullable records from dispatchable task work", () => {
+  it("excludes anchors but not task classes from dispatchable work", () => {
     writeFileSync(
       join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
       [
@@ -282,11 +282,11 @@ describe("repo task helpers", () => {
     const snapshot = getRepoTaskQueueSnapshot(projectDir);
 
     expect(snapshot.openCount).toBe(2);
-    expect(snapshot.pullableCount).toBe(0);
+    expect(snapshot.pullableCount).toBe(1);
     expect(snapshot.actionableCount).toBe(0);
-    expect(snapshot.promotableBacklogCount).toBe(0);
-    expect(snapshot.dispatchableCount).toBe(0);
-    expect(snapshot.hasDispatchableWork).toBe(false);
+    expect(snapshot.promotableBacklogCount).toBe(1);
+    expect(snapshot.dispatchableCount).toBe(1);
+    expect(snapshot.hasDispatchableWork).toBe(true);
   });
 
   it("detects a one-item promotable backlog tail as dispatchable-thin", () => {

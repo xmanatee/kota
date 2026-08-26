@@ -41,9 +41,9 @@ describe("progress-reviewer generated-work resolution", () => {
           "",
           "The progress review projected stale worktrees.",
           "",
-          "## Product / Safety Link",
+          "## Context",
           "",
-          "Recovery protects Product and Safety delivery.",
+          "Recovery protects reliable delivery.",
         ].join("\n"),
         provenance: {
           source: "progress-reviewer",

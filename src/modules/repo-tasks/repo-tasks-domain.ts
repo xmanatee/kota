@@ -6,11 +6,6 @@ import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
-  enforceProductionReplacementCompletion,
-  verifyProductionReplacementCompletion,
-} from "./production-replacement-completion.js";
-import { parseProductionReplacementDeclaration } from "./production-replacement-proof.js";
-import {
   type FileSnapshot,
   listVerifiedRepoMarkdownFiles,
   moveRepoMarkdownFile,
@@ -20,20 +15,10 @@ import {
   writeRepoMarkdownFile,
 } from "./repo-file-mutations.js";
 import {
-  hasConcreteTaskAcceptanceEvidence,
-  hasProductSafetyTaskLink,
-} from "./repo-task-sections.js";
-import {
   findUnfinishedTaskDependencies,
   readTaskDependencyIds,
 } from "./task-dependencies.js";
 import { isRepoTaskId } from "./task-id.js";
-import {
-  hasConcreteRenderedEvidence,
-  hasConcreteRenderedEvidenceReference,
-  hasNamedRenderedEvidence,
-  requiresRenderedCompletionEvidence,
-} from "./task-rendered-evidence.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
@@ -42,12 +27,7 @@ export const REPO_INBOX_DIR = join(REPO_DATA_DIR, "inbox");
 export {
   buildIndexableTaskText,
   extractTaskSections,
-  hasConcreteTaskAcceptanceEvidence,
-  hasProductSafetyTaskLink,
   INDEXABLE_TASK_SECTIONS,
-  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-  TASK_INITIATIVE_PLACEHOLDER,
-  TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-task-sections.js";
 
 export const REPO_TASK_STATES = [
@@ -257,9 +237,7 @@ function countRepoPromotableBacklogTasksWithWaits(
   waitingIds: ReadonlySet<string>,
 ): number {
   return listFullRepoTasks(projectDir, ["backlog"]).filter((record) =>
-    !record.anchor &&
-    !waitingIds.has(record.id) &&
-    getRepoTaskStateTransitionBlocker(record, "ready") === null
+    !record.anchor && !waitingIds.has(record.id)
   ).length;
 }
 
@@ -296,99 +274,6 @@ export type RepoTaskClass =
   | "Platform"
   | "Meta"
   | "Unclassified";
-
-export type RepoTaskTransitionCheckInput = {
-  id: string;
-  title: string | null;
-  area: string | null;
-  summary: string | null;
-  taskClass: RepoTaskClass;
-  productionReplacement?: boolean;
-  body: string;
-};
-
-const ACTIONABLE_TASK_STATES: ReadonlySet<RepoTaskState> = new Set([
-  "ready",
-  "doing",
-]);
-
-export function getRepoTaskStateTransitionBlocker(
-  task: RepoTaskTransitionCheckInput,
-  toState: RepoTaskState,
-  projectDir?: string,
-): string | null {
-  if (task.productionReplacement === true) {
-    const declaration = parseProductionReplacementDeclaration(task.body);
-    if (declaration.kind !== "valid") {
-      const reason = declaration.kind === "absent"
-        ? "missing section"
-        : declaration.error;
-      return "production_replacement=true work needs a valid " +
-        `## Production Replacement Proof contract: ${reason}`;
-    }
-    if (toState === "done") {
-      if (!projectDir) {
-        return "production replacement completion needs the project directory to verify its live evidence";
-      }
-      const completion = verifyProductionReplacementCompletion({
-        raw: task.body,
-        taskId: task.id,
-        projectDir,
-      });
-      if (!completion.ok) {
-        return `production replacement proof is incomplete: ${completion.error}`;
-      }
-    }
-  }
-
-  if (toState === "done" && !hasConcreteTaskAcceptanceEvidence(task.body)) {
-    return "missing concrete ## Acceptance Evidence. Add a command, artifact, " +
-      "transcript, screenshot, fixture, demo, or validation bullet before completing it.";
-  }
-
-  if (
-    toState === "done" &&
-    requiresRenderedCompletionEvidence(task) &&
-    !(projectDir
-      ? hasConcreteRenderedEvidence(task.body, projectDir, task.id)
-      : hasConcreteRenderedEvidenceReference(task.body, task.id))
-  ) {
-    const hasConcreteReference = hasConcreteRenderedEvidenceReference(task.body, task.id);
-    const hasUntiedDirectoryReference = !hasConcreteReference &&
-      hasConcreteRenderedEvidenceReference(task.body);
-    const suffix = hasConcreteReference
-      ? "Referenced evidence artifacts must exist under the project and look like rendered/runtime proof."
-      : hasUntiedDirectoryReference
-      ? `Directory evidence under run/evidence roots must be scoped to task id ${task.id}.`
-      : hasNamedRenderedEvidence(task.body)
-      ? "Placeholders such as `.kota/runs/<run-id>/transcript.txt` are not concrete evidence."
-      : "Add a CLI/dashboard/status transcript, screenshot, trace, native snapshot, rendered fixture, or runtime probe.";
-    return "operator-facing client work needs rendered/runtime ## Acceptance Evidence proof " +
-      "at a concrete local path before completion. " +
-      suffix;
-  }
-
-  if (
-    ACTIONABLE_TASK_STATES.has(toState) &&
-    task.taskClass === "Meta" &&
-    !hasProductSafetyTaskLink(task.body)
-  ) {
-    return "task_class=Meta work needs a ## Product / Safety Link before it can enter ready/doing. " +
-      "Name the Product or Safety blocker it closes, or keep it outside the actionable queue.";
-  }
-
-  return null;
-}
-
-function assertTaskStateTransitionAllowed(
-  task: RepoTaskTransitionCheckInput,
-  toState: RepoTaskState,
-  projectDir: string,
-): void {
-  const blocker = getRepoTaskStateTransitionBlocker(task, toState, projectDir);
-  if (blocker === null) return;
-  throw new Error(`Task "${task.id}" cannot move to "${toState}": ${blocker}`);
-}
 
 /**
  * A full task record carrying every frontmatter field needed to render a
@@ -684,39 +569,6 @@ export function moveTaskById(
     throw new Error(`Task "${id}" already exists in "${toState}"`);
   }
   const { attrs, body } = parseFlatFrontMatter(content);
-  const productionReplacementRaw = attrs.production_replacement;
-  if (
-    productionReplacementRaw !== undefined &&
-    productionReplacementRaw !== "true"
-  ) {
-    throw new Error(
-      `Task "${id}" has invalid production_replacement=${JSON.stringify(productionReplacementRaw)}; omit it or use the literal true`,
-    );
-  }
-  const transitionTask: RepoTaskTransitionCheckInput = {
-    id,
-    title: typeof attrs.title === "string" ? attrs.title : null,
-    area: typeof attrs.area === "string" ? attrs.area : null,
-    summary: typeof attrs.summary === "string" ? attrs.summary : null,
-    taskClass: parseTaskClass(
-      typeof attrs.task_class === "string" ? attrs.task_class : undefined,
-    ),
-    productionReplacement: productionReplacementRaw === "true",
-    body,
-  };
-  assertTaskStateTransitionAllowed(transitionTask, toState, projectDir);
-  if (toState === "done" && productionReplacementRaw === "true") {
-    const completion = enforceProductionReplacementCompletion({
-      raw: body,
-      taskId: id,
-      projectDir,
-    });
-    if (!completion.ok) {
-      throw new Error(
-        `Task "${id}" cannot move to "done": production replacement proof is incomplete: ${completion.error}`,
-      );
-    }
-  }
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);

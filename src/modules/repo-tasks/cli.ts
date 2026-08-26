@@ -212,7 +212,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 
 	taskCmd
 		.command("create <title>")
-		.description("Create a normalized task file with all required structure")
+		.description("Create a normalized task file with the recommended intent scaffold")
 		.option("-p, --priority <priority>", "Priority: p0, p1, p2, p3", "p2")
 		.option("-a, --area <area>", "Area (e.g. core, architecture, modules)", "core")
 		.option("-s, --state <state>", "Initial state directory", "backlog")

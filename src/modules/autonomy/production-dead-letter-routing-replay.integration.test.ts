@@ -96,7 +96,7 @@ describe("production dead-letter routing replay", () => {
         taskPriority: "p1",
         taskArea: "autonomy",
         taskClass: "Product",
-        taskAcceptanceEvidence:
+        taskHowWeWillKnow:
           "The captured production incident reaches one typed clear without another AI review.",
         ownerQuestion: "",
         ownerReason: "",

@@ -70,7 +70,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           taskPriority: "p1",
           taskArea: "",
           taskClass: "Product",
-          taskAcceptanceEvidence: "",
+          taskHowWeWillKnow: "",
           ownerQuestion: "Should builder preserve the failed run's worktree?",
           ownerReason: "Both recovery policies are technically valid.",
           proposedAnswers: ["Preserve the worktree", "Release the claim"],
@@ -83,7 +83,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           taskPriority: "p1",
           taskArea: "autonomy",
           taskClass: "Product",
-          taskAcceptanceEvidence:
+          taskHowWeWillKnow:
             "A lifecycle fixture preserves the worktree after the same failure.",
           ownerQuestion: "",
           ownerReason: "",

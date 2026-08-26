@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   decodeSecurityInvestigationOutput,
@@ -97,6 +98,12 @@ export class SecurityReviewProjectFixture {
 
   writeTerminalSecurityTask(id: string, state: "done" | "dropped", marker: string): void {
     const path = `data/tasks/${state}/${id}.md`;
+    const body = renderRepoTaskIntent({
+      problem: marker,
+      desiredOutcome: "Keep this terminal task as historical context.",
+      constraints: "- Do not reopen this fixture directly.",
+      howWeWillKnow: "- Historical task state is preserved.",
+    });
     this.writeProjectFile(
       path,
       [
@@ -110,27 +117,7 @@ export class SecurityReviewProjectFixture {
         "created_at: 2026-06-19T00:00:00.000Z",
         "updated_at: 2026-06-19T00:00:00.000Z",
         "---",
-        "",
-        "## Problem",
-        "",
-        marker,
-        "",
-        "## Desired Outcome",
-        "",
-        "Keep this terminal task as historical evidence.",
-        "",
-        "## Constraints",
-        "",
-        "- Do not reopen this fixture directly.",
-        "",
-        "## Done When",
-        "",
-        "- Historical task state is preserved.",
-        "",
-        "## Acceptance Evidence",
-        "",
-        "- Historical evidence.",
-        "",
+        body,
       ].join("\n"),
     );
     execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
@@ -149,6 +136,22 @@ export class SecurityReviewProjectFixture {
     const candidateId = args.candidateId ??
       "task-workflow-mutation:src/modules/example.ts:12";
     const path = `data/tasks/${args.state}/${args.id}.md`;
+    const body = renderRepoTaskIntent({
+      problem: [
+        "The security-review workflow confirmed an application-security finding.",
+        "",
+        `claim: ${args.claim}`,
+      ].join("\n"),
+      desiredOutcome: "Keep one canonical remediation record for this stable finding.",
+      constraints: "- Preserve review provenance.",
+      howWeWillKnow: "- The stable finding is resolved at its actual security boundary.",
+      context: [
+        `Created by security-review workflow run ${args.runId}.`,
+        "",
+        `finding id: ${findingId}`,
+        `candidate id: ${candidateId}`,
+      ].join("\n"),
+    });
     this.writeProjectFile(
       path,
       [
@@ -163,35 +166,7 @@ export class SecurityReviewProjectFixture {
         "created_at: 2026-06-19T00:00:00.000Z",
         "updated_at: 2026-06-19T00:00:00.000Z",
         "---",
-        "",
-        "## Problem",
-        "",
-        "The security-review workflow confirmed an application-security finding.",
-        "",
-        `claim: ${args.claim}`,
-        "",
-        "## Desired Outcome",
-        "",
-        "Keep one canonical remediation record for this stable finding.",
-        "",
-        "## Constraints",
-        "",
-        "- Preserve review provenance.",
-        "",
-        "## Done When",
-        "",
-        "- The stable finding is resolved.",
-        "",
-        "## Source / Intent",
-        "",
-        `Created by security-review workflow run ${args.runId}.`,
-        "",
-        `finding id: ${findingId}`,
-        `candidate id: ${candidateId}`,
-        "",
-        "## Acceptance Evidence",
-        "",
-        "- Focused security-review replay.",
+        body,
         ...(args.supersededBy
           ? [
               "",

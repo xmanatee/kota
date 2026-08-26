@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T04:53:53.000Z
+updated_at: 2026-08-26T05:30:27.287Z
 ---
 
 ## Problem
@@ -49,8 +49,9 @@ Tracked implementation tasks:
 
 The setup-metadata and Codex capability-truth prerequisites are complete. The
 builder-recovery security proposal was dropped and is not an implementation
-dependency. Queue paths and task frontmatter remain authoritative for the
-nineteen open tracked tasks.
+dependency. Queue paths and task frontmatter remain authoritative: sixteen of
+the tracked tasks remain open, the task-system separation is done, and the two
+findings against the retired proof executor are dropped with dispositions.
 
 ## Stage Progress
 
@@ -58,7 +59,7 @@ nineteen open tracked tasks.
 - [x] Stage 1 — remove misleading instructions and context bias.
 - [x] Stage 2 — make builder validation and critic review proportional.
 - [x] Stage 3 — make exploration and health improvement outcome-driven.
-- [ ] Stage 4 — reduce the task system to objective integrity.
+- [x] Stage 4 — reduce the task system to objective integrity.
 - [ ] Stage 5 — separate shipping, validation, and confidence cadences.
 - [ ] Stage 6 — complete the terminal project-to-scope migration.
 - [ ] Stage 7 — establish one authored daemon/client contract graph.
@@ -158,6 +159,39 @@ whitespace validation, 225 focused tests across exploration, health, improver,
 reporting, queue validation, and eval diagnostics, plus all four standard replay
 smoke scenarios passed. A repository search found no retired quota, size,
 observability, loop-quality, rationale, or code-health-drift mechanism residue.
+
+## Stage 4 Result
+
+Repo-task validation now owns objective queue integrity only: flat metadata
+syntax, ID and state/path agreement, required routing metadata, timestamps,
+dependency existence and acyclicity, blocked preconditions, duplicate IDs,
+regular-file safety, and separation of runtime state from `data/`. A clear
+natural-language task can move from backlog through completion without a task
+class, fixed prose headings, evidence labels, Product/Safety links, source
+access claims, assertion bindings, or completion artifacts.
+
+Task authors and task-producing workflows share one intent renderer with the
+recommended prompts Problem, Desired Outcome, Constraints, and How We Will
+Know. These are authoring aids, not sections interpreted by the validator.
+Progress-review and scope-improvement output APIs now describe how the outcome
+will be known instead of exposing redundant done/evidence fields. Promotion
+uses authored priority, age, stable ID, anchors, and dependency readiness; task
+class and prose no longer affect eligibility or rank.
+
+The production-replacement proof language, synchronous assertion executor,
+completion and rendered-evidence gates, source-access and architecture scans,
+queue quotas, strategic-coverage rules, task-governance parser, and automatic
+autonomy-change source classifier were removed. The two security findings
+against the deleted proof executor were dispositioned and dropped; the owning
+separation task was completed through the normal task transition API. Six
+historical terminal tasks exposed by the narrower validator had their malformed
+flat metadata repaired.
+
+The stage deleted 6,605 net lines. TypeScript, the production build,
+Biome over all source, task validation, diff whitespace validation, 348 focused
+tests across 54 files, and all four standard replay smoke scenarios passed. A
+source audit found no retired proof implementation, validator option, task
+governance parser, or deprecated generated-task outcome field remaining.
 
 ## Finding Ownership
 

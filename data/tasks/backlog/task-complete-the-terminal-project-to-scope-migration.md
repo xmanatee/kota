@@ -5,11 +5,10 @@ status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-production_replacement: true
-depends_on: [task-render-shared-ui-surfaces-in-apple-clients, task-render-setup-metadata-without-redacting-operator-c, task-report-and-validate-codex-harness-capabilities-tru, task-security-review-the-completion-gate-authenticates]
+depends_on: [task-render-shared-ui-surfaces-in-apple-clients, task-render-setup-metadata-without-redacting-operator-c, task-report-and-validate-codex-harness-capabilities-tru]
 summary: Replace every KOTA-owned project-as-scope contract across runtime, clients, schemas, state, tests, and docs, then delete all compatibility paths.
 created_at: 2026-08-24T02:13:38.791Z
-updated_at: 2026-08-24T03:03:33.122Z
+updated_at: 2026-08-26T05:20:59.983Z
 ---
 
 ## Problem
@@ -63,17 +62,14 @@ alias, route, field, type, filename, reader, or fallback remains afterward.
 - A structural check rejects any reintroduction while permitting explicit
   vendor-owned project concepts through narrow ownership rules.
 
-## Production Replacement Proof
+## How We Will Know
 
-oldBoundary: projectId identity, /projects routes, forProject clients, project-scoped events, and compatibility storage readers
-replacementOwner: ScopeRegistry, required scopeId contracts, /scopes routes, and scope-selected clients
-liveIngresses: daemon scope registration and selection | scoped workflow dispatch and approval delivery | CLI web mobile and Apple scope switching
-restartIngresses: persisted scope registry restoration | workflow and event recovery | client reconnection after daemon restart
-observableEffect: every live and restored operation resolves one scope identity while project-named KOTA ingress is unreachable
-productionEntrypoints: src/core/daemon/scope-registry.ts | src/core/events/scope.ts | src/core/server/scope-selected-kota-client.ts | src/modules/daemon-ops/scopes-daemon.ts | clients/web/src/lib/scope-context.tsx | clients/mobile/src/context/DaemonContext.tsx
-productionTests: src/core/daemon/scope-lifecycle.test.ts | src/core/events/scope.test.ts | src/core/server/scope-selected-kota-client.test.ts | src/modules/daemon-ops/scopes-daemon-client.test.ts | clients/web/src/lib/scope-context.test.tsx | clients/mobile/src/__tests__/ScopeSelector.test.tsx
-retiredPathCheck: KOTA-owned project identity types, fields, routes, selectors, files, config, event payloads, compatibility readers, and fallback branches are unreachable
-evidenceArtifact: .kota/runs/scope-identity-migration/evidence/artifacts/production-replacement-proof.json
+- Representative live and restarted daemon operations resolve one scope
+  identity through the production owner.
+- CLI, web, mobile, and Apple clients select the same scope contract.
+- The compiler, generated bindings, and a migration-time search reveal no
+  KOTA-owned project-as-scope ingress; the temporary search is removed when
+  the migration is complete.
 
 ## Source / Intent
 

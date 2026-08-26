@@ -123,7 +123,7 @@ describe("inbox-sorter workflow", () => {
 
     expect(runCommand).toHaveBeenCalledWith({
       command: "pnpm",
-      args: ["run", "validate-tasks", "--", "--min-ready", "0"],
+      args: ["run", "validate-tasks"],
       cwd: projectDir,
     });
   });

@@ -4,11 +4,7 @@ title: Rename module* → module* in session internals and tool registry
 status: done
 priority: p2
 area: cleanup
-summary: >
-  The codebase still uses "module" terminology for the module loader and
-  related internals — `moduleLoader`, `getLoadedModules`, `deregisterModuleTools`,
-  `pluginModules` — despite the public surface having moved to "module".
-  Renaming these to match closes the gap noted in docs/ARCHITECTURE.md.
+summary: Rename the remaining legacy module-loader and tool-registry terminology to match the public module surface.
 created_at: 2026-03-27T12:40:00Z
 updated_at: 2026-03-27T12:52:00Z
 ---

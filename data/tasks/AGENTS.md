@@ -9,18 +9,18 @@ nearest `AGENTS.md` before changing a task.
 - Use the task command to create and move tasks. The repo-tasks domain owns
   identifiers, safe paths, lifecycle states, dependencies, and mutation
   authorization.
-- Tasks state the problem, desired outcome, important constraints, source
-  intent, and how a reviewer can tell the outcome is real. Builders own the
+- Tasks usually state `Problem`, `Desired Outcome`, `Constraints`, and `How We
+  Will Know`. These are authoring prompts, not validator-required keywords;
+  natural prose is valid when it preserves the same intent. Builders own the
   implementation plan.
 - Preserve owner wording, observed runtime evidence, research provenance, and
   urgency. Do not normalize away why the task exists.
 - Represent hard predecessors with `depends_on`; do not duplicate ordering in
   prose or add transitive edges.
-- Choose the strongest proportionate proof for the outcome. Operator-facing
-  work normally needs an inspectable journey such as a live probe, transcript,
-  screenshot, or demonstration; an internal refactor may be proven by focused
-  behavior and architecture checks. Do not require a fixed artifact type or
-  filename merely because of a task label.
+- Choose the strongest proportionate observation for the outcome. A live
+  journey may be useful for operator-facing work and a focused behavior check
+  may be sufficient for an internal change, but task labels never prescribe a
+  fixed artifact, filename, or test category.
 - Task metadata helps routing and prioritization. It must not turn preferences,
   reviewer judgment, or implementation details into mechanical completion
   gates.

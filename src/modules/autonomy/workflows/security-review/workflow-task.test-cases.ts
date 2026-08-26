@@ -97,7 +97,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
       expect(task).toContain("Validate URL scheme and host before fetch.");
       expect(task).not.toContain("Secret value is printed.");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
@@ -125,10 +125,10 @@ export function describeSecurityReviewTaskTests(): void {
       const parsed = parseFlatFrontMatter(readyTask);
       expect(parsed.attrs.id).toBe(`${baseId}-3`);
       expect(parsed.attrs.status).toBe("ready");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
-    it("quotes agent-generated task content before frontmatter or Done When parsing can treat it as structure", () => {
+    it("quotes agent-generated task content before it can become task structure", () => {
       const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
         findings: [
           {
@@ -198,20 +198,20 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("affected path: src/modules/example.ts #\\# Done When");
       expect(task).not.toMatch(/^(title|summary|affected path): .*## Done When$/m);
 
-      const bodyDoneWhenHeadings = parsed.body.match(/^## Done When$/gm) ?? [];
-      expect(bodyDoneWhenHeadings).toHaveLength(1);
-      const doneWhenMatch = task.match(/## Done When\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
-      expect(doneWhenMatch?.[1]).toContain(
+      const howHeadings = parsed.body.match(/^## How We Will Know$/gm) ?? [];
+      expect(howHeadings).toHaveLength(1);
+      const howMatch = task.match(/## How We Will Know\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
+      expect(howMatch?.[1]).toContain(
         "- The cited vulnerability is fixed or proven impossible with code-level evidence.",
       );
-      expect(doneWhenMatch?.[1]).not.toContain("attacker-controlled criterion");
-      expect(doneWhenMatch?.[1]).not.toContain("desired-outcome-controlled criterion");
-      expect(doneWhenMatch?.[1]).not.toContain("rationale-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("attacker-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("desired-outcome-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("rationale-controlled criterion");
       expect(task).toContain("> #\\# Done When");
       expect(task).toContain("> - attacker-controlled criterion");
       expect(task).toContain("> - desired-outcome-controlled criterion");
       expect(task).toContain("> - rationale-controlled criterion");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("states the authorized defensive scope in the agent prompt", () => {

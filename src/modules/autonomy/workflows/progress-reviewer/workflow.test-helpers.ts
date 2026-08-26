@@ -22,6 +22,7 @@ import {
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { progressReviewRequested } from "./events.js";
 import {
   decodeProgressReviewAgentOutput,
@@ -191,6 +192,13 @@ export function writeProgressReviewTask(
   id: string,
 ): void {
   const timestamp = NOW.toISOString();
+  const body = renderRepoTaskIntent({
+    problem: "Review fixture problem.",
+    desiredOutcome: "Review fixture outcome.",
+    constraints: "- Keep cited context available to the reviewer.",
+    howWeWillKnow: "- The fixture outcome is observable.",
+    context: "Progress reviewer test fixture.",
+  });
   writeFileSync(
     join(projectDir, "data", "tasks", state, `${id}.md`),
     `---
@@ -203,34 +211,7 @@ summary: ${id} summary
 created_at: ${timestamp}
 updated_at: ${timestamp}
 ---
-
-## Problem
-
-Review fixture problem.
-
-## Desired Outcome
-
-Review fixture outcome.
-
-## Constraints
-
-- Keep evidence cited.
-
-## Done When
-
-- Done.
-
-## Source / Intent
-
-Progress reviewer test fixture.
-
-## Initiative
-
-Outcome-aware autonomy progress review.
-
-## Acceptance Evidence
-
-- Test fixture.
+${body}
 `,
   );
 }

@@ -65,7 +65,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(terminalPath, "utf-8")).toBe(terminalTask);
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("merges an explicitly superseded duplicate into the canonical stable-identity record", () => {
@@ -125,7 +125,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(canonicalPath, "utf-8")).toBe(canonicalAfterMerge);
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
   });
 }

@@ -175,8 +175,9 @@ describe("autonomy workflow blocking review and task operations", () => {
                 problem: "The operation needs real worker coverage.",
                 desiredOutcome: "The worker creates and stages the task.",
                 constraints: ["Keep the daemon event loop free."],
-                doneWhen: ["The task is created through the worker operation."],
-                acceptanceEvidence: ["Focused worker-boundary test output."],
+                howWeWillKnow: [
+                  "The task is created through the worker operation without blocking the daemon.",
+                ],
               },
             },
           ],

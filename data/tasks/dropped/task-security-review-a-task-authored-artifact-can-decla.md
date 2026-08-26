@@ -1,13 +1,13 @@
 ---
 id: task-security-review-a-task-authored-artifact-can-decla
 title: Bound production replacement assertion execution
-status: ready
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 summary: Bound assertion cardinality, aggregate runtime, resources, and daemon blocking before task-authored replacement proof can execute.
 created_at: 2026-08-23T07:37:13.619Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-26T05:22:03.967Z
 ---
 
 ## Problem
@@ -125,3 +125,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Disposition
+
+Dropped because the task-authored production-replacement proof subsystem was
+removed. Task transitions no longer execute task-authored assertions or spawn
+Vitest processes, so the attacker-controlled cardinality and synchronous daemon
+blocking boundary described by this finding no longer exists.

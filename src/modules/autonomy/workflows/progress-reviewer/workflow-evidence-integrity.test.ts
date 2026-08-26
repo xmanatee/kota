@@ -121,7 +121,7 @@ describe("progress-reviewer evidence integrity", () => {
             priority: "p1",
             area: "security",
             evidenceIds: [forgedEvidenceId],
-            acceptanceEvidence: "The digest-bound review rejects this action.",
+            howWeWillKnow: "The digest-bound review rejects this action.",
           }],
         },
         ownerQuestions: [{

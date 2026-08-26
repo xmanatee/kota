@@ -3,7 +3,6 @@ export const AUTONOMY_CHANGE_DECISION_ARTIFACT =
 export const AUTONOMY_CHANGE_DECISION_ARTIFACT_TYPE =
   "autonomy-change-decision";
 export const AUTONOMY_CHANGE_DECISION_SCHEMA_VERSION = 1;
-export const AUTONOMY_CHANGE_DECISION_CHECK_ID = "autonomy-change-decision";
 
 export const AUTONOMY_CHANGE_CLASSES = [
   "workflow",
@@ -80,15 +79,3 @@ export type AutonomyChangeDecisionReadResult =
   | { kind: "missing"; path: string }
   | { kind: "invalid"; path: string; reason: string }
   | { kind: "valid"; path: string; artifact: AutonomyChangeDecisionArtifact };
-
-export type MaterialAutonomyChangeReason = {
-  file: string;
-  changeClasses: AutonomyChangeClass[];
-};
-
-export type MaterialAutonomyChangeRequirement = {
-  required: boolean;
-  changedFiles: string[];
-  changeClasses: AutonomyChangeClass[];
-  reasons: MaterialAutonomyChangeReason[];
-};

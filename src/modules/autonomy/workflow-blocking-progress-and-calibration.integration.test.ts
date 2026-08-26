@@ -91,7 +91,7 @@ describe("progress and calibration blocking operations", () => {
                   priority: "p2",
                   area: "core",
                   evidenceIds: ["event:worker-boundary"],
-                  acceptanceEvidence: "Focused real-worker integration output.",
+                  howWeWillKnow: "Focused real-worker integration output.",
                 },
               ],
             },

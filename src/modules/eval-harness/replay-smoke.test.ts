@@ -21,15 +21,14 @@
  *     trigger receipt path, the `inspect-inbox` `needsAttention` gating
  *     shape (a `getRepoTaskQueueSnapshot` + tracked-changes-outside-inbox
  *     guard before the agent step), and the inbox-sorter-specific
- *     repair-check tuple (`task-queue-valid` with `--min-ready 0`).
+ *     `task-queue-valid` repair-check path.
  *   - `research-retry-agent-call-replay` covers the
  *     `inspect-candidates` selection-and-evaluation path
  *     (`runtime-detect.isPlaywrightAvailable` + `readBrowserConfig`,
  *     `candidates.listResearchRetryCandidates`,
  *     `precondition.evaluateCandidate`'s URL classification + marker
  *     fingerprint), the `mark-attempt` post-agent fingerprint-marker
- *     writeback, and the research-retry repair-check tuple
- *     (`task-queue-valid` with default `min-ready`)
+ *     writeback, and the research-retry `task-queue-valid` repair check
  *     — none of which the other four replays exercise.
  *   - `pr-reviewer-agent-call-replay` covers the `assess-pr`
  *     webhook-payload assessment path (action / kota-task branch / fork

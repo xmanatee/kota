@@ -66,9 +66,10 @@ its entries, and tests exercise decision behavior rather than catalog identity.
 
 - Builder runs only from targeted, idempotent `autonomy.queue.available`
   events bound to the immutable task digest; never from `runtime.idle`.
-- Backlog promotion records rationale before resuming builder and selects a
-  small priority/strategy/age-ranked batch.
-- Explorer records rationale; inaccessible sources block rather than invite
-  synthesis. Cooldowns pace exploration and builder work without hard caps.
+- Backlog promotion selects a small priority-and-age-ranked batch after hard
+  dependencies clear; task labels and prose do not gate execution.
+- Explorer may update the watchlist, create useful work, or finish with no
+  change. Inaccessible sources block rather than invite synthesis. Cooldowns
+  pace exploration and builder work without hard caps.
 - Operator reports, fan-out consolidation, and evaluator drift must remain
   observation/governance surfaces and never leak cost bias into agent context.

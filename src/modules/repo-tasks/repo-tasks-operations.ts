@@ -19,13 +19,11 @@ import type {
   RepoTaskUpdateBodyResult,
 } from "./client.js";
 import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
+import { renderRepoTaskIntent } from "./repo-task-intent.js";
 import {
   getRepoInboxDir,
   getRepoTasksDir,
   REPO_TASK_STATES,
-  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-  TASK_INITIATIVE_PLACEHOLDER,
-  TASK_SOURCE_INTENT_PLACEHOLDER,
   writeRepoInboxFile,
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
@@ -114,33 +112,16 @@ export function updateTaskBody(
 }
 
 function buildNormalizedTaskBody(): string {
-  return [
-    "",
-    "## Problem",
-    "",
-    "## Desired Outcome",
-    "",
-    "## Constraints",
-    "",
-    "## Done When",
-    "",
-    "## Source / Intent",
-    "",
-    TASK_SOURCE_INTENT_PLACEHOLDER,
-    "",
-    "## Initiative",
-    "",
-    TASK_INITIATIVE_PLACEHOLDER,
-    "",
-    "## Acceptance Evidence",
-    "",
-    TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: "Describe the problem and why it matters.",
+    desiredOutcome: "Describe the observable outcome, without prescribing an implementation.",
+    constraints: "Name only constraints that materially limit a valid solution.",
+    howWeWillKnow: "Describe the behavior or observation that will make completion credible.",
+  });
 }
 
 /**
- * Create a normalized task file with the full template. Used by both the CLI
+ * Create a normalized task file with the recommended intent scaffold. Used by both the CLI
  * `task create` and the matching daemon HTTP route.
  */
 export function createNormalizedTask(

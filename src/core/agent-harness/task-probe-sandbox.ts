@@ -224,8 +224,7 @@ export function resolveTaskProbeSandbox(
 }
 
 /**
- * Resolve the fail-closed OS boundary used for repository-controlled code.
- * Runtime Probes and production-replacement proofs intentionally share this
- * containment mechanism.
+ * Resolve the fail-closed OS boundary used by repository-controlled runtime
+ * probes.
  */
 export const resolveContainedWorkspaceSandbox = resolveTaskProbeSandbox;

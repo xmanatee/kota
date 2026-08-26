@@ -1,14 +1,14 @@
 ---
 id: task-security-review-the-completion-gate-authenticates
 title: Bind production replacement proof to committed Git blobs
-status: backlog
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 depends_on: [task-security-review-a-task-authored-artifact-can-decla]
 summary: Execute replacement proof from an isolated Git snapshot and require the terminal commit to contain the exact tested entrypoint and test blobs.
 created_at: 2026-08-23T07:37:13.578Z
-updated_at: 2026-08-24T02:20:06.079Z
+updated_at: 2026-08-26T05:22:10.721Z
 ---
 
 ## Problem
@@ -112,3 +112,10 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Disposition
+
+Dropped because the production-replacement completion gate and its evidence
+format were removed. Task completion no longer authenticates or executes
+task-authored source paths, so there is no transient proof result to bind to a
+Git blob or preserve across restart.

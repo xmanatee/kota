@@ -37,7 +37,7 @@ const OBSERVED_DISPOSITION = {
   taskPriority: "p2" as const,
   taskArea: "autonomy",
   taskClass: "Meta" as const,
-  taskAcceptanceEvidence: "",
+  taskHowWeWillKnow: "",
   ownerQuestion: "",
   ownerReason: "",
   proposedAnswers: [],
@@ -49,7 +49,7 @@ const TASK_DISPOSITION = {
   rationale: "The stable failure needs a builder-owned repair.",
   taskTitle: "Repair the stable builder fixture failure",
   taskSummary: "Route the fixture failure through the normal builder lifecycle.",
-  taskAcceptanceEvidence: "A focused fixture proves the failure no longer recurs.",
+  taskHowWeWillKnow: "The failure no longer recurs at the owning boundary.",
 };
 
 const ACCEPTED_DISPOSITION = {

@@ -6,7 +6,6 @@ priority: p1
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
-production_replacement: true
 summary: Remove overlapping persisted doing state and derive active task status from the existing TaskClaim, run, worktree, and recovery projection.
 created_at: 2026-08-24T02:13:42.524Z
 updated_at: 2026-08-24T02:13:42.524Z
@@ -52,17 +51,13 @@ overlapping persisted `doing` mechanism.
   existing lifecycle owner; ambiguous evidence remains preserved for review.
 - Current claim state survives restart and legacy claim parsing is absent.
 
-## Production Replacement Proof
+## How We Will Know
 
-oldBoundary: persisted doing task state plus client-specific joins of ready tasks, task claims, workflow runs, worktrees, and recovery records
-replacementOwner: TaskClaim authority and one TaskWorkProjection consumed by dispatch and every operator client
-liveIngresses: task admission and claim acquisition | workflow run and worktree lifecycle | CLI inbox web mobile and Apple task rendering
-restartIngresses: active claim restoration | interrupted workflow recovery | stale worktree reconciliation
-observableEffect: claimed work is shown once as active, is never dispatchable, and converges to one terminal task outcome across live and restored state
-productionEntrypoints: src/modules/autonomy/task-claim-files.ts | src/modules/repo-tasks/repo-tasks-domain.ts | src/modules/daemon-ops/task-queue-projection.ts | src/modules/git/worktree-lifecycle.ts
-productionTests: src/modules/autonomy/task-claim-races.test.ts | src/modules/repo-tasks/repo-tasks.test.ts | src/modules/daemon-ops/index.test.ts | src/modules/git/worktree-lifecycle.test.ts
-retiredPathCheck: persisted doing state, claim schema-v1 parsing, and client-owned active-work joins are unreachable
-evidenceArtifact: .kota/runs/taskclaim-active-work-migration/evidence/artifacts/production-replacement-proof.json
+- Claimed work is shown once as active and cannot be dispatched again across
+  concurrent admission or restart.
+- Interrupted work converges through the production recovery owner.
+- Every operator client consumes the same derived active-work projection, and
+  the persisted `doing` mechanism is removed with its final caller.
 
 ## Source / Intent
 

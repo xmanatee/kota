@@ -1,10 +1,8 @@
 import {
   compareAutonomyTasks,
   describeAutonomyTaskRank,
-  isStrategicAutonomyTask,
 } from "#modules/autonomy/task-ranking.js";
 import {
-  getRepoTaskStateTransitionBlocker,
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
   type RepoTaskClass,
@@ -32,7 +30,6 @@ export type PromotionCandidateSummary = {
   area: string;
   taskClass: RepoTaskClass;
   state: "backlog" | "blocked" | "ready" | "doing";
-  strategic: boolean;
   updatedAt: string;
 };
 
@@ -83,7 +80,6 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
     area: record.area,
     taskClass: record.taskClass,
     state: record.state as PromotionCandidateSummary["state"],
-    strategic: isStrategicAutonomyTask(record),
     updatedAt: record.updatedAt,
   };
 }
@@ -118,18 +114,7 @@ export function buildPromotionRationale(
   const dependencyClearBacklog = allBacklog.filter((record) =>
     !record.anchor && !waitingById.has(record.id)
   );
-  const transitionBlockerById = new Map(
-    dependencyClearBacklog.flatMap((record) => {
-      const blocker = getRepoTaskStateTransitionBlocker(record, "ready");
-      return blocker === null ? [] : [[record.id, blocker] as const];
-    }),
-  );
-  const transitionBlockedBacklog = dependencyClearBacklog.filter((record) =>
-    transitionBlockerById.has(record.id)
-  );
-  const promotableBacklog = dependencyClearBacklog.filter((record) =>
-    !transitionBlockerById.has(record.id)
-  );
+  const promotableBacklog = dependencyClearBacklog;
   const blocked = records
     .filter((record) => record.state === "blocked")
     .sort(compareBacklogCandidates);
@@ -176,14 +161,6 @@ export function buildPromotionRationale(
     state: "backlog" as const,
     reason: `waiting on task dependencies: ${waitingById.get(record.id)?.join(", ") ?? ""}`,
   }));
-  const rejectedTransitionBlocked = transitionBlockedBacklog.map((record) => ({
-    id: record.id,
-    title: record.title,
-    priority: record.priority,
-    taskClass: record.taskClass,
-    state: "backlog" as const,
-    reason: `cannot enter ready/: ${transitionBlockerById.get(record.id) ?? ""}`,
-  }));
   const rejectedBlocked = blocked.map((record) => ({
     id: record.id,
     title: record.title,
@@ -205,7 +182,7 @@ export function buildPromotionRationale(
   if (selected.length === 0) {
     summaryLines.push(incumbent
       ? `No backlog task outranks the current ready frontier ${incumbent.id}.`
-      : "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, dependency-waiting, or ready-invalid work remains).",
+      : "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, or dependency-waiting work remains).",
     );
   } else {
     const ids = selected
@@ -215,7 +192,7 @@ export function buildPromotionRationale(
       `Promoted ${selected.length} of ${frontierImprovements.length} frontier-improving backlog task(s): ${ids}.`,
     );
     summaryLines.push(
-      "Ranked by the shared autonomy queue policy: proven runtime repair first, P1 Product/Safety ahead of Meta, then priority, task class, strategic area, and age.",
+      "Ranked by authored priority, then age; task labels and prose do not gate execution.",
     );
   }
   if (rejectedAnchors.length > 0) {
@@ -232,14 +209,6 @@ export function buildPromotionRationale(
       `Backlog tasks waiting on hard predecessors skipped: ${waitingIds}.`,
     );
   }
-  if (rejectedTransitionBlocked.length > 0) {
-    const transitionBlockedIds = rejectedTransitionBlocked
-      .map((r) => `${r.id} (${r.reason})`)
-      .join(", ");
-    summaryLines.push(
-      `Backlog tasks not ready-actionable skipped: ${transitionBlockedIds}.`,
-    );
-  }
   if (rejectedBlocked.length > 0) {
     const blockedIds = rejectedBlocked.map((r) => r.id).join(", ");
     summaryLines.push(
@@ -253,7 +222,6 @@ export function buildPromotionRationale(
       ...rejectedBacklog,
       ...rejectedAnchors,
       ...rejectedDependencyWaiting,
-      ...rejectedTransitionBlocked,
       ...rejectedBlocked,
     ],
     candidates,

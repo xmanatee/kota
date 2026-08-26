@@ -1,40 +1,23 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
-  parseBlockedPrecondition,
-  readOperatorCaptureInstructedMarker,
-  readOwnerAskMarkers,
-} from "./blocked-precondition.js";
-import {
-  verifyProductionReplacementCompletion,
-} from "./production-replacement-completion.js";
-import {
-  PRODUCTION_REPLACEMENT_SECTION,
-  parseProductionReplacementDeclaration,
-} from "./production-replacement-proof.js";
+  findFlatFrontMatterSeparator,
+  parseFlatFrontMatter,
+  splitFrontMatter,
+} from "#core/util/frontmatter.js";
+import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
   getRepoTaskStateDir,
-  hasConcreteTaskAcceptanceEvidence,
-  hasProductSafetyTaskLink,
   REPO_TASK_STATES,
   type RepoTaskState,
-  TASK_INITIATIVE_PLACEHOLDER,
-  TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
 import {
   findDroppedTaskDependencyIds,
   findDuplicateTaskDependencyIds,
-  findRedundantTaskDependencyIds,
   parseTaskDependencyIds,
   TASK_DEPENDENCIES_FIELD,
 } from "./task-dependencies.js";
-import {
-  declaresRenderedEvidence,
-  hasConcreteRenderedEvidence,
-  hasNamedRenderedEvidence,
-  requiresRenderedCompletionEvidence,
-} from "./task-rendered-evidence.js";
+import { isRepoTaskId } from "./task-id.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
 
@@ -52,15 +35,7 @@ export type TaskQueueValidationResult = {
   warningCount: number;
 };
 
-export type TaskQueueValidationOptions = {
-  minReady?: number;
-  recommendedMinReady?: number;
-  recommendedMinBacklog?: number;
-  maxDoing?: number;
-  staleBlockedDays?: number;
-};
-
-export type TaskFileEntry = {
+type TaskFileEntry = {
   state: RepoTaskState;
   fileName: string;
   path: string;
@@ -68,321 +43,117 @@ export type TaskFileEntry = {
   raw: string;
 };
 
-const ACTIVE_STEERING_FILES = [
-  "AGENTS.md",
-  "docs/STANDARDS.md",
-  "data/tasks/AGENTS.md",
-  "src/modules/autonomy/workflows/AGENTS.md",
+type TaskEntryScan = {
+  entries: TaskFileEntry[];
+  findings: TaskQueueValidationFinding[];
+};
+
+const REQUIRED_ATTRS = [
+  "title",
+  "priority",
+  "area",
+  "summary",
+  "created_at",
+  "updated_at",
 ] as const;
 
-const ACTIVE_TASK_STATES: RepoTaskState[] = ["ready", "backlog", "doing", "blocked"];
-
-const SOURCE_ACCESS_FAILURE_INDICATORS = [
-  /\binaccessible\b/i,
-  /\bnot\s+fetched\b/i,
-  /\bcannot\s+(?:access|review|read|fetch)\b/i,
-  /\bcould\s+not\s+(?:access|review|read|fetch)\b/i,
-  /\bauth[- ]?walled\b/i,
-  /\b(?:returned?|got|received|status)\s+(?:HTTP\s+)?40[123]\b/i,
-  /\bsource\s+unavailable\b/i,
-  /\bpaywall(?:ed)?\b/i,
-] as const;
-
-const SOURCE_ACCESS_HONEST_HANDLING = [
-  /\bblocker\b/i,
-  /\bfollow[- ]?up\b/i,
-  /\benabler\b/i,
-  /\bnext\s+action\b/i,
-  /\bno\s+longer\s+(?:needed|relevant|worth)\b/i,
-  /\bcreated?\s+task\b/i,
-  /\bblocked\s+(?:on|by|until)\b/i,
-  /\bdeferred\b/i,
-  /\bnot\s+applicable\b/i,
-  /\bunrelated\b/i,
-  /\bcaptured\s+into\b/i,
-  /\bdropped\b/i,
-];
-
-const SPEC_SECTION_HEADINGS = [
-  "Problem",
-  "Desired Outcome",
-  "Constraints",
-  "Done When",
-] as const;
-
-const ACTIVE_REQUIRED_SECTIONS = [
-  "## Source / Intent",
-  "## Acceptance Evidence",
-] as const;
-
-const STRATEGIC_REQUIRED_SECTIONS = [
-  "## Initiative",
-] as const;
-
-const TASK_CLASSES = ["Product", "Safety", "Platform", "Meta"] as const;
-const ACTIONABLE_META_STATES: ReadonlySet<RepoTaskState> = new Set(["ready", "doing"]);
-const FAN_OUT_CONSOLIDATION_TASK_PREFIX = "task-fan-out-consolidation-";
-const DEFAULT_STALE_BLOCKED_DAYS = 14;
-const BLOCKED_ACTION_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
-// Historical done records before this builder run remain audit inputs; moveTaskById
-// enforces the stricter completion evidence gate on every future transition.
-const COMPLETION_EVIDENCE_GATE_EFFECTIVE_AT = Date.parse("2026-07-07T15:50:32.148Z");
-
-const ACTIVE_QUALITY_SECTION_HEADINGS = [
-  "Source / Intent",
-  "Initiative",
-  "Acceptance Evidence",
-] as const;
-
-function stripSpecSections(raw: string): string {
-  let out = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-  for (const heading of [
-    ...SPEC_SECTION_HEADINGS,
-    ...ACTIVE_QUALITY_SECTION_HEADINGS,
-  ]) {
-    const pattern = new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |\\s*$)`, "g");
-    out = out.replace(pattern, "");
-  }
-  return out;
-}
-
-export function hasDishonestSourceAccessCompletion(entry: TaskFileEntry): boolean {
-  if (entry.state !== "done") return false;
-  const body = stripSpecSections(entry.raw);
-  const hasFailureIndicator = SOURCE_ACCESS_FAILURE_INDICATORS.some((p) => p.test(body));
-  if (!hasFailureIndicator) return false;
-  const hasHonestHandling = SOURCE_ACCESS_HONEST_HANDLING.some((p) => p.test(body));
-  return !hasHonestHandling;
-}
-
-const DISALLOWED_NPM_COMMAND = /\bnpm\s+(?:run|test|install|i|ci|exec|start|build|lint|typecheck)\b/;
-const DISALLOWED_SMALL_DIFF_GUIDANCE = [
-  /\bsmall(?:est)?\s+(?:change|diff|patch|scope)\b/i,
-  /\bminimal\s+(?:change|diff|patch|scope)\b/i,
-  /\bsurgical\s+(?:change|fix|patch|scope)\b/i,
-  /\btouches more files than\b/i,
-] as const;
-
-function listTaskEntries(projectDir: string): TaskFileEntry[] {
+function listTaskEntries(projectDir: string): TaskEntryScan {
   const entries: TaskFileEntry[] = [];
+  const findings: TaskQueueValidationFinding[] = [];
   for (const state of REPO_TASK_STATES) {
     const dir = getRepoTaskStateDir(projectDir, state);
-    if (!existsSync(dir)) {
-      continue;
-    }
-    for (const fileName of readdirSync(dir)) {
-      if (!fileName.endsWith(".md") || fileName === "AGENTS.md") {
+    if (!existsSync(dir)) continue;
+    for (const dirent of readdirSync(dir, { withFileTypes: true })) {
+      if (!dirent.name.endsWith(".md") || dirent.name === "AGENTS.md") continue;
+      const path = join(dir, dirent.name);
+      if (!dirent.isFile()) {
+        findings.push({
+          code: "task-path-unsafe",
+          severity: "error",
+          message: `${path} must be a regular task file; links and special entries are not allowed`,
+          paths: [path],
+        });
         continue;
       }
-      const path = join(dir, fileName);
       entries.push({
         state,
-        fileName,
+        fileName: dirent.name,
         path,
-        taskId: basename(fileName, ".md"),
+        taskId: basename(dirent.name, ".md"),
         raw: readFileSync(path, "utf8"),
       });
     }
   }
-  return entries;
-}
-
-function listFilesRecursive(dir: string, predicate: (path: string) => boolean): string[] {
-  if (!existsSync(dir)) return [];
-  const paths: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      paths.push(...listFilesRecursive(path, predicate));
-      continue;
-    }
-    if (entry.isFile() && predicate(path)) {
-      paths.push(path);
-    }
-  }
-  return paths;
+  return { entries, findings };
 }
 
 function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
   const dataDir = join(projectDir, "data");
   if (!existsSync(dataDir)) return [];
-
   const paths: string[] = [];
-  function walk(dir: string): void {
+  const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-
       const path = join(dir, entry.name);
       if (entry.name === ".kota" || entry.name === "runs") {
         paths.push(`${relative(projectDir, path)}/`);
-        continue;
+      } else {
+        walk(path);
       }
-
-      walk(path);
     }
-  }
-
+  };
   walk(dataDir);
   return paths.sort();
 }
 
-function listActivePackageManagerGuidanceFiles(projectDir: string): string[] {
-  const explicitFiles = ACTIVE_STEERING_FILES
-    .map((path) => join(projectDir, path))
-    .filter((path) => existsSync(path));
-
-  const promptFiles = listFilesRecursive(
-    join(projectDir, "src", "modules", "autonomy", "workflows"),
-    (path) => basename(path) === "prompt.md",
-  );
-
-  const activeTaskFiles = ACTIVE_TASK_STATES.flatMap((state) => {
-    const dir = getRepoTaskStateDir(projectDir, state);
-    if (!existsSync(dir)) return [];
-    return readdirSync(dir)
-      .filter((fileName) => fileName.endsWith(".md") && fileName !== "AGENTS.md")
-      .map((fileName) => join(dir, fileName));
-  });
-
-  return [...explicitFiles, ...promptFiles, ...activeTaskFiles].sort();
-}
-
-function findNpmPackageManagerGuidance(projectDir: string): string[] {
-  return listActivePackageManagerGuidanceFiles(projectDir)
-    .filter((path) => DISALLOWED_NPM_COMMAND.test(readFileSync(path, "utf8")))
-    .map((path) => path.slice(projectDir.length + 1));
-}
-
-function findSmallDiffOptimizingGuidance(projectDir: string): string[] {
-  return listActivePackageManagerGuidanceFiles(projectDir)
-    .filter((path) => {
-      const raw = readFileSync(path, "utf8");
-      return DISALLOWED_SMALL_DIFF_GUIDANCE.some((pattern) => pattern.test(raw));
-    })
-    .map((path) => path.slice(projectDir.length + 1));
-}
-
-function readTaskArea(entry: TaskFileEntry): string | null {
-  const { attrs } = parseFlatFrontMatter(entry.raw);
-  const area = String(attrs.area ?? "").trim();
-  return area.length > 0 ? area : null;
-}
-
-function readTaskPriority(entry: TaskFileEntry): string | null {
-  const { attrs } = parseFlatFrontMatter(entry.raw);
-  const priority = String(attrs.priority ?? "").trim();
-  return priority.length > 0 ? priority : null;
-}
-
-function readTaskClass(attrs: Record<string, string | string[]>): string | null {
-  const taskClass = String(attrs.task_class ?? "").trim();
-  return taskClass.length > 0 ? taskClass : null;
-}
-
-function isStrategicPriority(priority: string | null): boolean {
-  return priority === "p0" || priority === "p1" || priority === "p2";
-}
-
-function isOpenTaskState(state: RepoTaskState): boolean {
-  return state === "ready" || state === "backlog" || state === "doing" || state === "blocked";
-}
-
-function extractSection(raw: string, heading: string): string | null {
-  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Capture from the heading up to the next `## ` heading or end of input.
-  // `(?![\s\S])` is the JS-compatible "end of input" assertion. Earlier
-  // versions used `\s*$` here, but with the `m` flag `$` matches every
-  // line end, which silently truncated multi-line evidence sections to
-  // just the first non-blank line.
-  const match = raw.match(
-    new RegExp(`^## ${escapedHeading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m"),
-  );
-  if (!match) return null;
-  const body = match[1].trim();
-  return body.length > 0 ? body : null;
-}
-
-function hasSubstantiveSection(raw: string, heading: string): boolean {
-  const section = extractSection(raw, heading);
-  if (!section) return false;
-  if (section.includes(TASK_SOURCE_INTENT_PLACEHOLDER) || section.includes(TASK_INITIATIVE_PLACEHOLDER)) {
-    return false;
+function frontmatterSyntaxError(raw: string): string | null {
+  const split = splitFrontMatter(raw);
+  if (!split) return "missing or unterminated flat frontmatter block";
+  const keys = new Set<string>();
+  for (const line of split.frontmatter.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = findFlatFrontMatterSeparator(trimmed);
+    if (separator < 1) return `malformed frontmatter line: ${trimmed}`;
+    const key = trimmed.slice(0, separator).trim();
+    if (keys.has(key)) return `duplicate frontmatter field: ${key}`;
+    keys.add(key);
   }
-  return section.replace(/[-*\s]/g, "").length >= 12;
+  return null;
 }
 
-function hasGeneratedDesiredOutcomePlaceholder(raw: string): boolean {
-  const desiredOutcome = extractSection(raw, "Desired Outcome");
-  return desiredOutcome !== null &&
-    /^Resolve autonomy issue \S+ at semantic revision \S+\.$/.test(desiredOutcome);
-}
+function findDependencyCycle(
+  graph: ReadonlyMap<string, readonly string[]>,
+): string[] | null {
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const stack: string[] = [];
 
-function listDuplicateFanOutConsolidationRows(raw: string): string[] {
-  const section = extractSection(raw, "Multi-client fan-out batch");
-  if (!section) return [];
-  const taskIds = [...section.matchAll(/^- (task-[^\s]+) \([^)]+\) — .+$/gm)]
-    .map((match) => match[1] ?? "");
-  const counts = new Map<string, number>();
-  for (const taskId of taskIds) counts.set(taskId, (counts.get(taskId) ?? 0) + 1);
-  return [...counts.entries()]
-    .filter(([, count]) => count > 1)
-    .map(([taskId]) => taskId)
-    .sort();
-}
+  const visit = (taskId: string): string[] | null => {
+    visited.add(taskId);
+    visiting.add(taskId);
+    stack.push(taskId);
+    for (const dependency of graph.get(taskId) ?? []) {
+      if (!graph.has(dependency)) continue;
+      if (!visited.has(dependency)) {
+        const nested = visit(dependency);
+        if (nested) return nested;
+      } else if (visiting.has(dependency)) {
+        const start = stack.indexOf(dependency);
+        return [...stack.slice(start), dependency];
+      }
+    }
+    stack.pop();
+    visiting.delete(taskId);
+    return null;
+  };
 
-function blockedTaskAgeDays(
-  updatedAt: string | string[] | undefined,
-  nowMs: number,
-): number | null {
-  const value = Array.isArray(updatedAt) ? updatedAt.join(",") : updatedAt;
-  const ms = Date.parse(value ?? "");
-  if (Number.isNaN(ms)) return null;
-  return Math.floor((nowMs - ms) / (24 * 60 * 60 * 1000));
-}
-
-function hasFreshBlockedActionMarker(
-  entry: TaskFileEntry,
-  parsed: ReturnType<typeof parseBlockedPrecondition>,
-  nowMs: number,
-): boolean {
-  if (!parsed.ok) return false;
-  const precondition = parsed.precondition;
-  if (precondition.kind === "owner-decision") {
-    return readOwnerAskMarkers(entry.raw).some((marker) => {
-      if (marker.slot !== precondition.slot) return false;
-      const ms = Date.parse(marker.lastAskedAt);
-      return !Number.isNaN(ms) && nowMs - ms < BLOCKED_ACTION_COOLDOWN_MS;
-    });
+  for (const taskId of graph.keys()) {
+    if (visited.has(taskId)) continue;
+    const cycle = visit(taskId);
+    if (cycle) return cycle;
   }
-  if (precondition.kind === "operator-capture") {
-    const marker = readOperatorCaptureInstructedMarker(entry.raw);
-    if (!marker) return false;
-    const ms = Date.parse(marker.lastInstructedAt);
-    return !Number.isNaN(ms) && nowMs - ms < BLOCKED_ACTION_COOLDOWN_MS;
-  }
-  return false;
-}
-
-/**
- * Areas that classify a task as user-facing client/channel work, where
- * `## Acceptance Evidence` must name a rendered/runtime artifact when the
- * task declares one in its outcome. Other areas (autonomy, architecture,
- * core, ...) skip this gate even if they reference screenshots/transcripts
- * as part of meta-discussion (e.g. validators that *enforce* evidence).
- */
-const CLIENT_CHANNEL_AREAS: ReadonlySet<string> = new Set(["client", "channel"]);
-
-export {
-  declaresRenderedEvidence,
-  hasConcreteRenderedEvidence,
-  hasConcreteRenderedEvidenceReference,
-  hasNamedRenderedEvidence,
-} from "./task-rendered-evidence.js";
-
-function isCompletionEvidenceGateEffective(updatedAt: string | string[] | undefined): boolean {
-  const value = Array.isArray(updatedAt) ? updatedAt.join(",") : updatedAt;
-  const ms = Date.parse(value ?? "");
-  return !Number.isNaN(ms) && ms >= COMPLETION_EVIDENCE_GATE_EFFECTIVE_AT;
+  return null;
 }
 
 export function formatTaskQueueValidationSummary(
@@ -401,52 +172,14 @@ function formatFindingList(findings: TaskQueueValidationFinding[]): string {
     .join("\n");
 }
 
-function findDependencyCycle(
-  graph: ReadonlyMap<string, readonly string[]>,
-): string[] | null {
-  const visited = new Set<string>();
-  const visiting = new Set<string>();
-  const stack: string[] = [];
-
-  function visit(taskId: string): string[] | null {
-    visited.add(taskId);
-    visiting.add(taskId);
-    stack.push(taskId);
-    for (const dependency of graph.get(taskId) ?? []) {
-      if (!graph.has(dependency)) continue;
-      if (!visited.has(dependency)) {
-        const nested = visit(dependency);
-        if (nested) return nested;
-        continue;
-      }
-      if (visiting.has(dependency)) {
-        const start = stack.indexOf(dependency);
-        return [...stack.slice(start), dependency];
-      }
-    }
-    stack.pop();
-    visiting.delete(taskId);
-    return null;
-  }
-
-  for (const taskId of graph.keys()) {
-    if (visited.has(taskId)) continue;
-    const cycle = visit(taskId);
-    if (cycle) return cycle;
-  }
-  return null;
-}
-
-export function validateTaskQueue(
-  projectDir: string,
-  options: TaskQueueValidationOptions = {},
-): TaskQueueValidationResult {
-  const entries = listTaskEntries(projectDir);
+export function validateTaskQueue(projectDir: string): TaskQueueValidationResult {
+  const scan = listTaskEntries(projectDir);
+  const entries = scan.entries;
   const counts = Object.fromEntries(
     REPO_TASK_STATES.map((state) => [state, 0]),
   ) as Record<RepoTaskState, number>;
-  const findings: TaskQueueValidationFinding[] = [];
-  const seenTaskStates = new Map<string, string[]>();
+  const findings = [...scan.findings];
+  const seenTaskStates = new Map<string, RepoTaskState[]>();
   const dependencyGraph = new Map<string, string[]>();
 
   for (const entry of entries) {
@@ -454,62 +187,49 @@ export function validateTaskQueue(
     const seenStates = seenTaskStates.get(entry.taskId) ?? [];
     seenStates.push(entry.state);
     seenTaskStates.set(entry.taskId, seenStates);
+    dependencyGraph.set(entry.taskId, []);
 
-    const { attrs, body } = parseFlatFrontMatter(entry.raw);
-    const actualId = String(attrs.id || "");
+    if (!isRepoTaskId(entry.taskId)) {
+      findings.push({
+        code: "task-id-invalid",
+        severity: "error",
+        message: `${entry.path} filename does not contain a valid task id`,
+        paths: [entry.path],
+      });
+    }
+
+    const syntaxError = frontmatterSyntaxError(entry.raw);
+    if (syntaxError) {
+      findings.push({
+        code: "task-frontmatter-invalid",
+        severity: "error",
+        message: `${entry.path} has invalid metadata: ${syntaxError}`,
+        paths: [entry.path],
+      });
+    }
+
+    const { attrs } = parseFlatFrontMatter(entry.raw);
+    const actualId = String(attrs.id ?? "");
     if (actualId !== entry.taskId) {
       findings.push({
         code: "task-id-mismatch",
         severity: "error",
-        message: `${entry.path} frontmatter id "${actualId}" does not match filename "${entry.taskId}". ` +
-          `Fix: set id: ${entry.taskId} in frontmatter, or rename the file to ${actualId}.md`,
+        message: `${entry.path} frontmatter id "${actualId}" does not match filename "${entry.taskId}"`,
         paths: [entry.path],
       });
     }
-
-    const parsedDependencies = parseTaskDependencyIds(attrs);
-    let dependencies: string[] = [];
-    if (!parsedDependencies.ok) {
-      findings.push({
-        code: "task-dependencies-invalid",
-        severity: "error",
-        message: `${entry.path} has malformed ${TASK_DEPENDENCIES_FIELD}: ${parsedDependencies.error}`,
-        paths: [entry.path],
-      });
-    } else {
-      dependencies = parsedDependencies.dependencies;
-      dependencyGraph.set(entry.taskId, dependencies);
-      const duplicateDependencies = findDuplicateTaskDependencyIds(dependencies);
-      if (duplicateDependencies.length > 0) {
-        findings.push({
-          code: "task-dependency-duplicate",
-          severity: "error",
-          message: `${entry.path} declares duplicate hard predecessor task id(s): ${duplicateDependencies.join(", ")}`,
-          paths: [entry.path],
-        });
-      }
-      if (dependencies.includes(entry.taskId)) {
-        findings.push({
-          code: "task-dependency-self",
-          severity: "error",
-          message: `${entry.path} cannot depend on itself via ${TASK_DEPENDENCIES_FIELD}`,
-          paths: [entry.path],
-        });
-      }
-    }
-    const actualStatus = String(attrs.status || "");
+    const actualStatus = String(attrs.status ?? "");
     if (actualStatus !== entry.state) {
       findings.push({
         code: "task-status-mismatch",
         severity: "error",
-        message: `${entry.path} frontmatter status "${actualStatus}" does not match directory "${entry.state}". ` +
-          `Fix: run \`kota task move ${entry.taskId} ${entry.state}\` — never edit status frontmatter manually`,
+        message: `${entry.path} frontmatter status "${actualStatus}" does not match directory "${entry.state}"`,
         paths: [entry.path],
       });
     }
-    const REQUIRED_ATTRS = ["title", "priority", "area", "summary", "created_at", "updated_at"] as const;
+
     for (const attr of REQUIRED_ATTRS) {
-      if (typeof attrs[attr] !== "string" || String(attrs[attr]).trim().length === 0) {
+      if (typeof attrs[attr] !== "string" || attrs[attr].trim().length === 0) {
         findings.push({
           code: "task-missing-required-attr",
           severity: "error",
@@ -519,293 +239,97 @@ export function validateTaskQueue(
       }
     }
 
-    const priority = String(attrs.priority ?? "");
-    if (priority.length > 0 && !["p0", "p1", "p2", "p3"].includes(priority)) {
+    const priority = attrs.priority;
+    if (
+      typeof priority === "string" &&
+      priority.length > 0 &&
+      !["p0", "p1", "p2", "p3"].includes(priority)
+    ) {
       findings.push({
         code: "task-invalid-priority",
         severity: "error",
-        message: `${entry.path} has invalid priority "${priority}"; must be one of p0, p1, p2, p3`,
+        message: `${entry.path} has invalid priority "${priority}"`,
         paths: [entry.path],
       });
     }
-
-    const taskClass = readTaskClass(attrs);
-    if (isOpenTaskState(entry.state) && taskClass === null) {
-      findings.push({
-        code: "open-task-missing-class",
-        severity: "error",
-        message: `${entry.path} is open work but does not declare task_class. ` +
-          `Classify it as one of ${TASK_CLASSES.join(", ")} so queue ordering and governance do not silently treat it as unclassified.`,
-        paths: [entry.path],
-      });
-    }
-    if (taskClass !== null && !(TASK_CLASSES as readonly string[]).includes(taskClass)) {
-      findings.push({
-        code: "task-invalid-class",
-        severity: "error",
-        message: `${entry.path} has invalid task_class "${taskClass}"; must be one of ${TASK_CLASSES.join(", ")}`,
-        paths: [entry.path],
-      });
-    }
-
-    const productionReplacement = attrs.production_replacement;
-    if (
-      productionReplacement !== undefined &&
-      productionReplacement !== "true"
-    ) {
-      findings.push({
-        code: "task-production-replacement-invalid-flag",
-        severity: "error",
-        message: `${entry.path} has invalid production_replacement=${JSON.stringify(productionReplacement)}; ` +
-          "omit the field for ordinary work or set the literal true for a cross-cutting runtime replacement.",
-        paths: [entry.path],
-      });
-    }
-    if (productionReplacement === "true") {
-      const declaration = parseProductionReplacementDeclaration(body);
-      if (declaration.kind !== "valid") {
-        const reason = declaration.kind === "absent"
-          ? `missing ## ${PRODUCTION_REPLACEMENT_SECTION}`
-          : declaration.error;
-        findings.push({
-          code: "task-production-replacement-contract-invalid",
-          severity: "error",
-          message: `${entry.path} declares production_replacement=true but its behavioral completion contract is invalid: ${reason}`,
-          paths: [entry.path],
-        });
-      } else if (entry.state === "done") {
-        const completion = verifyProductionReplacementCompletion({
-          raw: body,
-          taskId: entry.taskId,
-          projectDir,
-        });
-        if (!completion.ok) {
-          findings.push({
-            code: "done-production-replacement-proof-incomplete",
-            severity: "error",
-            message: `${entry.path} cannot complete its production replacement contract: ${completion.error}`,
-            paths: [entry.path],
-          });
-        }
-      }
-    }
-
-    const REQUIRED_SECTIONS = ["## Problem", "## Desired Outcome", "## Constraints", "## Done When"] as const;
-    for (const section of REQUIRED_SECTIONS) {
-      if (!entry.raw.includes(section)) {
-        findings.push({
-          code: "task-missing-required-section",
-          severity: "error",
-          message: `${entry.path} is missing required section: ${section}`,
-          paths: [entry.path],
-        });
-      }
-    }
-
-    if (isOpenTaskState(entry.state)) {
-      if (hasGeneratedDesiredOutcomePlaceholder(entry.raw)) {
-        findings.push({
-          code: "open-task-placeholder-outcome",
-          severity: "error",
-          message: `${entry.path} still uses the generated autonomy-issue placeholder as its Desired Outcome. ` +
-            "Replace it with the concrete behavior or operator result the builder must establish.",
-          paths: [entry.path],
-        });
-      }
-
-      for (const section of ACTIVE_REQUIRED_SECTIONS) {
-        if (!entry.raw.includes(section)) {
-          findings.push({
-            code: "open-task-missing-quality-section",
-            severity: "error",
-            message: `${entry.path} is open work but is missing required section: ${section}. ` +
-              "Open tasks must preserve source intent and define acceptance evidence before builders pull them.",
-            paths: [entry.path],
-          });
-        }
-      }
-
-      if (!hasSubstantiveSection(entry.raw, "Source / Intent")) {
-        findings.push({
-          code: "open-task-weak-source-intent",
-          severity: "error",
-          message: `${entry.path} needs a substantive ## Source / Intent section. ` +
-            "Preserve the owner/request/research source and the urgency or product reason behind the work.",
-          paths: [entry.path],
-        });
-      }
-
-      if (!hasConcreteTaskAcceptanceEvidence(entry.raw)) {
-        findings.push({
-          code: "open-task-missing-acceptance-evidence",
-          severity: "error",
-          message: `${entry.path} needs concrete ## Acceptance Evidence bullets or artifact references. ` +
-            "The task must say how completion will be demonstrated, not only what code may change.",
-          paths: [entry.path],
-        });
-      }
-
-      if (taskClass === "Meta" && ACTIONABLE_META_STATES.has(entry.state) && !hasProductSafetyTaskLink(entry.raw)) {
-        findings.push({
-          code: "meta-task-missing-product-safety-link",
-          severity: "error",
-          message: `${entry.path} is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes. ` +
-            "Add a ## Product / Safety Link section naming the blocker or keep the task out of ready/doing.",
-          paths: [entry.path],
-        });
-      }
-
-      if (entry.taskId.startsWith(FAN_OUT_CONSOLIDATION_TASK_PREFIX)) {
-        const duplicateRows = listDuplicateFanOutConsolidationRows(entry.raw);
-        if (duplicateRows.length > 0) {
-          findings.push({
-            code: "fan-out-consolidation-duplicate-task-rows",
-            severity: "error",
-            message: `${entry.path} lists the same closed task more than once in its fan-out batch: ` +
-              `${duplicateRows.join(", ")}. The consolidator must assign one primary surface per closed task; ` +
-              `refresh the generated batch metadata or drop the invalid consolidation task.`,
-            paths: [entry.path],
-          });
-        }
-      }
-
-      const area = readTaskArea(entry);
+    for (const attr of ["created_at", "updated_at"] as const) {
       if (
-        area !== null &&
-        CLIENT_CHANNEL_AREAS.has(area) &&
-        declaresRenderedEvidence(entry.raw) &&
-        !hasNamedRenderedEvidence(entry.raw)
+        typeof attrs[attr] === "string" &&
+        attrs[attr].length > 0 &&
+        Number.isNaN(Date.parse(attrs[attr]))
       ) {
         findings.push({
-          code: "client-task-missing-rendered-evidence",
+          code: "task-date-invalid",
           severity: "error",
-          message: `${entry.path} is an area=${area} task that declares rendered/runtime evidence in its ` +
-            `Desired Outcome or Done When (screenshot, screencast, rendered artifact/fixture, transcript, ` +
-            `runtime probe, or visual evidence) but its ## Acceptance Evidence section does not name any of those ` +
-            `artifact kinds. User-facing client/channel work needs evidence an operator can inspect — not only ` +
-            `test logs. Add a screenshot/transcript/fixture/runtime-probe bullet, or document an operator-capture ` +
-            `precondition if the artifact must be captured manually. See data/tasks/AGENTS.md for accepted artifact ` +
-            `kinds per surface.`,
+          message: `${entry.path} has an invalid ${attr} timestamp`,
           paths: [entry.path],
         });
       }
+    }
 
-      const priority = readTaskPriority(entry);
-      if (isStrategicPriority(priority)) {
-        for (const section of STRATEGIC_REQUIRED_SECTIONS) {
-          if (!entry.raw.includes(section)) {
-            findings.push({
-              code: "strategic-task-missing-initiative",
-              severity: "error",
-              message: `${entry.path} is ${priority} open work but is missing required section: ${section}. ` +
-                "Strategic work must name the larger outcome so it does not become an isolated tiny task.",
-              paths: [entry.path],
-            });
-          }
-        }
-        if (!hasSubstantiveSection(entry.raw, "Initiative")) {
-          findings.push({
-            code: "strategic-task-weak-initiative",
-            severity: "error",
-            message: `${entry.path} needs a substantive ## Initiative section that names the broader outcome/campaign.`,
-            paths: [entry.path],
-          });
-        }
+    const parsedDependencies = parseTaskDependencyIds(attrs);
+    if (!parsedDependencies.ok) {
+      findings.push({
+        code: "task-dependencies-invalid",
+        severity: "error",
+        message: `${entry.path} has malformed ${TASK_DEPENDENCIES_FIELD}: ${parsedDependencies.error}`,
+        paths: [entry.path],
+      });
+    } else {
+      const dependencies = parsedDependencies.dependencies;
+      dependencyGraph.set(entry.taskId, dependencies);
+      const duplicates = findDuplicateTaskDependencyIds(dependencies);
+      if (duplicates.length > 0) {
+        findings.push({
+          code: "task-dependency-duplicate",
+          severity: "error",
+          message: `${entry.path} repeats predecessor id(s): ${duplicates.join(", ")}`,
+          paths: [entry.path],
+        });
+      }
+      if (dependencies.includes(entry.taskId)) {
+        findings.push({
+          code: "task-dependency-self",
+          severity: "error",
+          message: `${entry.path} cannot depend on itself`,
+          paths: [entry.path],
+        });
       }
     }
 
     if (entry.state === "blocked") {
       const parsed = parseBlockedPrecondition(entry.raw);
       if (!parsed.ok) {
-        const message = parsed.error === "missing-section"
-          ? `${entry.path} is in blocked/ but is missing the required ## Unblock Precondition section. ` +
-            `Add a precondition (kind: task-done | capability-installed | owner-decision | operator-capture) ` +
-            `so the autonomy loop can re-evaluate the block instead of waiting on human re-review.`
-          : `${entry.path} has a malformed ## Unblock Precondition: ${parsed.error}`;
         findings.push({
           code: "blocked-task-precondition-invalid",
           severity: "error",
-          message,
+          message: `${entry.path} has an invalid unblock precondition: ${parsed.error}`,
           paths: [entry.path],
         });
-      } else {
-        if (parsed.precondition.kind === "task-done") {
-          const expected = parsed.precondition.ref;
-          if (
-            parsedDependencies.ok &&
-            (dependencies.length !== 1 || dependencies[0] !== expected)
-          ) {
-            findings.push({
-              code: "blocked-task-done-dependency-mismatch",
-              severity: "error",
-              message: `${entry.path} uses a task-done unblock precondition for ${expected}; ` +
-                `${TASK_DEPENDENCIES_FIELD} must be exactly [${expected}] so the hard predecessor edge has one canonical source.`,
-              paths: [entry.path],
-            });
-          }
-        }
-        const nowMs = Date.now();
-        const ageDays = blockedTaskAgeDays(attrs.updated_at, nowMs);
-        const staleAfterDays = options.staleBlockedDays ?? DEFAULT_STALE_BLOCKED_DAYS;
+      } else if (parsed.precondition.kind === "task-done" && parsedDependencies.ok) {
+        const dependencies = parsedDependencies.dependencies;
         if (
-          ageDays !== null &&
-          ageDays >= staleAfterDays &&
-          !hasFreshBlockedActionMarker(entry, parsed, nowMs)
+          dependencies.length !== 1 ||
+          dependencies[0] !== parsed.precondition.ref
         ) {
           findings.push({
-            code: "blocked-task-stale",
-            severity: "warning",
-            message: `${entry.path} has been blocked for ${ageDays} days without a fresh owner ask or operator-capture instruction marker. ` +
-              `Fix: satisfy the precondition, move/drop/rescope the task, or let blocked-promoter refresh the applicable action marker.`,
+            code: "blocked-task-done-dependency-mismatch",
+            severity: "error",
+            message: `${entry.path} task-done precondition and ${TASK_DEPENDENCIES_FIELD} must name the same sole predecessor`,
             paths: [entry.path],
           });
         }
       }
     }
-
-    if (
-      entry.state === "done" &&
-      isCompletionEvidenceGateEffective(attrs.updated_at) &&
-      requiresRenderedCompletionEvidence({
-        title: typeof attrs.title === "string" ? attrs.title : null,
-        area: typeof attrs.area === "string" ? attrs.area : null,
-        summary: typeof attrs.summary === "string" ? attrs.summary : null,
-        taskClass: readTaskClass(attrs),
-        body,
-      }) &&
-      !hasConcreteRenderedEvidence(body, projectDir, entry.taskId)
-    ) {
-      findings.push({
-        code: "done-operator-client-missing-rendered-evidence",
-        severity: "error",
-        message: `${entry.path} is a new done operator-facing client/control task but its ` +
-          `evidence sections do not reference an existing rendered/runtime proof artifact. ` +
-          `Add a CLI/dashboard/status transcript, web screenshot or trace, native snapshot/screenshot, ` +
-          `rendered fixture, or daemon route runtime probe at a concrete local path before completion. ` +
-          `Placeholders such as \`.kota/runs/<run-id>/transcript.txt\` do not satisfy done evidence.`,
-        paths: [entry.path],
-      });
-    }
-
-    if (hasDishonestSourceAccessCompletion(entry)) {
-      findings.push({
-        code: "done-task-inaccessible-source",
-        severity: "error",
-        message: `${entry.path} is marked done but records inaccessible or unread sources without a blocker, follow-up, or explicit rationale. ` +
-          `Fix: move the task to blocked, add a follow-up task, or document why the source is no longer needed`,
-        paths: [entry.path],
-      });
-    }
   }
 
   for (const [taskId, states] of seenTaskStates) {
-    if (states.length > 1) {
-      findings.push({
-        code: "task-duplicate-state",
-        severity: "error",
-        message: `${taskId} appears in multiple task states: ${states.join(", ")}`,
-      });
-    }
+    if (states.length <= 1) continue;
+    findings.push({
+      code: "task-duplicate-state",
+      severity: "error",
+      message: `${taskId} appears in multiple task states: ${states.join(", ")}`,
+    });
   }
 
   const knownTaskIds = new Set(seenTaskStates.keys());
@@ -813,14 +337,23 @@ export function validateTaskQueue(
     entries.map((entry) => [entry.taskId, entry.state] as const),
   );
   for (const [taskId, dependencies] of dependencyGraph) {
+    const entry = entries.find((candidate) => candidate.taskId === taskId);
     for (const dependency of dependencies) {
       if (knownTaskIds.has(dependency)) continue;
-      const entry = entries.find((candidate) => candidate.taskId === taskId);
       findings.push({
         code: "task-dependency-missing",
         severity: "error",
-        message: `${entry?.path ?? taskId} depends on missing predecessor task id: ${dependency}`,
+        message: `${entry?.path ?? taskId} depends on missing predecessor: ${dependency}`,
         paths: entry ? [entry.path] : undefined,
+      });
+    }
+    const dropped = findDroppedTaskDependencyIds(dependencies, stateByTaskId);
+    if (entry && !["done", "dropped"].includes(entry.state) && dropped.length > 0) {
+      findings.push({
+        code: "task-dependency-dropped",
+        severity: "error",
+        message: `${entry.path} depends on dropped predecessor(s): ${dropped.join(", ")}`,
+        paths: [entry.path],
       });
     }
   }
@@ -834,142 +367,27 @@ export function validateTaskQueue(
     });
   }
 
-  for (const entry of entries) {
-    if (!isOpenTaskState(entry.state)) continue;
-    const dependencies = dependencyGraph.get(entry.taskId) ?? [];
-    const droppedDependencies = findDroppedTaskDependencyIds(
-      dependencies,
-      stateByTaskId,
-    );
-    if (droppedDependencies.length > 0) {
-      findings.push({
-        code: "task-dependency-dropped",
-        severity: "error",
-        message: `${entry.path} depends on dropped predecessor task id(s): ${droppedDependencies.join(", ")}. ` +
-          "Replace each edge with the accepted successor task or remove the obsolete work.",
-        paths: [entry.path],
-      });
-    }
-
-    if (!cycle) {
-      const redundantDependencies = findRedundantTaskDependencyIds(
-        entry.taskId,
-        dependencyGraph,
-      );
-      if (redundantDependencies.length > 0) {
-        findings.push({
-          code: "task-dependency-redundant",
-          severity: "error",
-          message: `${entry.path} repeats predecessor edge(s) already implied transitively: ${redundantDependencies.join(", ")}. ` +
-            "Keep only the immediate dependency boundary so sequencing has one canonical representation.",
-          paths: [entry.path],
-        });
-      }
-    }
-  }
-
-  const maxDoing = options.maxDoing ?? 1;
-  if (counts.doing > maxDoing) {
-    findings.push({
-      code: "too-many-doing",
-      severity: "error",
-      message: `data/tasks/doing contains ${counts.doing} tasks; maximum supported is ${maxDoing}`,
-    });
-  }
-
-  if (options.minReady !== undefined && counts.ready < options.minReady) {
-    findings.push({
-      code: "ready-underflow",
-      severity: "error",
-      message: `data/tasks/ready contains ${counts.ready} tasks; expected at least ${options.minReady}`,
-    });
-  }
-
-  if (
-    options.recommendedMinReady !== undefined &&
-    counts.ready < options.recommendedMinReady
-  ) {
-    findings.push({
-      code: "ready-thin",
-      severity: "warning",
-      message: `data/tasks/ready contains ${counts.ready} tasks; recommended minimum is ${options.recommendedMinReady}`,
-    });
-  }
-
-  if (
-    options.recommendedMinBacklog !== undefined &&
-    counts.backlog < options.recommendedMinBacklog
-  ) {
-    findings.push({
-      code: "backlog-thin",
-      severity: "warning",
-      message: `data/tasks/backlog contains ${counts.backlog} tasks; recommended minimum is ${options.recommendedMinBacklog}`,
-    });
-  }
-
-  const npmGuidancePaths = findNpmPackageManagerGuidance(projectDir);
-  if (npmGuidancePaths.length > 0) {
-    findings.push({
-      code: "active-guidance-uses-npm",
-      severity: "error",
-      message: `Active guidance and open tasks must use pnpm, not npm: ${npmGuidancePaths.join(", ")}. ` +
-        `Fix: replace npm run/test/install/exec/build commands with their pnpm equivalents in those files`,
-      paths: npmGuidancePaths,
-    });
-  }
-
-  const smallDiffGuidancePaths = findSmallDiffOptimizingGuidance(projectDir);
-  if (smallDiffGuidancePaths.length > 0) {
-    findings.push({
-      code: "active-guidance-optimizes-small-diffs",
-      severity: "error",
-      message: `Active guidance and open tasks must optimize for clean outcomes, not small diffs: ${smallDiffGuidancePaths.join(", ")}`,
-      paths: smallDiffGuidancePaths,
-    });
-  }
-
   const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(projectDir);
   if (nestedRuntimeStateDirs.length > 0) {
     findings.push({
       code: "data-nested-runtime-state",
       severity: "error",
-      message: `Runtime state directories are not allowed under data/: ${nestedRuntimeStateDirs.join(", ")}. ` +
-        "Move runtime artifacts under the project-root .kota/ directory and remove the nested data copy.",
+      message: `Runtime state directories are not allowed under data/: ${nestedRuntimeStateDirs.join(", ")}`,
       paths: nestedRuntimeStateDirs,
     });
   }
 
-  const errorCount = findings.filter((finding) => finding.severity === "error").length;
-  const warningCount = findings.filter((finding) => finding.severity === "warning").length;
-
   return {
     findings,
     counts,
-    errorCount,
-    warningCount,
+    errorCount: findings.filter((finding) => finding.severity === "error").length,
+    warningCount: findings.filter((finding) => finding.severity === "warning").length,
   };
 }
 
-export function assertTaskQueueValid(
-  projectDir: string,
-  options: TaskQueueValidationOptions = {},
-): TaskQueueValidationResult {
-  const result = validateTaskQueue(projectDir, options);
+export function assertTaskQueueValid(projectDir: string): TaskQueueValidationResult {
+  const result = validateTaskQueue(projectDir);
   const errors = result.findings.filter((finding) => finding.severity === "error");
-  if (errors.length > 0) {
-    throw new Error(formatFindingList(errors));
-  }
-  return result;
-}
-
-export function assertTaskQueueRecommendations(
-  projectDir: string,
-  options: TaskQueueValidationOptions = {},
-): TaskQueueValidationResult {
-  const result = validateTaskQueue(projectDir, options);
-  const warnings = result.findings.filter((finding) => finding.severity === "warning");
-  if (warnings.length > 0) {
-    throw new Error(formatFindingList(warnings));
-  }
+  if (errors.length > 0) throw new Error(formatFindingList(errors));
   return result;
 }

@@ -105,7 +105,7 @@ describe("progress-reviewer citation correction", () => {
             priority: "p1",
             area: "autonomy",
             evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
-            acceptanceEvidence: "The corrected workflow run cites the packet.",
+            howWeWillKnow: "The corrected workflow run cites the packet.",
           }] : [],
         },
       });
@@ -157,7 +157,7 @@ describe("progress-reviewer citation correction", () => {
           priority: "p1",
           area: "autonomy",
           evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
-          acceptanceEvidence: "This malformed action is never applied.",
+          howWeWillKnow: "This malformed action is never applied.",
         }] },
         ownerQuestions: [{
           topicKey: "citation-contract-exhausted-question",

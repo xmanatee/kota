@@ -1,14 +1,10 @@
-import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  AUTONOMY_CHANGE_DECISION_ARTIFACT,
   type AutonomyChangeDecisionArtifact,
   type AutonomyDecision,
-  checkAutonomyChangeDecisionForRun,
-  detectMaterialAutonomyChangeRequirement,
   parseAutonomyChangeDecisionArtifact,
   readAutonomyChangeDecisionArtifact,
   writeAutonomyChangeDecisionArtifact,
@@ -48,26 +44,6 @@ function decisionArtifact(
     followUpTaskIds: [],
     ...overrides,
   };
-}
-
-function diffFor(file: string, addedLines: readonly string[]): string {
-  return [
-    `diff --git a/${file} b/${file}`,
-    "index 0000001..0000002 100644",
-    `--- a/${file}`,
-    `+++ b/${file}`,
-    `@@ -1,1 +1,${Math.max(addedLines.length, 1)} @@`,
-    ...addedLines.map((line) => `+${line}`),
-  ].join("\n");
-}
-
-function initRepo(dir: string): void {
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "Test"', { cwd: dir });
-  writeFileSync(join(dir, "README.md"), "init\n");
-  execSync("git add README.md", { cwd: dir });
-  execSync('git commit -q -m "init"', { cwd: dir });
 }
 
 describe("autonomy change decision artifacts", () => {
@@ -130,75 +106,4 @@ describe("autonomy change decision artifacts", () => {
     ).toThrow("decision");
   });
 
-  it("detects material autonomy prompt, workflow, reviewer, and harness changes", () => {
-    const requirement = detectMaterialAutonomyChangeRequirement(
-      [
-        diffFor("src/modules/autonomy/workflows/builder/prompt.md", [
-          "Tighten critic prompt evidence handling.",
-        ]),
-        diffFor("src/modules/autonomy/workflows/builder/workflow.ts", [
-          "const repairLoop = { maxRepairAttempts: undefined };",
-        ]),
-        diffFor("src/modules/autonomy/review-scrutiny-collect.ts", [
-          "const reviewerVerdict = artifact.verdict;",
-        ]),
-        diffFor("src/core/agent-harness/executor.ts", [
-          "export const harnessModel = model;",
-        ]),
-      ].join("\n"),
-    );
-
-    expect(requirement.required).toBe(true);
-    expect(requirement.changeClasses).toEqual([
-      "workflow",
-      "prompt",
-      "harness",
-      "reviewer",
-      "critic-gate",
-      "repair-loop",
-    ]);
-    expect(requirement.changedFiles).toContain(
-      "src/modules/autonomy/workflows/builder/prompt.md",
-    );
-  });
-
-  it("requires a valid decision artifact for staged material autonomy changes", () => {
-    initRepo(tmpDir);
-    const workflowDir = join(
-      tmpDir,
-      "src",
-      "modules",
-      "autonomy",
-      "workflows",
-      "builder",
-    );
-    mkdirSync(workflowDir, { recursive: true });
-    writeFileSync(
-      join(workflowDir, "workflow.ts"),
-      "export const workflow = { repairLoop: true };\n",
-    );
-    execSync("git add src/modules/autonomy/workflows/builder/workflow.ts", {
-      cwd: tmpDir,
-    });
-    const runDir = join(tmpDir, ".kota", "runs", "test-run");
-    mkdirSync(runDir, { recursive: true });
-
-    expect(() => checkAutonomyChangeDecisionForRun(tmpDir, runDir)).toThrow(
-      AUTONOMY_CHANGE_DECISION_ARTIFACT,
-    );
-
-    writeAutonomyChangeDecisionArtifact(
-      join(runDir, AUTONOMY_CHANGE_DECISION_ARTIFACT),
-      decisionArtifact("needs-more-data"),
-    );
-
-    expect(checkAutonomyChangeDecisionForRun(tmpDir, runDir)).toContain(
-      "covers 1 material autonomy file",
-    );
-    expect(
-      JSON.parse(
-        readFileSync(join(runDir, AUTONOMY_CHANGE_DECISION_ARTIFACT), "utf-8"),
-      ),
-    ).toMatchObject({ decision: "needs-more-data" });
-  });
 });

@@ -114,8 +114,9 @@ describe("scope improvement actions", () => {
           problem: "Scope guidance is ambiguous.",
           desiredOutcome: "One policy is selected.",
           constraints: ["Preserve the stable proposal identity."],
-          doneWhen: ["The selected policy is documented."],
-          acceptanceEvidence: ["A focused fixture proves the behavior."],
+          howWeWillKnow: [
+            "The selected policy is documented and its behavior is observable.",
+          ],
         },
       }],
     });

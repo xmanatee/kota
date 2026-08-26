@@ -4,10 +4,7 @@ title: Add direct unit tests for history-utils.ts
 status: done
 priority: p2
 area: testing
-summary: >
-  src/memory/history-utils.ts exposes extractText and countMessages — two pure
-  functions with no direct test coverage. Add a focused test file that exercises
-  all branches.
+summary: Add focused direct coverage for the pure extractText and countMessages history helpers.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---

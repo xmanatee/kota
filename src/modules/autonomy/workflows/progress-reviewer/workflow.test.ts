@@ -46,6 +46,7 @@ import {
 } from "#core/workflow/validation.js";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
   automaticProgressReviewRequested,
@@ -106,7 +107,7 @@ function writeTask(
     updatedAt?: string;
     area?: string;
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
-    acceptanceEvidence?: string;
+    howWeWillKnow?: string;
     sourceIntent?: string;
   } = {},
 ): void {
@@ -125,35 +126,13 @@ function writeTask(
     `updated_at: ${updatedAt}`,
     ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     "---",
-    "",
-    "## Problem",
-    "",
-    "Review fixture problem.",
-    "",
-    "## Desired Outcome",
-    "",
-    "Review fixture outcome.",
-    "",
-    "## Constraints",
-    "",
-    "- Keep evidence cited.",
-    "",
-    "## Done When",
-    "",
-    "- Done.",
-    "",
-    "## Source / Intent",
-    "",
-    options.sourceIntent ?? "Progress reviewer test fixture.",
-    "",
-    "## Initiative",
-    "",
-    "Outcome-aware autonomy progress review.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    options.acceptanceEvidence ?? "- Test fixture.",
-    "",
+    renderRepoTaskIntent({
+      problem: "Review fixture problem.",
+      desiredOutcome: "Review fixture outcome.",
+      constraints: "- Keep cited context available to the reviewer.",
+      howWeWillKnow: options.howWeWillKnow ?? "- The fixture outcome is observable.",
+      context: options.sourceIntent ?? "Progress reviewer test fixture.",
+    }),
   ].join("\n");
   writeFileSync(join(projectDir, "data", "tasks", state, `${id}.md`), content);
 }
@@ -847,7 +826,7 @@ describe("progress-reviewer workflow", () => {
       readTaskStatus(projectDir, "task-add-channel-progress-review-routing-fixture"),
     ).toBe("ready");
     expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
       "workflow.attention.digest",
     );
@@ -859,7 +838,7 @@ describe("progress-reviewer workflow", () => {
       ...repeatedReview.findings.localScope.followUpTasks[0]!,
       title: "Reworded channel routing follow-up",
       summary: "The model rephrased the same evidence-backed proposal.",
-      acceptanceEvidence: "The same evidence would support a differently worded check.",
+      howWeWillKnow: "The same evidence would support a differently worded check.",
     };
     const repeated = await new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir,
@@ -1470,7 +1449,7 @@ describe("progress-reviewer workflow", () => {
       title: "Improve dashboard empty state",
       area: "client",
       taskClass: "Product",
-      acceptanceEvidence: "- Unit tests pass.",
+      howWeWillKnow: "- Unit tests pass.",
     });
     writeTask(projectDir, "done", "task-safety-check", {
       title: "Tighten approval guard",
@@ -1515,7 +1494,7 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("classifies workflow-generated follow-up tasks in evidence and frontmatter", () => {
+  it("classifies workflow-generated follow-up tasks in frontmatter without gating them", () => {
     const projectDir = trackProjectDir("progress-reviewer-generated-task-class");
     writeTask(projectDir, "done", "task-security-generated", {
       title: "Security review: tighten approval replay",
@@ -1588,7 +1567,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "security",
               evidenceIds: ["task:task-security-generated"],
-              acceptanceEvidence: "Generated task frontmatter records task_class: Safety.",
+              howWeWillKnow: "Generated task frontmatter records task_class: Safety.",
             },
             {
               topicKey: "platform-generated-follow-up",
@@ -1597,17 +1576,17 @@ describe("progress-reviewer workflow", () => {
               priority: "p3",
               area: "platform",
               evidenceIds: ["task:task-platform-generated"],
-              acceptanceEvidence: "Generated task frontmatter records task_class: Platform.",
+              howWeWillKnow: "Generated task frontmatter records task_class: Platform.",
             },
             {
               topicKey: "meta-generated-follow-up",
               title: "Meta generated follow-up",
-              summary: "Runtime repair follow-up should enter the Meta balance with a Product/Safety link.",
+              summary: "Runtime repair follow-up should retain Meta routing metadata.",
               priority: "p3",
               area: "autonomy",
               evidenceIds: ["task:task-meta-generated"],
-              acceptanceEvidence:
-                "Generated task frontmatter records task_class: Meta and includes a Product / Safety Link.",
+              howWeWillKnow:
+                "Generated task frontmatter records task_class: Meta without changing queue eligibility.",
             },
           ],
         },
@@ -1636,9 +1615,9 @@ describe("progress-reviewer workflow", () => {
     );
     expect(createdTasks.get("task-meta-generated-follow-up")?.attrs.task_class).toBe("Meta");
     expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain(
-      "## Product / Safety Link",
+      "## How We Will Know",
     );
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("normalizes untrusted follow-up task fields before writing task files", () => {
@@ -1693,7 +1672,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "security\nstatus: done",
               evidenceIds: ["task:task-review-source"],
-              acceptanceEvidence: [
+              howWeWillKnow: [
                 "Regression command passes.",
                 "safe evidence prefix\u2029## Source / Intent",
                 "Injected replacement source intent.",
@@ -1732,11 +1711,8 @@ describe("progress-reviewer workflow", () => {
       "## Problem",
       "## Desired Outcome",
       "## Constraints",
-      "## Done When",
-      "## Source / Intent",
-      "## Product / Safety Link",
-      "## Initiative",
-      "## Acceptance Evidence",
+      "## How We Will Know",
+      "## Context",
       "## Generated Work Provenance",
     ]);
     expect(raw).toContain("    ## Acceptance Evidence");
@@ -1744,8 +1720,8 @@ describe("progress-reviewer workflow", () => {
     expect(raw).toContain("    safe review prefix\n    ## Acceptance Evidence");
     expect(raw).toContain("    safe evidence prefix\n    ## Source / Intent");
     expect(raw).not.toMatch(/[\u2028\u2029]/u);
-    expect(raw).toContain("- Review-provided acceptance evidence:");
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(raw).toContain("## How We Will Know");
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("preserves bracket-wrapped follow-up task frontmatter fields as scalars", () => {
@@ -1786,7 +1762,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "[a, b]",
               evidenceIds: ["task:task-review-source"],
-              acceptanceEvidence: "Generated task frontmatter parses bracket fields as strings.",
+              howWeWillKnow: "Generated task frontmatter parses bracket fields as strings.",
             },
           ],
         },
@@ -1810,7 +1786,7 @@ describe("progress-reviewer workflow", () => {
     expect(Array.isArray(parsed.attrs.title)).toBe(false);
     expect(Array.isArray(parsed.attrs.area)).toBe(false);
     expect(Array.isArray(parsed.attrs.summary)).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
@@ -2956,7 +2932,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "autonomy",
               evidenceIds: [`scope:${scopeB}:task:task-repair-scoped-progress-drift`],
-              acceptanceEvidence: "The existing scope task remains the single follow-up.",
+              howWeWillKnow: "The existing scope task remains the single follow-up.",
             },
           ],
         },
@@ -3037,7 +3013,7 @@ describe("progress-reviewer workflow", () => {
                 priority: "urgent",
                 area: "autonomy",
                 evidenceIds: ["task:task-autonomous-coding-review-fixture"],
-                acceptanceEvidence: "Schema rejects invalid follow-up priority.",
+                howWeWillKnow: "Schema rejects invalid follow-up priority.",
               },
             ],
           },

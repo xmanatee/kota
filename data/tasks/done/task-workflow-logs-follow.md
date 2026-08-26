@@ -4,11 +4,7 @@ title: Add --follow flag to kota workflow logs for live run monitoring
 status: done
 priority: p3
 area: workflow-cli
-summary: >
-  `kota workflow logs` reads completed run events, but operators cannot watch
-  an active run in progress. Since the daemon already appends agent messages
-  incrementally to `steps/*.events.jsonl`, a `--follow` mode is feasible without
-  runtime changes.
+summary: Add a follow mode that streams an active workflow run from its incrementally written event log.
 created_at: 2026-03-20
 updated_at: 2026-03-20
 ---

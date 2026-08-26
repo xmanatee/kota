@@ -103,7 +103,7 @@ describe("runtime health audit", () => {
         id: "dlq-local-execution",
         lastErrorClass: "execution",
         reason:
-          'Repair loop for step "build" made no progress after 3 consecutive attempts. Still failing: autonomy-change-decision',
+          'Repair loop for step "build" made no progress after 3 consecutive attempts. Still failing: task-queue-valid',
       }),
     ]);
 

@@ -11,6 +11,6 @@ seeds one consolidation review task per new batch in `ready/`.
   title or summary must not inflate a task into several surfaces.
 - Detection logic and task body live in `#modules/autonomy/fan-out-consolidation.js`
   so the proposer is testable as pure code.
-- The seeded task is `area: client` so the rendered-evidence validator gate
-  fires; a builder that tries to clear the consolidation with prose-only
-  test logs is rejected.
+- The seeded task is `area: client` because it reviews client behavior. Its
+  suggested operator evidence is guidance for the reviewer, not a queue
+  validation rule or automatic completion gate.
