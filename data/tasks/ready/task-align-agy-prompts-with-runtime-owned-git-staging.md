@@ -1,13 +1,13 @@
 ---
 id: task-align-agy-prompts-with-runtime-owned-git-staging
 title: Align AGY prompts with runtime-owned Git staging
-status: backlog
+status: ready
 priority: p1
 area: autonomy
 task_class: Platform
 summary: Remove the native AGY instruction to stage changes and enforce one Git ownership contract in which agents edit files while workflow runtime alone stages and commits.
 created_at: 2026-08-13T10:15:23.625Z
-updated_at: 2026-08-13T10:15:23.625Z
+updated_at: 2026-08-26T23:41:11.215Z
 ---
 
 ## Problem

@@ -1,14 +1,14 @@
 ---
 id: task-add-one-transactional-external-scope-onboarding-se
 title: Add one transactional external scope onboarding service
-status: backlog
+status: ready
 priority: p1
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration, task-make-scope-trust-and-policy-operator-mutable]
 summary: Create the sole inspect-plan-apply onboarding transaction for validating, configuring, registering, and activating a directory scope.
 created_at: 2026-07-31T16:12:51.436Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T23:41:11.443Z
 ---
 
 ## Problem
