@@ -19,6 +19,7 @@ import type { WorkflowAgentStep } from "../step-types.js";
 import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = {
   event: "runtime.idle",
@@ -157,7 +158,8 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -221,7 +223,8 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 

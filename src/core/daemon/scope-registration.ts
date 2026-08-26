@@ -1,4 +1,5 @@
 import { JsonFileError } from "#core/util/json-file.js";
+import { disposeLegacyOperationalState } from "#core/workflow/legacy-operational-state-cutover.js";
 import type { ProjectRuntime } from "./project-runtime.js";
 import { resolveLiveDirectoryScope } from "./scope-directory.js";
 import {
@@ -75,6 +76,11 @@ export async function registerDirectoryScope(
       rootPath: project.projectDir,
       displayName: project.displayName,
       createdAt: new Date().toISOString(),
+    });
+    disposeLegacyOperationalState({
+      projectDir: project.projectDir,
+      projectId: project.projectId,
+      runState: options.runState,
     });
   } catch (error) {
     try {

@@ -1,5 +1,6 @@
 import type { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
+import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import { projectStoredWorkflowOperationalState } from "./run-operational-projection.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRuntimeSnapshot } from "./run-types.js";
@@ -17,6 +18,7 @@ export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatch
   runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
+  projectState: ProjectRuntimeStateStore;
   definitionSourceEnabled: Map<string, boolean>;
 }
 
@@ -106,7 +108,13 @@ export function getRuntimeState(
   queueLength: number;
   concurrency: number;
 } {
-  const runtimeState = state.store.readState();
+  const runtimeState = state.runState.readWorkflowSummary(state.projectId);
+  for (const [workflow, nextScheduledAt] of state.scheduleTriggers.nextScheduledAt()) {
+    runtimeState.workflows[workflow] = {
+      ...runtimeState.workflows[workflow],
+      nextScheduledAt,
+    };
+  }
   const operationalState = projectStoredWorkflowOperationalState(
     state.runState.listRuns(state.projectId, [
       "queued",
@@ -118,7 +126,9 @@ export function getRuntimeState(
   return {
     ...runtimeState,
     ...operationalState,
+    definitionsLoadedAt: state.definitionsLoadedAt,
     agentBackoff: activeAgentBackoff ?? undefined,
+    batchBuffers: state.projectState.getBatchBuffers(),
     queueLength: operationalState.pendingRuns.length,
     concurrency: state.runCoordinator.capacity,
   };

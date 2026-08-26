@@ -1,9 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
+import { ProjectRuntimeStateStore } from "#core/workflow/project-runtime-state.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -44,6 +47,14 @@ export function createBatchSimulationState(
   const tempProjectDir = mkdtempSync(join(tmpdir(), "kota-workflow-simulation-"));
   const bus = new EventBus();
   const store = new WorkflowRunStore(tempProjectDir);
+  const projectId = deriveDirectoryScopeId(tempProjectDir);
+  const runState = new RunStateDatabase(join(store.rootDir, "state"));
+  runState.registerProject({
+    id: projectId,
+    rootPath: tempProjectDir,
+    createdAt: new Date().toISOString(),
+  });
+  const projectState = new ProjectRuntimeStateStore(runState, projectId);
   const queuedFlushes: QueuedBatchFlushPreview[] = [];
   const scopedBuses = new Map<string, ProjectScopedEventBus>();
   let currentScopeId = "default";
@@ -57,7 +68,7 @@ export function createBatchSimulationState(
   };
 
   const manager = new WorkflowEventBatchManager(
-    store,
+    projectState,
     () => false,
     (definition, _trigger, runTrigger) => {
       queuedFlushes.push({ definition, runTrigger });
@@ -77,6 +88,7 @@ export function createBatchSimulationState(
     },
     cleanup() {
       manager.clearAll();
+      runState.close();
       rmSync(tempProjectDir, { recursive: true, force: true });
     },
   };

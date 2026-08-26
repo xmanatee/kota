@@ -21,6 +21,7 @@ import type { WorkflowAgentStep } from "../step-types.js";
 import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
@@ -175,6 +176,7 @@ async function runDiagnosticScenario(args: {
     makeDefinition(args.projectDir, makeAgentStep(args.projectDir, harness)),
     TRIGGER,
     {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: createTestRunContext(args.projectDir, TRIGGER),
       bus,
       store,
@@ -338,7 +340,8 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
@@ -395,7 +398,8 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
@@ -476,7 +480,8 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const { step: completedStep, artifact } = readDiagnosticsArtifact(

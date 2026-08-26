@@ -1,5 +1,7 @@
 import type Database from "better-sqlite3";
 
+export const RUN_STATE_SCHEMA_VERSION = 3;
+
 function createRunPublicationsTable(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS run_publications (
@@ -22,25 +24,23 @@ function migrateRunPublications(database: Database.Database): void {
   }>;
   if (columns.some((column) => column.name === "publication_sequence")) return;
 
-  database.transaction(() => {
-    database.exec(`
-      DROP INDEX IF EXISTS run_publications_pending_idx;
-      ALTER TABLE run_publications RENAME TO run_publications_legacy;
-    `);
-    createRunPublicationsTable(database);
-    database.exec(`
-      INSERT INTO run_publications
-        (publication_id, run_id, project_id, event_name, payload_json,
-         publication_sequence, created_at, delivered_at)
-      SELECT publication_id, run_id, project_id, event_name, payload_json,
-             0, created_at, delivered_at
-      FROM run_publications_legacy;
-      DROP TABLE run_publications_legacy;
-    `);
-  })();
+  database.exec(`
+    DROP INDEX IF EXISTS run_publications_pending_idx;
+    ALTER TABLE run_publications RENAME TO run_publications_legacy;
+  `);
+  createRunPublicationsTable(database);
+  database.exec(`
+    INSERT INTO run_publications
+      (publication_id, run_id, project_id, event_name, payload_json,
+       publication_sequence, created_at, delivered_at)
+    SELECT publication_id, run_id, project_id, event_name, payload_json,
+           0, created_at, delivered_at
+    FROM run_publications_legacy;
+    DROP TABLE run_publications_legacy;
+  `);
 }
 
-export function initializeRunStateSchema(database: Database.Database): void {
+function createInitialSchema(database: Database.Database): void {
   const hadResourceRequests = database
     .prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'run_resource_requests'",
@@ -197,4 +197,72 @@ export function initializeRunStateSchema(database: Database.Database): void {
       ON run_publications
         (delivered_at, created_at, run_id, publication_sequence, publication_id);
   `);
+}
+
+function addDurableResultStatus(database: Database.Database): void {
+  const columns = database.pragma("table_info(runs)") as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "result_status")) {
+    database.exec(`
+      ALTER TABLE runs ADD COLUMN result_status TEXT
+        CHECK (result_status IS NULL OR result_status IN (
+          'success', 'failed', 'interrupted', 'completed-with-warnings'
+        ));
+    `);
+  }
+  database.exec(`
+    UPDATE runs
+    SET result_status = CASE state
+      WHEN 'succeeded' THEN 'success'
+      WHEN 'failed' THEN 'failed'
+      WHEN 'cancelled' THEN 'interrupted'
+      ELSE NULL
+    END
+    WHERE result_status IS NULL
+      AND state IN ('succeeded', 'failed', 'cancelled');
+  `);
+}
+
+function enforceTerminalResultStatus(database: Database.Database): void {
+  database.exec(`
+    CREATE TRIGGER IF NOT EXISTS runs_terminal_result_insert
+    BEFORE INSERT ON runs
+    WHEN NEW.state IN ('succeeded', 'failed', 'cancelled')
+      AND NEW.result_status IS NULL
+    BEGIN
+      SELECT RAISE(ABORT, 'terminal workflow runs require result_status');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS runs_terminal_result_update
+    BEFORE UPDATE OF state, result_status ON runs
+    WHEN NEW.state IN ('succeeded', 'failed', 'cancelled')
+      AND NEW.result_status IS NULL
+    BEGIN
+      SELECT RAISE(ABORT, 'terminal workflow runs require result_status');
+    END;
+  `);
+}
+
+const RUN_STATE_MIGRATIONS: ReadonlyArray<{
+  version: number;
+  apply(database: Database.Database): void;
+}> = [
+  { version: 1, apply: createInitialSchema },
+  { version: 2, apply: addDurableResultStatus },
+  { version: 3, apply: enforceTerminalResultStatus },
+];
+
+export function initializeRunStateSchema(database: Database.Database): void {
+  const current = database.pragma("user_version", { simple: true }) as number;
+  if (current > RUN_STATE_SCHEMA_VERSION) {
+    throw new Error(
+      `Run state schema version ${current} is newer than supported version ${RUN_STATE_SCHEMA_VERSION}`,
+    );
+  }
+  for (const migration of RUN_STATE_MIGRATIONS) {
+    if (migration.version <= current) continue;
+    database.transaction(() => {
+      migration.apply(database);
+      database.pragma(`user_version = ${migration.version}`);
+    })();
+  }
 }

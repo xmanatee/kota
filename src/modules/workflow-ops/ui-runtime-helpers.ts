@@ -5,7 +5,6 @@ import type {
   UiAction,
   UiActionParameterSpec,
   UiLogEntry,
-  UiMetric,
   UiTableRow,
 } from "#core/daemon/ui-surface.js";
 import {
@@ -163,35 +162,6 @@ export function runtimeLogEntries(args: {
       level: "info",
       source: "daemon.events",
       message: "Waiting for live workflow, approval, owner-question, and session events.",
-    },
-  ];
-}
-
-export function runtimeUsageMetrics(
-  status: SurfaceRead<WorkflowStatusSnapshot>,
-): UiMetric[] {
-  return [
-    {
-      label: "Total cost",
-      value: status.ok && status.value.totalCostUsd !== undefined
-        ? status.value.totalCostUsd.toFixed(4)
-        : "—",
-      unit: "USD",
-      role: "muted",
-    },
-    {
-      label: "Input tokens",
-      value: status.ok && status.value.totalInputTokens !== undefined
-        ? `${status.value.totalInputTokens}`
-        : "—",
-      role: "muted",
-    },
-    {
-      label: "Output tokens",
-      value: status.ok && status.value.totalOutputTokens !== undefined
-        ? `${status.value.totalOutputTokens}`
-        : "—",
-      role: "muted",
     },
   ];
 }

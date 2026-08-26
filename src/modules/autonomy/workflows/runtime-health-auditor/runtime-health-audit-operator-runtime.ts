@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { isProcessAlive } from "#core/util/process-alive.js";
-import { PAUSE_SIGNAL_FILE } from "#core/workflow/runtime-signals.js";
+import { readStoredWorkflowRuntimeState } from "#core/workflow/stored-runtime-state.js";
 import type {
   AutonomyHealthEvidenceRef,
   AutonomyHealthSeverity,
@@ -63,7 +63,7 @@ function readDurableWorkflowSnapshot(
       (run) => run.state === "running" || run.state === "integrating",
     ).length,
     queuedRuns: projection.runs.filter((run) => run.state === "queued").length,
-    workflowPaused: existsSync(join(stateDir, PAUSE_SIGNAL_FILE)),
+    workflowPaused: readStoredWorkflowRuntimeState(scopeDir, stateDir).operatorPaused,
   };
 }
 

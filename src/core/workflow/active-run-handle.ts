@@ -20,7 +20,6 @@ import { safeJsonStringify, validateWorkflowRunId, writeJsonFile } from "./run-i
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
-  WorkflowRuntimeState,
   WorkflowRunWarning,
   WorkflowStepResult,
 } from "./run-types.js";
@@ -74,20 +73,13 @@ export function createActiveRunHandle(opts: {
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   headSha: string | null;
-  workflowName: string;
   stepOrder?: ReadonlyMap<string, number>;
-  readState: () => WorkflowRuntimeState;
-  writeState: (state: WorkflowRuntimeState) => void;
 }): ActiveWorkflowRunHandle {
   const {
-    id,
     runDirPath,
     metadata,
     headSha,
-    workflowName,
     stepOrder,
-    readState,
-    writeState,
   } = opts;
   const projectDir = opts.projectDir ?? dirname(dirname(dirname(runDirPath)));
 
@@ -260,33 +252,6 @@ export function createActiveRunHandle(opts: {
         headSha,
       );
 
-      // Re-read state immediately before writing to minimize the race window.
-      // Merge carefully: only advance lastCompletion forward so a concurrent
-      // finish() cannot overwrite a more recent completion with an older one.
-      const freshState = readState();
-      freshState.completedRuns += 1;
-      freshState.totalCostUsd = (freshState.totalCostUsd ?? 0) + totalCostUsd;
-      freshState.totalInputTokens =
-        (freshState.totalInputTokens ?? 0) + inputTokens;
-      freshState.totalOutputTokens =
-        (freshState.totalOutputTokens ?? 0) + outputTokens;
-      const existingWorkflow = freshState.workflows[workflowName];
-      const existingCompletedMs = existingWorkflow?.lastCompletion?.completedAt
-        ? new Date(existingWorkflow.lastCompletion.completedAt).getTime()
-        : 0;
-      const thisCompletedMs = new Date(completed.completedAt!).getTime();
-      if (thisCompletedMs >= existingCompletedMs) {
-        freshState.workflows[workflowName] = {
-          ...existingWorkflow,
-          lastCompletion: {
-            runId: id,
-            startedAt: metadata.startedAt,
-            completedAt: completed.completedAt!,
-            status: update.status,
-          },
-        };
-      }
-      writeState(freshState);
       refreshLinkedControlCoverage(completed);
 
       return completed;

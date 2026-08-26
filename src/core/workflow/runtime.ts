@@ -64,7 +64,6 @@ import {
 } from "./runtime-runs-control.js";
 import {
   ABORT_SIGNAL_FILE,
-  PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "./runtime-signals.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
@@ -77,7 +76,7 @@ import type {
 } from "./workflow-dispatcher-provider.js";
 
 export type { WorkflowRuntimeConfig };
-export { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WORKFLOW_STOP_ABORT_WAIT_MS };
+export { ABORT_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WORKFLOW_STOP_ABORT_WAIT_MS };
 
 /**
  * Thin orchestrator over the per-lifecycle-phase sibling helpers. The class
@@ -180,6 +179,7 @@ export class WorkflowRuntime {
     this.ctx.store.reconcileTerminalStatus(run.id, status, outcome.error);
     return {
       ...outcome,
+      resultStatus: status,
       publication: this.createPublication(run, status),
     };
   }
@@ -223,7 +223,7 @@ export class WorkflowRuntime {
 
   getDispatchPauseStatus(): WorkflowDispatchPauseStatus {
     return resolveWorkflowDispatchPause({
-      projectDir: this.ctx.projectDir,
+      operatorPaused: this.ctx.projectState.getDispatchPaused(),
       runtimePaused: isDispatchPaused(this.ctx),
     });
   }

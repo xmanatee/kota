@@ -107,23 +107,6 @@ describe("formatDaemonStatus", () => {
     expect(formatDaemonStatus(status, false)).toMatch(/Service:\s+not installed/);
   });
 
-  it("shows cost when available", () => {
-    const status = makeLiveStatus({
-      workflow: {
-        activeRuns: [],
-        pendingRuns: [],
-        queueLength: 0,
-        completedRuns: 0,
-        totalCostUsd: 12.5,
-        paused: false,
-        concurrency: 4,
-        workflows: {},
-      },
-    });
-    const output = formatDaemonStatus(status, false);
-    expect(output).toContain("$12.50");
-  });
-
   it("shows paused status", () => {
     const status = makeLiveStatus({
       workflow: {
@@ -152,7 +135,6 @@ describe("formatDaemonStatus", () => {
         ],
         queueLength: 1,
         completedRuns: 4,
-        totalCostUsd: 0.42,
         paused: false,
         concurrency: 4,
         workflows: {},
@@ -174,7 +156,6 @@ describe("formatDaemonStatus", () => {
 
     expect(output).not.toMatch(/Work\s*$/m);
     expect(output).not.toMatch(/Cost.*Defs/);
-    expect(output).toMatch(/^\s+Cost:\s+\$0\.42 total/m);
     expect(output).toContain("1 active · 1 pending · 4 completed");
   });
 

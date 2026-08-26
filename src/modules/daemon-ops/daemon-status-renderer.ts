@@ -39,16 +39,6 @@ export function buildDaemonStatusNode(
       role: serviceInstalled ? "info" : "muted",
     },
   ];
-  if (workflow.totalCostUsd != null && workflow.totalCostUsd > 0) {
-    stateEntries.push({ label: "Cost", value: `$${workflow.totalCostUsd.toFixed(2)} total` });
-  }
-  if (workflow.totalInputTokens != null || workflow.totalOutputTokens != null) {
-    stateEntries.push({
-      label: "Agent tokens",
-      value: `${(workflow.totalInputTokens ?? 0).toLocaleString()} in / ${(workflow.totalOutputTokens ?? 0).toLocaleString()} out`,
-    });
-  }
-
   const summary = `${workflow.activeRuns.length} active · ${workflow.pendingRuns.length} pending · ${workflow.completedRuns} completed`;
   const activity: RenderNode[] = [line(span(summary, "muted"))];
   if (workflow.activeRuns.length > 0) {

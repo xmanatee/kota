@@ -57,6 +57,7 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "./validation.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {
@@ -137,6 +138,7 @@ describe("retry execution", () => {
 
   async function runDefinition(definition: WorkflowDefinition, trigger = TRIGGER) {
     const { promise } = executeWorkflowRun(definition, trigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, trigger),
       bus,
       store,

@@ -7,7 +7,9 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { getPreset } from "#core/model/preset.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
+import { ProjectRuntimeStateStore } from "#core/workflow/project-runtime-state.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -97,6 +99,13 @@ describe("production completion routing replay", () => {
     const bus = new EventBus();
     const pbus = new ProjectScopedEventBus(bus, scopeId);
     const store = new WorkflowRunStore(replayDir);
+    const runState = new RunStateDatabase(join(store.rootDir, "state"));
+    runState.registerProject({
+      id: scopeId,
+      rootPath: replayDir,
+      createdAt: new Date().toISOString(),
+    });
+    const projectState = new ProjectRuntimeStateStore(runState, scopeId);
     const invocations: RoutedInvocation[] = [];
     const recordInvocation = (
       definition: WorkflowDefinition,
@@ -104,7 +113,7 @@ describe("production completion routing replay", () => {
       run: WorkflowRunTrigger,
     ) => invocations.push(invocationFromTrigger(definition.name, run));
     const batches = new WorkflowEventBatchManager(
-      store,
+      projectState,
       () => false,
       recordInvocation,
       () => {},
@@ -118,7 +127,7 @@ describe("production completion routing replay", () => {
         batches.handleEvent(envelope);
         enqueueMatchingWorkflows(envelope, definitions, recordInvocation);
       }
-      const pendingInputs = Object.values(store.getBatchBuffers()).reduce(
+      const pendingInputs = Object.values(projectState.getBatchBuffers()).reduce(
         (total, buffer) => total + buffer.inputEvents.length,
         0,
       );
@@ -137,6 +146,7 @@ describe("production completion routing replay", () => {
       expect(invocations.filter((run) => run.workflow === "improver")).toEqual([]);
     } finally {
       batches.clearAll();
+      runState.close();
     }
   });
 });

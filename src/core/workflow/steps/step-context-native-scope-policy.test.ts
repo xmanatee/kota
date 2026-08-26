@@ -15,6 +15,7 @@ import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const trigger: WorkflowRunTrigger = {
   event: "manual",
@@ -117,6 +118,7 @@ describe("direct workflow native harness scope policy", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,

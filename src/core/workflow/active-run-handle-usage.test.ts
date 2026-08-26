@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createActiveRunHandle } from "./active-run-handle.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./run-types.js";
+import type { WorkflowRunMetadata } from "./run-types.js";
 
 const roots: string[] = [];
 
@@ -37,21 +37,12 @@ describe("active run usage accounting", () => {
         error: "repair made no progress",
       }],
     };
-    let state: WorkflowRuntimeState = {
-      completedRuns: 0,
-      workflows: {},
-    };
     const handle = createActiveRunHandle({
       id: metadata.id,
       projectDir: root,
       runDirPath,
       metadata,
       headSha: null,
-      workflowName: metadata.workflow,
-      readState: () => state,
-      writeState: (next) => {
-        state = next;
-      },
     });
 
     expect(handle.finish({ status: "failed", durationMs: 60_000 })).toMatchObject({

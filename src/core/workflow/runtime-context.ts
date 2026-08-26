@@ -13,6 +13,7 @@ import {
 } from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
+import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import type { RunStateDatabase } from "./run-state-database.js";
@@ -39,6 +40,7 @@ export interface WorkflowRuntimeContext {
   readonly projectId: string;
   readonly config?: KotaConfig;
   readonly store: WorkflowRunStore;
+  readonly projectState: ProjectRuntimeStateStore;
   readonly deadLetterQueue?: DeadLetterQueueStore;
   readonly eventJournal?: EventJournal;
   readonly approvalQueue: ApprovalQueue;
@@ -52,6 +54,7 @@ export interface WorkflowRuntimeContext {
   readonly runCoordinator: RunCoordinator;
   readonly daemonEpoch: number;
   readonly runtimeConfig: WorkflowRuntimeConfig;
+  definitionsLoadedAt?: string;
   /**
    * Per-project view over the runtime's underlying bus. Every project-scoped
    * lifecycle event (`workflow.started`, `workflow.completed`, queue-shape,
@@ -110,9 +113,13 @@ export function createWorkflowRuntimeContext(
   // Trigger and queue managers need the assembled context, so their closures
   // read it after construction instead of recomputing runtime state.
   let ctx!: WorkflowRuntimeContext;
+  const projectState = new ProjectRuntimeStateStore(
+    runtimeConfig.runState,
+    runtimeConfig.projectId,
+  );
 
   const backoff = new AgentBackoffManager(
-    store,
+    projectState,
     log,
     workflowAgentRuntimeId(runtimeConfig.config),
   );
@@ -130,7 +137,7 @@ export function createWorkflowRuntimeContext(
     log,
   });
   const scheduleTriggers = new ScheduleTriggerManager(
-    store,
+    () => runtimeConfig.runState.readWorkflowSummary(runtimeConfig.projectId),
     () => ctx.stopping,
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
@@ -146,7 +153,7 @@ export function createWorkflowRuntimeContext(
   );
 
   const eventBatches = new WorkflowEventBatchManager(
-    store,
+    projectState,
     () => ctx.stopping,
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
@@ -159,6 +166,7 @@ export function createWorkflowRuntimeContext(
     projectId: runtimeConfig.projectId,
     config: runtimeConfig.config,
     store,
+    projectState,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     eventJournal: runtimeConfig.eventJournal,
     approvalQueue,
@@ -172,6 +180,7 @@ export function createWorkflowRuntimeContext(
     runCoordinator: runtimeConfig.runCoordinator,
     daemonEpoch: runtimeConfig.daemonEpoch,
     runtimeConfig,
+    definitionsLoadedAt: undefined,
     pbus,
     model: runtimeConfig.model,
     idleIntervalMs: runtimeConfig.idleIntervalMs ?? 30_000,

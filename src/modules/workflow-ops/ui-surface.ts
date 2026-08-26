@@ -29,7 +29,6 @@ import {
   queuedRunRows,
   recentRunRows,
   runtimeLogEntries,
-  runtimeUsageMetrics,
   workflowRows,
 } from "./ui-runtime-helpers.js";
 
@@ -205,11 +204,6 @@ export function buildRuntimeUiSurface(args: {
         ],
       },
       { kind: "progress", label: "Run slots", value: Math.min(activeCount, concurrency), max: Math.max(1, concurrency), role: activeCount > 0 ? "warn" : "info" },
-      {
-        kind: "metrics",
-        title: "Runtime usage",
-        metrics: runtimeUsageMetrics(args.workflowStatus),
-      },
       { kind: "table", title: "Active run supervision", columns: NAME_STATE_DETAIL_COLUMNS, rows: activeRunRows(args.workflowStatus, runActions.abortOneRun) },
       { kind: "table", title: "Queued workflow runs", columns: NAME_STATE_DETAIL_COLUMNS, rows: queuedRunRows(args.workflowStatus, runActions.cancelQueuedRun) },
       { kind: "table", title: "Recent run results", columns: NAME_STATE_DETAIL_COLUMNS, rows: recentRunRows(args.runs, { retry: runActions.retryRun, replay: runActions.replayRun, resume: runActions.resumeRun }) },

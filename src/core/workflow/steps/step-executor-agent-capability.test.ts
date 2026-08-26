@@ -31,6 +31,7 @@ import {
   removeProjectDir,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 describe("workflow agent-step harness capability artifacts", () => {
   let projectDir: string;
@@ -103,7 +104,8 @@ describe("workflow agent-step harness capability artifacts", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -182,6 +184,7 @@ describe("workflow agent-step harness capability artifacts", () => {
       makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
       TRIGGER,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: createTestRunContext(projectDir, TRIGGER),
         bus,
         store,
@@ -226,6 +229,7 @@ describe("workflow agent-step harness capability artifacts", () => {
       makeDefinition(projectDir, step),
       TRIGGER,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext,
         bus,
         store,

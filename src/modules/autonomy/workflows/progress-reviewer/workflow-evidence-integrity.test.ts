@@ -29,6 +29,7 @@ import {
   reviewOutput,
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function executeReview(projectDir: string, runId: string) {
   const scopeId = deriveDirectoryScopeId(projectDir);
@@ -46,6 +47,7 @@ function executeReview(projectDir: string, runId: string) {
       payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
     },
     {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeProgressReviewRunContext(projectDir, runId),
       bus: new EventBus(),
       store: new WorkflowRunStore(projectDir),

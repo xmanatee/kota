@@ -220,14 +220,6 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
 
   printWorkflowText();
   printWorkflowText(`Total completed runs: ${status.completedRuns}`);
-  if (status.totalCostUsd != null) {
-    printWorkflowText(`Total cost:           $${status.totalCostUsd.toFixed(4)}`);
-  }
-  if (status.totalInputTokens != null || status.totalOutputTokens != null) {
-    printWorkflowText(
-      `Agent tokens:         ${(status.totalInputTokens ?? 0).toLocaleString()} in / ${(status.totalOutputTokens ?? 0).toLocaleString()} out`,
-    );
-  }
   if (status.agentBackoff) {
     printWorkflowText(
       `Agent backoff:        ${status.agentBackoff.kind} until ${formatDate(status.agentBackoff.until)} (attempt ${status.agentBackoff.failureCount})`,

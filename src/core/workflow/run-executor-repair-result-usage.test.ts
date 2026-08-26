@@ -11,6 +11,7 @@ import type { WorkflowAgentStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRunContext(
   projectDir: string,
@@ -149,6 +150,7 @@ describe("run executor repair-result usage", () => {
     });
 
     const result = await executeWorkflowRun(makeDefinition(projectDir), TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, TRIGGER),
       bus: new EventBus(),
       store: new WorkflowRunStore(projectDir),

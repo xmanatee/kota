@@ -22,11 +22,7 @@ import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { scopeSelectorQuery } from "#core/server/scope-selector.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
-import {
-  clearWorkflowPauseSignal,
-  resolveWorkflowDispatchPause,
-  writeOperatorPauseSignal,
-} from "#core/workflow/dispatch-pause.js";
+import { resolveWorkflowDispatchPause } from "#core/workflow/dispatch-pause.js";
 import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
@@ -39,9 +35,13 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   ABORT_SIGNAL_FILE,
-  PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "#core/workflow/runtime.js";
+import {
+  clearStoredAgentBackoff,
+  readStoredWorkflowRuntimeState,
+  setStoredDispatchPaused,
+} from "#core/workflow/stored-runtime-state.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { WorkflowClient } from "./client.js";
 import { buildLocalDeadLetterClient } from "./dead-letter-local-client.js";
@@ -165,13 +165,9 @@ const workflowModule: KotaModule = {
       ...buildLocalDeadLetterClient(ctx),
       async status() {
         const store = new WorkflowRunStore(ctx.cwd);
-        const state = store.readState();
-        const operational = readWorkflowOperationalState({
-          stateDir: store.rootDir,
-          projectDir: ctx.cwd,
-        });
+        const state = readStoredWorkflowRuntimeState(ctx.cwd, store.rootDir);
         const pause = resolveWorkflowDispatchPause({
-          projectDir: ctx.cwd,
+          operatorPaused: state.operatorPaused,
           runtimePaused: false,
         });
         const config = loadConfig(ctx.cwd);
@@ -182,17 +178,10 @@ const workflowModule: KotaModule = {
             ? new Date(Date.now() + msUntilDispatchWindowOpens(dispatchWindow)).toISOString()
             : undefined;
         return {
-          activeRuns: operational.activeRuns,
-          pendingRuns: operational.pendingRuns,
-          queueLength: operational.pendingRuns.length,
+          activeRuns: state.activeRuns,
+          pendingRuns: state.pendingRuns,
+          queueLength: state.pendingRuns.length,
           completedRuns: state.completedRuns,
-          ...(state.totalCostUsd !== undefined && { totalCostUsd: state.totalCostUsd }),
-          ...(state.totalInputTokens !== undefined && {
-            totalInputTokens: state.totalInputTokens,
-          }),
-          ...(state.totalOutputTokens !== undefined && {
-            totalOutputTokens: state.totalOutputTokens,
-          }),
           ...(state.agentBackoff && { agentBackoff: state.agentBackoff }),
           ...(state.definitionsLoadedAt && { definitionsLoadedAt: state.definitionsLoadedAt }),
           workflows: state.workflows,
@@ -206,28 +195,17 @@ const workflowModule: KotaModule = {
       },
       async pause() {
         const store = new WorkflowRunStore(ctx.cwd);
-        const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
-        if (existsSync(pausePath)) return { paused: true, already: true };
-        writeOperatorPauseSignal(ctx.cwd);
-        return { paused: true, already: false };
+        const changed = setStoredDispatchPaused(ctx.cwd, store.rootDir, true);
+        return { paused: true, already: !changed };
       },
       async resume(options) {
         const store = new WorkflowRunStore(ctx.cwd);
-        const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
         const agentBackoffCleared = options?.retryAgent === true &&
-          store.readState().agentBackoff !== undefined;
-        if (agentBackoffCleared) store.setAgentBackoff(null);
-        if (!existsSync(pausePath)) {
-          return {
-            paused: false,
-            already: true,
-            ...(agentBackoffCleared && { agentBackoffCleared: true as const }),
-          };
-        }
-        clearWorkflowPauseSignal(ctx.cwd);
+          clearStoredAgentBackoff(ctx.cwd, store.rootDir);
+        const changed = setStoredDispatchPaused(ctx.cwd, store.rootDir, false);
         return {
           paused: false,
-          already: false,
+          already: !changed,
           ...(agentBackoffCleared && { agentBackoffCleared: true as const }),
         };
       },

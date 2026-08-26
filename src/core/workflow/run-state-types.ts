@@ -1,4 +1,5 @@
 import type { RepositoryAccess, RunSandbox } from "./run-sandbox.js";
+import type { WorkflowRunStatus } from "./runtime-state-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 export type DurableRunState =
@@ -52,6 +53,7 @@ export type StoredRun = {
   processes: Record<string, unknown>[];
   wait?: Record<string, unknown>;
   lastError?: string;
+  resultStatus?: WorkflowRunStatus;
 };
 
 /** A terminal event committed atomically with the run that produced it. */

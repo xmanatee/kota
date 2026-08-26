@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentBackoffManager } from "./agent-backoff.js";
+import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import { RunCoordinator, type RunExecutor } from "./run-coordinator.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -13,13 +14,14 @@ describe("AgentBackoffManager", () => {
   let projectDir: string;
   let store: WorkflowRunStore;
   let runState: RunStateDatabase;
+  let projectState: ProjectRuntimeStateStore;
   let coordinator: RunCoordinator;
   let execute: ReturnType<typeof vi.fn<RunExecutor>>;
   let logs: string[];
 
   function makeManager(): AgentBackoffManager {
     return new AgentBackoffManager(
-      store,
+      projectState,
       (message) => logs.push(message),
       "codex:codex",
     );
@@ -52,6 +54,7 @@ describe("AgentBackoffManager", () => {
       rootPath: projectDir,
       createdAt: "2026-05-12T12:00:00.000Z",
     });
+    projectState = new ProjectRuntimeStateStore(runState, "test-project");
     const { epoch } = runState.beginDaemonSession("2026-05-12T12:00:00.000Z");
     execute = vi.fn<RunExecutor>(async () => ({
       kind: "terminal",
@@ -78,14 +81,14 @@ describe("AgentBackoffManager", () => {
     const manager = makeManager();
 
     manager.apply({ kind: "auth", reason: "first auth failure" });
-    const first = store.readState().agentBackoff;
+    const first = projectState.getAgentBackoff();
     expect(first?.failureCount).toBe(1);
 
     vi.setSystemTime(new Date("2026-05-12T12:31:00.000Z"));
     expect(manager.getActive()).toBeNull();
 
     manager.apply({ kind: "auth", reason: "second auth failure" });
-    const second = store.readState().agentBackoff;
+    const second = projectState.getAgentBackoff();
     expect(second?.failureCount).toBe(2);
     expect(second?.until).toBe("2026-05-12T13:31:00.000Z");
   });
@@ -99,7 +102,7 @@ describe("AgentBackoffManager", () => {
 
     manager.clear();
 
-    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(projectState.getAgentBackoff()).toBeNull();
   });
 
   it("records an explicit operator retry reason when clearing backoff", () => {
@@ -108,14 +111,14 @@ describe("AgentBackoffManager", () => {
 
     manager.clear("after explicit operator retry");
 
-    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(projectState.getAgentBackoff()).toBeNull();
     expect(logs).toContain(
       "Cleared agent dispatch backoff after explicit operator retry (auth)",
     );
   });
 
   it("clears backoff owned by a different agent runtime", () => {
-    store.setAgentBackoff({
+    projectState.setAgentBackoff({
       runtimeId: "codex:codex",
       kind: "rate_limit",
       failureCount: 1,
@@ -124,13 +127,13 @@ describe("AgentBackoffManager", () => {
       reason: "Codex usage limit",
     });
     const manager = new AgentBackoffManager(
-      store,
+      projectState,
       (message) => logs.push(message),
       "gemini-cli:gemini-cli",
     );
 
     expect(manager.getActive()).toBeNull();
-    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(projectState.getAgentBackoff()).toBeNull();
     expect(logs).toContain(
       "Cleared agent dispatch backoff from runtime codex:codex; active runtime is gemini-cli:gemini-cli",
     );
@@ -145,7 +148,7 @@ describe("AgentBackoffManager", () => {
       retryAt: "2026-05-16T09:00:00.000Z",
     });
 
-    expect(store.readState().agentBackoff?.until).toBe("2026-05-16T09:00:00.000Z");
+    expect(projectState.getAgentBackoff()?.until).toBe("2026-05-16T09:00:00.000Z");
   });
 
   it("ignores an expired provider retry timestamp", () => {
@@ -157,7 +160,7 @@ describe("AgentBackoffManager", () => {
       retryAt: "2026-05-12T11:00:00.000Z",
     });
 
-    expect(store.readState().agentBackoff?.until).toBe("2026-05-12T12:30:00.000Z");
+    expect(projectState.getAgentBackoff()?.until).toBe("2026-05-12T12:30:00.000Z");
   });
 
   it("gates agent dispatch without deleting durable queued work", async () => {
@@ -190,7 +193,7 @@ describe("AgentBackoffManager", () => {
     const queuedRunId = restored.getRuns()[0]?.runId;
     if (!queuedRunId) throw new Error("expected durable queued run id");
 
-    const backoffUntil = store.readState().agentBackoff?.until;
+    const backoffUntil = projectState.getAgentBackoff()?.until;
     if (!backoffUntil) throw new Error("expected active backoff");
     manager.clear();
     vi.setSystemTime(new Date(backoffUntil));

@@ -3,7 +3,10 @@ import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import Database from "better-sqlite3";
 import type { RunSandbox } from "./run-sandbox.js";
-import { initializeRunStateSchema } from "./run-state-schema.js";
+import {
+  initializeRunStateSchema,
+  RUN_STATE_SCHEMA_VERSION,
+} from "./run-state-schema.js";
 import {
   AdmissionKeyConflictError,
   type AdmittedRun,
@@ -22,6 +25,10 @@ import {
   type StoredRun,
   type TerminalRunState,
 } from "./run-state-types.js";
+import type {
+  WorkflowRunStatus,
+  WorkflowRuntimeSummary,
+} from "./runtime-state-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 export type {
@@ -52,6 +59,7 @@ type RunRow = {
   integration_json: string | null;
   wait_json: string | null;
   last_error: string | null;
+  result_status: WorkflowRunStatus | null;
 };
 
 type AdmissionResolution =
@@ -59,18 +67,50 @@ type AdmissionResolution =
   | { disposition: "duplicate"; runId: string }
   | { disposition: "redelivery"; previousRunId: string };
 
+function terminalResultStatus(state: TerminalRunState): WorkflowRunStatus {
+  if (state === "succeeded") return "success";
+  if (state === "cancelled") return "interrupted";
+  return "failed";
+}
+
 export class RunStateDatabase {
   readonly path: string;
   private readonly database: Database.Database;
 
-  constructor(stateDir: string) {
-    mkdirSync(stateDir, { recursive: true });
+  constructor(
+    stateDir: string,
+    mode: "create-or-migrate" | "existing" | "read-only" = "create-or-migrate",
+  ) {
+    if (mode === "create-or-migrate") mkdirSync(stateDir, { recursive: true });
     this.path = join(stateDir, "kota.sqlite");
-    this.database = new Database(this.path);
-    this.database.pragma("journal_mode = WAL");
+    this.database = new Database(this.path, {
+      fileMustExist: mode !== "create-or-migrate",
+      readonly: mode === "read-only",
+    });
+    if (mode === "create-or-migrate") {
+      this.database.pragma("journal_mode = WAL");
+    }
     this.database.pragma("foreign_keys = ON");
-    this.database.pragma("synchronous = FULL");
-    initializeRunStateSchema(this.database);
+    if (mode !== "read-only") this.database.pragma("synchronous = FULL");
+    if (mode === "create-or-migrate") {
+      initializeRunStateSchema(this.database);
+    } else {
+      const version = this.database.pragma("user_version", { simple: true }) as number;
+      if (version !== RUN_STATE_SCHEMA_VERSION) {
+        this.database.close();
+        throw new Error(
+          `Run state schema version ${version} requires daemon-owned migration to ${RUN_STATE_SCHEMA_VERSION}`,
+        );
+      }
+    }
+  }
+
+  static openExisting(stateDir: string): RunStateDatabase {
+    return new RunStateDatabase(stateDir, "existing");
+  }
+
+  static openReadOnly(stateDir: string): RunStateDatabase {
+    return new RunStateDatabase(stateDir, "read-only");
   }
 
   close(): void {
@@ -752,6 +792,112 @@ export class RunStateDatabase {
         };
   }
 
+  compareAndSetProjectStateValue(input: {
+    projectId: string;
+    key: string;
+    expectedRevision: number;
+    value: unknown;
+    updatedAt: string;
+  }): void {
+    this.assertStateKey(input.key);
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new Error("Expected state revision must be a non-negative integer");
+    }
+    const valueJson = JSON.stringify(input.value);
+    if (valueJson === undefined) throw new Error("State values must be durable JSON");
+    const durableValue = JSON.parse(valueJson) as unknown;
+    if (!isDeepStrictEqual(input.value, durableValue)) {
+      throw new Error("State values must contain only durable JSON values");
+    }
+
+    this.database.transaction(() => {
+      const current = this.readProjectStateValue(input.projectId, input.key);
+      if (current.revision !== input.expectedRevision) {
+        throw new StateValueConflictError(
+          input.projectId,
+          input.key,
+          input.expectedRevision,
+          current.revision,
+        );
+      }
+      const pending = this.database
+        .prepare(
+          `SELECT run_id FROM run_state_mutations
+           WHERE project_id = ? AND state_key = ?`,
+        )
+        .get(input.projectId, input.key) as { run_id: string } | undefined;
+      if (pending !== undefined) {
+        throw new StateValueConflictError(
+          input.projectId,
+          input.key,
+          input.expectedRevision,
+          current.revision,
+          pending.run_id,
+        );
+      }
+      this.database
+        .prepare(
+          `INSERT INTO project_state_values
+            (project_id, state_key, revision, value_json, updated_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(project_id, state_key) DO UPDATE SET
+             revision = excluded.revision,
+             value_json = excluded.value_json,
+             updated_at = excluded.updated_at`,
+        )
+        .run(
+          input.projectId,
+          input.key,
+          input.expectedRevision + 1,
+          valueJson,
+          input.updatedAt,
+        );
+    })();
+  }
+
+  readWorkflowSummary(projectId: string): WorkflowRuntimeSummary {
+    const workflows: WorkflowRuntimeSummary["workflows"] = {};
+    let completedRuns = 0;
+    for (const run of this.listRuns(projectId)) {
+      if (run.startedAt !== undefined) {
+        const current = workflows[run.workflow]?.lastStarted;
+        if (
+          current === undefined ||
+          Date.parse(run.startedAt) >= Date.parse(current.startedAt)
+        ) {
+          workflows[run.workflow] = {
+            ...workflows[run.workflow],
+            lastStarted: { runId: run.id, startedAt: run.startedAt },
+          };
+        }
+      }
+      if (
+        run.finishedAt === undefined ||
+        run.startedAt === undefined ||
+        run.resultStatus === undefined
+      ) {
+        continue;
+      }
+      completedRuns += 1;
+      const current = workflows[run.workflow]?.lastCompletion;
+      if (
+        current === undefined ||
+        Date.parse(run.finishedAt) >= Date.parse(current.completedAt)
+      ) {
+        workflows[run.workflow] = {
+          ...workflows[run.workflow],
+          lastCompletion: {
+            runId: run.id,
+            startedAt: run.startedAt,
+            completedAt: run.finishedAt,
+            status: run.resultStatus,
+          },
+        };
+      }
+    }
+    return { completedRuns, workflows };
+  }
+
   stageProjectStateMutation(input: {
     runId: string;
     key: string;
@@ -858,6 +1004,7 @@ export class RunStateDatabase {
     finishedAt: string,
     error?: string,
     publication?: Omit<RunPublication, "createdAt" | "deliveredAt">,
+    resultStatus?: WorkflowRunStatus,
   ): void {
     this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);
@@ -865,10 +1012,17 @@ export class RunStateDatabase {
         .prepare(
           `UPDATE runs
            SET state = ?, finished_at = ?, daemon_epoch = NULL, wait_json = NULL,
-               last_error = ?
+               last_error = ?, result_status = ?
            WHERE id = ? AND state IN ('running', 'integrating') AND daemon_epoch = ?`,
         )
-        .run(state, finishedAt, error ?? null, runId, epoch);
+        .run(
+          state,
+          finishedAt,
+          error ?? null,
+          resultStatus ?? terminalResultStatus(state),
+          runId,
+          epoch,
+        );
       if (updated.changes !== 1) {
         throw new Error(`Run "${runId}" is not running in daemon epoch ${epoch}`);
       }
@@ -1086,7 +1240,8 @@ export class RunStateDatabase {
     return this.database.transaction(() => {
       const updated = this.database
         .prepare(
-          `UPDATE runs SET state = 'cancelled', finished_at = ?
+          `UPDATE runs
+           SET state = 'cancelled', finished_at = ?, result_status = 'interrupted'
            WHERE id = ? AND state IN ('queued', 'waiting', 'needs_attention')`,
         )
         .run(cancelledAt, runId);
@@ -1233,6 +1388,7 @@ export class RunStateDatabase {
         ? { wait: JSON.parse(row.wait_json) as Record<string, unknown> }
         : {}),
       ...(row.last_error !== null ? { lastError: row.last_error } : {}),
+      ...(row.result_status !== null ? { resultStatus: row.result_status } : {}),
     };
   }
 

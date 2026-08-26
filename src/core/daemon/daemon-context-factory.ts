@@ -4,6 +4,7 @@ import { getGlobalConfigPath } from "#core/config/config.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
+import { disposeLegacyOperationalState } from "#core/workflow/legacy-operational-state-cutover.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { recoverInterruptedRuns } from "#core/workflow/run-restart-recovery.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
@@ -88,6 +89,11 @@ export async function createDaemonRuntimeContext(
       rootPath: project.projectDir,
       displayName: project.displayName,
       createdAt: state.startedAt,
+    });
+    disposeLegacyOperationalState({
+      projectDir: project.projectDir,
+      projectId: project.projectId,
+      runState,
     });
   }
   const session = runState.beginDaemonSession(state.startedAt);

@@ -11,6 +11,7 @@ import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRunContext(
   projectDir: string,
@@ -152,6 +153,7 @@ describe("resume execution", () => {
 
   async function runDefinition(definition: WorkflowDefinition, trigger = TRIGGER) {
     const { promise } = executeWorkflowRun(definition, trigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, trigger),
       bus,
       store,

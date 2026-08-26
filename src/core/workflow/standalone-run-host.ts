@@ -325,6 +325,7 @@ export class StandaloneRunHost {
       bus: this.options.bus,
       pbus: this.projectRuntime.pbus,
       store: this.projectRuntime.runStore,
+      readRuntimeState: () => this.state.readWorkflowSummary(this.options.project.projectId),
       deadLetterQueue: this.projectRuntime.deadLetterQueue,
       approvalQueue: this.projectRuntime.approvalQueue,
       idempotencyStore: this.projectRuntime.idempotencyStore,

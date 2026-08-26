@@ -13,6 +13,7 @@ import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-
 import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TOOL_NAME = "workflow_authority_file_write_fixture";
 const roots: string[] = [];
@@ -46,6 +47,7 @@ describe("workflow machine-authority isolation", () => {
       {},
       [],
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         projectDir,
         scopeDir: projectDir,
         authorityConfigPath,

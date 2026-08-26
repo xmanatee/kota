@@ -35,6 +35,7 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
@@ -143,6 +144,7 @@ describe("askOwnerSteps", () => {
   it("(a) answered: operator answers live; consume returns a typed answered outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
@@ -181,6 +183,7 @@ describe("askOwnerSteps", () => {
   it("(a') answered with suspicious payload: detector flags the answer and renders a banner", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
@@ -215,6 +218,7 @@ describe("askOwnerSteps", () => {
   it("(b) dismissed: operator dismisses; consume returns a typed dismissed outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
@@ -251,7 +255,8 @@ describe("askOwnerSteps", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
 
@@ -322,6 +327,7 @@ describe("askOwnerSteps", () => {
     expect(resumeQueued.trigger.event).toBe("resume");
 
     const resumed = await executeWorkflowRun(definition, resumeQueued.trigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
       bus: newBus,
       store,
@@ -345,6 +351,7 @@ describe("askOwnerSteps", () => {
     expect(getEventBus()).toBe(bus);
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,

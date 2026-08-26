@@ -19,6 +19,7 @@ import {
   reviewOutput,
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const OBSERVED_UNKNOWN_EVIDENCE_IDS = [
   "dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83",
@@ -41,6 +42,7 @@ function executeCitationReview(projectDir: string, runId: string) {
       payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
     },
     {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeProgressReviewRunContext(projectDir, runId),
       bus: new EventBus(),
       store: new WorkflowRunStore(projectDir),

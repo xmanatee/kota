@@ -8,9 +8,9 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { defineProjectScopedModuleEvent, ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowRuntime } from "./runtime.js";
+import { readStoredWorkflowRuntimeState } from "./stored-runtime-state.js";
 import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
@@ -384,7 +384,10 @@ describe("WorkflowEventBatchManager", () => {
     bus.emit("task.changed", { list: "ready", id: "first" });
     await wait(30);
     expect(
-      Object.keys(new WorkflowRunStore(projectDir).getBatchBuffers()).some((key) =>
+      Object.keys(
+        readStoredWorkflowRuntimeState(projectDir, join(projectDir, ".kota", "state"))
+          .batchBuffers ?? {},
+      ).some((key) =>
         key.includes("restart-batch"),
       ),
     ).toBe(true);
@@ -451,7 +454,10 @@ describe("WorkflowEventBatchManager", () => {
     });
 
     expect(firstResult).toEqual({ ok: true, status: "batched" });
-    const buffers = new WorkflowRunStore(projectDir).getBatchBuffers();
+    const buffers = readStoredWorkflowRuntimeState(
+      projectDir,
+      join(projectDir, ".kota", "state"),
+    ).batchBuffers ?? {};
     const buffer = Object.values(buffers)[0];
     expect(buffer).toMatchObject({
       definitionName: workflow.name,
@@ -502,7 +508,10 @@ describe("WorkflowEventBatchManager", () => {
       "one",
       "two",
     ]);
-    expect(new WorkflowRunStore(projectDir).getBatchBuffers()).toEqual({});
+    expect(
+      readStoredWorkflowRuntimeState(projectDir, join(projectDir, ".kota", "state"))
+        .batchBuffers,
+    ).toEqual({});
   });
 
   it("isolates buffers by scope and supports explicit manual flush", async () => {

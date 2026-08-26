@@ -10,9 +10,13 @@ and publication.
   resolvers express domain exclusivity without workflow-specific locks.
 - `RunStateDatabase` is the only durable queue and the authority for admission,
   run attempts, logical resources, process identities, external effects, and
-  terminal publications. Project-scoped JSON state uses its revisioned state
-  API; runs stage compare-and-set mutations that commit atomically with success
-  publications. Run artifacts are evidence, not queue, lease, or shared state.
+  terminal publications. Project-scoped durable state uses its revisioned
+  SQLite API; runs stage compare-and-set mutations that commit atomically with
+  success publications. `WorkflowRunStore` and run artifacts are evidence, not
+  queue, summary, lease, or shared state. Persistent dispatch pause is project
+  state in that database. Only the daemon database composition root migrates
+  schema or disposes known obsolete operational files; offline readers are
+  explicit and read-only, and standalone hosts never perform cutover work.
 - `RunCoordinator` owns daemon-wide capacity, global and project admission
   pause, cancellation, and child waits. Waiting parents release capacity and
   reacquire it before continuing.

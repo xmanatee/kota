@@ -48,6 +48,12 @@
   `IntegrationQueue` as the shared ownership chain. Workflows define semantic
   steps, not private queues, claims, worktrees, leases, process registries,
   port allocators, commits, merge gates, or restart recovery.
+- Keep mutable operational and project state in the revisioned
+  `RunStateDatabase` API. `WorkflowRunStore` owns retained run evidence only;
+  runtime summaries are projections from SQLite and current in-memory timers.
+  Offline readers must receive the canonical state root explicitly and open it
+  read-only; schema migration and obsolete-state disposal belong to daemon
+  startup, never inspection or standalone execution.
 - Keep Git publication runtime-owned. AI may repair reported conflicts or
   validation failures inside the supplied sandbox and write scope, while the
   runtime retains staging, rebase, commit, no-progress, cancellation, and

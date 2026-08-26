@@ -21,16 +21,7 @@ describe("renderDashboard status", () => {
   });
 
   it("shows definition count", () => {
-    expect(stripAnsi(renderDashboard(makeSnapshot(), []))).toContain("Defs      5");
-  });
-
-  it("never collides cost value with the next label even at large amounts", () => {
-    const output = stripAnsi(
-      renderDashboard(makeSnapshot({ totalCostUsd: 1930.84 }), []),
-    );
-    expect(output).toContain("$1930.84");
-    expect(output).not.toMatch(/\$\d[\d.]*Defs/);
-    expect(output).toMatch(/Cost\s+\$1930\.84\s{2,}Defs/);
+    expect(stripAnsi(renderDashboard(makeSnapshot(), []))).toContain("Definitions  5");
   });
 
   it("never collides completed run count with the next label at high counts", () => {

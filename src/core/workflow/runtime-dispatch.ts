@@ -43,6 +43,7 @@ export interface WorkflowRuntimeDispatchState {
   dispatchPaused: boolean;
   config?: KotaConfig;
   store: WorkflowRunStore;
+  definitionsLoadedAt?: string;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
   approvalQueue: ApprovalQueue;
@@ -171,6 +172,9 @@ export async function executeAdmittedWorkflowRun(
       bus: state.runtimeConfig.bus,
       pbus: state.pbus,
       store: state.store,
+      readRuntimeState: () => state.runtimeConfig.runState.readWorkflowSummary(
+        state.runtimeConfig.projectId,
+      ),
       ...(state.deadLetterQueue !== undefined
         ? { deadLetterQueue: state.deadLetterQueue }
         : {}),

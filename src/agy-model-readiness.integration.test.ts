@@ -22,6 +22,7 @@ import {
   antigravityCliAgentHarness,
   antigravityCliReadiness,
 } from "#modules/antigravity-cli-agent-harness/index.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const SELECTED_MODEL = "gemini-autonomy-readiness-candidate";
 
@@ -94,6 +95,7 @@ describe("AGY autonomy model/effort readiness", () => {
       definition,
       { event: "manual", schemaRef: null, payload: {} },
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: createTestRunContext(projectDir, {
           event: "manual",
           schemaRef: null,

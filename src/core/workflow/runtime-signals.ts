@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { WorkflowDefinition } from "./types.js";
 
 export const ABORT_SIGNAL_FILE = "abort-request";
-export const PAUSE_SIGNAL_FILE = "dispatch-paused";
 export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 export function checkAbortSignal(

@@ -17,7 +17,7 @@ import type {
   ToolCallSummaryEntry,
   WorkflowActiveRun,
   WorkflowQueuedRun,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
@@ -161,12 +161,9 @@ export type WorkflowLiveStatus = {
   pendingRuns: WorkflowQueuedRun[];
   queueLength: number;
   completedRuns: number;
-  totalCostUsd?: number;
-  totalInputTokens?: number;
-  totalOutputTokens?: number;
   agentBackoff?: WorkflowAgentBackoffState;
   definitionsLoadedAt?: string;
-  workflows: WorkflowRuntimeState["workflows"];
+  workflows: WorkflowRuntimeSummary["workflows"];
   paused: boolean;
   pause?: WorkflowDispatchPauseStatus;
   /** True when a dispatchWindow is configured and the current time is outside it. */

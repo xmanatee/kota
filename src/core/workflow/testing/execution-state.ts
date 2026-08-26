@@ -12,7 +12,7 @@ import type {
 } from "#core/workflow/run-context.js";
 import type {
   WorkflowRuntimeResources,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
   WorkflowStepContext,
   WorkflowStepResult,
   WorkflowStepSkipReason,
@@ -118,7 +118,7 @@ export class HarnessExecutionState {
       this.stepOutputList.length > 0
         ? this.stepOutputList[this.stepOutputList.length - 1]
         : undefined;
-    const runtimeState: WorkflowRuntimeState = {
+    const runtimeState: WorkflowRuntimeSummary = {
       completedRuns: this.options.runtimeState?.completedRuns ?? 0,
       workflows: this.options.runtimeState?.workflows ?? {},
     };

@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { RESTART_EXIT_CODE } from "#core/daemon/index.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
@@ -49,13 +50,10 @@ describe("Daemon restart recovery", () => {
       const startPromise = daemon.start();
       await wait(120);
 
-      const state = JSON.parse(
-        readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf8"),
-      ) as {
-        workflows: Record<string, { lastCompletion?: { status: string } }>;
-      };
-      expect(state.workflows.builder?.lastCompletion?.status).toBe("failed");
-      expect(daemon.getDashboardSnapshot().completedRuns).toBeGreaterThanOrEqual(1);
+      const snapshot = daemon.getDashboardSnapshot();
+      expect(snapshot.completedRuns).toBeGreaterThanOrEqual(1);
+      expect(new WorkflowRunStore(projectDir).listRuns({ workflow: "builder" })[0])
+        .toMatchObject({ status: "failed" });
       expect(process.exitCode).not.toBe(RESTART_EXIT_CODE);
       expect(daemon.isRunning()).toBe(true);
 

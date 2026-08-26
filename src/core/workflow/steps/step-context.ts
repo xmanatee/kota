@@ -34,6 +34,7 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunToolRunner,
   WorkflowRuntimeResources,
+  WorkflowRuntimeSummary,
   WorkflowStepContext,
   WorkflowStepResult,
 } from "../run-types.js";
@@ -130,6 +131,7 @@ export function createStepContext(
     bus: EventBus;
     pbus: ProjectScopedEventBus;
     store: WorkflowRunStore;
+    readRuntimeState: () => WorkflowRuntimeSummary;
     deadLetterQueue?: DeadLetterQueueStore;
     approvalQueue?: ApprovalQueue;
     eventJournal?: EventJournal;
@@ -386,7 +388,7 @@ export function createStepContext(
     readPrompt: (promptPath) => {
       return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
     },
-    readRuntimeState: () => deps.store.readState(),
+    readRuntimeState: deps.readRuntimeState,
     ...(deps.deadLetterQueue !== undefined
       ? { deadLetterQueue: deps.deadLetterQueue }
       : {}),

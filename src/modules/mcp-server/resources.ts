@@ -21,8 +21,8 @@ import {
 import type { ModuleSummary } from "#core/modules/module-types.js";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
-import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { readStoredWorkflowRuntimeState } from "#core/workflow/stored-runtime-state.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
 	buildKotaStatusUiResource,
@@ -594,12 +594,10 @@ function readReadyTasks(projectDir: string): unknown {
 }
 
 function readWorkflowStatus(projectDir: string): unknown {
-	const store = new WorkflowRunStore(projectDir);
-	const state = store.readState();
-	const operational = readWorkflowOperationalState({
-		stateDir: store.rootDir,
+	const state = readStoredWorkflowRuntimeState(
 		projectDir,
-	});
+		new WorkflowRunStore(projectDir).rootDir,
+	);
 	const perWorkflow: Record<string, unknown> = {};
 	for (const [name, ws] of Object.entries(state.workflows)) {
 		perWorkflow[name] = {
@@ -609,7 +607,7 @@ function readWorkflowStatus(projectDir: string): unknown {
 		};
 	}
 	return {
-		activeRunCount: operational.activeRuns.length,
+		activeRunCount: state.activeRuns.length,
 		paused: !!state.agentBackoff,
 		workflows: perWorkflow,
 	};

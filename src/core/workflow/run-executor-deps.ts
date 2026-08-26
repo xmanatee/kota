@@ -10,7 +10,7 @@ import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import type { RunContext } from "./run-context.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunToolRunner } from "./run-types.js";
+import type { WorkflowRunToolRunner, WorkflowRuntimeSummary } from "./run-types.js";
 import type { TriggerWorkflowFromStepResult } from "./runtime-dispatch-trigger.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
@@ -24,6 +24,7 @@ export type RunExecutorDeps = {
    */
   pbus?: ProjectScopedEventBus;
   store: WorkflowRunStore;
+  readRuntimeState: () => WorkflowRuntimeSummary;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;
   approvalQueue?: ApprovalQueue;

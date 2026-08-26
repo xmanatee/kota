@@ -12,7 +12,6 @@ describe("renderDashboard owner transcript regression", () => {
     running: true,
     stopping: false,
     completedRuns: 668,
-    totalCostUsd: 1930.84,
     activeRuns: [],
     pendingRuns: [],
     dispatchPaused: false,
@@ -51,7 +50,7 @@ describe("renderDashboard owner transcript regression", () => {
       const output = stripAnsi(
         renderDashboard(fixtureSnapshot, fixtureLogs, { width }),
       );
-      expect(output).toMatch(/Cost\s+\$1930\.84\s{2,}Defs/);
+      expect(output).toMatch(/Definitions\s+14/);
       expect(output.match(/KOTA Daemon/g) ?? []).toHaveLength(1);
       expect(output).toContain("Work");
       expect(output).toMatch(/Ready\s+1/);

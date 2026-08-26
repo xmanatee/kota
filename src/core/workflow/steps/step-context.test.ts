@@ -17,6 +17,7 @@ import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runn
 import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function tempProject(): string {
   const dir = join(
@@ -69,6 +70,7 @@ describe("createStepContext", () => {
           {},
           [],
           {
+            readRuntimeState: readEmptyTestWorkflowRuntimeState,
             projectDir,
             scopeDir: projectDir,
             bus,
@@ -130,6 +132,7 @@ describe("createStepContext", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,
@@ -180,6 +183,7 @@ describe("createStepContext", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir: workspaceDir,
           scopeDir: projectDir,
           bus,
@@ -254,6 +258,7 @@ describe("createStepContext", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,

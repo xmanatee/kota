@@ -7,14 +7,14 @@ import { getEligibleAtMs } from "./run-executor-utils.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type {
   WorkflowRunMetadata,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
   WorkflowStepResult,
 } from "./run-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 describe("getEligibleAtMs (cooldown check)", () => {
     it("returns now when no last run exists", () => {
-      const state: WorkflowRuntimeState = { completedRuns: 0, workflows: {} };
+      const state: WorkflowRuntimeSummary = { completedRuns: 0, workflows: {} };
       const before = Date.now();
       const eligibleAt = getEligibleAtMs("builder", 60_000, state);
       expect(eligibleAt).toBeGreaterThanOrEqual(before);
@@ -23,7 +23,7 @@ describe("getEligibleAtMs (cooldown check)", () => {
 
     it("returns now when cooldownMs is zero", () => {
       const lastCompleted = new Date(Date.now() - 5_000).toISOString();
-      const state: WorkflowRuntimeState = {
+      const state: WorkflowRuntimeSummary = {
         completedRuns: 1,
         workflows: {
           builder: {
@@ -43,7 +43,7 @@ describe("getEligibleAtMs (cooldown check)", () => {
     it("returns a future time when cooldown has not elapsed", () => {
       const lastCompleted = new Date(Date.now() - 30_000).toISOString(); // 30s ago
       const cooldownMs = 120_000; // 2 min cooldown
-      const state: WorkflowRuntimeState = {
+      const state: WorkflowRuntimeSummary = {
         completedRuns: 1,
         workflows: {
           builder: {
@@ -63,7 +63,7 @@ describe("getEligibleAtMs (cooldown check)", () => {
     it("returns a past time when cooldown has elapsed", () => {
       const lastCompleted = new Date(Date.now() - 200_000).toISOString(); // 200s ago
       const cooldownMs = 60_000; // 1 min cooldown
-      const state: WorkflowRuntimeState = {
+      const state: WorkflowRuntimeSummary = {
         completedRuns: 1,
         workflows: {
           builder: {
@@ -246,33 +246,6 @@ describe("WorkflowRunStore cost aggregation", () => {
     expect(completed.totalCostUsd).toBeCloseTo(0.03);
   });
 
-  it("accumulates totalCostUsd in runtime state across multiple runs", () => {
-    const trigger = { event: "test", schemaRef: null, payload: {} };
-
-    const run1 = store.createRun(minimalWorkflow, trigger);
-    run1.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.10));
-    run1.finish({ status: "success", durationMs: 100 });
-
-    const run2 = store.createRun(minimalWorkflow, trigger);
-    run2.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.20));
-    run2.finish({ status: "success", durationMs: 100 });
-
-    const state = store.readState();
-    expect(state.totalCostUsd).toBeCloseTo(0.30);
-  });
-
-  it("treats existing run files without totalCostUsd as zero when accumulating", () => {
-    // Simulate state already having totalCostUsd from a prior run
-    const state = store.readState();
-    expect(state.totalCostUsd).toBeUndefined();
-
-    const run = store.createRun(minimalWorkflow, { event: "test", schemaRef: null, payload: {} });
-    run.recordStep(makeStepResult("s1", "agent", { content: "ok" }, 0.05));
-    run.finish({ status: "success", durationMs: 100 });
-
-    const updated = store.readState();
-    expect(updated.totalCostUsd).toBeCloseTo(0.05);
-  });
 });
 
 // ---------------------------------------------------------------------------

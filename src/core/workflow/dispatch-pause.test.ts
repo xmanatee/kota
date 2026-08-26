@@ -1,66 +1,51 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  clearWorkflowPauseSignal,
-  hasPersistentDispatchPause,
-  resolveWorkflowDispatchPause,
-  writeOperatorPauseSignal,
-} from "./dispatch-pause.js";
-import { PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
+import { resolveWorkflowDispatchPause } from "./dispatch-pause.js";
+import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
+import { RunStateDatabase } from "./run-state-database.js";
 
 describe("workflow dispatch pause", () => {
-  let projectDir: string;
-  let pausePath: string;
+  let root: string;
+  let database: RunStateDatabase;
+  let state: ProjectRuntimeStateStore;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-dispatch-pause-"));
-    pausePath = join(projectDir, ".kota", PAUSE_SIGNAL_FILE);
+    root = mkdtempSync(join(tmpdir(), "kota-dispatch-pause-"));
+    database = new RunStateDatabase(root);
+    database.registerProject({
+      id: "project",
+      rootPath: root,
+      createdAt: "2026-08-26T00:00:00.000Z",
+    });
+    state = new ProjectRuntimeStateStore(database, "project");
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    database.close();
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("persists and clears an operator pause", () => {
-    writeOperatorPauseSignal(projectDir);
+  it("persists an operator pause in project state", () => {
+    state.setDispatchPaused(true);
 
-    expect(hasPersistentDispatchPause(projectDir)).toBe(true);
-    expect(JSON.parse(readFileSync(pausePath, "utf8"))).toMatchObject({
-      kind: "operator",
-    });
-    expect(resolveWorkflowDispatchPause({ projectDir, runtimePaused: false })).toMatchObject({
-      paused: true,
-      kind: "operator",
-      source: "signal",
-    });
+    expect(state.getDispatchPaused()).toBe(true);
+    expect(
+      resolveWorkflowDispatchPause({ operatorPaused: true, runtimePaused: false }),
+    ).toMatchObject({ paused: true, kind: "operator", source: "database" });
 
-    clearWorkflowPauseSignal(projectDir);
-
-    expect(existsSync(pausePath)).toBe(false);
-    expect(resolveWorkflowDispatchPause({ projectDir, runtimePaused: false })).toEqual({
-      paused: false,
-      kind: "none",
-    });
+    state.setDispatchPaused(false);
+    expect(state.getDispatchPaused()).toBe(false);
+    expect(
+      resolveWorkflowDispatchPause({ operatorPaused: false, runtimePaused: false }),
+    ).toEqual({ paused: false, kind: "none" });
   });
 
-  it("treats any existing pause marker as an operator signal", () => {
-    writeOperatorPauseSignal(projectDir);
-    writeFileSync(pausePath, "", "utf8");
-
-    expect(resolveWorkflowDispatchPause({ projectDir, runtimePaused: false })).toMatchObject({
-      paused: true,
-      kind: "operator",
-    });
-  });
-
-  it("reports an in-memory pause without creating persistent state", () => {
-    expect(resolveWorkflowDispatchPause({ projectDir, runtimePaused: true })).toMatchObject({
-      paused: true,
-      kind: "runtime",
-      source: "runtime",
-    });
-    expect(existsSync(pausePath)).toBe(false);
+  it("reports a transient runtime pause without persisting it", () => {
+    expect(
+      resolveWorkflowDispatchPause({ operatorPaused: false, runtimePaused: true }),
+    ).toMatchObject({ paused: true, kind: "runtime", source: "runtime" });
+    expect(state.getDispatchPaused()).toBe(false);
   });
 });

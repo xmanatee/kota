@@ -5,7 +5,7 @@ import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operatio
 import type { TransactionalRunState } from "#core/workflow/run-context.js";
 import type {
   WorkflowRuntimeResources,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
   WorkflowStepContext,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
@@ -80,7 +80,7 @@ export type HarnessOptions = {
    * Override the runtime state returned by context.readRuntimeState().
    */
   runtimeState?: Partial<
-    Pick<WorkflowRuntimeState, "completedRuns" | "workflows">
+    Pick<WorkflowRuntimeSummary, "completedRuns" | "workflows">
   >;
   /**
    * Override individual context methods. Useful for testing code steps that

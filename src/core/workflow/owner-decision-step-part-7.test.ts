@@ -29,6 +29,7 @@ import type { WorkflowApprovalStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
@@ -232,6 +233,7 @@ describe("owner decision workflow helpers", () => {
   function runContext(): RunExecutorDeps["runContext"] {
     const runId = `owner-decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       run: { id: runId, attempt: 1, daemonEpoch: 1 },
       project: { id: "scope-a", root: projectDir },
       workflow: "owner-decision-fixture",
@@ -270,6 +272,7 @@ describe("owner decision workflow helpers", () => {
     overrides: Partial<RunExecutorDeps> = {},
   ): RunExecutorDeps {
     return {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: runContext(),
       bus,
       pbus,

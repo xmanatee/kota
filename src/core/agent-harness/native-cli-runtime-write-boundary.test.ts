@@ -145,7 +145,7 @@ describe("native CLI runtime write boundary", () => {
       const agentRunDir = join(runtimeRoot, "builder-evidence", "run-1");
       const artifactRoot = join(agentRunDir, "artifacts");
       const tempRoot = join(runtimeRoot, "tmp", "run-1");
-      const statePath = join(runtimeRoot, "workflow-state.json");
+      const statePath = join(runtimeRoot, "runtime-owned.json");
       const artifactPath = join(artifactRoot, "proof.txt");
       const tempPath = join(tempRoot, "scratch.txt");
       mkdirSync(artifactRoot, { recursive: true });

@@ -116,6 +116,6 @@ export function resolveDefinitions(
 
 export function loadDefinitions(state: WorkflowRuntimeDispatchState): WorkflowDefinition[] {
   const validated = resolveDefinitions(state);
-  state.store.setDefinitionsLoadedAt(new Date().toISOString());
+  state.definitionsLoadedAt = new Date().toISOString();
   return validated;
 }

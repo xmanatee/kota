@@ -83,6 +83,7 @@ import {
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 vi.mock("#core/util/repo-worktree.js", async () => {
   const actual =
@@ -543,6 +544,7 @@ describe("progress-reviewer workflow", () => {
         payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeProgressReviewRunContext(
           projectDir,
           "scratch-cleanup-review",
@@ -1945,6 +1947,7 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeProgressReviewRunContext(
           projectDir,
           "runtime-large-run-count-packet",
@@ -2099,6 +2102,7 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeProgressReviewRunContext(
           projectDir,
           "runtime-hidden-id-packet",

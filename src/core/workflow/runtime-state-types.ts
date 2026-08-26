@@ -71,21 +71,16 @@ export type WorkflowCompletion = {
   status: WorkflowRunStatus;
 };
 
-/** Persisted state for one workflow's latest start and completion. */
+/** Durable projection of one workflow's latest start and completion. */
 export type WorkflowStateEntry = {
   lastStarted?: WorkflowRunRef;
   lastCompletion?: WorkflowCompletion;
+  /** Live projection from the scheduler's current timer, never persisted. */
   nextScheduledAt?: string;
 };
 
-export type WorkflowRuntimeState = {
+export type WorkflowRuntimeSummary = {
   completedRuns: number;
-  totalCostUsd?: number;
-  totalInputTokens?: number;
-  totalOutputTokens?: number;
-  definitionsLoadedAt?: string;
-  agentBackoff?: WorkflowAgentBackoffState;
-  batchBuffers?: WorkflowBatchBuffers;
   workflows: Record<string, WorkflowStateEntry>;
 };
 
@@ -94,5 +89,9 @@ export type WorkflowRuntimeOperationalState = {
   pendingRuns: WorkflowQueuedRun[];
 };
 
-export type WorkflowRuntimeSnapshot = WorkflowRuntimeState &
-  WorkflowRuntimeOperationalState;
+export type WorkflowRuntimeSnapshot = WorkflowRuntimeSummary &
+  WorkflowRuntimeOperationalState & {
+    definitionsLoadedAt?: string;
+    agentBackoff?: WorkflowAgentBackoffState;
+    batchBuffers?: WorkflowBatchBuffers;
+  };

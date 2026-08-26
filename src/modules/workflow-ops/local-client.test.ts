@@ -2,11 +2,11 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { ProjectRuntimeStateStore } from "#core/workflow/project-runtime-state.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
   ABORT_SIGNAL_FILE,
-  PAUSE_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "#core/workflow/runtime.js";
 import {
@@ -19,34 +19,58 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
 
   beforeEach(() => {
     projectDir = makeWorkflowOpsProjectDir();
+    const runState = new RunStateDatabase(join(projectDir, ".kota"));
+    runState.registerProject({
+      id: deriveDirectoryScopeId(projectDir),
+      rootPath: projectDir,
+      createdAt: "2026-08-26T00:00:00.000Z",
+    });
+    runState.close();
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("pause writes the signal file and is idempotent", async () => {
+  it("pause persists canonical state and is idempotent", async () => {
     const handler = buildHandler(projectDir);
     const first = await handler.pause();
     expect(first).toEqual({ paused: true, already: false });
-    expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
+    const database = RunStateDatabase.openReadOnly(join(projectDir, ".kota"));
+    expect(
+      new ProjectRuntimeStateStore(database, deriveDirectoryScopeId(projectDir))
+        .getDispatchPaused(),
+    ).toBe(true);
+    database.close();
     const second = await handler.pause();
     expect(second).toEqual({ paused: true, already: true });
   });
 
-  it("resume removes the signal file and is idempotent", async () => {
+  it("resume clears canonical state and is idempotent", async () => {
     const handler = buildHandler(projectDir);
     await handler.pause();
     const first = await handler.resume();
     expect(first).toEqual({ paused: false, already: false });
-    expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(false);
+    const database = RunStateDatabase.openReadOnly(join(projectDir, ".kota"));
+    expect(
+      new ProjectRuntimeStateStore(database, deriveDirectoryScopeId(projectDir))
+        .getDispatchPaused(),
+    ).toBe(false);
+    database.close();
     const second = await handler.resume();
     expect(second).toEqual({ paused: false, already: true });
   });
 
   it("clears agent backoff only for an explicit retry", async () => {
-    const store = new WorkflowRunStore(projectDir);
-    store.setAgentBackoff({
+    const runState = new RunStateDatabase(join(projectDir, ".kota"));
+    const projectId = deriveDirectoryScopeId(projectDir);
+    runState.registerProject({
+      id: projectId,
+      rootPath: projectDir,
+      createdAt: new Date().toISOString(),
+    });
+    const state = new ProjectRuntimeStateStore(runState, projectId);
+    state.setAgentBackoff({
       runtimeId: "antigravity-cli:antigravity-cli",
       kind: "auth",
       failureCount: 1,
@@ -60,14 +84,15 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       paused: false,
       already: true,
     });
-    expect(store.readState().agentBackoff).toBeDefined();
+    expect(state.getAgentBackoff()).not.toBeNull();
 
     await expect(handler.resume({ retryAgent: true })).resolves.toEqual({
       paused: false,
       already: true,
       agentBackoffCleared: true,
     });
-    expect(store.readState().agentBackoff).toBeUndefined();
+    expect(state.getAgentBackoff()).toBeNull();
+    runState.close();
   });
 
   it("abort with no active runs writes no signal and reports zero", async () => {
@@ -124,7 +149,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(true);
   });
 
-  it("status reflects paused and pendingAbort signal files", async () => {
+  it("status reflects durable pause and the pending abort signal", async () => {
     const handler = buildHandler(projectDir);
     let snapshot = await handler.status();
     expect(snapshot.paused).toBe(false);
@@ -134,7 +159,10 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(snapshot.queueLength).toBe(0);
     expect(snapshot.concurrency).toBe(4);
 
-    writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
+    const database = RunStateDatabase.openExisting(join(projectDir, ".kota"));
+    new ProjectRuntimeStateStore(database, deriveDirectoryScopeId(projectDir))
+      .setDispatchPaused(true);
+    database.close();
     writeFileSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE), "");
     snapshot = await handler.status();
     expect(snapshot.paused).toBe(true);

@@ -2,6 +2,8 @@ import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { vi } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export function wait(ms: number): Promise<void> {
@@ -124,23 +126,26 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
   }
 
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  writeFileSync(
-    join(projectDir, ".kota/workflow-state.json"),
-    JSON.stringify({
-      completedRuns: 1,
-      pendingRuns: [],
-      workflows: {
-        explorer: {
-          lastCompletion: {
-            runId: "run-explorer-seed",
-            startedAt: tenMinutesAgo,
-            completedAt: tenMinutesAgo,
-            status: "success",
-          },
-        },
-      },
-    }),
-  );
+  const runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
+  const projectId = deriveDirectoryScopeId(projectDir);
+  runState.registerProject({
+    id: projectId,
+    rootPath: projectDir,
+    createdAt: tenMinutesAgo,
+  });
+  const { epoch } = runState.beginDaemonSession(tenMinutesAgo);
+  runState.admitRun({
+    id: "run-explorer-seed",
+    projectId,
+    workflow: "explorer",
+    trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+    repository: "none",
+    resources: [],
+    admittedAt: tenMinutesAgo,
+  });
+  runState.startRun("run-explorer-seed", epoch, tenMinutesAgo);
+  runState.finishRun("run-explorer-seed", epoch, "succeeded", tenMinutesAgo);
+  runState.close();
   writeFileSync(
     join(projectDir, "package.json"),
     JSON.stringify({

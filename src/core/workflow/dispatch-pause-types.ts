@@ -3,7 +3,7 @@ export type WorkflowDispatchPauseStatus =
   | {
       paused: true;
       kind: "operator";
-      source: "signal";
+      source: "database";
       message: string;
       nextAction: string;
     }

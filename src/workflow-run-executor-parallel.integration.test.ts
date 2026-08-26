@@ -20,6 +20,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 });
 
 import "#modules/claude-agent-harness/index.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
@@ -149,6 +150,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -201,6 +203,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -237,6 +240,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -290,6 +294,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -331,6 +336,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -373,6 +379,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -423,6 +430,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -496,7 +504,8 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -526,7 +535,8 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -555,7 +565,8 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -595,7 +606,8 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");

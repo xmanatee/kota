@@ -223,7 +223,7 @@ export class WorkflowQueueManager {
       getEligibleAtMs(
         definition.name,
         triggerConfig.cooldownMs,
-        this.config.store.readState(),
+        this.config.runState.readWorkflowSummary(this.config.projectId),
       ),
       backoff ? Date.parse(backoff.until) : now,
     );

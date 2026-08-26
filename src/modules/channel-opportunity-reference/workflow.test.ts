@@ -64,6 +64,7 @@ import {
   referenceTelegramSportsRouteConfig,
   screenLikelyOpportunities,
 } from "./index.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const SCOPE_ID = "scope-redacted";
 
@@ -330,6 +331,7 @@ describe("channel opportunity reference workflow", () => {
     options: RunOptions,
   ): Promise<WorkflowRunExecutionResult> {
     const run = executeWorkflowRun(definition(options), trigger(options.batch), {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: createTestRunContext(projectDir, trigger(options.batch)),
       bus,
       pbus,

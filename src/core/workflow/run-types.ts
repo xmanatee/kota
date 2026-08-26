@@ -14,7 +14,7 @@ import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import type { RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
   WorkflowStepErrorKind,
   WorkflowStepSkipReason,
   WorkflowStepStatus,
@@ -144,7 +144,7 @@ export type WorkflowStepContext = {
   ) => void;
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
-  readRuntimeState: () => WorkflowRuntimeState;
+  readRuntimeState: () => WorkflowRuntimeSummary;
   deadLetterQueue?: DeadLetterQueueStore;
   /**
    * Runtime-owned progress heartbeat for code steps that opt into

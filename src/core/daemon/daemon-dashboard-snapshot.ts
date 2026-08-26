@@ -1,6 +1,6 @@
 import type {
   WorkflowCompletion,
-  WorkflowRuntimeState,
+  WorkflowRuntimeSummary,
 } from "#core/workflow/run-types.js";
 import type { DaemonRuntimeContext } from "./daemon-runtime-context.js";
 
@@ -16,9 +16,6 @@ export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
     running: ctx.running,
     stopping: ctx.stopping,
     completedRuns: state.completedRuns,
-    totalCostUsd: state.totalCostUsd,
-    totalInputTokens: state.totalInputTokens,
-    totalOutputTokens: state.totalOutputTokens,
     ...(lastCompletion !== undefined
       ? {
           lastCompletedWorkflow: lastCompletion.workflow,
@@ -39,7 +36,7 @@ export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
 }
 
 function latestWorkflowCompletion(
-  workflows: WorkflowRuntimeState["workflows"],
+  workflows: WorkflowRuntimeSummary["workflows"],
 ): (WorkflowCompletion & { workflow: string }) | undefined {
   let latest: (WorkflowCompletion & { workflow: string }) | undefined;
   for (const [workflow, state] of Object.entries(workflows)) {

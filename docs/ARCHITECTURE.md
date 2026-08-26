@@ -134,7 +134,10 @@ Run execution has one ownership chain:
 
 - `RunStateDatabase` is the durable authority for admission and queue state,
   run and attempt ownership, logical resources, process identities, external
-  effects, and terminal publications.
+  effects, terminal publications, dispatch pause, and revisioned project state.
+  The daemon database composition root alone runs ordered SQLite migrations and
+  the one-time disposal of known obsolete operational files; standalone hosts
+  neither import nor delete project state.
 - `RunCoordinator` owns shared daemon admission, capacity, project pause,
   cancellation, and child-run waits. A waiting parent releases capacity and
   reacquires it before continuing.
@@ -199,7 +202,7 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Outbound HTTP | `OutboundHttpTransport` and the closed profiles in `src/core/outbound-http/`. | Core protocols and module adapters select explicit trust profiles; only the low-level dispatcher reaches host HTTP primitives. Vendor payloads, OAuth semantics, and agent-facing web/browser behavior stay in their owning modules. |
 | Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, `OwnerDecisionStore`, `ownerDecisionSteps`, `confirmedOwnerActionStep`, and the owner-decisions module client/CLI/API. | Owner questions ask for judgment; approvals gate dangerous effects; owner decisions persist reusable choices and authorize at most the intended later action. |
 | Store and evidence | Module-owned history, memory, knowledge, working memory, task, and run-artifact stores. | Git history and `.kota/runs/` are the review record. Do not create parallel changelogs, lesson stores, or ad hoc audit files. |
-| Workflow run | `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, `RunSandboxManager`, and `IntegrationQueue` in `src/core/workflow/`. | Durable admission and ownership are shared across workflows and projects. Repository isolation is per run; successful writers publish through one serialized integration path. Run artifacts are evidence, not a second queue or ownership store. |
+| Workflow run | `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, `RunSandboxManager`, `IntegrationQueue`, and evidence-only `WorkflowRunStore` in `src/core/workflow/`. | SQLite is the sole writable operational authority across workflows and projects. Repository isolation is per run; successful writers publish through one serialized integration path. Run artifacts are retained evidence, not a second queue, summary, lease, or shared-state store. |
 | UI contribution | `KotaModule.uiSurfaces` declares side-effect-free live sources. One scope-aware module-runtime assembler projects and validates `ui.surface.v1` for both `/ui/surfaces` and `KotaClient.ui`; shared conformance fixtures and native decoders consume that graph. | Capability modules own their reads and surface semantics. Operator-facing forms, actions, status, setup, approvals, owner requests, runs, launch controls, and module capabilities are declared once and rendered natively by each client. Typed actions carry parameter schemas, readiness, effects, confirmation metadata, and result/error contracts. Surfaces declare the domain events that refresh their projection, while log-stream nodes additionally identify which live event payloads clients append to that stream. |
 
 ## Context Gathering

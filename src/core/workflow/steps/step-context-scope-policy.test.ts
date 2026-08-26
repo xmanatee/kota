@@ -37,6 +37,7 @@ import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { executeToolStep } from "./step-executor.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const POLICY_WRITE_TOOL = "workflow_scope_policy_write_fixture";
 const POLICY_NETWORK_TOOL = "workflow_scope_policy_network_fixture";
@@ -128,6 +129,7 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,
@@ -210,6 +212,7 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,
@@ -308,6 +311,7 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,
@@ -435,6 +439,7 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir,
           scopeDir: projectDir,
           bus,

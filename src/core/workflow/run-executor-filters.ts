@@ -1,4 +1,4 @@
-import type { WorkflowRuntimeState } from "./run-types.js";
+import type { WorkflowRuntimeSummary } from "./run-types.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 
 export function matchesFilter(
@@ -52,7 +52,7 @@ function isPayloadObject(
 export function getEligibleAtMs(
   workflowName: string,
   cooldownMs: number,
-  state: Pick<WorkflowRuntimeState, "workflows">,
+  state: Pick<WorkflowRuntimeSummary, "workflows">,
 ): number {
   const lastCompletedAt = state.workflows[workflowName]?.lastCompletion?.completedAt;
   if (!lastCompletedAt || cooldownMs <= 0) return Date.now();

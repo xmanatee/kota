@@ -1,6 +1,6 @@
 import type { KotaConfig } from "#core/config/config.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
-import type { WorkflowRunStore } from "./run-store.js";
+import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import type { WorkflowAgentBackoffSignal, WorkflowAgentBackoffState } from "./trigger-types.js";
 
 const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;
@@ -16,13 +16,13 @@ const AGENT_BACKOFF_FACTORS: Record<
 
 export class AgentBackoffManager {
   constructor(
-    private readonly store: WorkflowRunStore,
+    private readonly store: ProjectRuntimeStateStore,
     private readonly log: (msg: string) => void,
     private readonly runtimeId: string,
   ) {}
 
   private getStored(): WorkflowAgentBackoffState | null {
-    return this.store.readState().agentBackoff ?? null;
+    return this.store.getAgentBackoff();
   }
 
   getActive(): WorkflowAgentBackoffState | null {

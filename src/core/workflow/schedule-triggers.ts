@@ -1,6 +1,6 @@
 import { getNextCronTime } from "./cron.js";
 import { type DispatchWindow, isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
-import type { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowRuntimeSummary } from "./runtime-state-types.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -11,7 +11,7 @@ export class ScheduleTriggerManager {
   > = new Map();
 
   constructor(
-    private readonly store: WorkflowRunStore,
+    private readonly readSummary: () => WorkflowRuntimeSummary,
     private readonly isStopping: () => boolean,
     private readonly enqueueRun: (
       definition: WorkflowDefinition,
@@ -30,9 +30,19 @@ export class ScheduleTriggerManager {
     this.timers.clear();
   }
 
+  nextScheduledAt(): Map<string, string> {
+    const projected = new Map<string, string>();
+    for (const [key, timer] of this.timers) {
+      const workflow = key.slice(0, key.lastIndexOf(":"));
+      const value = new Date(timer.nextFireMs).toISOString();
+      const current = projected.get(workflow);
+      if (current === undefined || value < current) projected.set(workflow, value);
+    }
+    return projected;
+  }
+
   setup(definitions: WorkflowDefinition[]): void {
-    this.clearInactiveScheduleState(definitions);
-    const state = this.store.readState();
+    const state = this.readSummary();
     for (const definition of definitions) {
       if (!definition.enabled) continue;
       for (let i = 0; i < definition.triggers.length; i++) {
@@ -114,10 +124,6 @@ export class ScheduleTriggerManager {
     timer.unref();
 
     this.timers.set(key, { timer, nextFireMs });
-    this.store.setWorkflowNextScheduledAt(
-      definition.name,
-      new Date(nextFireMs).toISOString(),
-    );
   }
 
   reconcile(newDefinitions: WorkflowDefinition[]): void {
@@ -138,9 +144,7 @@ export class ScheduleTriggerManager {
         this.timers.delete(key);
       }
     }
-    this.clearInactiveScheduleState(newDefinitions);
-
-    const state = this.store.readState();
+    const state = this.readSummary();
     for (const definition of newDefinitions) {
       if (!definition.enabled) continue;
       for (let i = 0; i < definition.triggers.length; i++) {
@@ -173,20 +177,4 @@ export class ScheduleTriggerManager {
     return trigger.runOn !== "default-scope" || this.isDefaultScopeRuntime();
   }
 
-  private clearInactiveScheduleState(definitions: WorkflowDefinition[]): void {
-    const state = this.store.readState();
-    for (const definition of definitions) {
-      const hasSchedule = definition.enabled && definition.triggers.some(
-        (trigger) =>
-          (trigger.schedule !== undefined || trigger.intervalMs !== undefined) &&
-          this.shouldRunInThisRuntime(trigger),
-      );
-      if (
-        !hasSchedule &&
-        state.workflows[definition.name]?.nextScheduledAt !== undefined
-      ) {
-        this.store.setWorkflowNextScheduledAt(definition.name, undefined);
-      }
-    }
-  }
 }

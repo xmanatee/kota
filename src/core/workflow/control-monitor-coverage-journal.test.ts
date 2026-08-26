@@ -22,6 +22,7 @@ import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRunContext(
   projectDir: string,
@@ -186,6 +187,7 @@ describe("control monitor coverage event journal", () => {
         definition,
         trigger,
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           runContext: makeRunContext(projectDir, trigger, "journal-run"),
           bus,
           eventJournal,
@@ -304,6 +306,7 @@ describe("control monitor coverage event journal", () => {
         definition,
         trigger,
         {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           runContext: makeRunContext(projectDir, trigger, "mcp-run"),
           bus,
           eventJournal,

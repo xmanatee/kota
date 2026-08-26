@@ -60,6 +60,122 @@ afterEach(() => {
 });
 
 describe("RunStateDatabase", () => {
+  test("derives workflow summaries from durable run outcomes", () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    store.admitRun({
+      id: "run-a",
+      projectId: "project-a",
+      workflow: "reviewer",
+      repository: "none",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      resources: [],
+      admittedAt: "2026-08-25T10:00:01.000Z",
+    });
+    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
+    store.finishRun(
+      "run-a",
+      epoch,
+      "succeeded",
+      "2026-08-25T10:00:03.000Z",
+      undefined,
+      undefined,
+      "completed-with-warnings",
+    );
+
+    expect(store.readWorkflowSummary("project-a")).toEqual({
+      completedRuns: 1,
+      workflows: {
+        reviewer: {
+          lastStarted: {
+            runId: "run-a",
+            startedAt: "2026-08-25T10:00:02.000Z",
+          },
+          lastCompletion: {
+            runId: "run-a",
+            startedAt: "2026-08-25T10:00:02.000Z",
+            completedAt: "2026-08-25T10:00:03.000Z",
+            status: "completed-with-warnings",
+          },
+        },
+      },
+    });
+  });
+
+  test("updates runtime-owned project state with revision checks", () => {
+    const store = createStore();
+
+    store.compareAndSetProjectStateValue({
+      projectId: "project-a",
+      key: "runtime/agent-backoff",
+      expectedRevision: 0,
+      value: { kind: "provider" },
+      updatedAt: "2026-08-25T10:00:00.000Z",
+    });
+
+    expect(
+      store.readProjectStateValue("project-a", "runtime/agent-backoff"),
+    ).toEqual({ revision: 1, value: { kind: "provider" } });
+    expect(() =>
+      store.compareAndSetProjectStateValue({
+        projectId: "project-a",
+        key: "runtime/agent-backoff",
+        expectedRevision: 0,
+        value: null,
+        updatedAt: "2026-08-25T10:00:01.000Z",
+      }),
+    ).toThrow(StateValueConflictError);
+  });
+
+  test("rejects databases created by a newer schema", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-run-state-future-"));
+    roots.push(root);
+    const future = new Database(join(root, "kota.sqlite"));
+    future.pragma("user_version = 999");
+    future.close();
+
+    expect(() => new RunStateDatabase(root)).toThrow(/schema version 999/);
+  });
+
+  test("refuses to migrate through an offline database handle", () => {
+    const store = createStore();
+    const stateDir = dirname(store.path);
+    store.close();
+    const raw = new Database(join(stateDir, "kota.sqlite"));
+    raw.pragma("user_version = 2");
+    raw.close();
+
+    expect(() => RunStateDatabase.openReadOnly(stateDir)).toThrow(
+      /requires daemon-owned migration/i,
+    );
+    const unchanged = new Database(join(stateDir, "kota.sqlite"), { readonly: true });
+    expect(unchanged.pragma("user_version", { simple: true })).toBe(2);
+    unchanged.close();
+  });
+
+  test("rejects every terminal transition without a result status", () => {
+    const store = createStore();
+    store.admitRun({
+      id: "run-terminal-invariant",
+      projectId: "project-a",
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      resources: [],
+      admittedAt: "2026-08-25T10:00:00.000Z",
+    });
+    const raw = new Database(store.path);
+
+    expect(() =>
+      raw.prepare(
+        "UPDATE runs SET state = 'cancelled', finished_at = ? WHERE id = ?",
+      ).run("2026-08-25T10:01:00.000Z", "run-terminal-invariant")
+    ).toThrow(/terminal workflow runs require result_status/i);
+
+    raw.close();
+    store.close();
+  });
+
   test("persists contending admissions and acquires all resources only at start", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T09:59:59.000Z");
@@ -345,6 +461,10 @@ describe("RunStateDatabase", () => {
       ).toEqual([]);
 
       expect(reopened.cancelQueuedRun("run-owner", "2026-08-25T10:01:02.000Z")).toBe(true);
+      expect(reopened.getRun("run-owner")).toMatchObject({
+        state: "cancelled",
+        resultStatus: "interrupted",
+      });
       expect(
         reopened.startRun("run-waiter", second.epoch, "2026-08-25T10:01:03.000Z"),
       ).toBe(1);

@@ -29,9 +29,6 @@ export type DashboardSnapshot = {
 	running: boolean;
 	stopping: boolean;
 	completedRuns: number;
-	totalCostUsd?: number;
-	totalInputTokens?: number;
-	totalOutputTokens?: number;
 	lastCompletedWorkflow?: string;
 	lastCompletedAt?: string;
 	lastCompletedStatus?: WorkflowRunStatus;

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowRuntimeSummary } from "./runtime-state-types.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -29,11 +29,11 @@ describe("ScheduleTriggerManager", () => {
   let enqueuedRuns: WorkflowRunTrigger[];
   let startNextCount: number;
   let isStopping: boolean;
+  let summary: WorkflowRuntimeSummary;
 
   function makeManager(isDefaultScopeRuntime = true): ScheduleTriggerManager {
-    const store = new WorkflowRunStore(projectDir);
     return new ScheduleTriggerManager(
-      store,
+      () => summary,
       () => isStopping,
       (_definition, _trigger, run) => {
         enqueuedRuns.push(run);
@@ -51,6 +51,7 @@ describe("ScheduleTriggerManager", () => {
     enqueuedRuns = [];
     startNextCount = 0;
     isStopping = false;
+    summary = { completedRuns: 0, workflows: {} };
     manager = makeManager();
   });
 
@@ -108,23 +109,17 @@ describe("ScheduleTriggerManager", () => {
     expect(timers.size).toBe(1);
   });
 
-  it("clears stale schedule state when a workflow is disabled", () => {
-    const store = new WorkflowRunStore(projectDir);
-    store.setWorkflowNextScheduledAt(
-      "global-review",
-      new Date(Date.now() + 60_000).toISOString(),
-    );
+  it("projects only live schedule timers after a workflow is disabled", () => {
     const definition = makeDefinition("global-review", {
       event: "automation.global.scheduled",
       cooldownMs: 0,
       intervalMs: 60_000,
     });
-    definition.enabled = false;
-
     manager.setup([definition]);
+    expect(manager.nextScheduledAt().has(definition.name)).toBe(true);
+    definition.enabled = false;
+    manager.reconcile([definition]);
 
-    expect(
-      store.readState().workflows[definition.name]?.nextScheduledAt,
-    ).toBeUndefined();
+    expect(manager.nextScheduledAt().has(definition.name)).toBe(false);
   });
 });

@@ -34,7 +34,7 @@ describe("daemon workflow pause handling", () => {
           getDispatchPauseStatus: () => ({
             paused: true,
             kind: "operator",
-            source: "signal",
+            source: "database",
             message: "operator pause",
             nextAction: "resume",
           }),

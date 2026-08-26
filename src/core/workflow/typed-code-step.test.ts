@@ -10,6 +10,7 @@ import { expectArrayOutput, expectStructuredOutput, typedCodeStep, WorkflowStepO
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 type SamplePayload = { value: number; tag: string };
 
@@ -111,6 +112,7 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep, downstream]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -134,6 +136,7 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -188,6 +191,7 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,

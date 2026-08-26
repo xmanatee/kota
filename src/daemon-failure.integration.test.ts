@@ -151,16 +151,14 @@ describe("Daemon failure and lifecycle", () => {
     });
     const startPromise = daemon.start();
     await wait(80);
+    const workflowSnapshot = daemon.getDashboardSnapshot();
     await daemon.stop();
     await startPromise;
 
     const daemonState = JSON.parse(
       readFileSync(join(stateDir, "daemon-state.json"), "utf-8"),
     );
-    const workflowState = JSON.parse(
-      readFileSync(join(stateDir, "workflow-state.json"), "utf-8"),
-    );
-    expect(workflowState.completedRuns).toBeGreaterThanOrEqual(1);
+    expect(workflowSnapshot.completedRuns).toBeGreaterThanOrEqual(1);
     expect(daemonState.completedRuns).toBeUndefined();
     expect(daemonState.lastCompletedWorkflow).toBeUndefined();
   });

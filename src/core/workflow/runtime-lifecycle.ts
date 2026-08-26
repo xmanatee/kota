@@ -4,13 +4,9 @@ import {
   scanSuspensions,
 } from "./awaits-store.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
-import {
-  clearWorkflowPauseSignal,
-  hasPersistentDispatchPause,
-  writeOperatorPauseSignal,
-} from "./dispatch-pause.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
+import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import {
   emitIdleEvent,
@@ -27,6 +23,7 @@ export type WorkflowRuntimeInitialDispatch = "active" | "paused";
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
   projectId: string;
+  projectState: ProjectRuntimeStateStore;
   runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
@@ -43,7 +40,7 @@ export function startRuntime(
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
   state.dispatchPaused =
-    initialDispatch === "paused" || hasPersistentDispatchPause(state.projectDir);
+    initialDispatch === "paused" || state.projectState.getDispatchPaused();
   // Keep this scope closed until definitions, triggers, and durable resumers
   // are ready. Other projects may continue filling shared capacity.
   state.runCoordinator.pauseProjectAdmission(state.projectId);
@@ -212,8 +209,7 @@ export function isDispatchPaused(state: WorkflowRuntimeLifecycleState): boolean 
   return (
     state.dispatchPaused ||
     state.runCoordinator.isGlobalAdmissionPaused() ||
-    state.runCoordinator.isProjectAdmissionPaused(state.projectId) ||
-    hasPersistentDispatchPause(state.projectDir)
+    state.runCoordinator.isProjectAdmissionPaused(state.projectId)
   );
 }
 
@@ -223,11 +219,7 @@ export function setDispatchPaused(
   mode: WorkflowDispatchPauseMode,
 ): void {
   if (mode === "persistent") {
-    if (paused) {
-      writeOperatorPauseSignal(state.projectDir);
-    } else {
-      clearWorkflowPauseSignal(state.projectDir);
-    }
+    state.projectState.setDispatchPaused(paused);
   }
   state.dispatchPaused = paused;
   if (paused) state.runCoordinator.pauseProjectAdmission(state.projectId);

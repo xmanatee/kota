@@ -13,6 +13,7 @@ import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { resolveWorkflowDispatchPause } from "#core/workflow/dispatch-pause.js";
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
 import type { RunSandbox } from "#core/workflow/run-sandbox.js";
+import { readStoredWorkflowRuntimeState } from "#core/workflow/stored-runtime-state.js";
 import { resolveDashboardForStatus } from "./status-cli-render.js";
 import type {
   DaemonControlIdentity,
@@ -234,8 +235,9 @@ function offlineStatusSnapshot(
   const stateDir = join(projectDir, ".kota");
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const strandedDaemon = detectStrandedDaemonProcess(projectDir);
+  const storedState = readStoredWorkflowRuntimeState(projectDir, stateDir);
   const pause = resolveWorkflowDispatchPause({
-    projectDir,
+    operatorPaused: storedState.operatorPaused,
     runtimePaused: false,
   });
   const activeRuns = runProjection.runs.filter(

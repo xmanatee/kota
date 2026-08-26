@@ -15,6 +15,7 @@ import type { WorkflowQueuedRun } from "./run-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeAwaitDefinition(): WorkflowDefinition {
   return {
@@ -128,6 +129,7 @@ describe("await-event step", () => {
   it("(a) live: event arrives while the daemon is alive — step resolves and the workflow continues", async () => {
     const definition = makeAwaitDefinition();
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
@@ -166,7 +168,8 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     // Wait for the suspension file to be written, then abort.
@@ -233,6 +236,7 @@ describe("await-event step", () => {
       definition,
       resumeQueued.trigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
         bus: newBus,
         store,
@@ -262,7 +266,8 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     let suspendedRunId = "";
@@ -308,6 +313,7 @@ describe("await-event step", () => {
       definition,
       resumeQueued.trigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
         bus: newBus,
         store,

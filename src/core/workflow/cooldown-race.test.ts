@@ -1,117 +1,63 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunStatus } from "./runtime-state-types.js";
-import type { WorkflowDefinition } from "./types.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { getEligibleAtMs } from "./run-executor-utils.js";
+import { RunStateDatabase } from "./run-state-database.js";
 
-function workflow(name: string): WorkflowDefinition {
-  return {
-    name,
-    definitionPath: `test/${name}.ts`,
-    moduleRoot: "/test-module-root",
-    enabled: true,
-    repository: "read",
-    tags: [],
-    triggers: [],
-    steps: [],
-  };
-}
+const roots: string[] = [];
 
-function completion(
-  runId: string,
-  completedAt: string,
-  status: WorkflowRunStatus = "success",
-) {
-  return {
-    runId,
-    startedAt: completedAt,
-    completedAt,
-    status,
-  };
-}
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
-describe("workflow completion state races", () => {
-  let projectDir: string;
-  let store: WorkflowRunStore;
-
-  beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-completion-race-"));
-    store = new WorkflowRunStore(projectDir);
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("preserves independent completion updates from concurrent run handles", () => {
-    writeFileSync(
-      store.statePath,
-      JSON.stringify({
-        completedRuns: 10,
-        workflows: {
-          alpha: {
-            lastCompletion: completion(
-              "prior-alpha",
-              "2026-04-11T10:00:00.000Z",
-            ),
-          },
-          beta: {
-            lastCompletion: completion(
-              "prior-beta",
-              "2026-04-11T10:00:00.000Z",
-            ),
-          },
-        },
-      }),
+describe("durable workflow cooldown projection", () => {
+  it("keeps independent concurrent completions and uses the latest watermark", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-cooldown-state-"));
+    roots.push(root);
+    const database = new RunStateDatabase(root);
+    database.registerProject({
+      id: "project",
+      rootPath: root,
+      createdAt: "2026-04-11T09:00:00.000Z",
+    });
+    const { epoch } = database.beginDaemonSession("2026-04-11T09:00:00.000Z");
+    for (const [id, workflow] of [["alpha-run", "alpha"], ["beta-run", "beta"]] as const) {
+      database.admitRun({
+        id,
+        projectId: "project",
+        workflow,
+        trigger: { event: "test", schemaRef: null, payload: {} },
+        repository: "none",
+        resources: [],
+        admittedAt: "2026-04-11T09:01:00.000Z",
+      });
+      database.startRun(id, epoch, "2026-04-11T09:02:00.000Z");
+    }
+    database.finishRun(
+      "beta-run",
+      epoch,
+      "succeeded",
+      "2026-04-11T10:03:00.000Z",
     );
-    const alpha = store.createRun(workflow("alpha"), {
-      event: "test",
-      schemaRef: null,
-      payload: {},
-    });
-    const beta = store.createRun(workflow("beta"), {
-      event: "test",
-      schemaRef: null,
-      payload: {},
-    });
-
-    beta.finish({ status: "success", durationMs: 1_000 });
-    const betaCompletedAt = store.readState().workflows.beta?.lastCompletion?.completedAt;
-    alpha.finish({ status: "success", durationMs: 2_000 });
-
-    const state = store.readState();
-    expect(state.workflows.alpha?.lastCompletion?.runId).toBe(alpha.metadata.id);
-    expect(state.workflows.beta?.lastCompletion?.completedAt).toBe(betaCompletedAt);
-    expect(state.completedRuns).toBe(12);
-    expect(state).not.toHaveProperty("activeRuns");
-    expect(state).not.toHaveProperty("pendingRuns");
-  });
-
-  it("never moves a workflow completion watermark backward", () => {
-    const futureCompletion = new Date(Date.now() + 60_000).toISOString();
-    writeFileSync(
-      store.statePath,
-      JSON.stringify({
-        completedRuns: 5,
-        workflows: {
-          alpha: {
-            lastCompletion: completion("run-alpha-newer", futureCompletion),
-          },
-        },
-      }),
+    database.finishRun(
+      "alpha-run",
+      epoch,
+      "succeeded",
+      "2026-04-11T10:04:00.000Z",
     );
-    const older = store.createRun(workflow("alpha"), {
-      event: "test",
-      schemaRef: null,
-      payload: {},
+
+    const summary = database.readWorkflowSummary("project");
+    expect(summary).toMatchObject({
+      completedRuns: 2,
+      workflows: {
+        alpha: { lastCompletion: { runId: "alpha-run" } },
+        beta: { lastCompletion: { runId: "beta-run" } },
+      },
     });
-
-    older.finish({ status: "success", durationMs: 500 });
-
-    const state = store.readState();
-    expect(state.workflows.alpha?.lastCompletion?.completedAt).toBe(futureCompletion);
-    expect(state.completedRuns).toBe(6);
+    expect(getEligibleAtMs("alpha", 60_000, summary)).toBe(
+      Date.parse("2026-04-11T10:05:00.000Z"),
+    );
+    database.close();
   });
 });

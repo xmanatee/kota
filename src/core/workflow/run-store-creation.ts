@@ -18,7 +18,6 @@ import { buildWorkflowSnapshot } from "./run-store-snapshot.js";
 import { buildStepOrder } from "./run-store-step-order.js";
 import type {
   WorkflowRunMetadata,
-  WorkflowRuntimeState,
 } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -30,9 +29,6 @@ export function createWorkflowRun(opts: {
   trigger: WorkflowRunTrigger;
   runId: string | undefined;
   headSha: string | null;
-  state: WorkflowRuntimeState;
-  readState: () => WorkflowRuntimeState;
-  writeState: (state: WorkflowRuntimeState) => void;
 }): ActiveWorkflowRunHandle {
   const payloadRunId =
     typeof opts.trigger.payload._runId === "string"
@@ -66,22 +62,13 @@ export function createWorkflowRun(opts: {
     projectWorkflowRunMetadataForStorage(metadata),
   );
 
-  opts.state.workflows[opts.workflow.name] = {
-    ...opts.state.workflows[opts.workflow.name],
-    lastStarted: { runId: id, startedAt: metadata.startedAt },
-  };
-  opts.writeState(opts.state);
-
   return createActiveRunHandle({
     id,
     projectDir: opts.projectDir,
     runDirPath,
     metadata,
     headSha: opts.headSha,
-    workflowName: opts.workflow.name,
     stepOrder: buildStepOrder(opts.workflow.steps),
-    readState: opts.readState,
-    writeState: opts.writeState,
   });
 }
 

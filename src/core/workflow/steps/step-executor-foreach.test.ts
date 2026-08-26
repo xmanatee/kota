@@ -17,6 +17,7 @@ import { createTestTransactionalRunState } from "../testing/run-context-fixture.
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
   return { event: "runtime.idle", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };
@@ -174,7 +175,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -210,7 +212,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -248,7 +251,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -293,7 +297,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     // Workflow continues but has warnings
@@ -336,7 +341,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -375,7 +381,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -410,7 +417,8 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -466,7 +474,8 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -509,7 +518,8 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -545,7 +555,8 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("completed-with-warnings");
@@ -578,6 +589,7 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -614,6 +626,7 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -675,6 +688,7 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -711,6 +725,7 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -759,6 +774,7 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise: firstRun } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir),
       bus,
       store,
@@ -778,6 +794,7 @@ describe("foreach step – maxConcurrency", () => {
       definition,
       retryTrigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(projectDir, retryTrigger),
         bus,
         store,
@@ -1098,7 +1115,8 @@ describe("foreach step – retryFailedItems partial-resume", () => {
     ]);
 
     // First run: items 0 and 2 succeed, item 1 fails
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     expect(first.metadata.status).toBe("completed-with-warnings");
     const firstId = first.metadata.id;
@@ -1129,6 +1147,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
 
     const retryTrigger = makeRetryTrigger(firstId);
     const { promise: p2 } = executeWorkflowRun(fixedDefinition, retryTrigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, retryTrigger),
       bus,
       store,
@@ -1176,7 +1195,8 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     const firstId = first.metadata.id;
     processed.length = 0;
@@ -1206,6 +1226,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
 
     const retryTrigger = makeRetryTrigger(firstId);
     const { promise: p2 } = executeWorkflowRun(expandedDefinition, retryTrigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, retryTrigger),
       bus,
       store,
@@ -1251,7 +1272,8 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     expect(first.metadata.status).toBe("completed-with-warnings");
     const firstId = first.metadata.id;
@@ -1263,6 +1285,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
     // the whole workflow is considered fully complete and retryFromIndex = steps.length.
     const retryTrigger = makeRetryTrigger(firstId);
     const { promise: p2 } = executeWorkflowRun(definition, retryTrigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, retryTrigger),
       bus,
       store,

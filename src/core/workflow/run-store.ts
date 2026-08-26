@@ -7,18 +7,11 @@ import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import { ensureDir, writeStrictJsonFile } from "./run-io.js";
 import { createWorkflowRun } from "./run-store-creation.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
-import { STATE_FILE } from "./run-store-snapshot.js";
-import {
-  assertWorkflowRuntimeState,
-} from "./run-store-state-schema.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRunStatus,
-  WorkflowRuntimeState,
 } from "./run-types.js";
 import type {
-  WorkflowAgentBackoffState,
-  WorkflowBatchBuffers,
   WorkflowRunTrigger,
 } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -29,84 +22,12 @@ export { defaultWorkflowRunRetentionDays } from "./run-store-retention.js";
 export class WorkflowRunStore {
   readonly rootDir: string;
   readonly runsDir: string;
-  readonly statePath: string;
 
   constructor(private readonly projectDir = process.cwd()) {
     this.rootDir = join(projectDir, ".kota");
     this.runsDir = join(this.rootDir, "runs");
-    this.statePath = join(this.rootDir, STATE_FILE);
     ensureDir(this.rootDir);
     ensureDir(this.runsDir);
-  }
-
-  readState(): WorkflowRuntimeState {
-    const state = readOptionalJsonFile<unknown>(this.statePath);
-    if (state !== null) {
-      assertWorkflowRuntimeState(this.statePath, state);
-    }
-    return {
-      completedRuns: state?.completedRuns ?? 0,
-      workflows: state?.workflows ?? {},
-      ...(state?.totalCostUsd != null ? { totalCostUsd: state.totalCostUsd } : {}),
-      ...(state?.totalInputTokens != null
-        ? { totalInputTokens: state.totalInputTokens }
-        : {}),
-      ...(state?.totalOutputTokens != null
-        ? { totalOutputTokens: state.totalOutputTokens }
-        : {}),
-      ...(state?.definitionsLoadedAt ? { definitionsLoadedAt: state.definitionsLoadedAt } : {}),
-      ...(state?.agentBackoff ? { agentBackoff: state.agentBackoff } : {}),
-      ...(state?.batchBuffers ? { batchBuffers: state.batchBuffers } : {}),
-    };
-  }
-
-  private writeState(state: WorkflowRuntimeState): void {
-    ensureDir(this.rootDir);
-    writeStrictJsonFile(this.statePath, state);
-  }
-
-  setDefinitionsLoadedAt(loadedAt: string): void {
-    const state = this.readState();
-    state.definitionsLoadedAt = loadedAt;
-    this.writeState(state);
-  }
-
-  setAgentBackoff(backoff: WorkflowAgentBackoffState | null): void {
-    const state = this.readState();
-    if (backoff) {
-      state.agentBackoff = backoff;
-    } else {
-      delete state.agentBackoff;
-    }
-    this.writeState(state);
-  }
-
-  getBatchBuffers(): WorkflowBatchBuffers {
-    return this.readState().batchBuffers ?? {};
-  }
-
-  setBatchBuffers(batchBuffers: WorkflowBatchBuffers): void {
-    const state = this.readState();
-    if (Object.keys(batchBuffers).length > 0) {
-      state.batchBuffers = batchBuffers;
-    } else {
-      delete state.batchBuffers;
-    }
-    this.writeState(state);
-  }
-
-  setWorkflowNextScheduledAt(
-    name: string,
-    nextScheduledAt: string | undefined,
-  ): void {
-    const state = this.readState();
-    state.workflows[name] ??= {};
-    if (nextScheduledAt === undefined) {
-      delete state.workflows[name].nextScheduledAt;
-    } else {
-      state.workflows[name].nextScheduledAt = nextScheduledAt;
-    }
-    this.writeState(state);
   }
 
   pruneRuns(opts?: {
@@ -169,12 +90,6 @@ export class WorkflowRunStore {
       writeFileSync(join(this.runsDir, id, "error.txt"), redactSensitiveText(error), "utf-8");
     }
 
-    const state = this.readState();
-    const workflowState = state.workflows[metadata.workflow];
-    if (workflowState?.lastCompletion?.runId === id) {
-      workflowState.lastCompletion = { ...workflowState.lastCompletion, status };
-      this.writeState(state);
-    }
     return reconciled;
   }
 
@@ -191,9 +106,6 @@ export class WorkflowRunStore {
       trigger,
       runId,
       headSha,
-      state: this.readState(),
-      readState: () => this.readState(),
-      writeState: (s) => this.writeState(s),
     });
   }
 }

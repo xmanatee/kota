@@ -14,6 +14,7 @@ import { WorkflowRunStore } from "./run-store.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRunContext(
   projectDir: string,
@@ -112,6 +113,7 @@ describe("control monitor coverage executor persistence", () => {
     };
 
     const { promise } = executeWorkflowRun(definition, trigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(projectDir, trigger, "executor-run"),
       bus: new EventBus(),
       store,
@@ -156,6 +158,7 @@ describe("control monitor coverage executor persistence", () => {
     };
 
     const { promise } = executeWorkflowRun(definition, trigger, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(
         projectDir,
         trigger,
@@ -224,6 +227,7 @@ describe("control monitor coverage executor persistence", () => {
       sourceDefinition,
       sourceTrigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
           projectDir,
           sourceTrigger,
@@ -298,6 +302,7 @@ describe("control monitor coverage executor persistence", () => {
       reviewerDefinition,
       reviewerTrigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
           projectDir,
           reviewerTrigger,
@@ -386,6 +391,7 @@ describe("control monitor coverage executor persistence", () => {
       reviewerDefinition,
       traversalTrigger,
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
           projectDir,
           traversalTrigger,

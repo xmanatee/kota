@@ -98,10 +98,7 @@ describe("renderDashboard activity", () => {
     }
   });
 
-  it("shows cost and a single-cell paused indicator", () => {
-    expect(
-      stripAnsi(renderDashboard(makeSnapshot({ totalCostUsd: 12.5 }), [])),
-    ).toContain("$12.50");
+  it("shows a single-cell paused indicator", () => {
     expect(
       stripAnsi(renderDashboard(makeSnapshot({ dispatchPaused: true }), [])),
     ).toMatch(/Paused\s+yes(\s|$)/m);

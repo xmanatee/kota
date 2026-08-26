@@ -34,6 +34,7 @@ import { createStepContext } from "./steps/step-context.js";
 import { executeToolStep } from "./steps/step-executor.js";
 import { unexpectedWorkflowAgentHarnessRun } from "./testing/agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 type Fixture = {
   root: string;
@@ -149,6 +150,7 @@ function fixture(runTool: WorkflowRunToolRunner): Fixture {
   };
   const bus = new EventBus();
   const context = createStepContext(metadata, trigger, undefined, {}, {}, [], {
+    readRuntimeState: readEmptyTestWorkflowRuntimeState,
     projectDir: workspaceDir,
     scopeDir: root,
     bus,
@@ -299,6 +301,7 @@ describe("declarative workflow tool effects", () => {
         };
         const bus = new EventBus();
         const context = createStepContext(metadata, trigger, undefined, {}, {}, [], {
+          readRuntimeState: readEmptyTestWorkflowRuntimeState,
           projectDir: runContext.sandbox.workspaceDir,
           scopeDir: value.root,
           bus,

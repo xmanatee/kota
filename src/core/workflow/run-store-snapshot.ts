@@ -3,8 +3,6 @@ import { readRepairIterations } from "./repair-iteration-output.js";
 import type { WorkflowStep } from "./step-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-export const STATE_FILE = "workflow-state.json";
-
 export type WorkflowSnapshot = {
   name: string;
   description?: string;

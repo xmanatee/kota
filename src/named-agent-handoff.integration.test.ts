@@ -23,6 +23,7 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function harnessError(text: string) {
   return { text, streamedText: text, turns: 1, isError: true };
@@ -267,6 +268,7 @@ describe("named agent handoff workflow integration", () => {
       definition,
       { event: "runtime.idle", schemaRef: null, payload: {} },
       {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: createTestRunContext(projectDir, {
           event: "runtime.idle",
           schemaRef: null,

@@ -15,11 +15,11 @@ import {
   type WorkflowBatchTimerMap,
   workflowBatchBufferKey,
 } from "./event-batch-helpers.js";
+import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import {
   matchesFilter,
   workflowEventTriggeringAllowed,
 } from "./run-executor-utils.js";
-import type { WorkflowRunStore } from "./run-store.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchBufferState,
@@ -59,7 +59,7 @@ export class WorkflowEventBatchManager {
   private readonly timers: WorkflowBatchTimerMap = new Map();
 
   constructor(
-    private readonly store: WorkflowRunStore,
+    private readonly store: ProjectRuntimeStateStore,
     private readonly isStopping: () => boolean,
     private readonly enqueueRun: EnqueueRun,
     private readonly maybeStartNext: () => void,

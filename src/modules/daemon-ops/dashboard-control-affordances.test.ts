@@ -48,7 +48,7 @@ describe("dashboard foreground control affordances", () => {
 					dispatchPause: {
 						paused: true,
 						kind: "operator",
-						source: "signal",
+						source: "database",
 						message: "Persistent operator pause.",
 						nextAction: "Run `kota workflow resume` to re-enable dispatch.",
 					},

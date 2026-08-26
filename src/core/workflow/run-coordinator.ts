@@ -6,6 +6,7 @@ import type {
   RunSuspensionState,
   TerminalRunState,
 } from "./run-state-types.js";
+import type { WorkflowRunStatus } from "./runtime-state-types.js";
 
 export type RunExecutionOutcome =
   | {
@@ -13,6 +14,7 @@ export type RunExecutionOutcome =
       state: TerminalRunState;
       error?: string;
       publication?: Omit<RunPublication, "createdAt" | "deliveredAt">;
+      resultStatus?: WorkflowRunStatus;
     }
   | {
       kind: "suspended";
@@ -422,6 +424,7 @@ export class RunCoordinator {
         transitionedAt,
         outcome.error,
         outcome.publication,
+        outcome.resultStatus,
       );
       await this.drainPublications();
       return;
