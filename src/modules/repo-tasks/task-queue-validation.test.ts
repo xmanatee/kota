@@ -12,19 +12,11 @@ import {
   TASK_SOURCE_INTENT_PLACEHOLDER,
 } from "./repo-tasks-domain.js";
 import {
-  assertArchitectureReadyCoverage,
-  assertStrategicReadyCoverage,
-  assertTaskQueueRecommendations,
   assertTaskQueueValid,
   declaresRenderedEvidence,
   formatTaskQueueValidationSummary,
-  hasArchitectureReadyCoverageGap,
   hasDishonestSourceAccessCompletion,
   hasNamedRenderedEvidence,
-  hasStrategicReadyCoverageGap,
-  listRootKernelHelperDebt,
-  listRootLevelCliArchitectureDebt,
-  listVisibleArchitectureDebt,
   type TaskFileEntry,
   validateTaskQueue,
 } from "./task-queue-validation.js";
@@ -805,280 +797,21 @@ Has an outcome.
     );
   });
 
-  it("summarizes an empty ready queue distinctly for evidence transcripts", () => {
-    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
+  it("summarizes queue state without enforcing a priority or architecture mix", () => {
+    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
     execSync("git add data && git commit -m init", {
       cwd: projectDir,
       stdio: "ignore",
     });
 
     const result = assertTaskQueueValid(projectDir);
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "ready: count=0 strategic=0",
+    expect(formatTaskQueueValidationSummary(result)).toContain("ready: count=1");
+    expect(formatTaskQueueValidationSummary(result)).not.toContain("strategic");
+    expect(result.findings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: expect.stringMatching(/coverage|architecture/) }),
+      ]),
     );
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "strategic-ready-coverage: status=empty-ready strategic-actionable=0",
-    );
-  });
-
-  it("summarizes a p3-only ready queue distinctly without relaxing strategic coverage", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "ready: count=1 strategic=0",
-    );
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "strategic-ready-coverage: status=p3-only-ready strategic-actionable=0",
-    );
-    expect(() => assertStrategicReadyCoverage(projectDir)).toThrow(
-      "data/tasks/ready must keep at least one p0/p1/p2 task",
-    );
-  });
-
-  it("summarizes a strategic ready queue distinctly with min-ready enabled", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "ready: count=1 strategic=1",
-    );
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "strategic-ready-coverage: status=strategic-ready strategic-actionable=1",
-    );
-  });
-
-  it("can surface recommended queue depth as warnings", () => {
-    writeTask(projectDir, "ready", "task-alpha");
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(() =>
-      assertTaskQueueRecommendations(projectDir, {
-        recommendedMinReady: 2,
-        recommendedMinBacklog: 1,
-      }),
-    ).toThrow("ready-thin");
-  });
-
-  it("detects when the actionable queue has drifted to p3-only work", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
-    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(true);
-    expect(() => assertStrategicReadyCoverage(projectDir)).toThrow(
-      "data/tasks/ready must keep at least one p0/p1/p2 task",
-    );
-  });
-
-  it("does not let dependency-blocked or anchor strategic tasks satisfy ready coverage", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
-    writeTask(projectDir, "ready", "task-dependent-ready", {
-      priority: "p2",
-      depends_on: "[task-blocker]",
-    });
-    writeTask(projectDir, "backlog", "task-dependent-backlog", {
-      priority: "p2",
-      depends_on: "[task-blocker]",
-    });
-    writeTask(projectDir, "backlog", "task-anchor", {
-      priority: "p2",
-      anchor: "true",
-    });
-    writeTask(projectDir, "doing", "task-blocker", { priority: "p3" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    const result = assertTaskQueueValid(projectDir, { minReady: 1 });
-    expect(formatTaskQueueValidationSummary(result)).toContain(
-      "strategic-ready-coverage: status=p3-only-ready strategic-actionable=0",
-    );
-    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(true);
-  });
-
-  it("accepts a ready queue with a substantive p2 task", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p2" });
-    writeTask(projectDir, "backlog", "task-beta", { priority: "p3" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasStrategicReadyCoverageGap(projectDir)).toBe(false);
-  });
-
-  it("can ignore excluded ready task ids when checking strategic coverage", () => {
-    writeTask(projectDir, "ready", "task-alpha", { priority: "p3" });
-    writeTask(projectDir, "ready", "task-strategic", { priority: "p2" });
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(
-      hasStrategicReadyCoverageGap(projectDir, {
-        excludedTaskIds: ["task-strategic"],
-      }),
-    ).toBe(true);
-    expect(() =>
-      assertStrategicReadyCoverage(projectDir, {
-        excludedTaskIds: ["task-strategic"],
-      }),
-    ).toThrow("data/tasks/ready must keep at least one p0/p1/p2 task");
-  });
-
-  it("reports an architecture-ready coverage gap while root-level project module files remain", () => {
-    mkdirSync(join(projectDir, "src", "modules"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "modules", "daemon.ts"), "export default {};\n");
-    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
-    execSync("git add data src && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
-    expect(() => assertArchitectureReadyCoverage(projectDir)).toThrow(
-      "data/tasks/ready must keep at least one p1/p2 architecture task",
-    );
-  });
-
-  it("accepts architecture-ready coverage when a ready p2 architecture task exists", () => {
-    mkdirSync(join(projectDir, "src", "modules"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "modules", "daemon.ts"), "export default {};\n");
-    writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p2" });
-    execSync("git add data src && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(false);
-    expect(assertArchitectureReadyCoverage(projectDir)).toBe("architecture-ready-coverage-ok");
-  });
-
-  it("treats p3 architecture work as insufficient while visible architecture debt remains", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(
-      join(projectDir, "src", "cli.ts"),
-      'import { registerCompletionCommands } from "./completion-cli.js";\n',
-    );
-    writeTask(projectDir, "ready", "task-architecture", { area: "architecture", priority: "p3" });
-    execSync("git add data src && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
-  });
-
-  it("detects loose kernel helpers in src/ root beyond known entrypoints", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "cli.ts"), "// entrypoint\n");
-    writeFileSync(join(projectDir, "src", "init.ts"), "// entrypoint\n");
-    writeFileSync(join(projectDir, "src", "config.ts"), "// kernel helper\n");
-    writeFileSync(join(projectDir, "src", "frontmatter.ts"), "// kernel helper\n");
-    writeFileSync(join(projectDir, "src", "config.test.ts"), "// test file\n");
-
-    const debt = listRootKernelHelperDebt(projectDir);
-    expect(debt).toEqual([
-      join("src", "config.ts"),
-      join("src", "frontmatter.ts"),
-    ]);
-  });
-
-  it("does not report whitelisted cross-cutting fixtures as kernel-helper debt", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    // The fixture is on the layout whitelist (`ROOT_CROSS_CUTTING_FIXTURES`
-    // in src/core/root-layout.ts), so the queue validator must agree with
-    // the layout policy that this is not architecture debt.
-    writeFileSync(
-      join(projectDir, "src", "conversational-cross-store-fixture.integration.ts"),
-      "export {};\n",
-    );
-
-    expect(listRootKernelHelperDebt(projectDir)).toEqual([]);
-    expect(listVisibleArchitectureDebt(projectDir)).toEqual([]);
-  });
-
-  it("still reports an unauthorized .integration.ts fixture as kernel-helper debt", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    // Same .integration.ts extension as a whitelisted fixture, but the
-    // filename is not on `ROOT_CROSS_CUTTING_FIXTURES`. The validator must
-    // still surface it as debt — the whitelist is by exact name, not by
-    // extension.
-    writeFileSync(
-      join(projectDir, "src", "phantom-helper.integration.ts"),
-      "export {};\n",
-    );
-
-    expect(listRootKernelHelperDebt(projectDir)).toEqual([
-      join("src", "phantom-helper.integration.ts"),
-    ]);
-  });
-
-  it("accepts architecture-ready coverage when only debt is a whitelisted fixture", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(
-      join(projectDir, "src", "conversational-cross-store-fixture.integration.ts"),
-      "export {};\n",
-    );
-    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
-    execSync("git add data src && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    // No ready architecture task, but the only file at src/ root is on the
-    // shared whitelist — so the validator must not manufacture phantom
-    // architecture debt for the autonomy queue-shaping repair loop.
-    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(false);
-    expect(assertArchitectureReadyCoverage(projectDir)).toBe("architecture-ready-coverage-ok");
-  });
-
-  it("reports architecture coverage gap when loose root kernel helpers exist", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "config.ts"), "// kernel helper\n");
-    writeTask(projectDir, "ready", "task-ops", { area: "runtime" });
-    execSync("git add data src && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-
-    expect(hasArchitectureReadyCoverageGap(projectDir)).toBe(true);
-  });
-
-  it("detects root-level CLI extraction debt from src/cli.ts", () => {
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(
-      join(projectDir, "src", "cli.ts"),
-      [
-        'import { registerHistoryCommands } from "./modules/history/cli.js";',
-        'import { registerCompletionCommands } from "./completion-cli.js";',
-        'import { registerWebhookCommands } from "./webhook-cli.js";',
-        'import { registerInitCommand } from "./init-cli.js";',
-      ].join("\n"),
-    );
-
-    expect(listRootLevelCliArchitectureDebt(projectDir)).toEqual([
-      join("src", "completion-cli.ts"),
-      join("src", "init-cli.ts"),
-      join("src", "webhook-cli.ts"),
-    ]);
   });
 
   it("rejects npm package-manager commands in active guidance and open tasks", () => {

@@ -11,7 +11,6 @@ export const POST_COMPLETION_FOLLOW_UP_REASONS = [
   "review-scrutiny",
   "trajectory-diagnostic",
   "workflow-failure",
-  "source-size",
   "missing-evidence",
   "operator-report",
 ] as const;

@@ -5,7 +5,9 @@ export const ISSUE_DISPOSITION_ACTIONS = [
   "create-task",
   "ask-owner",
   "observe",
-  "resolve",
+  "accept",
+  "duplicate",
+  "no-action",
 ] as const;
 
 const issueDispositionSchema = z.object({
@@ -20,6 +22,7 @@ const issueDispositionSchema = z.object({
   ownerQuestion: z.string(),
   ownerReason: z.string(),
   proposedAnswers: z.array(z.string().min(1)),
+  duplicateOfIssueKey: z.string().optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.action === "create-task") {
     for (const [field, text] of [
@@ -52,6 +55,13 @@ const issueDispositionSchema = z.object({
         message: "ownerReason is required for ask-owner",
       });
     }
+  }
+  if (value.action === "duplicate" && !value.duplicateOfIssueKey?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["duplicateOfIssueKey"],
+      message: "duplicateOfIssueKey is required for duplicate",
+    });
   }
 });
 
@@ -94,5 +104,6 @@ export const issueDispositionOutputSchema = {
     ownerQuestion: { type: "string" },
     ownerReason: { type: "string" },
     proposedAnswers: { type: "array", items: { type: "string" } },
+    duplicateOfIssueKey: { type: "string" },
   },
 } satisfies JsonSchemaObject;

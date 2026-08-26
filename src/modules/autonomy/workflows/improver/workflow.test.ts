@@ -52,9 +52,9 @@ const TASK_DISPOSITION = {
   taskAcceptanceEvidence: "A focused fixture proves the failure no longer recurs.",
 };
 
-const RESOLVED_DISPOSITION = {
+const ACCEPTED_DISPOSITION = {
   ...OBSERVED_DISPOSITION,
-  action: "resolve" as const,
+  action: "accept" as const,
   rationale: "The revised evidence proves the root cause is resolved.",
 };
 
@@ -240,7 +240,7 @@ describe("improver issue disposition workflow", () => {
     const resolved = await new WorkflowTestHarness(improverWorkflow, {
       projectDir,
       trigger: triggerFor(revised.semanticRevision, "revised"),
-      stepMocks: { "review-issue": RESOLVED_DISPOSITION },
+      stepMocks: { "review-issue": ACCEPTED_DISPOSITION },
       contextOverrides: {
         runCommand: successfulWorkflowCommandRun,
         state: stateForProjection(),
@@ -272,6 +272,7 @@ describe("improver issue disposition workflow", () => {
     }).nextProjection;
     expect(projection.issues[0]).toMatchObject({
       status: "resolved",
+      disposition: { kind: "accepted" },
       links: { taskIds: [], ownerQuestionIds: [] },
     });
   });

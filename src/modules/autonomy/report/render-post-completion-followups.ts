@@ -82,7 +82,6 @@ function reasonRole(
     case "review-scrutiny":
     case "trajectory-diagnostic":
     case "workflow-failure":
-    case "source-size":
       return "warn";
     case "operator-report":
       return "info";

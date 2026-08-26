@@ -10,19 +10,13 @@
  * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
  *
- * Five fixtures cover the full set of workflow-runtime branches we want to
- * gate at `pnpm test` time:
+ * Four fixtures cover representative workflow-runtime branches in the
+ * standard suite:
  *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
  *     one whose repair loop runs `pnpm run validate-tasks` against the
  *     fixture's tmp project root, so it gates the task-validator-as-repair-
  *     check path against silent regression. Its `review-decomposition`
  *     recording also covers judge-prompt routing.
- *   - `explorer-agent-call-replay` covers the explorer's post-agent plumbing
- *     (the staged explorer publication request, the
- *     `apply-watchlist-updates` reader's empty-apply path, the five explorer
- *     repair checks, and the `{{NOW_MINUS_HOURS:N}}` templating hook for the
- *     empty cooldown state) that none of the other shipped replays
- *     exercise.
  *   - `inbox-sorter-agent-call-replay` covers the `autonomy.inbox.available`
  *     trigger receipt path, the `inspect-inbox` `needsAttention` gating
  *     shape (a `getRepoTaskQueueSnapshot` + tracked-changes-outside-inbox
@@ -75,7 +69,6 @@ const PROJECT_DIR = fileURLToPath(new URL("../../..", import.meta.url));
 
 const SMOKE_FIXTURE_IDS = [
   "decomposer-agent-call-replay",
-  "explorer-agent-call-replay",
   "inbox-sorter-agent-call-replay",
   "research-retry-agent-call-replay",
   "pr-reviewer-agent-call-replay",

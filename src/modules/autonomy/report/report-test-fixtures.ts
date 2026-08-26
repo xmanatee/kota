@@ -147,33 +147,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     invalidArtifacts: [],
     decisions: [],
   },
-  codeHealthDrift: {
-    totalBuilderRuns: 0,
-    runsWithWarnings: 0,
-    unsupportedArtifacts: 0,
-    byWarningFamily: [],
-    bySurfaceArea: [],
-    repeatedSurfaces: [],
-    trendBuckets: [
-      {
-        bucket: "current",
-        totalBuilderRuns: 0,
-        runsWithWarnings: 0,
-        warningRecords: 0,
-        cleanupExceptionRuns: 0,
-        unsupportedArtifacts: 0,
-      },
-      {
-        bucket: "prior",
-        totalBuilderRuns: 0,
-        runsWithWarnings: 0,
-        warningRecords: 0,
-        cleanupExceptionRuns: 0,
-        unsupportedArtifacts: 0,
-      },
-    ],
-    records: [],
-  },
   ownerInterventions: {
     totalQuestions: 0,
     pending: 0,
@@ -210,13 +183,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     aggregates: [
       {
         signal: "review-scrutiny",
-        current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
-        prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
-        rateDelta: null,
-        weakEvidence: false,
-      },
-      {
-        signal: "code-health-drift",
         current: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
         prior: { sampleCount: 0, numeratorCount: 0, denominatorCount: 0, rate: null },
         rateDelta: null,

@@ -185,7 +185,7 @@ describe("buildProcessDisciplineRecord", () => {
       abstention: {
         outcome: "no-op",
         reason: "Explorer reported no dependency-clear action.",
-        artifactPath: ".kota/runs/r1/exploration-rationale.json",
+        artifactPath: ".kota/runs/r1/steps/explore.summary.md",
       },
     });
     const blocked = buildProcessDisciplineRecord({

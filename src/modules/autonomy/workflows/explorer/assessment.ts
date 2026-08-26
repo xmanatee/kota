@@ -4,11 +4,6 @@ import {
   getRepoTaskQueueSnapshot,
   isThinDispatchableQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { hasStrategicReadyCoverageGap } from "#modules/repo-tasks/task-queue-validation.js";
-import {
-  listStrategicBlockedAlternatives,
-  type StrategicBlockedSummary,
-} from "./exploration-rationale.js";
 
 export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 
@@ -24,8 +19,6 @@ export type ExplorerAssessment = {
   dirty: boolean;
   needsAttention: boolean;
   explorationRefreshDue: boolean;
-  strategicReadyCoverageGap: boolean;
-  strategicBlockedAlternatives: StrategicBlockedSummary[];
 };
 
 export function inspectExplorerAssessment(input: {
@@ -47,8 +40,6 @@ export function inspectExplorerAssessment(input: {
     needsAttention:
       !dirty && !locallyBlocked && queueNeedsExploration && explorationRefreshDue,
     explorationRefreshDue,
-    strategicReadyCoverageGap: hasStrategicReadyCoverageGap(projectDir),
-    strategicBlockedAlternatives: listStrategicBlockedAlternatives(projectDir),
   };
 }
 

@@ -1,6 +1,5 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
-  assertArchitectureReadyCoverage,
   assertTaskQueueValid,
   type TaskQueueValidationOptions,
   type TaskQueueValidationResult,
@@ -21,15 +20,3 @@ export const taskQueueValidationOperation = defineWorkflowBlockingOperation<
   TaskQueueValidationOperationInput,
   TaskQueueValidationResult
 >(import.meta.url, "inspectTaskQueueValidation");
-
-export function inspectArchitectureReadyCoverage(input: {
-  projectDir: string;
-}): string {
-  return assertArchitectureReadyCoverage(input.projectDir);
-}
-
-export const architectureReadyCoverageOperation =
-  defineWorkflowBlockingOperation<{ projectDir: string }, string>(
-    import.meta.url,
-    "inspectArchitectureReadyCoverage",
-  );

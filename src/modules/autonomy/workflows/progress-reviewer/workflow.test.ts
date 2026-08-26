@@ -2496,7 +2496,7 @@ describe("progress-reviewer workflow", () => {
   it("keeps tasks referenced by dead-letter reasons citeable", () => {
     const projectDir = trackProjectDir("progress-reviewer-dlq-task-reference");
     const scopeId = deriveDirectoryScopeId(projectDir);
-    const taskId = "task-add-loop-quality-audits-for-autonomous-workflows";
+    const taskId = "task-review-autonomous-workflow-failure";
     writeTask(projectDir, "backlog", taskId, {
       updatedAt: "2026-06-01T12:00:00.000Z",
       taskClass: "Meta",

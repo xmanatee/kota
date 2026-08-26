@@ -85,6 +85,29 @@ describe("autonomy health issue projection", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
+  it("keeps one warning ephemeral and admits the repeated observation", () => {
+    const first = applyReview(
+      projectDir,
+      review([signal({ severity: "warning", observationCount: 1 })]),
+    );
+
+    expect(first.issueTransitions).toEqual([]);
+    expect(readAutonomyIssueProjection(projectDir).issues).toEqual([]);
+
+    const repeated = applyReview(
+      projectDir,
+      review(
+        [signal({ severity: "warning", observationCount: 2 })],
+        "2026-06-17T13:00:00.000Z",
+      ),
+    );
+
+    expect(repeated.issueTransitions).toEqual([
+      expect.objectContaining({ kind: "opened", requiresDecision: true }),
+    ]);
+    expect(readAutonomyIssueProjection(projectDir).issues).toHaveLength(1);
+  });
+
   it("requests one issue decision without writing tasks or owner questions", () => {
     const actions = applyReview(
       projectDir,

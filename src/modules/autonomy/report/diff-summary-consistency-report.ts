@@ -7,7 +7,11 @@ import {
   type DiffSummaryMismatchCategory,
   type DiffSummaryMissingData,
 } from "#modules/autonomy/diff-summary-consistency.js";
-import { isBuilderTerminalRun } from "./code-health-drift-reader.js";
+
+function isBuilderTerminalRun(run: WorkflowRunMetadata): boolean {
+  return run.workflow === "builder" &&
+    (run.status === "success" || run.status === "completed-with-warnings");
+}
 
 export type DiffSummaryConsistencyMissingKind =
   | DiffSummaryMissingData

@@ -41,12 +41,6 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   ),
 }));
 
-vi.mock("#modules/repo-tasks/task-queue-validation.js", () => ({
-  assertArchitectureReadyCoverage: vi.fn(),
-  assertStrategicReadyCoverage: vi.fn(),
-  hasStrategicReadyCoverageGap: vi.fn(() => false),
-}));
-
 function makeSnapshot({
   inboxCount = 0,
   ready = 0,

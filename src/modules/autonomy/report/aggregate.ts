@@ -31,7 +31,6 @@ import {
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
 import { buildAutonomyChangeDecisionReport } from "./autonomy-change-decisions.js";
-import { buildCodeHealthDriftReport } from "./code-health-drift.js";
 import { buildDecisionAttributionReport } from "./decision-attribution.js";
 import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import { buildOwnerInterventionReport } from "./owner-interventions.js";
@@ -55,7 +54,6 @@ export {
   type BlockerKind,
   type BuilderBreakdown,
   type BuilderClosure,
-  type CodeHealthDriftReport,
   type CostBreakdown,
   DEFAULT_REPORT_WINDOW_DAYS,
   type DecisionAttributionReport,
@@ -146,13 +144,6 @@ export function aggregateAutonomyReport(
       tasks: allTasks,
       config: { nowMs: input.windowEndMs, windowMs },
     });
-  const codeHealthDrift = buildCodeHealthDriftReport({
-    tasks: allTasks,
-    runs: reportRuns,
-    runsDir: input.runsDir,
-    windowStartMs,
-    windowEndMs: input.windowEndMs,
-  });
   const postCompletionFollowUpLinks = buildPostCompletionCorrectiveLinks({
     tasks: allTasks,
     runs,
@@ -227,7 +218,6 @@ export function aggregateAutonomyReport(
       runs,
       runsDir: input.runsDir,
     }),
-    codeHealthDrift,
     ownerInterventions,
     postCompletionFollowUps,
     qualityStratification: buildQualityStratificationReport({

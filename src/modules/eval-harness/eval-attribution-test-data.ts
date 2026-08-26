@@ -232,7 +232,6 @@ export function codeHealth() {
     fixturesWithWarnings: 0,
     totalWarnings: 0,
     warningCounts: {
-      "source-size-growth": 0,
       "duplicated-implementation-chunk": 0,
       "complexity-concentration": 0,
     },

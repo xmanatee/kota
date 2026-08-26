@@ -32,9 +32,6 @@ describe("code-health diagnostics", () => {
       {
         sourceGlobs: ["src/**/*.ts"],
         thresholds: {
-          minSourceGrowthBytes: 1,
-          maxBaselineBytesGrowthRatio: 1.2,
-          maxPreviousBytesGrowthRatio: 1.2,
           duplicateChunkLines: 3,
           duplicateChunkMinOccurrences: 2,
           maxLargestFileBytesShare: 0.95,
@@ -76,35 +73,9 @@ describe("code-health diagnostics", () => {
     });
     expect(round.warnings).toEqual([]);
     expect(round.warningCounts).toEqual({
-      "source-size-growth": 0,
       "duplicated-implementation-chunk": 0,
       "complexity-concentration": 0,
     });
-  });
-
-  it("warns when source size grows beyond baseline or previous round thresholds", () => {
-    writeFileSync(join(workingDir, "src", "app.ts"), "export const a = 1;\n");
-    const diagnosticsConfig = config();
-    const baseline = measureCodeHealth(workingDir, diagnosticsConfig);
-    writeFileSync(
-      join(workingDir, "src", "app.ts"),
-      "export const a = 1;\nexport const padding = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';\n",
-    );
-
-    const round = evaluateCodeHealthRound({
-      config: diagnosticsConfig,
-      workingDir,
-      baseline,
-      previous: baseline,
-      roundId: "round-1",
-      roundIndex: 0,
-      outcome: "pass",
-    });
-
-    expect(round.warnings.map((warning) => warning.code)).toContain(
-      "source-size-growth",
-    );
-    expect(round.warningCounts["source-size-growth"]).toBe(1);
   });
 
   it("warns on duplicated implementation chunks", () => {
@@ -154,9 +125,6 @@ describe("code-health diagnostics", () => {
     );
     const diagnosticsConfig = config({
       thresholds: {
-        minSourceGrowthBytes: 1,
-        maxBaselineBytesGrowthRatio: 2,
-        maxPreviousBytesGrowthRatio: 2,
         duplicateChunkLines: 3,
         duplicateChunkMinOccurrences: 2,
         maxLargestFileBytesShare: 1,

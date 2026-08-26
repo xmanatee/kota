@@ -5,7 +5,6 @@ import type {
   PostCompletionCorrectiveLink,
   PostCompletionFollowUpReport,
 } from "./post-completion-followups.js";
-import { buildCodeHealthQualityObservations } from "./quality-stratification-code-health-observations.js";
 import { buildPostCompletionQualityObservations } from "./quality-stratification-post-completion-observations.js";
 import { buildReviewQualityObservations } from "./quality-stratification-review-observations.js";
 import { buildQualityRunIndexes } from "./quality-stratification-run-indexes.js";
@@ -39,7 +38,6 @@ export function buildQualityObservations(
       "prior",
       indexes,
     ),
-    ...buildCodeHealthQualityObservations(input, indexes),
     ...buildPostCompletionQualityObservations(
       input,
       indexes,

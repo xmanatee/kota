@@ -2,7 +2,6 @@ import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
-import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
@@ -11,14 +10,11 @@ import {
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { strategicReadyCoverageOperation } from "#modules/autonomy/strategic-ready-coverage.js";
-import { architectureReadyCoverageOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import {
   EXPLORATION_REFRESH_MS,
   type ExplorerAssessment,
   explorerAssessmentOperation,
 } from "./assessment.js";
-import { explorationRationaleCheckOperation } from "./exploration-rationale-operation.js";
 import {
   EXPLORER_PUBLICATION_ARTIFACT,
   EXPLORER_PUBLICATION_REQUESTED_EVENT,
@@ -63,8 +59,6 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "dirty",
       "needsAttention",
       "explorationRefreshDue",
-      "strategicReadyCoverageGap",
-      "strategicBlockedAlternatives",
     ]),
   run: ({ projectDir, state, runBlocking }) => {
     const current = decodeExplorerState(
@@ -184,42 +178,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
                   cwd: ctx.projectDir,
                 }),
               ),
-          },
-          {
-            id: "architecture-ready-coverage",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                architectureReadyCoverageOperation,
-                { projectDir: ctx.projectDir },
-              ),
-          },
-          {
-            id: "strategic-ready-coverage",
-            type: "code" as const,
-            phase: 1,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                strategicReadyCoverageOperation,
-                { projectDir: ctx.projectDir },
-              ),
-          },
-          {
-            id: "exploration-rationale",
-            type: "code" as const,
-            run: async (ctx) => {
-              const queue = inspectQueue.outputRequired(ctx);
-              const rationale = await withWorkflowBlockingOperation(
-                ctx,
-              ).runBlocking(explorationRationaleCheckOperation, {
-                projectDir: ctx.projectDir,
-                runDirPath: resolveAgentRunDirFromContext(ctx),
-                  actionableCount: queue.actionableCount,
-                  strategicReadyCoverageGap: queue.strategicReadyCoverageGap,
-              });
-              return `exploration-rationale-ok: decision=${rationale.decision}`;
-            },
           },
           {
             id: "watchlist-update-commit-message",

@@ -1,9 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
-import {
-  ROOT_CROSS_CUTTING_FIXTURES,
-  ROOT_ENTRYPOINT_SOURCES,
-} from "#core/root-layout.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
   parseBlockedPrecondition,
@@ -19,13 +15,9 @@ import {
 } from "./production-replacement-proof.js";
 import {
   getRepoTaskStateDir,
-  getRepoTaskStateTransitionBlocker,
   hasConcreteTaskAcceptanceEvidence,
   hasProductSafetyTaskLink,
-  listFullRepoTasks,
-  listRepoTaskDependencyWaits,
   REPO_TASK_STATES,
-  type RepoTaskFullRecord,
   type RepoTaskState,
   TASK_INITIATIVE_PLACEHOLDER,
   TASK_SOURCE_INTENT_PLACEHOLDER,
@@ -56,29 +48,11 @@ export type TaskQueueValidationFinding = {
 export type TaskQueueValidationResult = {
   findings: TaskQueueValidationFinding[];
   counts: Record<RepoTaskState, number>;
-  readyCoverage: TaskQueueReadyCoverageEvidence;
   errorCount: number;
   warningCount: number;
 };
 
-export type TaskQueueReadyCoverageStatus =
-  | "empty-ready"
-  | "strategic-ready"
-  | "non-strategic-ready"
-  | "p3-only-ready";
-
-export type TaskQueueReadyCoverageEvidence = {
-  readyCount: number;
-  strategicReadyCount: number;
-  strategicActionableCount: number;
-  status: TaskQueueReadyCoverageStatus;
-};
-
-export type StrategicReadyCoverageOptions = {
-  excludedTaskIds?: readonly string[];
-};
-
-export type TaskQueueValidationOptions = StrategicReadyCoverageOptions & {
+export type TaskQueueValidationOptions = {
   minReady?: number;
   recommendedMinReady?: number;
   recommendedMinBacklog?: number;
@@ -411,218 +385,13 @@ function isCompletionEvidenceGateEffective(updatedAt: string | string[] | undefi
   return !Number.isNaN(ms) && ms >= COMPLETION_EVIDENCE_GATE_EFFECTIVE_AT;
 }
 
-export function listRootLevelBuiltInModuleFiles(projectDir: string): string[] {
-  const dir = join(projectDir, "src", "modules");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((fileName) => fileName.endsWith(".ts"))
-    .filter((fileName) => !fileName.endsWith(".test.ts"))
-    .filter((fileName) => fileName !== "index.ts")
-    .map((fileName) => join("src", "modules", fileName))
-    .sort();
-}
-
-const ROOT_CLI_ARCHITECTURE_EXCLUSIONS = new Set<string>([
-]);
-
-export function listRootLevelCliArchitectureDebt(projectDir: string): string[] {
-  const cliPath = join(projectDir, "src", "cli.ts");
-  if (!existsSync(cliPath)) return [];
-  const raw = readFileSync(cliPath, "utf8");
-  const matches = [...raw.matchAll(/from\s+"\.\/([a-z0-9-]+-cli)\.js"/gi)];
-  return matches
-    .map((match) => match[1] ?? "")
-    .filter((name) => name.length > 0)
-    .filter((name) => !ROOT_CLI_ARCHITECTURE_EXCLUSIONS.has(name))
-    .map((name) => join("src", `${name}.ts`))
-    .sort();
-}
-
-export function listRootKernelHelperDebt(projectDir: string): string[] {
-  const dir = join(projectDir, "src");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".ts"))
-    .filter((f) => !f.endsWith(".test.ts") && !f.endsWith(".integration.test.ts"))
-    .filter((f) => !ROOT_ENTRYPOINT_SOURCES.has(f))
-    .filter((f) => !ROOT_CROSS_CUTTING_FIXTURES.has(f))
-    .map((f) => join("src", f))
-    .sort();
-}
-
-export function listVisibleArchitectureDebt(projectDir: string): string[] {
-  return [
-    ...listRootLevelBuiltInModuleFiles(projectDir),
-    ...listRootLevelCliArchitectureDebt(projectDir),
-    ...listRootKernelHelperDebt(projectDir),
-  ];
-}
-
-export function hasStrategicReadyArchitectureTask(projectDir: string): boolean {
-  return listTaskEntries(projectDir)
-    .filter((entry) => entry.state === "ready")
-    .some((entry) =>
-      readTaskArea(entry) === "architecture" && isStrategicPriority(readTaskPriority(entry)),
-    );
-}
-
-export function hasArchitectureReadyCoverageGap(projectDir: string): boolean {
-  const remainingArchitectureDebt = listVisibleArchitectureDebt(projectDir);
-  return remainingArchitectureDebt.length > 0 && !hasStrategicReadyArchitectureTask(projectDir);
-}
-
-const STRATEGIC_READY_COVERAGE_STATES: RepoTaskState[] = ["ready", "backlog", "doing"];
-
-function strategicCoverageExcludedTaskIds(
-  options: StrategicReadyCoverageOptions,
-): ReadonlySet<string> {
-  return new Set(options.excludedTaskIds ?? []);
-}
-
-function isBacklogStrategicCoverageCandidate(
-  projectDir: string,
-  task: RepoTaskFullRecord,
-): boolean {
-  if (task.state !== "backlog") return true;
-  if (task.anchor) return false;
-  return getRepoTaskStateTransitionBlocker(task, "ready", projectDir) === null;
-}
-
-function listStrategicReadyCoverageTasks(
-  projectDir: string,
-  options: StrategicReadyCoverageOptions = {},
-): RepoTaskFullRecord[] {
-  const excludedTaskIds = strategicCoverageExcludedTaskIds(options);
-  const dependencyBlockedTaskIds = new Set(
-    listRepoTaskDependencyWaits(projectDir, STRATEGIC_READY_COVERAGE_STATES).map(
-      (wait) => wait.id,
-    ),
-  );
-  return listFullRepoTasks(projectDir, STRATEGIC_READY_COVERAGE_STATES).filter(
-    (task) =>
-      !excludedTaskIds.has(task.id) &&
-      !dependencyBlockedTaskIds.has(task.id) &&
-      isBacklogStrategicCoverageCandidate(projectDir, task),
-  );
-}
-
-export function hasStrategicReadyCoverageGap(
-  projectDir: string,
-  options: StrategicReadyCoverageOptions = {},
-): boolean {
-  const coverageTasks = listStrategicReadyCoverageTasks(projectDir, options);
-  const readyEntries = coverageTasks.filter((entry) => entry.state === "ready");
-  if (readyEntries.length === 0) {
-    return false;
-  }
-  const hasReadyStrategicTask = readyEntries.some((entry) =>
-    isStrategicPriority(entry.priority),
-  );
-  if (hasReadyStrategicTask) {
-    return false;
-  }
-  return !coverageTasks.some((entry) => isStrategicPriority(entry.priority));
-}
-
-function inspectReadyCoverageFromTaskRecords(
-  coverageTasks: readonly RepoTaskFullRecord[],
-): TaskQueueReadyCoverageEvidence {
-  const readyEntries = coverageTasks.filter((entry) => entry.state === "ready");
-  const strategicReadyCount = readyEntries.filter((entry) =>
-    isStrategicPriority(entry.priority),
-  ).length;
-  const strategicActionableCount = coverageTasks.filter((entry) =>
-    isStrategicPriority(entry.priority),
-  ).length;
-
-  if (readyEntries.length === 0) {
-    return {
-      readyCount: 0,
-      strategicReadyCount,
-      strategicActionableCount,
-      status: "empty-ready",
-    };
-  }
-
-  if (strategicReadyCount > 0) {
-    return {
-      readyCount: readyEntries.length,
-      strategicReadyCount,
-      strategicActionableCount,
-      status: "strategic-ready",
-    };
-  }
-
-  return {
-    readyCount: readyEntries.length,
-    strategicReadyCount,
-    strategicActionableCount,
-    status: strategicActionableCount > 0 ? "non-strategic-ready" : "p3-only-ready",
-  };
-}
-
-function inspectReadyCoverageFromEntries(
-  entries: readonly TaskFileEntry[],
-): TaskQueueReadyCoverageEvidence {
-  const readyEntries = entries.filter((entry) => entry.state === "ready");
-  const strategicReadyCount = readyEntries.filter((entry) =>
-    isStrategicPriority(readTaskPriority(entry)),
-  ).length;
-  const strategicActionableCount = entries.filter((entry) =>
-    (entry.state === "ready" || entry.state === "backlog" || entry.state === "doing") &&
-    isStrategicPriority(readTaskPriority(entry)),
-  ).length;
-
-  if (readyEntries.length === 0) {
-    return {
-      readyCount: 0,
-      strategicReadyCount,
-      strategicActionableCount,
-      status: "empty-ready",
-    };
-  }
-
-  if (strategicReadyCount > 0) {
-    return {
-      readyCount: readyEntries.length,
-      strategicReadyCount,
-      strategicActionableCount,
-      status: "strategic-ready",
-    };
-  }
-
-  return {
-    readyCount: readyEntries.length,
-    strategicReadyCount,
-    strategicActionableCount,
-    status: strategicActionableCount > 0 ? "non-strategic-ready" : "p3-only-ready",
-  };
-}
-
-function inspectReadyCoverage(
-  projectDir: string,
-  entries: readonly TaskFileEntry[],
-  options: StrategicReadyCoverageOptions,
-): TaskQueueReadyCoverageEvidence {
-  try {
-    return inspectReadyCoverageFromTaskRecords(
-      listStrategicReadyCoverageTasks(projectDir, options),
-    );
-  } catch {
-    // Malformed task files must remain structured validation findings instead
-    // of aborting the whole validation result while building summary evidence.
-    return inspectReadyCoverageFromEntries(entries);
-  }
-}
-
 export function formatTaskQueueValidationSummary(
   result: TaskQueueValidationResult,
 ): string {
-  const coverage = result.readyCoverage;
   return [
     `task-queue-valid: errors=${result.errorCount} warnings=${result.warningCount}`,
-    `ready: count=${coverage.readyCount} strategic=${coverage.strategicReadyCount}`,
-    `strategic-ready-coverage: status=${coverage.status} strategic-actionable=${coverage.strategicActionableCount}`,
+    `ready: count=${result.counts.ready}`,
+    `backlog: count=${result.counts.backlog}`,
   ].join("\n");
 }
 
@@ -1176,34 +945,9 @@ export function validateTaskQueue(
   return {
     findings,
     counts,
-    readyCoverage: inspectReadyCoverage(projectDir, entries, options),
     errorCount,
     warningCount,
   };
-}
-
-export function assertArchitectureReadyCoverage(projectDir: string): string {
-  const remainingArchitectureDebt = listVisibleArchitectureDebt(projectDir);
-  if (remainingArchitectureDebt.length === 0 || hasStrategicReadyArchitectureTask(projectDir)) {
-    return "architecture-ready-coverage-ok";
-  }
-  throw new Error(
-    "data/tasks/ready must keep at least one p1/p2 architecture task while visible module-first debt remains: " +
-      remainingArchitectureDebt.join(", "),
-  );
-}
-
-export function assertStrategicReadyCoverage(
-  projectDir: string,
-  options: StrategicReadyCoverageOptions = {},
-): string {
-  if (!hasStrategicReadyCoverageGap(projectDir, options)) {
-    return "strategic-ready-coverage-ok";
-  }
-  throw new Error(
-    "data/tasks/ready must keep at least one p0/p1/p2 task. The actionable queue has drifted " +
-      "to p3-only work, which is too weak for the front of the autonomous queue.",
-  );
 }
 
 export function assertTaskQueueValid(

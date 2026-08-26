@@ -23,7 +23,9 @@ export type AutonomyIssueDispositionKind =
   | "owner-question"
   | "attention"
   | "observed"
-  | "resolved"
+  | "accepted"
+  | "duplicate"
+  | "no-action"
   | "cleared";
 
 export type AutonomyIssueLinks = {

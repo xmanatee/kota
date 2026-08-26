@@ -110,12 +110,13 @@ export function recordAutonomyIssueDispositions(args: {
     changed = true;
     return {
       ...issue,
-      status:
-        update.kind === "resolved"
-          ? "resolved" as const
-          : update.kind === "owner-question"
-          ? "needs-decision" as const
-          : "open" as const,
+      status: update.kind === "accepted" ||
+          update.kind === "duplicate" ||
+          update.kind === "no-action"
+        ? "resolved" as const
+        : update.kind === "owner-question"
+        ? "needs-decision" as const
+        : "open" as const,
       disposition: {
         kind: update.kind,
         updatedAt: update.decidedAt,

@@ -122,7 +122,6 @@ const HIGH_SIGNAL_ARTIFACTS = new Map<string, number>([
   ["writer-integration.json", -35],
   ["blocker-actions.json", -25],
   ["promotion-rationale.json", -25],
-  ["exploration-rationale.json", -25],
   ["error.txt", -25],
   ["commit-message.txt", -10],
 ]);

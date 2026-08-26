@@ -41,12 +41,6 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   ),
 }));
 
-vi.mock("#modules/repo-tasks/task-queue-validation.js", () => ({
-  assertArchitectureReadyCoverage: vi.fn(),
-  assertStrategicReadyCoverage: vi.fn(),
-  hasStrategicReadyCoverageGap: vi.fn(() => false),
-}));
-
 function makeSnapshot({
   ready = 0,
   backlog = 0,
@@ -164,31 +158,6 @@ describe("explorer workflow refresh", () => {
       needsAttention: false,
     });
     expect(result.steps.explore.status).toBe("skipped");
-  });
-
-  it("surfaces strategicReadyCoverageGap=true so the agent can plan before repair trips", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot({ ready: 1 }));
-    const { hasStrategicReadyCoverageGap } = await import(
-      "#modules/repo-tasks/task-queue-validation.js"
-    );
-    vi.mocked(hasStrategicReadyCoverageGap).mockReturnValue(true);
-
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },
-      runtimeState: { workflows: {} },
-      projectDir: tempDir,
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["inspect-queue"].output).toMatchObject({
-      strategicReadyCoverageGap: true,
-      needsAttention: true,
-    });
   });
 
   it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {

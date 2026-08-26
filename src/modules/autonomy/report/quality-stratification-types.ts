@@ -1,6 +1,5 @@
 export const QUALITY_SIGNALS = [
   "review-scrutiny",
-  "code-health-drift",
   "post-completion-follow-up",
 ] as const;
 
@@ -35,15 +34,6 @@ export const QUALITY_STRATIFICATION_DIMENSIONS_BY_SIGNAL: Record<
     "taskPriority",
     "taskClass",
     "taskArea",
-    "changedArea",
-  ],
-  "code-health-drift": [
-    "workflow",
-    "harness",
-    "taskPriority",
-    "taskClass",
-    "taskArea",
-    "reasonFamily",
     "changedArea",
   ],
   "post-completion-follow-up": [

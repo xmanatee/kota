@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T04:31:43.000Z
+updated_at: 2026-08-26T04:53:53.000Z
 ---
 
 ## Problem
@@ -57,7 +57,7 @@ nineteen open tracked tasks.
 - [x] Stage 0 — establish the baseline and owner/rule ledger.
 - [x] Stage 1 — remove misleading instructions and context bias.
 - [x] Stage 2 — make builder validation and critic review proportional.
-- [ ] Stage 3 — make exploration and health improvement outcome-driven.
+- [x] Stage 3 — make exploration and health improvement outcome-driven.
 - [ ] Stage 4 — reduce the task system to objective integrity.
 - [ ] Stage 5 — separate shipping, validation, and confidence cadences.
 - [ ] Stage 6 — complete the terminal project-to-scope migration.
@@ -129,6 +129,35 @@ contract proof or no operator artifact when the actual outcome makes that
 sufficient. TypeScript, Biome on changed sources, task validation, diff
 whitespace validation, and 28 focused critic, builder, and real blocking-worker
 tests passed.
+
+## Stage 3 Result
+
+Exploration now inspects the repository and queue for concrete useful work,
+updates the watchlist when reality changed, and may finish cleanly when it finds
+nothing worth preserving. Strategic and architecture queue quotas, mandatory
+exploration-rationale artifacts, and their replay fixtures were removed. The
+remaining explorer checks protect task integrity, publication, and observable
+watchlist behavior rather than prescribing the shape of an answer.
+
+Health review now promotes a warning or informational observation into durable
+work only after repetition, while errors and critical observations remain
+immediate. Existing issues can still be updated or cleared. Improver decisions
+now distinguish acting, observing, accepting a condition, marking a duplicate,
+and taking no action; the prompt no longer equates issue existence with a task
+obligation.
+
+The stage also retired step-name and output-shape quality scoring, fixed
+verifier catalogs, source-line thresholds, token-observability obligations,
+code-health drift reporting, and the corresponding report/eval adapters. Real
+workflow structure and safety checks remain owned by workflow validation and
+runtime boundaries. In total the stage removed 7,996 lines and added 188,
+including focused behavior tests for health durability and issue disposition.
+
+TypeScript, production build, Biome on changed sources, task validation, diff
+whitespace validation, 225 focused tests across exploration, health, improver,
+reporting, queue validation, and eval diagnostics, plus all four standard replay
+smoke scenarios passed. A repository search found no retired quota, size,
+observability, loop-quality, rationale, or code-health-drift mechanism residue.
 
 ## Finding Ownership
 

@@ -68,7 +68,10 @@ export function planAutonomyHealthReviewFinalization(args: {
   review: AutonomyHealthReview;
   repositoryActions: AutonomyHealthReviewActionResult;
 }): AutonomyHealthReviewActionResult {
-  const observations = autonomyIssueObservationsFromReview(args.review);
+  const observations = autonomyIssueObservationsFromReview(
+    args.review,
+    args.currentProjection,
+  );
   const projected = reduceAutonomyIssueProjection(
     args.currentProjection,
     observations,
@@ -87,7 +90,10 @@ export function stageAutonomyHealthReviewActions(args: {
   scopeDir?: string;
   review: AutonomyHealthReview;
 }): AutonomyHealthReviewActionResult {
-  const observations = autonomyIssueObservationsFromReview(args.review);
+  const observations = autonomyIssueObservationsFromReview(
+    args.review,
+    args.currentProjection,
+  );
   const projected = reduceAutonomyIssueProjection(
     args.currentProjection,
     observations,
@@ -135,7 +141,10 @@ export function finalizeAutonomyHealthReviewActions(args: {
       issue,
     ]),
   );
-  const observations = autonomyIssueObservationsFromReview(args.review);
+  const observations = autonomyIssueObservationsFromReview(
+    args.review,
+    args.currentProjection,
+  );
   const projected = applyAutonomyIssueObservations({
     current: args.currentProjection,
     observations,
@@ -194,12 +203,16 @@ export function finalizeAutonomyHealthReviewActions(args: {
 
 export function autonomyIssueObservationsFromReview(
   review: AutonomyHealthReview,
+  currentProjection: AutonomyIssueProjection,
 ): AutonomyIssueObservation[] {
-  return review.groups.map((group) => {
+  const currentIssueKeys = new Set(
+    currentProjection.issues.map((issue) => issue.issueKey),
+  );
+  return review.groups.flatMap((group) => {
     const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
       group.evidenceRefs,
     );
-    return buildAutonomyIssueObservation({
+    const observation = buildAutonomyIssueObservation({
       kind: group.observation,
       rootCauseKey: group.dedupeKey,
       observedAt: review.generatedAt,
@@ -215,5 +228,19 @@ export function autonomyIssueObservationsFromReview(
       evidenceRefs,
       observationCount: group.observationCount,
     });
+    const alreadyDurable = currentIssueKeys.has(observation.issueKey);
+    const concreteFailure = group.severity === "error" ||
+      group.severity === "critical";
+    const repeatedObservation = group.observationCount > 1;
+    if (
+      (group.observation === "cleared" && !alreadyDurable) ||
+      (group.observation !== "cleared" &&
+        !alreadyDurable &&
+        !concreteFailure &&
+        !repeatedObservation)
+    ) {
+      return [];
+    }
+    return [observation];
   });
 }

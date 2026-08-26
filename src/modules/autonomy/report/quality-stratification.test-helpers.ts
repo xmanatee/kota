@@ -1,12 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type {
   ReviewScrutinyRecord,
   ReviewScrutinyReport,
 } from "#modules/autonomy/review-scrutiny.js";
-import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import { buildQualityStratificationReport } from "./quality-stratification.js";
@@ -206,46 +202,6 @@ function emptyPostReport(): PostCompletionFollowUpReport {
     activeFollowUpTaskIds: [],
     links: [],
     truncatedLinkCount: 0,
-  };
-}
-
-export function writeBuilderArtifacts(
-  runsDir: string,
-  runId: string,
-  _taskId: string,
-  filesChanged: string[],
-  outcome: "ok" | "warning",
-): void {
-  const runDir = join(runsDir, runId);
-  mkdirSync(runDir, { recursive: true });
-  writeWriterIntegrationFixture(runsDir, {
-    runId,
-    workflow: "builder",
-    publishedHead: "abc123",
-    commitSubject: "test",
-    commitMessage: "test",
-    changedPaths: filesChanged,
-    completedAt: new Date(NOW).toISOString(),
-  });
-  writeFileSync(
-    join(runDir, "source-file-size-review.json"),
-    JSON.stringify(sourceReview(outcome, filesChanged)),
-  );
-}
-
-function sourceReview(outcome: "ok" | "warning", files: string[]) {
-  if (outcome === "ok") return { outcome: "ok", warnings: [], message: "ok" };
-  return {
-    outcome: "advisory",
-    warnings: files.map((file) => ({
-      type: SOURCE_FILE_SIZE_WARNING_TYPE,
-      file,
-      lines: 360,
-      threshold: 300,
-      changedLines: 12,
-      message: "Source file exceeds line threshold.",
-    })),
-    message: "warning",
   };
 }
 

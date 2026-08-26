@@ -164,7 +164,7 @@ describe("diff-summary consistency report", () => {
     });
 
     const text = renderReport(report);
-    const diffSection = section(text, "Diff-summary consistency", "Code-health drift");
+    const diffSection = section(text, "Diff-summary consistency", "Owner interventions");
     expect(diffSection).toContain("broad-source-churn-omitted");
     expect(diffSection).toContain(runId);
     expect(diffSection).toContain("task-eval-harness");

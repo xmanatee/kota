@@ -94,9 +94,13 @@ function recordDisposition(
             ? "task"
             : applied.disposition.action === "ask-owner"
               ? "owner-question"
-              : applied.disposition.action === "resolve"
-                ? "resolved"
-                : "observed",
+              : applied.disposition.action === "accept"
+                ? "accepted"
+                : applied.disposition.action === "duplicate"
+                  ? "duplicate"
+                  : applied.disposition.action === "no-action"
+                    ? "no-action"
+                    : "observed",
         decidedAt,
         taskIds: materialized.taskId ? [materialized.taskId] : [],
         ownerQuestionIds: materialized.ownerQuestionId

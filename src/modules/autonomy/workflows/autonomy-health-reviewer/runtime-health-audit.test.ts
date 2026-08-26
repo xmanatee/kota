@@ -139,16 +139,12 @@ describe("runtime health audit", () => {
 
     const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
     expect(actions.applied).toEqual(
-      expect.arrayContaining([
+      [
         expect.objectContaining({
           kind: "decision-requested",
           dedupeKey: "dead-letter:execution:workflow-runtime:builder",
         }),
-        expect.objectContaining({
-          kind: "decision-requested",
-          dedupeKey: "dead-letter:provider:workflow-runtime:builder",
-        }),
-      ]),
+      ],
     );
     expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
   });
