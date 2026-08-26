@@ -1,26 +1,16 @@
-# blocked-promoter
+# Blocked Promoter
 
-This workflow keeps blocked tasks honest by evaluating their typed unblock
-preconditions and moving tasks whose blockers have cleared. Exact precondition
-shape and promotion rules live in the repo-tasks domain code and task
-validation, not in this workflow note.
+Evaluates typed unblock preconditions and moves tasks whose blockers have
+cleared.
 
-Runtime contract:
-
-- Code-only workflow. No agent step, no per-step autonomy mode.
-- Recovery-capable: stashes any tracked dirt before doing anything else.
-- Never acts on a dirty worktree and never moves terminal tasks.
-- The askOwnerSteps recipe is the only outward call; everything else is
-  deterministic file operations and `git mv` via the shared
-  `moveTaskById` helper.
-
-## Regression coverage
-
-`owner-decision-cycle.integration.test.ts` is the load-bearing regression
-for the full owner-decision unblock cycle: ask → daemon-restart → free-form
-Telegram chat reply → resolved-marker → auto-promote. It drives the real
-`blocked-promoter` workflow, the `askOwnerSteps` recipe, the
-`OwnerQuestionQueue`, the `installAwaitResumers` resume path, and the
-`tryHandleOwnerQuestionReply` chat-reply path through a real `Daemon`
-stop/start cycle. A regression in any one of those four named seams fails
-this single test with a message naming the broken seam.
+- This code-only workflow declares repository write access and task validation.
+  Shared runtime owns its sandbox, recovery, commit, and publication.
+- Never move terminal tasks. Use repo-tasks domain operations for every state
+  transition.
+- The writer emits a stable owner-decision request only after integration.
+  `blocked-promoter-owner-decision` owns `askOwnerSteps` on a separate
+  `repository: none` follow-up, then emits a stable resolution for a new writer
+  run to apply.
+- Tests cover deterministic promotion, owner-decision resume, terminal-task
+  rejection, and observable task state. Await-event restart behavior belongs to
+  the shared workflow runtime tests.

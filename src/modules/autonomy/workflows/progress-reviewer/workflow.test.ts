@@ -17,7 +17,6 @@ import {
   createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
 } from "#core/daemon/dead-letter-queue.js";
-import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
   deriveDirectoryScopeId,
   GLOBAL_SCOPE_ID,
@@ -34,6 +33,7 @@ import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { safeJsonStringify } from "#core/workflow/run-io.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
@@ -44,6 +44,7 @@ import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
@@ -54,6 +55,7 @@ import {
   applyProgressReviewActions,
   classifyProgressReviewTrigger,
   collectProgressReviewEvidence,
+  collectProgressReviewGitEvidence,
   compactProgressReviewEvidenceForAgent,
   decodeProgressReviewAgentOutput,
   decodeProgressReviewAgentOutputForEvidence,
@@ -68,11 +70,11 @@ import {
   type ProgressReviewAgentOutput,
   readTaskStatus,
 } from "./progress-review.js";
-import { readPendingProgressReviewInput } from "./semantic-input.js";
 import {
   channelBatchPayload,
   commitProgressReviewFixture,
   makeProgressReviewProjectDir,
+  makeProgressReviewRunContext,
   NOW,
   readProgressReviewFixture,
   reviewOutput,
@@ -90,35 +92,6 @@ vi.mock("#core/util/repo-worktree.js", async () => {
   return {
     ...actual,
     getRepoWorktreeStatus: vi.fn(),
-  };
-});
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-follow-up.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
   };
 });
 
@@ -221,10 +194,6 @@ function writeRun(
     join(runDir, "trigger.json"),
     JSON.stringify({ event: "autonomy.queue.available", schemaRef: null, payload: {} }, null, 2),
   );
-  writeFileSync(
-    join(runDir, "run-summary.json"),
-    JSON.stringify({ ok: true, workflow }, null, 2),
-  );
 }
 
 function writePendingWorkflowRun(
@@ -238,31 +207,30 @@ function writePendingWorkflowRun(
     payload?: Record<string, unknown>;
   },
 ): void {
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
-  writeFileSync(
-    join(projectDir, ".kota", "workflow-state.json"),
-    JSON.stringify(
-      {
-        completedRuns: 0,
-        pendingRuns: [
-          {
-            runId: pendingRun.runId,
-            workflowName: pendingRun.workflowName,
-            trigger: {
-              event: pendingRun.triggerEvent,
-              schemaRef: null,
-              payload: pendingRun.payload ?? {},
-            },
-            enqueuedAtMs: Date.parse(pendingRun.enqueuedAt),
-            notBeforeMs: Date.parse(pendingRun.notBeforeAt ?? pendingRun.enqueuedAt),
-          },
-        ],
-        workflows: {},
-      },
-      null,
-      2,
-    ),
-  );
+  const projectId = deriveDirectoryScopeId(projectDir);
+  const state = new RunStateDatabase(join(projectDir, ".kota"));
+  state.registerProject({
+    id: projectId,
+    rootPath: projectDir,
+    createdAt: pendingRun.enqueuedAt,
+  });
+  state.admitRun({
+    id: pendingRun.runId,
+    projectId,
+    workflow: pendingRun.workflowName,
+    repository: "read",
+    trigger: {
+      event: pendingRun.triggerEvent,
+      schemaRef: null,
+      payload: pendingRun.payload ?? {},
+    },
+    resources: [],
+    admittedAt: pendingRun.enqueuedAt,
+    ...(pendingRun.notBeforeAt === undefined
+      ? {}
+      : { notBeforeAt: pendingRun.notBeforeAt }),
+  });
+  state.close();
 }
 
 function writeRunArtifactFile(
@@ -397,19 +365,6 @@ async function mockCleanWorktree() {
   });
 }
 
-async function mockDirtyWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: true,
-    trackedDirty: true,
-    entries: ["M src/active-builder-change.ts"],
-    fingerprint: "src/active-builder-change.ts:M",
-    summary: "M src/active-builder-change.ts",
-    headSha: "abc1234",
-  });
-}
-
 describe("progress-reviewer workflow", () => {
   const projectDirs: string[] = [];
 
@@ -450,49 +405,7 @@ describe("progress-reviewer workflow", () => {
     expect(prompt).not.toContain("Return exactly one structured JSON object");
   });
 
-  it("parks an automatic semantic input while tracked worktree changes are present", async () => {
-    await mockDirtyWorktree();
-    const projectDir = trackProjectDir("progress-reviewer-dirty");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    writeRun(
-      projectDir,
-      "builder-success",
-      "builder",
-      "success",
-      "2026-06-04T11:20:00.000Z",
-    );
-
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir,
-      trigger: {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: {
-          scopeId,
-          projectId: scopeId,
-          automatic: true,
-          boundary: "parked-queue",
-          inputRevision: 1,
-          evidenceRefs: ["data/tasks/done/task-delivery.md"],
-        },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-worktree"].output).toEqual({ dirty: true });
-    expect(result.steps["review-evidence"].status).toBe("skipped");
-    expect(result.steps["write-artifact"].status).toBe("skipped");
-    expect(result.steps["defer-semantic-input"].output).toEqual({ deferred: true });
-    expect(readPendingProgressReviewInput(projectDir)).toMatchObject({
-      boundary: "parked-queue",
-      inputRevision: 1,
-      delivery: "deferred",
-    });
-  });
-
-  it("declares only semantic requests and recovery without direct inbound-signal or build triggers", () => {
+  it("declares only semantic requests without direct inbound-signal or build triggers", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register("autonomy", progressReviewRequested);
     moduleEvents.register("autonomy", automaticProgressReviewRequested);
@@ -510,7 +423,6 @@ describe("progress-reviewer workflow", () => {
         cooldownMs: 0,
         queueMode: "latest",
       },
-      { event: "runtime.recovered" },
     ]);
     expect(progressReviewerWorkflow.triggers).not.toEqual(
       expect.arrayContaining([
@@ -556,7 +468,7 @@ describe("progress-reviewer workflow", () => {
     expect(result.status).toBe("success");
     expect(result.steps["apply-actions"].status).toBe("success");
     expect(result.steps["write-commit-message"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
+    expect(result.steps["validate-changes"].status).toBe("skipped");
     const artifactPath = join(projectDir, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { scope: { scopeId: string }; runs: Array<{ workflow: string }>; tasks: Array<{ taskId: string }> };
@@ -631,11 +543,13 @@ describe("progress-reviewer workflow", () => {
         payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
       },
       {
-        projectDir,
+        runContext: makeProgressReviewRunContext(
+          projectDir,
+          "scratch-cleanup-review",
+        ),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),
-        runId: "scratch-cleanup-review",
       },
     );
 
@@ -890,48 +804,62 @@ describe("progress-reviewer workflow", () => {
   it("creates one follow-up transition and suppresses unchanged record rewrites and attention", async () => {
     const projectDir = trackProjectDir("progress-reviewer-channel");
     const payload = channelBatchPayload(projectDir);
+    const review = readFixture("channel-processing-review");
+    review.ownerQuestions = [];
 
     const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir,
+      contextOverrides: {
+        runCommand: async (input) => ({
+          command: input.command,
+          args: input.args ?? [],
+          cwd: input.cwd ?? projectDir,
+          identity: {
+            pid: 1,
+            processGroupId: 1,
+            observedCommandHash: "test-command",
+            osStartToken: "test-command",
+          },
+          exitCode: 0,
+          stdout: { text: "", totalBytes: 0, truncated: false },
+          stderr: { text: "", totalBytes: 0, truncated: false },
+        }),
+      },
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,
       },
       stepMocks: {
-        "review-evidence": readFixture("channel-processing-review"),
+        "review-evidence": review,
       },
     });
 
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps["validate-before-commit"].status).toBe("success");
+    expect(result.steps["validate-changes"].status).toBe("success");
     const actions = result.steps["apply-actions"].output as ProgressReviewActionResult;
     expect(actions.createdTaskIds).toEqual([
       "task-add-channel-progress-review-routing-fixture",
     ]);
-    expect(actions.ownerQuestionIds).toHaveLength(1);
+    expect(actions.ownerQuestionIds).toHaveLength(0);
     expect(
       readTaskStatus(projectDir, "task-add-channel-progress-review-routing-fixture"),
     ).toBe("ready");
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(true);
+    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
     expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
       "workflow.attention.digest",
     );
 
     const repeatedReview = readFixture("channel-processing-review");
+    repeatedReview.ownerQuestions = [];
     repeatedReview.summary = "The same evidence was described with different wording.";
     repeatedReview.findings.localScope.followUpTasks[0] = {
       ...repeatedReview.findings.localScope.followUpTasks[0]!,
       title: "Reworded channel routing follow-up",
       summary: "The model rephrased the same evidence-backed proposal.",
       acceptanceEvidence: "The same evidence would support a differently worded check.",
-    };
-    repeatedReview.ownerQuestions[0] = {
-      ...repeatedReview.ownerQuestions[0]!,
-      question: "Should the same channel evidence use another policy wording?",
-      reason: "Only the wording changed.",
     };
     const repeated = await new WorkflowTestHarness(progressReviewerWorkflow, {
       projectDir,
@@ -949,7 +877,6 @@ describe("progress-reviewer workflow", () => {
     expect(repeatedActions.ownerQuestionIds).toHaveLength(0);
     expect(repeatedActions.applied.map((action) => action.kind)).toEqual([
       "skipped-task",
-      "skipped-owner-question",
     ]);
     expect(repeated.steps["emit-attention"].status).toBe("skipped");
     expect(repeated.emitted.map((event) => event.event)).not.toContain(
@@ -967,17 +894,15 @@ describe("progress-reviewer workflow", () => {
         "utf-8",
       ),
     ).not.toContain("Reworded channel routing follow-up");
-    expect(
-      new OwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"))
-        .list()[0]?.question,
-    ).not.toContain("another policy wording");
   });
 
-  it("uses one semantic proposal identity when a topic changes from task to owner question", () => {
+  it("stages an owner question when a topic changes from task to owner decision", () => {
     const projectDir = trackProjectDir("progress-reviewer-proposal-kind-change");
     const payload = channelBatchPayload(projectDir);
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1021,26 +946,18 @@ describe("progress-reviewer workflow", () => {
     });
 
     expect(readTaskStatus(projectDir, taskId)).toBe("dropped");
-    expect(changed.ownerQuestionIds).toHaveLength(1);
+    expect(changed.ownerQuestionIds).toHaveLength(0);
     expect(changed.touchedTaskQueue).toBe(true);
     expect(changed.applied).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "dropped-task", taskId }),
+        expect.objectContaining({ kind: "owner-question-pending" }),
       ]),
     );
-    expect(
-      new OwnerQuestionQueue(
-        join(projectDir, ".kota", "owner-questions"),
-      ).list(),
-    ).toEqual([
-      expect.objectContaining({
-        dedupeKey: `generated-work:progress-reviewer:${topicKey}`,
-        status: "pending",
-      }),
-    ]);
+    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
   });
 
-  it("classifies batch triggers by their source event", () => {
+  it("does not treat build commits as semantic progress boundaries", () => {
     const projectDir = trackProjectDir("progress-reviewer-batch-kind");
     const channelBatch = channelBatchPayload(projectDir);
     const runBatch = {
@@ -1096,7 +1013,7 @@ describe("progress-reviewer workflow", () => {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null, payload: taskBatch,
       }),
-    ).toBe("task-count");
+    ).toBe("event-batch");
     expect(
       classifyProgressReviewTrigger({
         event: WORKFLOW_BATCH_FLUSH_EVENT,
@@ -1147,7 +1064,7 @@ describe("progress-reviewer workflow", () => {
             workflow: "builder",
             runId: "batched-builder-run",
             status: "success",
-            triggerEvent: "runtime.recovered",
+            triggerEvent: "autonomy.queue.available",
             durationMs: 1000,
             definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
             runDir: ".kota/runs/batched-builder-run",
@@ -1166,6 +1083,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1282,6 +1201,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1399,6 +1320,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1567,6 +1490,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1622,6 +1547,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1726,6 +1653,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1831,6 +1760,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2013,11 +1944,13 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
-        projectDir,
+        runContext: makeProgressReviewRunContext(
+          projectDir,
+          "runtime-large-run-count-packet",
+        ),
         bus: new EventBus(),
         store,
         log: vi.fn(),
-        runId: "runtime-large-run-count-packet",
       },
     );
 
@@ -2165,11 +2098,13 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
-        projectDir,
+        runContext: makeProgressReviewRunContext(
+          projectDir,
+          "runtime-hidden-id-packet",
+        ),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),
-        runId: "runtime-hidden-id-packet",
       },
     );
 
@@ -2206,6 +2141,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir: projectA,
+      scopeDir: projectA,
+      stateDir: join(projectA, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId: scopeA, projectId: scopeA, windowMs: 3_600_000 },
@@ -2233,6 +2170,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2319,6 +2258,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2418,6 +2359,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2452,6 +2395,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2466,14 +2411,14 @@ describe("progress-reviewer workflow", () => {
         status: "pending",
         startedAt: "2026-06-04T11:45:00.000Z",
         triggerEvent: "autonomy.security-review.due",
-        path: ".kota/workflow-state.json",
+        path: ".kota/kota.sqlite",
       }),
     ]);
     expect(evidence.evidence).toContainEqual(
       expect.objectContaining({
         id: "run:security-review-pending",
         kind: "run",
-        path: ".kota/workflow-state.json",
+        path: ".kota/kota.sqlite",
       }),
     );
     expect(evidence.runs[0].summary).toContain("eligible at 2026-06-04T11:50:00.000Z");
@@ -2507,6 +2452,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2575,6 +2522,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2648,6 +2597,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2706,6 +2657,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2749,6 +2702,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
@@ -2762,7 +2717,7 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("collects recent committed file changes when the coding worktree is clean", () => {
+  it("collects recent committed file changes through the workflow command rail", async () => {
     const projectDir = trackProjectDir("progress-reviewer-git-commit");
     const scopeId = deriveDirectoryScopeId(projectDir);
     writeFileSync(join(projectDir, "README.md"), "initial\n");
@@ -2776,13 +2731,26 @@ describe("progress-reviewer workflow", () => {
     );
     const short = commit.slice(0, 12);
 
+    const trigger = {
+      event: progressReviewRequested.name,
+      schemaRef: null,
+      payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+    } as const;
+    const gitEvidenceByScope = await collectProgressReviewGitEvidence({
+      projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      trigger,
+      now: NOW,
+      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+    });
     const evidence = collectProgressReviewEvidence({
       projectDir,
-      trigger: {
-        event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
-      },
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      trigger,
       now: NOW,
+      gitEvidenceByScope,
     });
 
     expect(evidence.git).toEqual(
@@ -2828,6 +2796,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir: projectA,
+      scopeDir: projectA,
+      stateDir: join(projectA, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -2871,6 +2841,8 @@ describe("progress-reviewer workflow", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir: projectA,
+      scopeDir: projectA,
+      stateDir: join(projectA, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -2917,6 +2889,8 @@ describe("progress-reviewer workflow", () => {
       runId: "inbox-dedupe-run",
       evidence: collectProgressReviewEvidence({
         projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
         trigger: {
           event: WORKFLOW_BATCH_FLUSH_EVENT,
           schemaRef: null,
@@ -2953,6 +2927,8 @@ describe("progress-reviewer workflow", () => {
     });
     const evidence = collectProgressReviewEvidence({
       projectDir: projectA,
+      scopeDir: projectA,
+      stateDir: join(projectA, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -3077,6 +3053,8 @@ describe("progress-reviewer workflow", () => {
     const payload = channelBatchPayload(projectDir);
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,

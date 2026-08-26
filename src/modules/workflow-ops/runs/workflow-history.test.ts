@@ -14,7 +14,7 @@ import {
 const minimalWorkflow = (name: string): WorkflowDefinition => ({
   name,
   enabled: true,
-  recoveryCapable: false,
+  repository: "none",
   tags: [],
   definitionPath: `src/modules/test/workflows/${name}/workflow.ts`,
   moduleRoot: "/test-module-root",
@@ -165,26 +165,8 @@ describe("workflow history", () => {
       expect(stats.total).toBe(3);
       expect(stats.successes).toBe(2);
       expect(stats.failures).toBe(1);
-      expect(stats.yielded).toBe(0);
       expect(stats.interrupted).toBe(0);
       expect(stats.successRate).toBeCloseTo(66.67, 1);
-    });
-
-    it("retains yielded runs as a distinct terminal outcome", () => {
-      const trigger = { event: "test", schemaRef: null, payload: {} };
-      const run = store.createRun(minimalWorkflow("builder"), trigger);
-      run.finish({ status: "yielded", durationMs: 5_000 });
-
-      const stats = computeHistoryStats(
-        loadRunsInWindow(store.runsDir, Date.now() - 86_400_000),
-      );
-      expect(stats).toMatchObject({
-        total: 1,
-        successes: 0,
-        failures: 0,
-        yielded: 1,
-        interrupted: 0,
-      });
     });
 
     it("computes cost stats correctly", () => {

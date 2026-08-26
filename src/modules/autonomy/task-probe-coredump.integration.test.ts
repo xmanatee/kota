@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 
 const POST_EXEC_ABORT_STARTED = "KOTA_RUNTIME_PROBE_PACKAGE_ABORT_STARTED";
@@ -28,7 +29,7 @@ function runGit(projectDir: string, args: string[]): void {
 describe("Runtime Probe coredump containment", () => {
   it.runIf(process.platform === "linux")(
     "fails closed for a host pipe handler or contains a live post-exec abort",
-    () => {
+    async () => {
       const parent = join(
         tmpdir(),
         `kota-probe-coredump-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -79,11 +80,12 @@ describe("Runtime Probe coredump containment", () => {
           "/proc/sys/kernel/core_pattern",
           "utf8",
         ).trim();
-        const result = runProbeIfDeclared(
+        const result = await runProbeIfDeclared(
           taskContent,
           doingTask,
           projectDir,
           runDir,
+          createWorkflowCommandRunner({ cwd: projectDir }),
         );
 
         expect(result).not.toBeNull();

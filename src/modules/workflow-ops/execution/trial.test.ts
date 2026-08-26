@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
@@ -103,19 +110,20 @@ function makeDefinition(
   return {
     name: "trial-fixture",
     enabled: true,
-    recoveryCapable: false,
     moduleRoot: projectDir,
     definitionPath: "fixture-workflow.ts",
+    repository: "write",
+    integration: { validationCommand: ["true"] },
     tags: [],
     triggers: [{ event: "manual", cooldownMs: 0 }],
     steps: [
       {
         id: "write-marker",
         type: "code",
-        run: ({ projectDir: runProjectDir, trigger, emit }) => {
-          mkdirSync(join(runProjectDir, "data"), { recursive: true });
+        run: ({ projectDir, trigger, emit }) => {
+          mkdirSync(join(projectDir, "data"), { recursive: true });
           writeFileSync(
-            join(runProjectDir, "data", "trial-marker.txt"),
+            join(projectDir, "data", "trial-marker.txt"),
             String(trigger.payload.marker ?? "missing"),
             "utf-8",
           );
@@ -133,7 +141,7 @@ function makeRuntimeFactory(
 ): WorkflowTrialRuntimeFactory {
   return async (projectDir) => ({
     config: {} as KotaConfig,
-    definitions: build(projectDir),
+    workflows: build(projectDir),
   });
 }
 
@@ -231,12 +239,15 @@ describe("workflow trial execution", () => {
                   "child-trial-fixture",
                   { marker: "child", token: trigger.payload.token },
                   "queued",
+                  undefined,
+                  "child-trial-fixture",
                 );
                 return { ok: true };
               },
             },
           ],
         }),
+        makeDefinition(trialProjectDir, { name: "child-trial-fixture" }),
       ]),
     });
 
@@ -277,12 +288,11 @@ describe("workflow trial execution", () => {
           steps: [
             {
               id: "write-marker-tool",
-              type: "tool",
-              tool: "file_write",
-              input: {
+              type: "code",
+              run: ({ runTool }) => runTool("file_write", {
                 path: "data/tool-marker.txt",
                 content: "trial tool write",
-              },
+              }),
             },
           ],
         }),
@@ -320,7 +330,13 @@ describe("workflow trial execution", () => {
       runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
         makeDefinition(trialProjectDir, {
           name: "external-fixture",
-          steps: [{ id: "send-live", type: "tool", tool: EXTERNAL_TOOL }],
+          repository: "none",
+          integration: undefined,
+          steps: [{
+            id: "send-live",
+            type: "code",
+            run: ({ runTool }) => runTool(EXTERNAL_TOOL, {}),
+          }],
         }),
       ]),
     });
@@ -470,9 +486,20 @@ describe("workflow trial execution", () => {
       runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
         makeDefinition(trialProjectDir, {
           name: "blocked-tool-fixture",
+          repository: "none",
+          integration: undefined,
           steps: [
-            { id: "write-daemon", type: "tool", tool: DAEMON_WRITE_TOOL, continueOnFailure: true },
-            { id: "write-local", type: "tool", tool: UNSCOPED_LOCAL_WRITE_TOOL },
+            {
+              id: "write-daemon",
+              type: "code",
+              continueOnFailure: true,
+              run: ({ runTool }) => runTool(DAEMON_WRITE_TOOL, {}),
+            },
+            {
+              id: "write-local",
+              type: "code",
+              run: ({ runTool }) => runTool(UNSCOPED_LOCAL_WRITE_TOOL, {}),
+            },
           ],
         }),
       ]),
@@ -526,7 +553,11 @@ describe("workflow trial execution", () => {
       runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
         makeDefinition(trialProjectDir, {
           name: "process-env-fixture",
-          steps: [{ id: "inject-process-env", type: "tool", tool: PROCESS_ENV_TOOL }],
+          steps: [{
+            id: "inject-process-env",
+            type: "code",
+            run: ({ runTool }) => runTool(PROCESS_ENV_TOOL, {}),
+          }],
         }),
       ]),
     });
@@ -577,12 +608,11 @@ describe("workflow trial execution", () => {
           steps: [
             {
               id: "run-shell",
-              type: "tool",
-              tool: "shell",
-              input: {
+              type: "code",
+              run: ({ runTool }) => runTool("shell", {
                 command: "touch /tmp/kota-trial-shell-escape",
                 cwd: ".",
-              },
+              }),
             },
           ],
         }),
@@ -640,9 +670,9 @@ describe("workflow trial execution", () => {
             },
             {
               id: "skipped-live-send",
-              type: "tool",
-              tool: EXTERNAL_TOOL,
+              type: "code",
               when: () => false,
+              run: ({ runTool }) => runTool(EXTERNAL_TOOL, {}),
             },
           ],
         }),
@@ -693,6 +723,8 @@ describe("workflow trial execution", () => {
       runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
         makeDefinition(trialProjectDir, {
           name: "runtime-tool-fixture",
+          repository: "none",
+          integration: undefined,
           steps: [
             {
               id: "code-attempts-tools",
@@ -964,6 +996,8 @@ describe("workflow trial execution", () => {
         workflows: [{
           name: "selected-trial-fixture",
           definitionPath: "selected-trial-fixture-module",
+          repository: "write",
+          integration: { validationCommand: ["true"] },
           triggers: [{ event: "manual" }],
           steps: [{
             id: "write-selected-marker",
@@ -987,7 +1021,7 @@ describe("workflow trial execution", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.message);
     expect(result.summary.projectId).toBe(selectedProjectId);
-    expect(result.summary.sourceProjectPath).toBe(selectedProjectDir);
+    expect(result.summary.sourceProjectPath).toBe(realpathSync(selectedProjectDir));
     expect(existsSync(join(defaultProjectDir, "data", "selected-marker.txt"))).toBe(false);
     expect(existsSync(join(selectedProjectDir, "data", "selected-marker.txt"))).toBe(false);
     const attempt = result.summary.attempts[0]!;
@@ -995,7 +1029,7 @@ describe("workflow trial execution", () => {
     expect(readFileSync(join(attempt.trialProjectPath, "data", "selected-marker.txt"), "utf-8")).toBe("selected");
   });
 
-  it("default runtime factory resolves agentName-only workflow steps through registered agents", async () => {
+  it("default runtime factory preserves workflow inputs and registered agent resolution", async () => {
     const projectDir = makeProjectDir();
     cleanup.push(projectDir);
     writeProjectModule(projectDir, `
@@ -1025,11 +1059,14 @@ describe("workflow trial execution", () => {
 
     const runtime = await createDefaultWorkflowTrialRuntimeFactory()(projectDir);
     try {
-      const definition = runtime.definitions.find((d) => d.name === "trial-agent-fixture");
+      const definition = runtime.workflows.find((d) => d.name === "trial-agent-fixture");
       expect(definition?.steps[0]).toMatchObject({
         id: "agent",
         type: "agent",
         agentName: "trial-agent",
+      });
+      expect(runtime.resolveAgentDef?.("trial-agent")).toMatchObject({
+        name: "trial-agent",
         promptPath: "AGENTS.md",
         model: "trial-agent-model",
         effort: "low",
@@ -1119,6 +1156,8 @@ describe("workflow trial execution", () => {
         workflows: [{
           name: "trial-fixture",
           definitionPath: "trial-fixture-module",
+          repository: "write",
+          integration: { validationCommand: ["true"] },
           triggers: [{ event: "manual" }],
           steps: [{
             id: "write-marker",

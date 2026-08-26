@@ -1,36 +1,31 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import type { WorkflowNotifyConfig } from "./step-input-base.js";
+import type { BusEvents } from "#core/events/event-bus.js";
+import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
+const FAILURE_ALERT_WORKFLOW = "workflow-failure-alert";
+const FAILURE_ALERT_DEFINITION_PATH = "src/core/workflow/failure-alert.ts";
 const MAX_ERROR_LENGTH = 300;
 
-function readErrorFile(
-  projectDir: string,
-  runDir: string,
-  log: (message: string) => void,
-): string {
+type WorkflowCompletion = BusEvents["workflow.completed"];
+
+function readErrorFile(projectDir: string, runDir: string): string {
   const path = resolve(projectDir, runDir, "error.txt");
   if (!existsSync(path)) return "";
   try {
     return readFileSync(path, "utf-8").trim();
   } catch (error) {
-    log(`Workflow failure alert could not read ${path}: ${error instanceof Error ? error.message : String(error)}`);
-    return "";
+    return `Unable to read workflow error: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
   }
 }
 
-function buildAlertText(
-  workflow: string,
-  runId: string,
-  status: "failed" | "interrupted",
-  durationMs: number,
-  errorSummary: string,
-): string {
-  const durationSec = (durationMs / 1000).toFixed(1);
+function buildAlertText(payload: WorkflowCompletion, errorSummary: string): string {
+  const durationSec = (payload.durationMs / 1000).toFixed(1);
   const lines = [
-    `Workflow ${status}: *${workflow}*`,
-    `Run: \`${runId}\``,
+    `Workflow ${payload.status}: *${payload.workflow}*`,
+    `Run: \`${payload.runId}\``,
     `Duration: ${durationSec}s`,
   ];
   if (errorSummary) {
@@ -43,50 +38,63 @@ function buildAlertText(
   return lines.join("\n");
 }
 
-export type FailureAlertOptions = {
-  alertCooldownMs?: number;
-  /** Returns the notify config for a workflow by name, if defined. */
-  getWorkflowNotify?: (workflowName: string) => WorkflowNotifyConfig | undefined;
-};
+export function createWorkflowFailureAlertDefinition(
+  sourceDefinitions: readonly RegisteredWorkflowDefinitionInput[],
+  alertCooldownMs = 0,
+): RegisteredWorkflowDefinitionInput {
+  const alertingWorkflows = sourceDefinitions
+    .filter(
+      (definition) =>
+        definition.name !== FAILURE_ALERT_WORKFLOW &&
+        definition.notify?.onFailure !== false,
+    )
+    .map((definition) => definition.name);
 
-export function subscribeWorkflowFailureAlert(
-  bus: ProjectScopedEventBus,
-  projectDir: string,
-  log: (message: string) => void = () => {},
-  opts?: FailureAlertOptions,
-): () => void {
-  const cooldownMs = opts?.alertCooldownMs ?? 0;
-  const lastAlertAt = new Map<string, number>();
+  return {
+    name: FAILURE_ALERT_WORKFLOW,
+    description: "Publish operator alerts for failed workflow runs.",
+    definitionPath: FAILURE_ALERT_DEFINITION_PATH,
+    repository: "none",
+    notify: { onFailure: false },
+    triggers: [
+      {
+        event: "workflow.completed",
+        filter: {
+          workflow: alertingWorkflows.length > 0 ? alertingWorkflows : ["__none__"],
+          status: ["failed", "interrupted"],
+        },
+        cooldownMs: alertCooldownMs,
+        queueMode: "all",
+      },
+    ],
+    steps: [
+      {
+        id: "publish-failure-alert",
+        type: "code",
+        run: ({ trigger, scopeDir, emit }) => {
+          const payload = trigger.payload as WorkflowCompletion;
+          const errorSummary = readErrorFile(scopeDir, payload.runDir);
+          emit("workflow.failure.alert", {
+            workflow: payload.workflow,
+            runId: payload.runId,
+            status: payload.status as "failed" | "interrupted",
+            durationMs: payload.durationMs,
+            errorSummary,
+            text: buildAlertText(payload, errorSummary),
+          });
+        },
+      },
+    ],
+  };
+}
 
-  return bus.on("workflow.completed", (payload) => {
-    if (payload.status !== "failed" && payload.status !== "interrupted") return;
-
-    const notify = opts?.getWorkflowNotify?.(payload.workflow);
-    if (notify?.onFailure === false) return;
-
-    if (cooldownMs > 0) {
-      const last = lastAlertAt.get(payload.workflow);
-      const now = Date.now();
-      if (last !== undefined && now - last < cooldownMs) return;
-      lastAlertAt.set(payload.workflow, now);
-    }
-
-    const errorSummary = readErrorFile(projectDir, payload.runDir, log);
-    const text = buildAlertText(
-      payload.workflow,
-      payload.runId,
-      payload.status,
-      payload.durationMs,
-      errorSummary,
-    );
-
-    bus.emit("workflow.failure.alert", {
-      workflow: payload.workflow,
-      runId: payload.runId,
-      status: payload.status,
-      durationMs: payload.durationMs,
-      errorSummary,
-      text,
-    });
-  });
+export function withWorkflowFailureAlert(
+  sourceDefinitions: readonly RegisteredWorkflowDefinitionInput[] | undefined,
+  alertCooldownMs = 0,
+): readonly RegisteredWorkflowDefinitionInput[] {
+  const definitions = sourceDefinitions ?? [];
+  return [
+    ...definitions,
+    createWorkflowFailureAlertDefinition(definitions, alertCooldownMs),
+  ];
 }

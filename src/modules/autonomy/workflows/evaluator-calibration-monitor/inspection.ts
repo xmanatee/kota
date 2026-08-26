@@ -25,13 +25,14 @@ export type EvaluatorCalibrationInspection = {
 
 export function inspectEvaluatorCalibrationInWorker(input: {
   projectDir: string;
+  stateDir: string;
 }): EvaluatorCalibrationInspection {
   const worktree = getRepoWorktreeStatus(input.projectDir);
   const dirty = worktree.available && worktree.dirty;
   const config = resolveCalibrationGateConfig();
   const criticPromptHash = getCriticPromptHash();
   const aggregate = aggregateCalibration(
-    join(input.projectDir, ".kota", "runs"),
+    join(input.stateDir, "runs"),
     { criticPromptHash },
   );
   const decision = evaluateCalibrationGate(aggregate, config);
@@ -51,6 +52,6 @@ export function inspectEvaluatorCalibrationInWorker(input: {
 
 export const inspectEvaluatorCalibrationOperation =
   defineWorkflowBlockingOperation<
-    { projectDir: string },
+    { projectDir: string; stateDir: string },
     EvaluatorCalibrationInspection
   >(import.meta.url, "inspectEvaluatorCalibrationInWorker");

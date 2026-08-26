@@ -191,12 +191,12 @@ function withWorkflowRedriveMetadata(
   return {
     event: trigger.event,
     schemaRef: trigger.schemaRef,
-    ...(trigger.eventId !== undefined ? { eventId: trigger.eventId } : {}),
     payload: {
       ...trigger.payload,
       _runId: runId,
       ...(retryOf !== undefined ? { retryOf } : {}),
       ...redrivePayloadMetadata(item, reason, nowMs),
+      idempotencyKey: `dead-letter-redrive:${item.id}:${runId}`,
     },
   };
 }

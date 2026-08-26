@@ -207,7 +207,7 @@ The post-repair direct eval produced
 with `passed: true`: golden and accepted-alternative cases pass, null and
 adversarial cases fail as expected, and the objective-metric comparison passes.
 A regression and direct eval using the symlinked `/tmp` path now pass the same
-calibration before execution reaches the nested builder's `prepare-worktree`
+calibration before execution reaches nested builder execution
 step and stops at the sandbox's loopback-listener preflight. The remaining
 product criterion is the authenticated trusted-host live eval evidence named
 by the operator-capture precondition.

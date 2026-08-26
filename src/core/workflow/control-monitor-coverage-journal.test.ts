@@ -17,9 +17,53 @@ import {
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
   type ControlMonitorCoverageArtifact,
 } from "./control-monitor-coverage.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = projectDir,
+): RunContext {
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir: projectDir,
+      workspaceDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",
@@ -113,7 +157,7 @@ describe("control monitor coverage event journal", () => {
     const definition: WorkflowDefinition = {
       name: "coverage-journal",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-journal/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -131,18 +175,22 @@ describe("control monitor coverage event journal", () => {
         },
       ],
     };
+    const trigger: RunContext["trigger"] = {
+      event: "runtime.idle",
+      schemaRef: null,
+      payload: {},
+    };
 
     try {
       const { promise } = executeWorkflowRun(
         definition,
-        { event: "runtime.idle", schemaRef: null, payload: {} },
+        trigger,
         {
-          projectDir,
+          runContext: makeRunContext(projectDir, trigger, "journal-run"),
           bus,
           eventJournal,
           store: new WorkflowRunStore(projectDir),
           log: vi.fn(),
-          runId: "journal-run",
         },
       );
       const result = await promise;
@@ -227,7 +275,7 @@ describe("control monitor coverage event journal", () => {
     const definition: WorkflowDefinition = {
       name: "coverage-mcp",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-mcp/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -245,18 +293,22 @@ describe("control monitor coverage event journal", () => {
         },
       ],
     };
+    const trigger: RunContext["trigger"] = {
+      event: "runtime.idle",
+      schemaRef: null,
+      payload: {},
+    };
 
     try {
       const { promise } = executeWorkflowRun(
         definition,
-        { event: "runtime.idle", schemaRef: null, payload: {} },
+        trigger,
         {
-          projectDir,
+          runContext: makeRunContext(projectDir, trigger, "mcp-run"),
           bus,
           eventJournal,
           store: new WorkflowRunStore(projectDir),
           log: vi.fn(),
-          runId: "mcp-run",
         },
       );
       const result = await promise;

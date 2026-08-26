@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { AgentBackoffManager } from "./agent-backoff.js";
+import { RunCoordinator, type RunExecutor } from "./run-coordinator.js";
+import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
@@ -11,6 +12,9 @@ import { WorkflowQueueManager } from "./workflow-queue.js";
 describe("AgentBackoffManager", () => {
   let projectDir: string;
   let store: WorkflowRunStore;
+  let runState: RunStateDatabase;
+  let coordinator: RunCoordinator;
+  let execute: ReturnType<typeof vi.fn<RunExecutor>>;
   let logs: string[];
 
   function makeManager(): AgentBackoffManager {
@@ -27,15 +31,13 @@ describe("AgentBackoffManager", () => {
   ): WorkflowQueueManager {
     return new WorkflowQueueManager({
       store,
-      idempotencyStore: new IdempotencyStore(
-        join(projectDir, ".kota", "idempotency"),
-        "test-scope",
-      ),
+      runState,
+      coordinator,
+      projectId: "test-project",
+      projectDir,
       getScopeId: () => "test-scope",
       getActiveBackoff: () => manager.getActive(),
       workflowUsesAgent: () => true,
-      concurrencyLimit: () => 1,
-      isActiveRun: () => false,
       getDefinitions: () => [definition],
       log: (message) => logs.push(message),
     });
@@ -44,6 +46,23 @@ describe("AgentBackoffManager", () => {
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
     store = new WorkflowRunStore(projectDir);
+    runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
+    runState.registerProject({
+      id: "test-project",
+      rootPath: projectDir,
+      createdAt: "2026-05-12T12:00:00.000Z",
+    });
+    const { epoch } = runState.beginDaemonSession("2026-05-12T12:00:00.000Z");
+    execute = vi.fn<RunExecutor>(async () => ({
+      kind: "terminal",
+      state: "succeeded",
+    }));
+    coordinator = new RunCoordinator({
+      store: runState,
+      daemonEpoch: epoch,
+      concurrency: 1,
+      execute,
+    });
     logs = [];
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-12T12:00:00.000Z"));
@@ -51,6 +70,7 @@ describe("AgentBackoffManager", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -140,35 +160,43 @@ describe("AgentBackoffManager", () => {
     expect(store.readState().agentBackoff?.until).toBe("2026-05-12T12:30:00.000Z");
   });
 
-  it("gates agent dispatch without deleting queued recovery work", () => {
+  it("gates agent dispatch without deleting durable queued work", async () => {
     const definition: WorkflowDefinition = {
       name: "builder",
       enabled: true,
       moduleRoot: projectDir,
-      recoveryCapable: true,
+      repository: "none",
       tags: [],
       definitionPath: "builder.test.ts",
-      triggers: [{ event: "autonomy.builder.recovery.requested", cooldownMs: 0 }],
+      triggers: [{ event: "autonomy.builder.requested", cooldownMs: 0 }],
       steps: [],
     };
     const manager = makeManager();
     const queue = makeQueue(manager, definition);
+    manager.apply({ kind: "provider", reason: "provider disconnected" });
     queue.enqueue(definition, definition.triggers[0]!, {
-      event: "autonomy.builder.recovery.requested",
+      event: "autonomy.builder.requested",
       schemaRef: null,
       payload: { idempotencyKey: "preserved-builder-run" },
     });
 
-    manager.apply({ kind: "provider", reason: "provider disconnected" });
-
     expect(queue.length).toBe(1);
-    expect(queue.pick()).toBeNull();
+    expect(queue.getRuns()[0]!.notBeforeMs).toBeGreaterThan(Date.now());
+    expect(execute).not.toHaveBeenCalled();
 
     const restored = makeQueue(manager, definition);
     restored.restorePending();
     expect(restored.length).toBe(1);
+    const queuedRunId = restored.getRuns()[0]?.runId;
+    if (!queuedRunId) throw new Error("expected durable queued run id");
 
+    const backoffUntil = store.readState().agentBackoff?.until;
+    if (!backoffUntil) throw new Error("expected active backoff");
     manager.clear();
-    expect(restored.pick()?.workflowName).toBe("builder");
+    vi.setSystemTime(new Date(backoffUntil));
+    coordinator.refill();
+    await coordinator.whenIdle();
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(runState.getRun(queuedRunId)?.state).toBe("succeeded");
   });
 });

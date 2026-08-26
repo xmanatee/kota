@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +6,10 @@ import type {
   KnowledgeProvider,
   MemoryProvider,
 } from "#core/modules/provider-types.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import {
   createInboxContributor,
   createKnowledgeContributor,
@@ -87,11 +90,11 @@ function fakeKnowledgeProvider(): KnowledgeProvider & {
 }
 
 function makeProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "capture-contrib-"));
-  // Initialize git so `git add` inside createNormalizedTask is harmless.
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "capture-contrib-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "capture-contributor-test",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -146,7 +149,7 @@ describe("createKnowledgeContributor", () => {
 describe("createTasksContributor", () => {
   it("creates a normalized task with title from the first line", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(projectDir);
+    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const record = await contrib.capture({
       text: "review macOS push permissions",
     });
@@ -163,7 +166,7 @@ describe("createTasksContributor", () => {
 
   it("throws when the title produces an empty slug", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(projectDir);
+    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await expect(contrib.capture({ text: "??? !!!" })).rejects.toThrow(
       /Task capture rejected/,
     );
@@ -171,7 +174,7 @@ describe("createTasksContributor", () => {
 
   it("throws when the first line is empty", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(projectDir);
+    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await expect(contrib.capture({ text: "" })).rejects.toThrow(
       /non-empty first line/,
     );
@@ -181,7 +184,7 @@ describe("createTasksContributor", () => {
 describe("createInboxContributor", () => {
   it("writes a slugged note file under data/inbox/", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const record = await contrib.capture({
       text: "raw thought worth filing later",
     });
@@ -198,7 +201,7 @@ describe("createInboxContributor", () => {
 
   it("throws when a note with the same slug already exists", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await contrib.capture({ text: "duplicate-thought" });
     await expect(
       contrib.capture({ text: "duplicate-thought" }),
@@ -207,7 +210,7 @@ describe("createInboxContributor", () => {
 
   it("throws when the title produces an empty slug", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await expect(contrib.capture({ text: "??? !!!" })).rejects.toThrow(
       /empty slug/,
     );

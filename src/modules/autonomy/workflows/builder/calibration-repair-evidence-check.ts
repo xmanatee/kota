@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
@@ -6,14 +5,16 @@ import type {
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  WorkflowCommandError,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "#modules/autonomy/calibration-repair.js";
 import {
   type EvaluatorCalibrationAggregate,
   evaluateCalibrationGate,
   resolveCalibrationGateConfig,
 } from "#modules/autonomy/evaluator-calibration.js";
-import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
 import {
   BUILDER_EVIDENCE_MANIFEST_FILE,
   parseBuilderEvidenceManifest,
@@ -59,38 +60,55 @@ function requireValue(
   }
 }
 
-function taskAtSourceRef(projectDir: string, sourceRef: string): string {
+async function taskAtSourceRef(
+  projectDir: string,
+  sourceRef: string,
+  runCommand: WorkflowCommandRunner,
+): Promise<string> {
   const match = SOURCE_REF.exec(sourceRef);
   if (!match) fail("sourceRef must cite the calibration task at a full Git revision.");
-  const result = spawnSync("git", ["show", `${match[1]}:${match[2]}`], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0 || result.stdout.length === 0) {
+  let content: string;
+  try {
+    const result = await runCommand({
+      command: "git",
+      args: ["show", `${match[1]}:${match[2]}`],
+      cwd: projectDir,
+    });
+    content = result.stdout.text;
+  } catch (error) {
+    if (!(error instanceof WorkflowCommandError) || error.kind !== "failed") {
+      throw error;
+    }
+    content = "";
+  }
+  if (content.length === 0) {
     fail(`cannot resolve monitor snapshot ${sourceRef}.`);
   }
-  return result.stdout;
+  return content;
 }
 
-function assertCurrentRepairSource(projectDir: string, sourceRef: string): void {
+async function assertCurrentRepairSource(
+  projectDir: string,
+  sourceRef: string,
+  runCommand: WorkflowCommandRunner,
+): Promise<void> {
   const revision = SOURCE_REF.exec(sourceRef)?.[1];
   const sourcePath = `data/tasks/ready/${CALIBRATION_REPAIR_TASK_ID}.md`;
-  const result = spawnSync(
-    "git",
-    ["log", "-1", "--format=%H", "HEAD", "--", sourcePath],
-    {
+  let currentRevision: string | null = null;
+  try {
+    const result = await runCommand({
+      command: "git",
+      args: ["log", "-1", "--format=%H", "HEAD", "--", sourcePath],
       cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0 || result.stdout.trim() !== revision) {
-    fail("sourceRef is unrelated to the claimed task's monitor snapshot.");
+    });
+    currentRevision = result.stdout.text.trim();
+  } catch (error) {
+    if (!(error instanceof WorkflowCommandError) || error.kind !== "failed") {
+      throw error;
+    }
+  }
+  if (currentRevision !== revision) {
+    fail("sourceRef is unrelated to the targeted task's monitor snapshot.");
   }
 }
 
@@ -197,7 +215,11 @@ function assertAggregate(
   );
 }
 
-function verifyGateRetune(projectDir: string, artifact: KotaJsonObject): string {
+async function verifyGateRetune(
+  projectDir: string,
+  artifact: KotaJsonObject,
+  runCommand: WorkflowCommandRunner,
+): Promise<string> {
   requireValue(artifact, "schemaVersion", 1);
   requireValue(artifact, "artifactType", "evaluator-calibration-repair");
   requireValue(artifact, "evidenceKind", "gate-retune");
@@ -207,8 +229,8 @@ function verifyGateRetune(projectDir: string, artifact: KotaJsonObject): string 
   const source = objectField(artifact.sourceSnapshot, "sourceSnapshot");
   requireValue(source, "gateStatus", "gated");
   const sourceRef = stringField(source, "sourceRef");
-  assertCurrentRepairSource(projectDir, sourceRef);
-  const sourceTask = taskAtSourceRef(projectDir, sourceRef);
+  await assertCurrentRepairSource(projectDir, sourceRef, runCommand);
+  const sourceTask = await taskAtSourceRef(projectDir, sourceRef, runCommand);
   const aggregate = aggregateFromTask(sourceTask);
   if (aggregate.totalRuns <= 0) fail("source snapshot has an empty aggregate.");
   assertAggregate(objectField(source.aggregate, "sourceSnapshot.aggregate"), aggregate);
@@ -243,7 +265,9 @@ function verifyGateRetune(projectDir: string, artifact: KotaJsonObject): string 
   const historicalAggregates: EvaluatorCalibrationAggregate[] = [];
   for (const ref of distinctHistoricalRefs) {
     if (typeof ref !== "string") fail("historicalMonitorRefs must be strings.");
-    historicalAggregates.push(aggregateFromTask(taskAtSourceRef(projectDir, ref)));
+    historicalAggregates.push(
+      aggregateFromTask(await taskAtSourceRef(projectDir, ref, runCommand)),
+    );
   }
   const hasStableAdequateWindow = historicalAggregates.some(
     (entry) =>
@@ -272,13 +296,15 @@ function verifyGateRetune(projectDir: string, artifact: KotaJsonObject): string 
   );
 }
 
-export function checkCalibrationRepairEvidence(
+export async function checkCalibrationRepairEvidence(
   projectDir: string,
   agentRunDir: string,
-  claim: QueueTaskClaimResult | undefined,
-): string {
-  if (claim?.taskId !== CALIBRATION_REPAIR_TASK_ID) {
-    return "OK: claimed task is not an evaluator-calibration repair";
+  artifactDir: string,
+  taskId: string,
+  runCommand: WorkflowCommandRunner,
+): Promise<string> {
+  if (taskId !== CALIBRATION_REPAIR_TASK_ID) {
+    return "OK: targeted task is not an evaluator-calibration repair";
   }
   const manifestPath = join(agentRunDir, BUILDER_EVIDENCE_MANIFEST_FILE);
   if (!existsSync(manifestPath)) fail("manifest is missing.");
@@ -288,8 +314,12 @@ export function checkCalibrationRepairEvidence(
     (entry) => entry.path === "calibration-repair.json" && entry.kind === "json",
   );
   if (!registered) fail("must register calibration-repair.json as JSON.");
-  const artifactPath = join(agentRunDir, "artifacts", "calibration-repair.json");
+  const artifactPath = join(artifactDir, "calibration-repair.json");
   const artifact = readOptionalJsonFile<KotaJsonValue>(artifactPath);
   if (artifact === null) fail("is missing.");
-  return verifyGateRetune(projectDir, objectField(artifact, "root"));
+  return verifyGateRetune(
+    projectDir,
+    objectField(artifact, "root"),
+    runCommand,
+  );
 }

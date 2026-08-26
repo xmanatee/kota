@@ -38,8 +38,10 @@ export function isEventSchemaReference<T>(value: T): value is T & EventSchemaRef
 export type BusEnvelope<K extends string = string> = {
   type: K;
   schemaRef: EventSchemaReference | null;
-  /** Stable durable journal id when a journal middleware has written this emit. */
+  /** Stable durable identity assigned by the journal or authoritative outbox. */
   eventId?: string;
+  /** Authoritative durable delivery whose eventId must survive redelivery. */
+  delivery?: "outbox";
   payload: K extends keyof BusEvents ? BusEvents[K] : EventPayloadRecord;
 };
 

@@ -32,12 +32,6 @@ export function repeatBrake(
       }
       return refs;
     }),
-    ...(workflow.maxConcurrentRuns
-      ? [{ ref: `${pathBase(workflow)}:maxConcurrentRuns`, detail: "workflow concurrency brake" }]
-      : []),
-    ...(workflow.dispatchBurst
-      ? [{ ref: `${pathBase(workflow)}:dispatchBurst`, detail: "dispatch burst cap" }]
-      : []),
     ...(workflow.runTimeoutMs
       ? [{ ref: `${pathBase(workflow)}:runTimeoutMs`, detail: "workflow timeout" }]
       : []),
@@ -49,7 +43,7 @@ export function repeatBrake(
     "repeat-brake",
     "loop.repeatable-without-brake",
     "warning",
-    "repeatable trigger has no cooldown, batch bound, timeout, concurrency cap, or retry brake",
+    "repeatable trigger has no cooldown, batch bound, timeout, or retry brake",
     [],
   );
 }

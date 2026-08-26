@@ -20,7 +20,7 @@ export const RETRACT_UMBRELLA_HELP_BODY =
   "  /retract-inbox <path>";
 
 export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: StatusInfo): string {
-  const activeRuns = runtimeState.activeRuns ?? [];
+  const activeRuns = runtimeState.activeRuns;
 
   let dispatchStatus: string;
   if (dispatchPaused) {

@@ -8,7 +8,7 @@ export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 export function checkAbortSignal(
   projectDir: string,
-  activeRuns: ReadonlyMap<string, { abortController: AbortController }>,
+  abortActiveRuns: () => number,
   log: (message: string) => void,
 ): void {
   const signalPath = join(projectDir, ".kota", ABORT_SIGNAL_FILE);
@@ -19,11 +19,9 @@ export function checkAbortSignal(
     const message = error instanceof Error ? error.message : String(error);
     log(`Failed to clear abort signal: ${message}`);
   }
-  if (activeRuns.size > 0) {
+  const aborted = abortActiveRuns();
+  if (aborted > 0) {
     log("Abort signal received — aborting active run(s)");
-    for (const { abortController } of activeRuns.values()) {
-      abortController.abort();
-    }
   }
 }
 

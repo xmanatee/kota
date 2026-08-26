@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type {
   listFullRepoTasks,
   RepoTaskState,
@@ -28,36 +27,10 @@ function taskId(path: string): string | null {
   return path.match(/^data\/tasks\/[^/]+\/(task-[^/]+)\.md$/)?.[1] ?? null;
 }
 
-export function changedTaskPaths(
-  projectDir: string,
-  fromHead: string,
-  toHead: string,
-): ChangedTaskPath[] | null {
-  if (!fromHead || !toHead || fromHead === toHead) return [];
-  let output: string;
-  try {
-    output = execFileSync(
-      "git",
-      [
-        "diff",
-        "--name-status",
-        "--find-renames",
-        `${fromHead}..${toHead}`,
-        "--",
-        "data/tasks",
-      ],
-      {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    ).trim();
-  } catch {
-    return null;
-  }
-  if (!output) return [];
-  return output.split("\n").flatMap((line): ChangedTaskPath[] => {
+export function parseChangedTaskPaths(output: string): ChangedTaskPath[] {
+  const normalized = output.trim();
+  if (!normalized) return [];
+  return normalized.split("\n").flatMap((line): ChangedTaskPath[] => {
     const fields = line.split("\t");
     const status = fields[0] ?? "";
     if (status.startsWith("R") && fields[1] && fields[2]) {
@@ -72,6 +45,35 @@ export function changedTaskPaths(
     if (fields[1]) return [{ oldPath: fields[1], newPath: fields[1] }];
     return [];
   });
+}
+
+export async function changedTaskPaths(
+  runCommand: WorkflowCommandRunner,
+  projectDir: string,
+  fromHead: string,
+  toHead: string,
+): Promise<ChangedTaskPath[] | null> {
+  if (!fromHead || !toHead || fromHead === toHead) return [];
+  try {
+    const result = await runCommand({
+      command: "git",
+      args: [
+        "diff",
+        "--name-status",
+        "--find-renames",
+        `${fromHead}..${toHead}`,
+        "--",
+        "data/tasks",
+      ],
+      cwd: projectDir,
+      timeoutMs: 30_000,
+      outputLimitBytes: 20 * 1024 * 1024,
+      captureLimitBytesPerStream: 20 * 1024 * 1024,
+    });
+    return parseChangedTaskPaths(result.stdout.text);
+  } catch {
+    return null;
+  }
 }
 
 export function taskTransitions(

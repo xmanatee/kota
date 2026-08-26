@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { loadBaseline } from "./baseline-store.js";
 import type {
   EvalListResult,
   EvalRunOptions,
@@ -28,11 +27,7 @@ import {
   summarizeControlDecisionCoverage,
 } from "./fixture.js";
 import { ObjectiveMetricValidationError } from "./objective-metrics.js";
-import {
-  compareRunConfigurations,
-  missingPriorRunConfigurationComparison,
-  toRunConfigurationOperatorSummary,
-} from "./run-configuration.js";
+import { toRunConfigurationOperatorSummary } from "./run-configuration.js";
 
 export { runEvalCalibration } from "./eval-calibration-operation.js";
 
@@ -103,7 +98,6 @@ export async function runEvalHarness(
     options,
   );
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
-  const priorBaseline = loadBaseline(projectDir);
   let report: Awaited<ReturnType<typeof runEvalSet>>;
   try {
     report = await runEvalSet({
@@ -113,7 +107,7 @@ export async function runEvalHarness(
       requestedProfile,
       runArtifactBaseDir: realpathSync(runArtifactBaseDir),
       repeatCount,
-      priorBaseline,
+      priorBaseline: null,
       keepWorkingDirs: options.keepWorkingDirs ?? false,
     });
   } catch (err) {
@@ -145,16 +139,6 @@ export async function runEvalHarness(
     });
   }
 
-  const baselineConfigurationComparison =
-    priorBaseline === null
-      ? null
-      : priorBaseline.runConfiguration === undefined
-        ? missingPriorRunConfigurationComparison(report.runConfiguration)
-        : compareRunConfigurations(
-            priorBaseline.runConfiguration,
-            report.runConfiguration,
-          );
-
   return {
     ok: true,
     fixtureCount: report.aggregate.fixtureCount,
@@ -169,7 +153,7 @@ export async function runEvalHarness(
     componentAttribution: toEvalComponentAttributionOperatorSummary(
       report.componentAttribution,
     ),
-    baselineConfigurationComparison,
+    baselineConfigurationComparison: null,
     runArtifactBaseDir: report.runArtifactBaseDir,
   };
 }

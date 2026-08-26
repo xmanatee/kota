@@ -15,7 +15,6 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
     );
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
     const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
-    const optInEvents = new Set(telegramConfig?.events ?? []);
 
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
@@ -154,33 +153,6 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
           }
         })();
       }),
-      ...(optInEvents.has("workflow.build.committed")
-        ? [
-            ctx.events.subscribe("workflow.build.committed", (payload) => {
-              const creds = getCredentials(ctx);
-              if (!creds) return;
-              const commitMessage = payload.commitMessage as string;
-              const taskId = payload.taskId as string | null;
-              const costUsd = payload.costUsd as number | null;
-              const durationMs = payload.durationMs as number | null;
-              const costPart = costUsd != null ? `$${costUsd.toFixed(2)}` : null;
-              const durationPart =
-                durationMs != null ? `${Math.round(durationMs / 60000)}m` : null;
-              const meta = [taskId, costPart, durationPart].filter(Boolean).join(" · ");
-              const text = [`✅ Builder committed: ${commitMessage}`, meta ? `Task: ${meta}` : null]
-                .filter(Boolean)
-                .join("\n");
-              void sendTelegramProjectMessage(
-                creds.token,
-                creds.chatId,
-                text,
-                eventProjectId(payload),
-                resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
-                ctx.log,
-              );
-            }),
-          ]
-        : []),
     ];
 }
 

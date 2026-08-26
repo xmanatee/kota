@@ -1,4 +1,3 @@
-import { nextActionForRecovery } from "#core/workflow/recovery-status.js";
 import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 import {
 	blank,
@@ -22,10 +21,7 @@ import {
 	taskQueueHasDispatchableWork,
 	taskQueueHasSignal,
 } from "./dashboard-render-support.js";
-import type {
-	DashboardRecovery,
-	DashboardSnapshot,
-} from "./dashboard-types.js";
+import type { DashboardSnapshot } from "./dashboard-types.js";
 import { formatTimeAgo, formatUptime } from "./format-utils.js";
 
 type StatusTextRole = { text: string; role: SemanticRole };
@@ -36,8 +32,6 @@ function statusRunText(status: WorkflowRunStatus): StatusTextRole {
 			return { text: "success", role: "success" };
 		case "failed":
 			return { text: "failed", role: "error" };
-		case "yielded":
-			return { text: "yielded", role: "warn" };
 		case "interrupted":
 			return { text: "interrupted", role: "warn" };
 		case "completed-with-warnings":
@@ -45,27 +39,7 @@ function statusRunText(status: WorkflowRunStatus): StatusTextRole {
 	}
 }
 
-function dirtyCheckoutLabel(recovery: DashboardRecovery): string {
-	if (recovery.dirtyCheckout === "workspace") return "workspace checkout";
-	return "canonical checkout";
-}
-
-function recoveryNextAction(recovery: DashboardRecovery): string {
-	return "nextAction" in recovery
-		? recovery.nextAction
-		: nextActionForRecovery(recovery);
-}
-
 function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
-	if (snapshot.recovery) {
-		return [
-			span(
-				`dirty ${dirtyCheckoutLabel(snapshot.recovery)} recovery from ${snapshot.recovery.sourceWorkflow} (${snapshot.recovery.sourceRunId}, attempts ${snapshot.recovery.attempts})`,
-				"warn",
-			),
-			plain(` - ${snapshot.recovery.worktreeSummary}; ${recoveryNextAction(snapshot.recovery)}`),
-		];
-	}
 	if (snapshot.dispatchPaused) {
 		if (snapshot.dispatchPause?.kind === "operator") {
 			return [
@@ -112,14 +86,6 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
 			return [plain("dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`")];
 		}
-		const claimBlocked = snapshot.taskQueue.claimBlockedTasks?.[0];
-		if (claimBlocked) {
-			return [
-				plain(
-					`ready work blocked by pending-merge claim - run \`${claimBlocked.recoveryCommand}\``,
-				),
-			];
-		}
 		if (snapshot.taskQueue.openCount > 0) {
 			return [plain("open work parked; no dispatchable tasks - inspect `kota status` or open `kota navigate` > Work")];
 		}
@@ -155,16 +121,6 @@ function renderWorkSection(snapshot: DashboardSnapshot): RenderNode[] {
 					`  Pullable ${task.pullableCount}`,
 			),
 		),
-		...(task.claimBlockedTasks?.length
-			? [
-					line(
-						span("  Claim-blocked ", "warn"),
-						plain(
-							`${task.claimBlockedTasks.map((item) => item.id).join(", ")} - run \`${task.claimBlockedTasks[0]!.recoveryCommand}\``,
-						),
-					),
-				]
-			: []),
 		blank(),
 	];
 }

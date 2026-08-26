@@ -76,8 +76,7 @@ function makeHandle(): DaemonControlHandle {
       completedRuns: 0,
       workflows: {},
       paused: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
     })),
     listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
@@ -166,6 +165,7 @@ export function registerDispatcher(
   const dispatcher: WorkflowDispatcher = {
     enqueuePendingRun: vi.fn(() => ({ ok: true })),
     enqueueWebhookRun: fn,
+    execute: vi.fn(async () => ({ ok: false as const, error: "unused" })),
   };
   const registry = getProviderRegistry();
   if (!registry) throw new Error("provider registry not initialized");

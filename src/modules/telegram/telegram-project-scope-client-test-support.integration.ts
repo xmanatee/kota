@@ -79,8 +79,7 @@ export function makeSpies(): Map<string, ProjectSpies> {
           workflows: {},
           paused: false,
           pendingAbort: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         })),
         memorySearch: vi.fn(async () => ({
           ok: true as const,
@@ -113,8 +112,7 @@ export function makeSpies(): Map<string, ProjectSpies> {
           workflows: {},
           paused: true,
           pendingAbort: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         })),
         memorySearch: vi.fn(async () => ({
           ok: true as const,

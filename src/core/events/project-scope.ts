@@ -248,12 +248,26 @@ export class ProjectScopedEventBus {
    * selector must match this bus view so one scope cannot emit another
    * scope's runtime event by accident.
    */
-  emitDynamic(event: string, payload: Payload): Payload {
-    const emittedPayload = shouldInjectDynamicScope(event)
+  emitDynamic(event: string, payload: Payload, eventId?: string): Payload {
+    const emittedPayload = this.prepareDynamic(event, payload);
+    this.bus.emit(event, emittedPayload, eventId);
+    return emittedPayload;
+  }
+
+  /** Deliver a scoped event whose identity and retry lifecycle are owned by the workflow outbox. */
+  deliverOutbox(event: string, payload: Payload, eventId: string): Payload {
+    const emittedPayload = this.prepareDynamic(event, payload);
+    this.bus.deliverOutbox(event, emittedPayload, eventId);
+    return emittedPayload;
+  }
+
+  /** Validate and scope a dynamic event without making it visible to subscribers. */
+  prepareDynamic(event: string, payload: Payload): Payload {
+    const preparedPayload = shouldInjectDynamicScope(event)
       ? withScopeAttribution(payload, this.scopeId)
       : payload;
-    this.bus.emit(event, emittedPayload);
-    return emittedPayload;
+    this.bus.validate(event, preparedPayload);
+    return preparedPayload;
   }
 }
 

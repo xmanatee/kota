@@ -80,20 +80,6 @@ describe("production replacement task transitions", () => {
     );
     expect(existsSync(doingPath)).toBe(true);
     writeReplacementProofFixture(projectDir);
-    expect(() => moveTaskById(projectDir, REPLACEMENT_TASK_ID, "done")).toThrow(
-      /tracked or staged/,
-    );
-    expect(existsSync(doingPath)).toBe(true);
-    execFileSync("git", ["add", "-f", REPLACEMENT_EVIDENCE_PATH], { cwd: projectDir });
-    writeFileSync(
-      join(projectDir, REPLACEMENT_EVIDENCE_PATH),
-      `${readFileSync(join(projectDir, REPLACEMENT_EVIDENCE_PATH), "utf-8")}\n`,
-    );
-    expect(() => moveTaskById(projectDir, REPLACEMENT_TASK_ID, "done")).toThrow(
-      /indexed content matching/,
-    );
-    expect(existsSync(doingPath)).toBe(true);
-    execFileSync("git", ["add", "-f", REPLACEMENT_EVIDENCE_PATH], { cwd: projectDir });
     const artifactWithUnboundClaim = replacementArtifact({
       ingressObservations: replacementArtifact().ingressObservations.map(
         (observation, index) => index === 0
@@ -108,13 +94,11 @@ describe("production replacement task transitions", () => {
       join(projectDir, REPLACEMENT_EVIDENCE_PATH),
       JSON.stringify(artifactWithUnboundClaim),
     );
-    execFileSync("git", ["add", "-f", REPLACEMENT_EVIDENCE_PATH], { cwd: projectDir });
     expect(() => moveTaskById(projectDir, REPLACEMENT_TASK_ID, "done")).toThrow(
       /not bound to one passing assertion/,
     );
     expect(existsSync(doingPath)).toBe(true);
     writeReplacementProofFixture(projectDir);
-    execFileSync("git", ["add", "-f", REPLACEMENT_EVIDENCE_PATH], { cwd: projectDir });
     writeFileSync(
       join(projectDir, REPLACEMENT_TEST_PATHS[0]),
       "import { it } from 'vitest';\nit('fails', () => { throw new Error('production behavior failed'); });\n",

@@ -23,10 +23,9 @@ arm. New attention client surfaces must not mint a phantom unavailable
 arm — strict-decode `{ data: { items }, text }` and surface transport
 errors as plain failure banners.
 
-Counter invariant: the on-demand path must not write
-`<runsDir>/../attention-digest-counter.json`. That file is owned by the
-cadence step and reflects "cycles since the last cadence-driven evaluation";
-an on-demand call would corrupt the next cadence trigger boundary.
+Counter invariant: the cadence counter is revisioned project state owned by
+the workflow runtime. The cadence run stages its update transactionally;
+on-demand reads do not advance it or change the next cadence boundary.
 
 Bus invariant: the on-demand path must not emit `workflow.attention.digest`.
 Other notification channels (Slack, email, webhook) must not see an operator's

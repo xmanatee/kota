@@ -5,7 +5,7 @@ import {
   type ObservabilitySensitivityReason,
   type ObservabilitySensitivityReasonKind,
 } from "./observability-obligation-types.js";
-import type { FileDiff } from "./staged-diff.js";
+import type { FileDiff } from "./workflow-diff.js";
 
 type ReasonRule = {
   kind: ObservabilitySensitivityReasonKind;

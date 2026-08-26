@@ -1,15 +1,19 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  createProjectRuntime,
-  type ProjectRuntime,
-} from "#core/daemon/project-runtime.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import {
+  materializeAutonomyIssueProjection,
+  readAutonomyIssueProjection,
+} from "./autonomy-issue-projection.js";
+import { createTestProjectRuntime } from "./autonomy-runtime.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
 import {
-  applyAutonomyHealthReviewActions,
   buildAutonomyHealthReviewFromSignals,
+  finalizeAutonomyHealthReviewActions,
+  stageAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 
 const NOW = "2026-08-14T09:00:00.000Z";
@@ -24,7 +28,7 @@ export function makeRuntime(
   scopeId: string,
   bus: EventBus,
 ): ProjectRuntime {
-  return createProjectRuntime({
+  return createTestProjectRuntime({
     project: { projectId: scopeId, projectDir, displayName: scopeId },
     bus,
     onLog: () => {},
@@ -140,13 +144,27 @@ export function applyScopeSignals(
   projectDir: string,
   signals: readonly ScopedHealthSignal[],
 ): void {
-  applyAutonomyHealthReviewActions({
-    projectDir,
-    review: buildAutonomyHealthReviewFromSignals({
-      signals,
-      generatedAt: NOW,
-      sourceEventName: "autonomy.health.signal",
-      reason: "multi-scope-runtime-fixture",
-    }),
+  const review = buildAutonomyHealthReviewFromSignals({
+    signals,
+    generatedAt: NOW,
+    sourceEventName: "autonomy.health.signal",
+    reason: "multi-scope-runtime-fixture",
   });
+  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const repositoryActions = stageAutonomyHealthReviewActions({
+    projectDir,
+    currentProjection,
+    scopeDir: projectDir,
+    review,
+  });
+  const finalized = finalizeAutonomyHealthReviewActions({
+    currentProjection,
+    scopeDir: projectDir,
+    ownerQuestionQueue: new OwnerQuestionQueue(
+      join(projectDir, ".kota", "owner-questions"),
+    ),
+    review,
+    repositoryActions,
+  });
+  materializeAutonomyIssueProjection(projectDir, finalized.projection);
 }

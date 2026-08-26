@@ -1,20 +1,28 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
+  AUTONOMY_ISSUE_PROJECTION_FILE,
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
+  emptyAutonomyIssueProjection,
   readAutonomyIssueProjection,
-  rebuildAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
-  recordAutonomyIssueRecoveryDisposition,
 } from "./autonomy-issue-projection.js";
-import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
+import {
+  AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
+  stageAutonomyIssueProjection,
+} from "./autonomy-issue-projection-publication.js";
 import type {
   AutonomyHealthObservation,
   AutonomyHealthSeverity,
 } from "./health-signal.js";
+import materializationWorkflow from "./workflows/autonomy-issue-projection-materialization/workflow.js";
 
 const ROOT_CAUSE = "workflow:builder:runtime-warning";
 
@@ -23,13 +31,10 @@ function observation(args: {
   runId: string;
   observedAt: string;
   severity?: AutonomyHealthSeverity;
-  rootCauseKey?: string;
-  evidenceKind?: "run" | "dead-letter" | "artifact";
-  evidenceRef?: string;
 }) {
   return buildAutonomyIssueObservation({
     kind: args.kind ?? "present",
-    rootCauseKey: args.rootCauseKey ?? ROOT_CAUSE,
+    rootCauseKey: ROOT_CAUSE,
     observedAt: args.observedAt,
     signalIds: [`health-${args.runId}`],
     source: { kind: "workflow", id: "builder", workflow: "builder" },
@@ -37,162 +42,29 @@ function observation(args: {
     actionability: "local-code",
     labels: ["runtime"],
     summaries: ["Builder repeatedly hit the same runtime root cause."],
-    evidenceRefs: [
-      {
-        kind: args.evidenceKind ?? "run",
-        ref: args.evidenceRef ?? `.kota/runs/${args.runId}/metadata.json`,
-      },
-    ],
+    evidenceRefs: [{
+      kind: "run",
+      ref: `.kota/runs/${args.runId}/metadata.json`,
+    }],
     observationCount: 1,
   });
 }
 
 describe("durable autonomy issue projection", () => {
-  let projectDir: string;
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-autonomy-issues-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-  });
+  const projectDirs: string[] = [];
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    for (const projectDir of projectDirs.splice(0)) {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
   });
 
-  it("opens, repeats, revises, clears, reopens, and deduplicates replay", () => {
-    const opened = observation({
-      runId: "run-1",
-      observedAt: "2026-06-17T12:00:00.000Z",
-    });
-    const repeated = observation({
-      runId: "run-2",
-      observedAt: "2026-06-17T13:00:00.000Z",
-    });
-    const revised = observation({
-      kind: "changed",
-      runId: "run-3",
-      observedAt: "2026-06-17T14:00:00.000Z",
-      severity: "error",
-    });
-    const cleared = observation({
-      kind: "cleared",
-      runId: "clear-1",
-      observedAt: "2026-06-17T15:00:00.000Z",
-      severity: "error",
-    });
-    const reopened = observation({
-      runId: "run-4",
-      observedAt: "2026-06-17T16:00:00.000Z",
-      severity: "error",
-    });
-
-    const result = applyAutonomyIssueObservations({
-      projectDir,
-      observations: [opened, repeated, revised, cleared, reopened, reopened],
-    });
-
-    expect(result.transitions.map((transition) => transition.kind)).toEqual([
-      "opened",
-      "repeated",
-      "revised",
-      "cleared",
-      "reopened",
-      "replayed",
-    ]);
-    const issue = result.projection.issues[0]!;
-    expect(issue.issueKey).toBe(opened.issueKey);
-    expect(issue.status).toBe("needs-decision");
-    expect(issue.semanticRevision).toBe(3);
-    expect(issue.occurrenceCount).toBe(4);
-    expect(issue.evidenceRefs.map((ref) => ref.ref)).toEqual([
-      ".kota/runs/run-1/metadata.json",
-      ".kota/runs/run-2/metadata.json",
-      ".kota/runs/run-3/metadata.json",
-      ".kota/runs/run-4/metadata.json",
-    ]);
-  });
-
-  it("keeps unrelated issues open across partial batches", () => {
-    const first = observation({
-      runId: "builder-1",
-      observedAt: "2026-06-17T12:00:00.000Z",
-    });
-    const unrelated = observation({
-      rootCauseKey: "module:telegram:getupdates-conflict",
-      runId: "telegram-1",
-      observedAt: "2026-06-17T13:00:00.000Z",
-    });
-    applyAutonomyIssueObservations({ projectDir, observations: [first] });
-    applyAutonomyIssueObservations({ projectDir, observations: [unrelated] });
-
-    const projection = readAutonomyIssueProjection(projectDir);
-    expect(projection.issues).toHaveLength(2);
-    expect(
-      projection.issues.find((issue) => issue.issueKey === first.issueKey)?.status,
-    ).toBe("needs-decision");
-  });
-
-  it("persists task, owner-question, DLQ, and recovery links across restart", () => {
-    const observed = observation({
-      runId: "recovery-1",
-      observedAt: "2026-06-17T12:00:00.000Z",
-      evidenceKind: "dead-letter",
-      evidenceRef: ".kota/dead-letter-queue/items.json#dlq-1",
-    });
-    applyAutonomyIssueObservations({
-      projectDir,
-      observations: [observed],
-    });
-    recordAutonomyIssueDispositions({
-      projectDir,
-      updates: [
-        {
-          issueKey: observed.issueKey,
-          kind: "owner-question",
-          decidedAt: "2026-06-17T13:01:00.000Z",
-          taskIds: ["task-health-builder-runtime-warning"],
-          ownerQuestionIds: ["question-1"],
-        },
-        {
-          issueKey: observed.issueKey,
-          kind: "task",
-          decidedAt: "2026-06-17T13:01:30.000Z",
-          taskIds: ["task-health-builder-follow-up"],
-          ownerQuestionIds: [],
-        },
-      ],
-    });
-    recordAutonomyIssueRecoveryDisposition({
-      projectDir,
-      taskId: "task-health-builder-follow-up",
-      recoveryDispositionRef:
-        ".kota/runs/recovery-2/workflow-state-recovery.json",
-      recordedAt: "2026-06-17T13:02:00.000Z",
-    });
-
-    const restarted = readAutonomyIssueProjection(projectDir).issues[0]!;
-    expect(restarted.links).toEqual({
-      taskIds: ["task-health-builder-follow-up"],
-      ownerQuestionIds: [],
-      deadLetterIds: ["dlq-1"],
-      recoveryDispositionRefs: [".kota/runs/recovery-2/workflow-state-recovery.json"],
-    });
-    expect(restarted.status).toBe("open");
-  });
-
-  it("rebuilds the same issue identity and semantic lifecycle from observations", () => {
+  it("reduces observations and dispositions without writing private state", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-autonomy-issues-"));
+    projectDirs.push(projectDir);
     const observations = [
-      observation({
-        runId: "run-1",
-        observedAt: "2026-06-17T12:00:00.000Z",
-      }),
-      observation({
-        runId: "run-2",
-        observedAt: "2026-06-17T13:00:00.000Z",
-      }),
+      observation({ runId: "run-1", observedAt: "2026-06-17T12:00:00.000Z" }),
+      observation({ runId: "run-2", observedAt: "2026-06-17T13:00:00.000Z" }),
       observation({
         kind: "changed",
         runId: "run-3",
@@ -200,100 +72,113 @@ describe("durable autonomy issue projection", () => {
         severity: "error",
       }),
     ];
-    const first = applyAutonomyIssueObservations({ projectDir, observations });
-    const rebuilt = rebuildAutonomyIssueProjection({ projectDir, observations });
-
-    expect(rebuilt.projection).toEqual(first.projection);
+    const reduced = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
+      observations,
+    });
+    expect(reduced.transitions.map((transition) => transition.kind)).toEqual([
+      "opened",
+      "repeated",
+      "revised",
+    ]);
+    const disposed = recordAutonomyIssueDispositions({
+      current: reduced.projection,
+      updates: [{
+        issueKey: observations[0]!.issueKey,
+        kind: "task",
+        decidedAt: "2026-06-17T15:00:00.000Z",
+        taskIds: ["task-health-builder"],
+        ownerQuestionIds: [],
+      }],
+    });
+    expect(disposed.issues[0]).toMatchObject({
+      semanticRevision: 2,
+      status: "open",
+      disposition: { kind: "task", semanticRevision: 2 },
+      links: { taskIds: ["task-health-builder"] },
+    });
+    expect(existsSync(join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
   });
 
-  it("rebuilds all historical unresolved issues once instead of treating the latest review as current", () => {
-    const writeReview = (args: {
-      runId: string;
-      generatedAt: string;
-      dedupeKey: string;
-      action: Record<string, string>;
-    }) => {
-      const runDir = join(projectDir, ".kota", "runs", args.runId);
-      mkdirSync(runDir, { recursive: true });
-      writeFileSync(
-        join(runDir, "autonomy-health-review.json"),
-        JSON.stringify({
-          generatedAt: args.generatedAt,
-          review: {
-            groups: [
-              {
-                dedupeKey: args.dedupeKey,
-                labels: ["runtime"],
-                source: { kind: "workflow", id: "builder" },
-                severity: "warning",
-                actionability:
-                  args.action.kind === "owner-question"
-                    ? "owner-action"
-                    : "local-code",
-                signalCount: 1,
-                observationCount: 1,
-                signalIds: [`health-${args.runId}`],
-                summaries: ["Historical health evidence."],
-                evidenceRefs: [
-                  {
-                    kind: "run",
-                    ref: `.kota/runs/${args.runId}/metadata.json`,
-                  },
-                ],
-              },
-            ],
-          },
-          actions: {
-            applied: [{ ...args.action, dedupeKey: args.dedupeKey }],
-          },
-        }),
-        "utf-8",
-      );
-    };
-    writeReview({
-      runId: "review-owner",
-      generatedAt: "2026-06-17T12:00:00.000Z",
-      dedupeKey: "module:telegram:getupdates-conflict",
-      action: { kind: "owner-question", questionId: "question-1" },
-    });
-    writeReview({
-      runId: "review-builder",
-      generatedAt: "2026-06-17T13:00:00.000Z",
-      dedupeKey: ROOT_CAUSE,
-      action: {
-        kind: "created-task",
-        taskId: "task-health-workflow-builder-runtime-warning",
+  it("stages one CAS and materializes only from the published state row", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "kota-autonomy-publish-"));
+    projectDirs.push(projectDir);
+    const state = createTestTransactionalRunState();
+    const current = emptyAutonomyIssueProjection();
+    const next = applyAutonomyIssueObservations({
+      current,
+      observations: [observation({
+        runId: "run-1",
+        observedAt: "2026-06-17T12:00:00.000Z",
+      })],
+    }).projection;
+    const emit = vi.fn();
+
+    expect(stageAutonomyIssueProjection({
+      state,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      revision: 0,
+      current,
+      next,
+      emit,
+      stepId: "publish:test",
+    })).toBe(true);
+    expect(existsSync(join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
+    expect(emit).toHaveBeenCalledWith(
+      AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
+      {
+        idempotencyKey: "autonomy-issue-projection:1",
+        stateRevision: 1,
       },
-    });
+      { delivery: "on-run-success", stepId: "publish:test" },
+    );
 
-    initializeAutonomyIssueProjection(projectDir);
-    const projection = readAutonomyIssueProjection(projectDir);
-
-    expect(projection.issues).toHaveLength(2);
-    expect(
-      projection.issues.find(
-        (issue) => issue.rootCauseKey === "module:telegram:getupdates-conflict",
-      ),
-    ).toMatchObject({
-      status: "needs-decision",
-      links: { ownerQuestionIds: ["question-1"] },
-    });
-    expect(
-      projection.issues.find((issue) => issue.rootCauseKey === ROOT_CAUSE),
-    ).toMatchObject({
-      status: "open",
-      links: {
-        taskIds: ["task-health-workflow-builder-runtime-warning"],
+    const result = await new WorkflowTestHarness(materializationWorkflow, {
+      projectDir,
+      trigger: {
+        event: AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
+        schemaRef: null,
+        payload: {
+          idempotencyKey: "autonomy-issue-projection:1",
+          stateRevision: 1,
+        },
       },
-    });
+      contextOverrides: { state },
+    }).run();
+    expect(result.status).toBe("success");
+    expect(readAutonomyIssueProjection(projectDir)).toEqual(next);
+    expect(state.read<AutonomyIssueProjection>(
+      AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    )).toEqual({ revision: 1, value: next });
+  });
 
-    writeReview({
-      runId: "review-ignored-after-migration",
-      generatedAt: "2026-06-17T14:00:00.000Z",
-      dedupeKey: "workflow:improver:new-warning",
-      action: { kind: "attention" },
+  it("rejects a stale competing projection publication", () => {
+    const state = createTestTransactionalRunState();
+    const current = emptyAutonomyIssueProjection();
+    const next = applyAutonomyIssueObservations({
+      current,
+      observations: [observation({
+        runId: "run-1",
+        observedAt: "2026-06-17T12:00:00.000Z",
+      })],
+    }).projection;
+    stageAutonomyIssueProjection({
+      state,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      revision: 0,
+      current,
+      next,
+      emit: vi.fn(),
+      stepId: "publish:first",
     });
-    initializeAutonomyIssueProjection(projectDir);
-    expect(readAutonomyIssueProjection(projectDir).issues).toHaveLength(2);
+    expect(() => stageAutonomyIssueProjection({
+      state,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      revision: 0,
+      current,
+      next,
+      emit: vi.fn(),
+      stepId: "publish:stale",
+    })).toThrow(/revision mismatch/);
   });
 });

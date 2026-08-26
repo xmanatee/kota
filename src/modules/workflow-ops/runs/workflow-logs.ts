@@ -10,7 +10,8 @@ import type {
 } from "#core/agent-harness/index.js";
 import { formatToolCallLogLabel } from "#core/loop/tool-observations.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { parseKotaAgentMessageLine } from "./stream-projection.js";
@@ -196,7 +197,7 @@ function emitNewStepEvents(
 
 export async function followRunLogs(
   runsDir: string,
-  statePath: string,
+  operationalScope: { stateDir: string; projectDir: string },
   runId: string | undefined,
   filterStep: string | undefined,
   maxLen = DEFAULT_MAX_LEN,
@@ -231,8 +232,9 @@ export async function followRunLogs(
 
     const timer = setInterval(() => {
       if (!activeRunId) {
-        const wfState = readOptionalJsonFile<WorkflowRuntimeState>(statePath);
-        const firstActiveRunId = wfState?.activeRuns?.[0]?.runId;
+        const firstActiveRunId = readWorkflowOperationalState(
+          operationalScope,
+        ).activeRuns[0]?.runId;
         if (!firstActiveRunId) {
           if (!waitingPrinted) {
             print(line(plain("Waiting for an active run...")));

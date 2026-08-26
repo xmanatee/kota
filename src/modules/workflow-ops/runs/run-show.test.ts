@@ -120,27 +120,6 @@ describe("extractRepairSummary", () => {
     const summary = extractRepairSummary(output);
     expect(summary!.totalCostUsd).toBeCloseTo(0.04);
   });
-
-  it("extracts a typed continuation decision even before the first repair", () => {
-    const summary = extractRepairSummary({
-      repairIterations: [],
-      continuationDecisions: [
-        {
-          decision: "preserve-yield",
-          summary: "P0 Safety work is ready and current work is checkpointed.",
-          nextAction: "Let dispatcher priority choose the next run.",
-        },
-      ],
-    });
-
-    expect(summary).toMatchObject({
-      attempts: 0,
-      continuation: {
-        decision: "preserve-yield",
-        nextAction: "Let dispatcher priority choose the next run.",
-      },
-    });
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -187,23 +166,6 @@ describe("formatRepairLine", () => {
       totalCostUsd: 0.01,
     });
     expect(line).toContain("[1] passed");
-  });
-
-  it("explains the continuation decision and next action", () => {
-    const line = formatRepairLine({
-      attempts: 3,
-      failedChecksByAttempt: [["lint"], ["lint"], ["lint"]],
-      totalCostUsd: 0,
-      continuation: {
-        decision: "preserve-yield",
-        summary: "Useful work is durable and higher-priority Safety work is ready.",
-        nextAction: "Resume from the same claim after the Safety task.",
-      },
-    });
-
-    expect(line).toContain("continuation preserve-yield");
-    expect(line).toContain("higher-priority Safety work");
-    expect(line).toContain("next: Resume from the same claim");
   });
 });
 

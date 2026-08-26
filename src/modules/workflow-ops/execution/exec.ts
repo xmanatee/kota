@@ -1,24 +1,25 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, isAbsolute, join, resolve } from "node:path";
 import type { Command } from "commander";
 import type { AgentEffort } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
-import { createProjectRuntime } from "#core/daemon/project-runtime.js";
-import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import { executeWorkflowRun } from "#core/workflow/run-executor.js";
-import type {
-  WorkflowAgentStep,
-  WorkflowCodeStep,
-  WorkflowStep,
-} from "#core/workflow/step-types.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
-import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { formatRunId } from "#core/workflow/run-io.js";
+import { StandaloneRunHost } from "#core/workflow/standalone-run-host.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import type { WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
+import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
+import type { WorkflowClient } from "../client.js";
 
 export type AgentExecutionOverride = {
   harness: string;
@@ -78,9 +79,9 @@ function resolveAgentExecutionOverride(opts: {
 }
 
 function overrideAgentStep(
-  step: WorkflowAgentStep,
+  step: WorkflowAgentStepInput,
   override: AgentExecutionOverride,
-): WorkflowAgentStep {
+): WorkflowAgentStepInput {
   const { tier: _tier, ...withoutTier } = step;
   return {
     ...withoutTier,
@@ -91,16 +92,16 @@ function overrideAgentStep(
 }
 
 function overrideAgentOrCodeStep(
-  step: WorkflowAgentStep | WorkflowCodeStep,
+  step: WorkflowAgentStepInput | WorkflowCodeStepInput,
   override: AgentExecutionOverride,
-): WorkflowAgentStep | WorkflowCodeStep {
+): WorkflowAgentStepInput | WorkflowCodeStepInput {
   return step.type === "agent" ? overrideAgentStep(step, override) : step;
 }
 
 function overrideWorkflowStep(
-  step: WorkflowStep,
+  step: WorkflowStepInput,
   override: AgentExecutionOverride,
-): WorkflowStep {
+): WorkflowStepInput {
   if (step.type === "agent") {
     return overrideAgentStep(step, override);
   }
@@ -116,18 +117,22 @@ function overrideWorkflowStep(
     return {
       ...step,
       ifTrue: step.ifTrue.map((child) => overrideWorkflowStep(child, override)),
-      ifFalse: step.ifFalse.map((child) =>
-        overrideWorkflowStep(child, override),
-      ),
+      ...(step.ifFalse === undefined
+        ? {}
+        : {
+            ifFalse: step.ifFalse.map((child) =>
+              overrideWorkflowStep(child, override),
+            ),
+          }),
     };
   }
   return step;
 }
 
 export function overrideWorkflowAgentExecution(
-  definition: WorkflowDefinition,
+  definition: RegisteredWorkflowDefinitionInput,
   override: AgentExecutionOverride,
-): WorkflowDefinition {
+): RegisteredWorkflowDefinitionInput {
   return {
     ...definition,
     steps: definition.steps.map((step) =>
@@ -136,11 +141,131 @@ export function overrideWorkflowAgentExecution(
   };
 }
 
+const EVAL_RUNTIME_ENV_PATHS = {
+	HOME: "home",
+	COREPACK_HOME: "corepack",
+	PNPM_HOME: "pnpm-home",
+	XDG_CACHE_HOME: "cache",
+	XDG_DATA_HOME: "data",
+	XDG_STATE_HOME: "state",
+	npm_config_cache: "npm-cache",
+	npm_config_store_dir: "pnpm-store",
+} as const;
+
+function gitOutput(cwd: string, args: readonly string[]): string {
+	return execFileSync("git", args, {
+		cwd,
+		encoding: "utf8",
+		env: withProtectedGitBareRepositoryEnv(),
+		stdio: ["ignore", "pipe", "ignore"],
+	}).trim();
+}
+
+/**
+ * Eval subprocesses already carry a closed set of runner-owned path facts.
+ * Require all of them, plus an independent repository root and the harness's
+ * local Git identity, before allowing a standalone runtime host.
+ */
+export function isPositivelyIdentifiedIsolatedEvalRoot(
+	projectDir: string,
+	env: NodeJS.ProcessEnv = process.env,
+): boolean {
+	try {
+		const root = realpathSync(projectDir);
+		if (!basename(root).startsWith("kota-eval-")) return false;
+		if (existsSync(join(root, ".kota", "daemon-control.json"))) return false;
+		if (env.KOTA_PROJECT_DIR === undefined) return false;
+		const declaredRoot = resolve(env.KOTA_PROJECT_DIR);
+		if (realpathSync(declaredRoot) !== root) return false;
+		const runtimeRoot = join(declaredRoot, "node_modules", ".kota-eval-runtime");
+		for (const [key, leaf] of Object.entries(EVAL_RUNTIME_ENV_PATHS)) {
+			const value = env[key];
+			if (value === undefined || resolve(value) !== resolve(runtimeRoot, leaf)) {
+				return false;
+			}
+		}
+		if (realpathSync(gitOutput(root, ["rev-parse", "--show-toplevel"])) !== root) {
+			return false;
+		}
+		const commonDirValue = gitOutput(root, ["rev-parse", "--git-common-dir"]);
+		const commonDir = realpathSync(
+			isAbsolute(commonDirValue)
+				? commonDirValue
+				: resolve(root, commonDirValue),
+		);
+		if (commonDir !== realpathSync(join(root, ".git"))) return false;
+		return gitOutput(root, ["config", "--get", "user.email"]) ===
+			"eval-harness@kota.local";
+	} catch {
+		return false;
+	}
+}
+
+function wait(ms: number): Promise<void> {
+	return new Promise((resolveWait) => setTimeout(resolveWait, ms));
+}
+
+async function waitForDaemonWorkflowRun(
+	client: WorkflowClient,
+	runId: string,
+): Promise<Extract<Awaited<ReturnType<WorkflowClient["getRun"]>>, { found: true }>["run"]> {
+	for (;;) {
+		const result = await client.getRun(runId);
+		if (result.found && result.run.status !== "running") return result.run;
+		await wait(50);
+	}
+}
+
+async function executeCanonicalWorkflow(
+	ctx: ModuleContext,
+	name: string,
+	event: string,
+	payload: Record<string, unknown> | undefined,
+): Promise<void> {
+	const scopeId = deriveDirectoryScopeId(ctx.cwd);
+	const client = ctx.client.forScope?.(scopeId) ?? ctx.client.forProject(scopeId);
+	const definitions = await client.workflow.listDefinitions();
+	if (definitions.source !== "daemon") {
+		throw new Error(
+			`Cannot execute canonical workflow "${name}": no daemon-owned workflow authority is available for ${ctx.cwd}`,
+		);
+	}
+	const definition = definitions.definitions.find((candidate) => candidate.name === name);
+	if (definition === undefined) {
+		const names = definitions.definitions.map((candidate) => candidate.name).join(", ");
+		throw new Error(`Unknown workflow "${name}". Available: ${names}`);
+	}
+	if (!definition.enabled || definition.runtimeEnabled === false) {
+		throw new Error(`Workflow "${name}" is disabled.`);
+	}
+	const requestedRunId = typeof payload?._runId === "string"
+		? payload._runId
+		: formatRunId(name);
+	const admission = await client.workflow.triggerByName(name, {
+		event,
+		...(payload !== undefined ? { payload } : {}),
+		runId: requestedRunId,
+	});
+	if (!admission.ok) {
+		throw new Error(
+			admission.reason === "daemon_required"
+				? `Cannot execute canonical workflow "${name}": daemon-owned workflow authority is unavailable`
+				: `Cannot execute canonical workflow "${name}": the run is already queued`,
+		);
+	}
+	const runId = admission.runId ?? requestedRunId;
+	const run = await waitForDaemonWorkflowRun(client.workflow, runId);
+	printWorkflowText(run.id);
+	if (run.status !== "success" && run.status !== "completed-with-warnings") {
+		process.exitCode = 1;
+	}
+}
+
 /**
  * `kota workflow exec <name>` — synchronously execute one workflow run to
- * terminal status without going through the daemon control plane or the
- * pending-runs queue. The process exits 0 when the run finishes successfully
- * (including `completed-with-warnings`) and non-zero otherwise.
+ * terminal status. Canonical checkouts dispatch through the daemon control
+ * plane. Only eval-harness roots positively identified from runner-owned
+ * isolation facts may construct a standalone runtime host.
  *
  * This exists so the eval-harness subprocess executor has a single CLI entry
  * point that actually drives a workflow to completion inside the fixture's
@@ -154,7 +279,7 @@ export function registerExecCommand(
   wfCmd
     .command("exec <name>")
     .description(
-      "Synchronously execute one workflow run to terminal status without a daemon.",
+		"Synchronously execute one workflow run through its authoritative runtime.",
     )
     .option("--event <event>", "Trigger event name", "manual")
     .option("--payload <json>", "JSON object merged into the trigger payload")
@@ -186,6 +311,30 @@ export function registerExecCommand(
         }
       }
 
+		if (!isPositivelyIdentifiedIsolatedEvalRoot(ctx.cwd)) {
+			if (agentExecutionOverride !== undefined) {
+				printWorkflowError(
+					"Canonical workflow execution does not support per-run agent overrides through the daemon client API; --agent-harness, --agent-model, and --agent-effort are restricted to isolated eval roots.",
+				);
+				process.exitCode = 1;
+				return;
+			}
+			try {
+				await executeCanonicalWorkflow(
+					ctx,
+					name,
+					opts.event,
+					extraPayload,
+				);
+			} catch (error) {
+				printWorkflowError(
+					error instanceof Error ? error.message : String(error),
+				);
+				process.exitCode = 1;
+			}
+			return;
+		}
+
       const runtimeConfig = loadConfig(ctx.cwd);
       const bus = new EventBus();
       const runtimeLoader = await loadRuntimeModules({
@@ -202,8 +351,9 @@ export function registerExecCommand(
           agentModels: runtimeConfig.agentModels,
           resolveAgentDef: (agentName: string) => runtimeLoader.getAgentDef(agentName),
         };
+        const workflowInputs = runtimeLoader.getContributedWorkflows();
         const definitions = validateWorkflowDefinitions(
-          runtimeLoader.getContributedWorkflows(),
+          workflowInputs,
           ctx.cwd,
           validationOptions,
         );
@@ -217,66 +367,51 @@ export function registerExecCommand(
           printWorkflowError(`Workflow "${name}" is disabled.`);
           process.exit(1);
         }
-        const executionDefinition = agentExecutionOverride !== undefined
-          ? validateWorkflowDefinitions(
-              [overrideWorkflowAgentExecution(definition, agentExecutionOverride)],
-              ctx.cwd,
-              validationOptions,
-            )[0]
-          : definition;
-        if (executionDefinition === undefined) {
-          throw new Error(`Workflow "${name}" disappeared during execution validation.`);
+        const definitionInput = workflowInputs.find((candidate) => candidate.name === name);
+        if (definitionInput === undefined) {
+          throw new Error(`Workflow "${name}" disappeared after validation.`);
         }
+        const executionInput = agentExecutionOverride === undefined
+          ? definitionInput
+          : overrideWorkflowAgentExecution(definitionInput, agentExecutionOverride);
 
         const scopeId = deriveDirectoryScopeId(ctx.cwd);
-        const projectRuntime = createProjectRuntime({
-          project: {
-            projectId: scopeId,
-            projectDir: ctx.cwd,
-            displayName: scopeId,
-          },
-          bus,
-          config: runtimeConfig,
-          workflows: definitions,
-          onLog: (message) => printWorkflowError(message),
-          installSingletons: false,
-        });
-        const registry = getProviderRegistry();
-        if (registry === null) {
-          throw new Error("Workflow execution runtime provider registry is unavailable");
-        }
-        registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
-          resolve: (selectedId) => selectedId === scopeId
-            ? { ok: true, runtime: projectRuntime }
-            : { ok: false, projectId: selectedId },
-        });
-        const trigger: WorkflowRunTrigger = {
-          event: opts.event,
-          schemaRef: null, payload: {
-            ...(extraPayload ?? {}),
-            triggeredAt: new Date().toISOString(),
-          },
-        };
-
-        const { promise } = executeWorkflowRun(executionDefinition, trigger, {
-          projectDir: ctx.cwd,
-          bus,
-          pbus: projectRuntime.pbus,
-          store: projectRuntime.runStore,
-          config: runtimeConfig,
-          log: (msg) => printWorkflowError(msg),
-          resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
-          resolveSkillsPrompt: (names, agentName) =>
-            runtimeLoader.getSkillsPromptFor(names, agentName),
-        });
-
-        const result = await promise;
-        printWorkflowText(result.metadata.id);
-        if (
-          result.metadata.status !== "success" &&
-          result.metadata.status !== "completed-with-warnings"
-        ) {
-          process.exitCode = 1;
+        const stateDir = mkdtempSync(join(tmpdir(), "kota-workflow-exec-"));
+        const workflows = workflowInputs.map((candidate) =>
+          candidate.name === executionInput.name
+            ? executionInput
+            : candidate,
+        );
+        let host: StandaloneRunHost | undefined;
+        try {
+          host = new StandaloneRunHost({
+            stateDir,
+            project: {
+              projectId: scopeId,
+              projectDir: ctx.cwd,
+              displayName: scopeId,
+            },
+            bus,
+            config: runtimeConfig,
+            workflows,
+            resolveAgentDef: (agentName) => runtimeLoader.getAgentDef(agentName),
+            resolveSkillsPrompt: (names, agentName) =>
+              runtimeLoader.getSkillsPromptFor(names, agentName),
+            onLog: (message) => printWorkflowError(message),
+          });
+          const requestedRunId = typeof extraPayload?._runId === "string"
+            ? extraPayload._runId
+            : undefined;
+          const result = await host.runToTerminal(name, {
+            event: opts.event,
+            payload: extraPayload,
+            runId: requestedRunId,
+          });
+          printWorkflowText(result.run.id);
+          if (result.run.state !== "succeeded") process.exitCode = 1;
+        } finally {
+          await host?.close();
+          rmSync(stateDir, { force: true, recursive: true });
         }
       } finally {
         await runtimeLoader.unloadAll();

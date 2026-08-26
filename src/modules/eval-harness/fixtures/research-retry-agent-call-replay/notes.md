@@ -2,13 +2,12 @@
 
 End-to-end replay of research-retry's `retry` agent step through the
 eval-harness replay adapter, plus the surrounding `inspect-candidates`,
-`mark-attempt`, and `commit` steps. The fixture regression-gates the
+`mark-attempt`, and runtime integration behavior. The fixture regression-gates the
 research-retry workflow-layer paths — the `inspect-candidates`
 candidate-selection and capability-evaluation logic
-(`candidates.ts`/`precondition.ts`/`runtime-detect.ts`), the four
-repair-loop checks (`task-queue-valid`, `no-scratch-artifacts`,
-`commit-message-exists`, `commit-stageable`), the `mark-attempt`
-fingerprint-marker writeback, and the terminal commit step — against
+(`candidates.ts`/`precondition.ts`/`runtime-detect.ts`), the
+`task-queue-valid` repair check, the `mark-attempt`
+fingerprint-marker writeback, and runtime-owned integration — against
 the same subprocess executor path the daemon runs in production,
 without invoking a real LLM.
 
@@ -103,7 +102,7 @@ Research-retry is the sixth load-bearing agent-bearing autonomy
 workflow to gain replay-backed regression coverage. Its
 workflow-runtime surface is distinct from the other five replays:
 
-- The `autonomy.queue.available` trigger receipt path with a
+- The `autonomy.blocked-research.attemptable` trigger receipt path with a
   research-retry-specific `inspect-candidates` step that consults
   `runtime-detect.ts` for Playwright + `modules.browser.storageStatePath`,
   walks `data/tasks/blocked/` oldest-first via `candidates.ts`, and
@@ -113,9 +112,8 @@ workflow-runtime surface is distinct from the other five replays:
 - The `mark-attempt` post-agent step that re-reads the candidate's
   task body from `blocked/`, computes the fresh URL fingerprint, and
   upserts the `<!-- research-retry-attempt: fingerprint=… -->` marker.
-- The research-retry-specific repair-check tuple (`task-queue-valid`
-  with default `min-ready`, `no-scratch-artifacts`,
-  `commit-message-exists`, `commit-stageable`).
+- The research-retry-specific `task-queue-valid` repair check with the
+  default `min-ready` behavior.
 
 The two existing `pr-reviewer` workflows are intentionally out of
 scope: their external-context needs (real PR payload) are different
@@ -135,27 +133,24 @@ workflow-layer path the real run hit after trigger receipt:
 - the agent step's writeScope (`data/tasks/`, `data/inbox/`,
   `src/modules/autonomy/`) absorbs the replay's file operations the
   same way it absorbs a real agent's Write/Edit/Bash calls;
-- every repair check runs (`task-queue-valid` via the stubbed
+- the repair check runs (`task-queue-valid` via the stubbed
   `validate-tasks` script that forwards to KOTA's own validator
-  against the fixture project root; `no-scratch-artifacts`,
-  `commit-message-exists`, `commit-stageable` operate on the
-  replay's staged mutations);
+  against the fixture project root);
 - `mark-attempt` looks up the candidate id in `blocked/`, computes
   the URL fingerprint, and writes the marker into the task body;
-- the terminal `git add -A` commit succeeds against the replay's
-  exact mutation set plus the marker `mark-attempt` added.
+- runtime-owned writer integration publishes the replay's exact mutation set
+  plus the marker `mark-attempt` added.
 
 ## Smoke-gate inclusion
 
-This fixture is wired into `replay-smoke.test.ts`'s
-`SMOKE_FIXTURE_IDS` alongside the
-decomposer/improver/explorer/inbox-sorter replays. It exercises
+This fixture is wired into `replay-smoke.test.ts` alongside the other
+representative agent-call replays. It exercises
 workflow-runtime branches the existing four smoke fixtures do not —
 the `inspect-candidates` selection-and-evaluation path (with its
 `runtime-detect` Playwright probe and `precondition.evaluateCandidate`
 URL-class + marker fingerprint logic), the `mark-attempt`
-post-agent fingerprint-marker writeback, and the research-retry repair
-checks. A regression in any of those paths now blocks a `pnpm test`
+post-agent fingerprint-marker writeback, and the research-retry repair check.
+A regression in any of those paths now blocks a `pnpm test`
 run instead of surviving until the weekly cadence.
 
 ## Recorder extraction
@@ -180,5 +175,5 @@ Re-extraction after a future research-retry run captures its own
 SHA (so `--source-commit-sha` is no longer needed) is a single CLI
 call. Picking a future source run whose blocker task already carries a
 plain-http URL would also let the seeded task drop in favor of the
-real-task pre-commit content — until then the synthetic seed is the
+  real-task pre-publication content — until then the synthetic seed is the
 honest hermetic shape.

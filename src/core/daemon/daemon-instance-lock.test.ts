@@ -185,7 +185,7 @@ describe("daemon instance lock", () => {
     expect(existsSync(`${controlPath}.tmp`)).toBe(false);
   });
 
-  itPosix("rejects a symlinked default project state root without touching its target", () => {
+  itPosix("rejects a symlinked default project state root without touching its target", async () => {
     const projectDir = join(tmpDir, "project");
     const targetDir = join(tmpDir, "redirected-state");
     mkdirSync(projectDir);
@@ -193,7 +193,7 @@ describe("daemon instance lock", () => {
     chmodSync(targetDir, 0o777);
     symlinkSync(targetDir, join(projectDir, ".kota"), "dir");
 
-    expect(() => new Daemon({ projectDir })).toThrow(
+    await expect(new Daemon({ projectDir }).start()).rejects.toThrow(
       /default daemon state directory must not be a symbolic link/,
     );
     expect(fileMode(targetDir)).toBe(0o777);

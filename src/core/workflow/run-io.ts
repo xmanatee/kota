@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 
@@ -93,5 +94,26 @@ export function formatRunId(workflowName: string): string {
   return validateWorkflowRunId(
     `${stamp}-${workflowNameRunIdSegment(workflowName)}-${suffix}`,
     `Generated workflow "${workflowName}"`,
+  );
+}
+
+export function formatChildRunId(
+  parentRunId: string,
+  triggerId: string,
+  workflowName: string,
+): string {
+  validateWorkflowRunId(parentRunId, "Child workflow parent");
+  if (!triggerId.trim()) throw new Error("Child workflow trigger id must not be empty");
+  const digest = createHash("sha256")
+    .update(parentRunId)
+    .update("\0")
+    .update(triggerId)
+    .update("\0")
+    .update(workflowName)
+    .digest("hex")
+    .slice(0, 24);
+  return validateWorkflowRunId(
+    `${workflowNameRunIdSegment(workflowName)}-child-${digest}`,
+    `Generated child workflow "${workflowName}"`,
   );
 }

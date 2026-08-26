@@ -121,6 +121,7 @@ export function writeRestartRegressionModule(stateDir: string): void {
   workflows: [
     {
       name: "restart-regression",
+      repository: "none",
       triggers: [{ event: "manual" }],
       steps: [
         { id: "verify", type: "code", run: () => "ok" },

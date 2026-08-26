@@ -12,6 +12,7 @@ import {
   commitProgressReviewFixture,
   compileProgressReviewerWorkflow,
   makeProgressReviewProjectDir,
+  makeProgressReviewRunContext,
   NOW,
   parseReviewInputFromAgentPrompt,
   registerProgressReviewHarness,
@@ -40,11 +41,10 @@ function executeCitationReview(projectDir: string, runId: string) {
       payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
     },
     {
-      projectDir,
+      runContext: makeProgressReviewRunContext(projectDir, runId),
       bus: new EventBus(),
       store: new WorkflowRunStore(projectDir),
       log: vi.fn(),
-      runId,
     },
   ).promise;
 }

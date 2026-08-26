@@ -74,19 +74,6 @@ export type WorkflowCodeStepInput = WorkflowProgressStep & {
    */
   resolveAgentContract?: WorkflowAgentRunContractResolver;
   /**
-   * When true, this top-level code step's validated output must include an
-   * absolute `workspaceDir` string. The run executor uses that path for
-   * subsequent code, tool, agent, and repair-loop execution while keeping run
-   * artifacts under the original projectDir.
-   */
-  updatesWorkspaceDir?: boolean;
-  /**
-   * When true, this top-level code step's validated output must include a
-   * `runtimeResources` object. The run executor threads its env into
-   * subsequent agent and tool execution without mutating process-wide env.
-   */
-  updatesRuntimeResources?: boolean;
-  /**
    * Re-execute this successful top-level step when retrying a failed run.
    * Use this for mutations whose output or ownership is bound to the current
    * workflow run and therefore cannot be replayed from the source run.
@@ -110,8 +97,6 @@ export type TypedCodeStepInput<T> = WorkflowProgressStep & {
   run: (context: WorkflowCodeStepContext) => Promise<T> | T;
   validate: CodeStepOutputValidator<T>;
   resolveAgentContract?: WorkflowAgentRunContractResolver;
-  updatesWorkspaceDir?: boolean;
-  updatesRuntimeResources?: boolean;
   rerunOnRetry?: boolean;
   /**
    * Returns this step's output from a step context, decoded as `T`.
@@ -198,8 +183,6 @@ export function typedCodeStep<T>(
     run: (context: WorkflowCodeStepContext) => Promise<T> | T;
     validate: CodeStepOutputValidator<T>;
     resolveAgentContract?: WorkflowAgentRunContractResolver;
-    updatesWorkspaceDir?: boolean;
-    updatesRuntimeResources?: boolean;
     rerunOnRetry?: boolean;
   },
 ): TypedCodeStepInput<T> {

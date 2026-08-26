@@ -146,18 +146,11 @@ describe("WorkflowRunStore.pruneRuns", () => {
     const activeId = "run-old-active";
     writeRun(runsDir, activeId, "builder", now - 30 * DAY_MS);
 
-    // Write state with active run
-    writeFileSync(
-      join(projectDir, ".kota", "workflow-state.json"),
-      JSON.stringify({
-        completedRuns: 1,
-        pendingRuns: [],
-        workflows: {},
-        activeRuns: [{ runId: activeId, workflow: "builder", startedAt: new Date(now - 30 * DAY_MS).toISOString() }],
-      }),
-    );
-
-    const deleted = store.pruneRuns({ retentionDays: 7, minKeepPerWorkflow: 0 });
+    const deleted = store.pruneRuns({
+      retentionDays: 7,
+      minKeepPerWorkflow: 0,
+      protectedRunIds: new Set([activeId]),
+    });
     expect(deleted).not.toContain(activeId);
     expect(existsSync(join(runsDir, activeId))).toBe(true);
   });
@@ -229,7 +222,7 @@ const minimalWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "test",
   enabled: true,
-  recoveryCapable: false,
+  repository: "read",
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   moduleRoot: "/test-module-root",

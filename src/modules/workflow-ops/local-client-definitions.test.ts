@@ -1,9 +1,7 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   buildLocalWorkflowHandler,
@@ -27,6 +25,7 @@ describe("workflow-ops localClient — local definitions", () => {
       enabled: true,
       definitionPath: "ignored",
       moduleRoot: projectDir,
+      repository: "read",
       defaultAutonomyMode: "autonomous",
       triggers: [{ watch: ["**/*.md"], debounceMs: 750, cooldownMs: 0 }],
       steps: [{ id: "review", type: "agent", agentName: "demo-agent" }],
@@ -64,7 +63,7 @@ describe("workflow-ops localClient — local definitions", () => {
     ]);
   });
 
-  it("triggerByName appends a pending run with the supplied event/runId", async () => {
+  it("triggerByName requires daemon-owned durable admission", async () => {
     const handler = buildLocalWorkflowHandler(projectDir);
     const result = await handler.triggerByName("builder", {
       event: "runtime.idle",
@@ -74,26 +73,8 @@ describe("workflow-ops localClient — local definitions", () => {
       tags: ["smoke"],
       notBeforeMs: 100,
     });
-    expect(result).toEqual({
-      ok: true,
-      path: "queue",
-      queued: "builder",
-      runId: "2026-04-25T21-00-00-000Z-builder-bbb222",
-    });
-    const store = new WorkflowRunStore(projectDir);
-    const state = store.readState();
-    expect(state.pendingRuns).toHaveLength(1);
-    const pending = state.pendingRuns[0]!;
-    expect(pending.runId).toBe("2026-04-25T21-00-00-000Z-builder-bbb222");
-    expect(pending.workflowName).toBe("builder");
-    expect(pending.notBeforeMs).toBe(100);
-    const trigger = pending.trigger as WorkflowRunTrigger;
-    expect(trigger.event).toBe("runtime.idle");
-    expect(trigger.schemaRef).toEqual({ name: "runtime-idle", version: 1 });
-    expect(trigger.payload).toMatchObject({
-      replayOf: "2026-04-25T20-00-00-000Z-builder-aaa111",
-      tags: ["smoke"],
-    });
+    expect(result).toEqual({ ok: false, reason: "daemon_required" });
+    expect(existsSync(join(projectDir, ".kota", "kota.sqlite"))).toBe(false);
   });
 
   it("explain resolves compiled automation locally from contributed workflows", async () => {
@@ -102,6 +83,7 @@ describe("workflow-ops localClient — local definitions", () => {
       enabled: true,
       definitionPath: "ignored",
       moduleRoot: projectDir,
+      repository: "none",
       triggers: [
         {
           event: "inbound.signal.received",
@@ -151,6 +133,7 @@ describe("workflow-ops localClient — local definitions", () => {
       enabled: true,
       definitionPath: "ignored",
       moduleRoot: projectDir,
+      repository: "none",
       triggers: [{ event: "simulation.event", cooldownMs: 0 }],
       steps: [{ id: "preview", type: "code", run: () => ({ ok: true }) }],
     } as unknown as RegisteredWorkflowDefinitionInput;
@@ -175,11 +158,4 @@ describe("workflow-ops localClient — local definitions", () => {
     });
   });
 
-  it("triggerByName surfaces already_queued when a run is already pending", async () => {
-    const handler = buildLocalWorkflowHandler(projectDir);
-    const first = await handler.triggerByName("builder", { payload: {} });
-    expect(first.ok).toBe(true);
-    const second = await handler.triggerByName("builder", { payload: {} });
-    expect(second).toEqual({ ok: false, reason: "already_queued" });
-  });
 });

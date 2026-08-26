@@ -7,7 +7,7 @@ import type { ProjectId } from "./scope-registry.js";
 
 export type DaemonRuntimeScope = Pick<
   ProjectRuntime,
-  "project" | "deadLetterQueue" | "runStore" | "ownerQuestionQueue"
+  "project" | "deadLetterQueue" | "runStore" | "runState" | "ownerQuestionQueue"
 >;
 
 export type DaemonRuntimeScopeResolution =

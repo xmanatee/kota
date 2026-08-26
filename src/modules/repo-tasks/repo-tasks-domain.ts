@@ -13,12 +13,11 @@ import { parseProductionReplacementDeclaration } from "./production-replacement-
 import {
   type FileSnapshot,
   listVerifiedRepoMarkdownFiles,
-  moveAndStageRepoMarkdownFile,
+  moveRepoMarkdownFile,
   readVerifiedRepoMarkdownFile,
   readVerifiedRepoMarkdownFileWithIdentity,
-  removeAndStageRepoMarkdownFile,
-  stageExistingOrTrackedRepoPaths,
-  writeAndStageRepoMarkdownFile,
+  removeRepoMarkdownFile,
+  writeRepoMarkdownFile,
 } from "./repo-file-mutations.js";
 import {
   hasConcreteTaskAcceptanceEvidence,
@@ -118,7 +117,7 @@ export function writeRepoTaskFile(
   filePath: string,
   content: string,
 ): void {
-  writeAndStageRepoMarkdownFile({
+  writeRepoMarkdownFile({
     projectDir,
     rootDir: getRepoTasksDir(projectDir),
     filePath,
@@ -131,7 +130,7 @@ export function writeRepoInboxFile(
   filePath: string,
   content: string,
 ): void {
-  writeAndStageRepoMarkdownFile({
+  writeRepoMarkdownFile({
     projectDir,
     rootDir: getRepoInboxDir(projectDir),
     filePath,
@@ -164,11 +163,10 @@ export function removeRepoInboxFile(
   ) {
     return false;
   }
-  removeAndStageRepoMarkdownFile({
+  removeRepoMarkdownFile({
     projectDir,
     rootDir: inboxDir,
     filePath,
-    stage: () => stageExistingOrTrackedRepoPaths(projectDir, [filePath]),
   });
   return true;
 }
@@ -633,32 +631,14 @@ export type MoveTaskResult = {
   previousPath: string;
 };
 
-export function stageRepoTaskStateMutation(
-  projectDir: string,
-  id: string,
-): string[] {
-  if (!isRepoTaskId(id)) {
-    throw new Error("Invalid task id");
-  }
-  const tasksDir = getRepoTasksDir(projectDir);
-  const paths = stageExistingOrTrackedRepoPaths(
-    projectDir,
-    REPO_TASK_STATES.map((state) => join(tasksDir, state, `${id}.md`)),
-  );
-  if (paths.length === 0) {
-    throw new Error(`Task "${id}" has no existing or indexed state path`);
-  }
-  return paths.map((filePath) => filePath.slice(projectDir.length + 1));
-}
-
 /**
  * Move a normalized task file between state directories, updating the
- * `status` and `updated_at` frontmatter fields before staging the exact source
- * and destination paths together.
+ * `status` and `updated_at` frontmatter fields.
  *
- * This is the single mechanism for state transitions; the `kota task move`
- * CLI and autonomy workflows both call it. Throws when the task is not found,
- * is already in the target state, or when the git operations fail.
+ * This is the single filesystem mechanism for state transitions. Workflow
+ * callers invoke it inside their sandbox; external canonical callers first
+ * pass through the repo-task mutation boundary. Throws when the task is not
+ * found, is already in the target state, or when the file operation fails.
  */
 export function moveTaskById(
   projectDir: string,
@@ -741,7 +721,7 @@ export function moveTaskById(
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);
 
-  moveAndStageRepoMarkdownFile({
+  moveRepoMarkdownFile({
     projectDir,
     sourceRootDir: tasksDir,
     sourcePath: fromPath,
@@ -749,7 +729,6 @@ export function moveTaskById(
     destinationPath: dstPath,
     sourceContent: content,
     destinationContent: updated,
-    stage: () => stageRepoTaskStateMutation(projectDir, id),
   });
 
   return {

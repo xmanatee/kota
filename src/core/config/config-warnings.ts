@@ -1,5 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  isWorkflowConcurrency,
+  MAX_WORKFLOW_CONCURRENCY,
+} from "#core/workflow/concurrency.js";
 import { type KotaConfig, loadConfigWithDiagnostics } from "./config.js";
 
 /**
@@ -86,9 +90,8 @@ export function warnIgnoredUntrustedProjectConfig(
 }
 
 /**
- * Validates scheduler.agentConcurrency and scheduler.codeConcurrency when
- * present in the project config, warning if they are invalid (non-positive or
- * non-integer). Invalid values are ignored at parse time and the defaults apply.
+ * Validates scheduler.concurrency when present. Invalid values are ignored at
+ * parse time and the default applies.
  */
 export function warnInvalidConcurrencyConfig(
   projectDir: string,
@@ -106,11 +109,8 @@ export function warnInvalidConcurrencyConfig(
   const cfg = raw as Record<string, unknown>;
   if (typeof cfg.scheduler !== "object" || cfg.scheduler === null || Array.isArray(cfg.scheduler)) return;
   const scheduler = cfg.scheduler as Record<string, unknown>;
-  for (const key of ["agentConcurrency", "codeConcurrency"] as const) {
-    const val = scheduler[key];
-    if (val === undefined) continue;
-    if (typeof val !== "number" || !Number.isInteger(val) || val <= 0) {
-      warn(`Config warning: scheduler.${key} must be a positive integer (got ${JSON.stringify(val)}); using default`);
-    }
+  const val = scheduler.concurrency;
+  if (val !== undefined && !isWorkflowConcurrency(val)) {
+    warn(`Config warning: scheduler.concurrency must be an integer from 1 to ${MAX_WORKFLOW_CONCURRENCY} (got ${JSON.stringify(val)}); using default`);
   }
 }

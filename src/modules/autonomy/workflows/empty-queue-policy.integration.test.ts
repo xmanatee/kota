@@ -21,6 +21,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./backlog-promoter/workflow.js";
 import dispatcherWorkflow from "./dispatcher/workflow.js";
@@ -37,21 +38,6 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   })),
   getRepoHeadSha: vi.fn(() => "abc1234"),
 }));
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-    "#modules/autonomy/commit.js",
-  );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-created.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
 
 vi.mock("#modules/autonomy/shared.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
@@ -196,6 +182,7 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       projectDir,
+      contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 

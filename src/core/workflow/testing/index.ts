@@ -2,6 +2,7 @@ import { tmpdir } from "node:os";
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import type { TransactionalRunState } from "#core/workflow/run-context.js";
 import type {
   WorkflowRuntimeResources,
   WorkflowRuntimeState,
@@ -11,6 +12,7 @@ import type {
 import type { WorkflowStepOutput } from "#core/workflow/steps/step-executor-agent.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { HarnessExecutionState } from "./execution-state.js";
 import { executeHarnessStep } from "./step-executor.js";
 
@@ -78,13 +80,15 @@ export type HarnessOptions = {
    * Override the runtime state returned by context.readRuntimeState().
    */
   runtimeState?: Partial<
-    Pick<WorkflowRuntimeState, "completedRuns" | "pendingRuns" | "workflows">
+    Pick<WorkflowRuntimeState, "completedRuns" | "workflows">
   >;
   /**
    * Override individual context methods. Useful for testing code steps that
    * call runTool, triggerWorkflow, or readPrompt.
    */
   contextOverrides?: {
+    state?: TransactionalRunState;
+    runCommand?: WorkflowCommandRunner;
     runBlocking?: <TInput, TOutput>(
       operation: WorkflowBlockingOperation<TInput, TOutput>,
       input: TInput,

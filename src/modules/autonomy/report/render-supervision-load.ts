@@ -48,10 +48,7 @@ export function renderSupervisionLoad(
         span(taskClass, taskClassRole(group.taskClass)),
         plain(" "),
         span(priorityLabel(group.priority), priorityRole(group.priority)),
-        plain(` runs=${group.activeRuns} claims=${group.taskClaims}`),
-        group.pendingMergeTaskClaims > 0
-          ? span(` pending-merge=${group.pendingMergeTaskClaims}`, "warn")
-          : plain(""),
+        plain(` runs=${group.activeRuns}`),
         plain(scope),
       ));
     }
@@ -82,9 +79,6 @@ export function renderSupervisionLoad(
 function countEntries(report: SupervisionLoadReport): KVEntry[] {
   return [
     countEntry("active runs", report.counts.activeRuns),
-    countEntry("task claims", report.counts.activeTaskClaims),
-    countEntry("pending-merge claims", report.counts.pendingMergeTaskClaims),
-    countEntry("blocked claim recoveries", report.counts.blockedClaimRecoveries),
     countEntry("pending approvals", report.counts.pendingApprovals),
     countEntry("pending owner questions", report.counts.pendingOwnerQuestions),
     countEntry("open dead letters", report.counts.openDeadLetters),
@@ -149,7 +143,6 @@ function referenceRole(
   switch (kind) {
     case "approval":
     case "owner-question":
-    case "task-claim":
       return "warn";
     case "dead-letter":
       return "error";

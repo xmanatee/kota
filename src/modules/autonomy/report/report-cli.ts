@@ -2,16 +2,14 @@
  * `kota report` — operator-facing autonomy balance and quality report.
  *
  * Aggregates from `data/tasks/`, run metadata under the runs directory, and
- * `run-summary.json` artifacts. The output is intentionally read-only and
+ * runtime-owned writer integration evidence. The output is intentionally read-only and
  * routes through the rendering layer; per the no-cost-bias-in-autonomy
  * contract it is not exposed to autonomy agents.
  */
 
-import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { Command } from "commander";
 import { resolveProjectDir } from "#core/config/project-dir.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
 import {
   aggregateAutonomyReport,
@@ -74,10 +72,6 @@ export function buildReportCommand(): Command {
         runsDir,
         windowEndMs,
         windowDays: days,
-        addedFilesBySha: collectAddedFilesBySha(
-          projectDir,
-          windowStartMs,
-        ),
       });
       const data = attachControlCoverageToReport(baseData, {
         runsDir,
@@ -122,62 +116,6 @@ function buildSourceCoverageCommand(): Command {
         opts.json === true || parentJson(command),
       );
     });
-}
-
-/**
- * Build a SHA → repo-relative-path map for files added during the report
- * window. Used by the aggregator to attribute explorer task additions when an
- * older explorer commit step's output recorded the SHA but not the files.
- *
- * Single git invocation over the window; one parse pass; tolerant of git
- * being unavailable (returns an empty map so the report still renders).
- */
-export function collectAddedFilesBySha(
-  projectDir: string,
-  sinceMs: number,
-): Map<string, string[]> {
-  const since = new Date(sinceMs).toISOString();
-  const result = spawnSync(
-    "git",
-    [
-      "log",
-      `--since=${since}`,
-      "--name-status",
-      "--diff-filter=A",
-      "--pretty=format:COMMIT:%H",
-    ],
-    {
-      cwd: projectDir,
-      encoding: "utf-8",
-      env: withProtectedGitBareRepositoryEnv(),
-    },
-  );
-  if (result.status !== 0 || typeof result.stdout !== "string") {
-    return new Map();
-  }
-  const map = new Map<string, string[]>();
-  let currentSha: string | null = null;
-  for (const rawLine of result.stdout.split("\n")) {
-    const line = rawLine.trim();
-    if (line.length === 0) continue;
-    if (line.startsWith("COMMIT:")) {
-      currentSha = line.slice("COMMIT:".length);
-      continue;
-    }
-    if (!currentSha) continue;
-    const tabIdx = line.indexOf("\t");
-    if (tabIdx < 0) continue;
-    const status = line.slice(0, tabIdx).trim();
-    const path = line.slice(tabIdx + 1).trim();
-    if (status !== "A" || path.length === 0) continue;
-    const existing = map.get(currentSha);
-    if (existing) {
-      existing.push(path);
-    } else {
-      map.set(currentSha, [path]);
-    }
-  }
-  return map;
 }
 
 export function emitReport(

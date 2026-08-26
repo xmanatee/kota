@@ -13,10 +13,11 @@ import type {
   ScopePolicyAuthority,
   ScopePolicySnapshot,
 } from "#core/daemon/scope-policy.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
+import type { RepositoryAccess } from "../run-sandbox.js";
 import type { WorkflowRuntimeResources } from "../run-types.js";
-import type { AgentRunLimiter } from "./agent-run-limiter.js";
 
 export type WorkflowStepOutput =
   | ToolResult
@@ -53,15 +54,17 @@ export type AgentStepConfig = {
   workspaceDir?: string;
   authorityConfigPath?: string;
   runtimeResources?: WorkflowRuntimeResources;
+  /** Runtime transaction authority. Focused executor fixtures may omit it. */
+  repository?: RepositoryAccess;
   log?: (message: string) => void;
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   createCanUseTool?: (stepId: string) => AgentCanUseTool;
-  agentRunLimiter?: AgentRunLimiter;
   delegateBudget?: DelegateBudget;
   runTokenBudget?: AgentTokenBudgetLedger;
   approvalQueue?: ApprovalQueue;
   idempotencyStore?: IdempotencyStore;
+  onProcessSpawn?: ProcessSpawnObserver;
   scopeId?: string;
   projectId?: string;
   scopePolicyAuthority?: ScopePolicyAuthority;

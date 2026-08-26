@@ -11,6 +11,7 @@ function makeWorkflow(
   opts: Partial<RegisteredWorkflowDefinitionInput> = {},
 ): RegisteredWorkflowDefinitionInput {
   return {
+    repository: "read",
     name,
     description: opts.description,
     triggers: opts.triggers ?? [{ event: "manual" }],

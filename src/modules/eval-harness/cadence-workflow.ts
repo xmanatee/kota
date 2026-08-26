@@ -12,6 +12,10 @@ import { isAbsolute } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
+  EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+  type PersistedBaseline,
+} from "./baseline-state.js";
+import {
   type EvalHarnessCadenceResult,
   evalHarnessCadenceOperation,
 } from "./cadence-operation.js";
@@ -81,15 +85,32 @@ export const runHarness = typedCodeStep<EvalHarnessCadenceResult>({
       "assessmentStatus",
     ]),
   run: async (ctx) => {
+    const baseline = ctx.state.read<PersistedBaseline>(
+      EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+    );
     const output = await ctx.runBlocking(evalHarnessCadenceOperation, {
       projectDir: ctx.projectDir,
       runDirPath: ctx.workflow.runDirPath,
       isolationBackend: resolveCadenceIsolationBackend(),
+      priorBaseline: baseline.value,
     });
-    if (output.regressionEvent !== null) {
-      ctx.emit("eval-harness.regression.detected", output.regressionEvent);
+    if (output.baselineToRecord !== null) {
+      ctx.state.compareAndSet(
+        EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+        baseline.revision,
+        output.baselineToRecord,
+      );
     }
-    ctx.emit(evalHarnessSetCompleted.name, output.completedEvent);
+    if (output.regressionEvent !== null) {
+      ctx.emit("eval-harness.regression.detected", output.regressionEvent, {
+        delivery: "on-run-success",
+        stepId: "run-harness:regression",
+      });
+    }
+    ctx.emit(evalHarnessSetCompleted.name, output.completedEvent, {
+      delivery: "on-run-success",
+      stepId: "run-harness:completed",
+    });
     return output.result;
   },
 });
@@ -100,6 +121,7 @@ const evalHarnessCadence: WorkflowDefinitionInput = {
     "Run the autonomy eval harness fixture set on a weekly cadence and emit aggregate telemetry.",
   enabled: isCadenceIsolationConfigured(),
   defaultAutonomyMode: "autonomous",
+  repository: "read",
   triggers: [
     {
       // Sunday 07:00 local — off-hours so a long run does not clash with

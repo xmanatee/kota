@@ -3,7 +3,7 @@ import {
   assessAgainstBaseline,
   type CandidateAssessment,
 } from "./baseline-assessment.js";
-import type { PersistedBaseline } from "./baseline-store.js";
+import type { PersistedBaseline } from "./baseline-state.js";
 import type { EvalComponentAttribution } from "./eval-attribution.js";
 import type {
   ExecutionProfilePreflightResult,

@@ -4,6 +4,10 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ProcessIdentity,
+  ProcessSupervisor,
+} from "#core/execution/process-supervisor.js";
+import {
   CODEX_AGENT_HARNESS_NAME,
   codexAgentHarness,
   resolveCodexIsolatedHostAuthEnv,
@@ -27,6 +31,7 @@ vi.mock("#core/agent-harness/native-cli-sandbox.js", () => ({
 }));
 
 type MockChild = EventEmitter & {
+  pid?: number;
   stdin: PassThrough;
   stdout: PassThrough;
   stderr: PassThrough;
@@ -39,8 +44,10 @@ function mockCodexProcess(options: {
   stderr?: string;
   code?: number;
   autoClose?: boolean;
+  pid?: number;
 } = {}): { child: MockChild; stdinText: () => string } {
   const child = new EventEmitter() as MockChild;
+  if (options.pid !== undefined) child.pid = options.pid;
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
@@ -121,6 +128,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("codexAgentHarness", () => {
@@ -164,7 +172,21 @@ describe("codexAgentHarness", () => {
   });
 
   it("runs codex exec through ChatGPT auth and parses JSONL output", async () => {
+    const identity: ProcessIdentity = {
+      pid: 24_681,
+      processGroupId: 24_681,
+      observedCommandHash: "a".repeat(64),
+      osStartToken: "Mon Aug 25 12:00:00 2026",
+    };
+    vi.spyOn(ProcessSupervisor, "notifySpawnedProcessGroup").mockImplementation(
+      (pid, observer) => {
+        expect(pid).toBe(identity.pid);
+        observer?.(identity);
+        return identity;
+      },
+    );
     const process = mockCodexProcess({
+      pid: identity.pid,
       stdoutLines: [
         JSON.stringify({ type: "thread.started", thread_id: "thread-1" }),
         JSON.stringify({ type: "turn.started" }),
@@ -181,6 +203,7 @@ describe("codexAgentHarness", () => {
 
     const writer = { write: vi.fn().mockReturnValue(true) };
     const onMessage = vi.fn();
+    const onProcessSpawn = vi.fn();
     const result = await codexAgentHarness.run(
       {
         prompt: "please echo",
@@ -194,6 +217,7 @@ describe("codexAgentHarness", () => {
           KOTA_TEST_ENV: "preserved",
         },
         onMessage,
+        onProcessSpawn,
       },
       writer,
     );
@@ -276,6 +300,8 @@ describe("codexAgentHarness", () => {
         outputTokens: 7,
       },
     ]);
+    expect(onProcessSpawn).toHaveBeenCalledOnce();
+    expect(onProcessSpawn).toHaveBeenCalledWith(identity);
     expect(result).toMatchObject({
       text: "all done",
       streamedText: "all done",

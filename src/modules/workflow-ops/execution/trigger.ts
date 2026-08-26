@@ -13,6 +13,15 @@ import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
+function triggerFailureMessage(
+  workflowName: string,
+  reason: "already_queued" | "daemon_required",
+): string {
+  return reason === "daemon_required"
+    ? `Cannot queue workflow "${workflowName}" while the daemon is offline.`
+    : `Workflow "${workflowName}" is already queued.`;
+}
+
 /**
  * Resolve a run-id prefix against the on-disk run directories. The CLI
  * accepts short prefixes (`builder-9pekjj`) and full timestamped ids; this
@@ -92,16 +101,13 @@ export function registerTriggerCommands(
         notBeforeMs: opts.force ? now : eligibleAtMs,
       });
       if (!result.ok) {
-        printWorkflowError(`Workflow "${name}" is already queued.`);
+        printWorkflowError(triggerFailureMessage(name, result.reason));
         process.exit(1);
       }
       const notBefore = !opts.force && eligibleAtMs > now
         ? ` (eligible at ${new Date(eligibleAtMs).toLocaleTimeString()})`
         : "";
       printWorkflowText(`Queued workflow "${name}"${notBefore}.`);
-      if (result.path === "queue" && status.activeRuns.length > 0) {
-        printWorkflowText("Daemon is busy — run will start after current run finishes.");
-      }
     });
 
   wfCmd
@@ -138,7 +144,9 @@ export function registerTriggerCommands(
       );
       const result = await ctx.client.workflow.triggerByName(original.workflow, options);
       if (!result.ok) {
-        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(
+          triggerFailureMessage(original.workflow, result.reason),
+        );
         process.exit(1);
       }
       printWorkflowText(`Queued retry of "${original.workflow}" (original run: ${resolvedId}).`);
@@ -177,7 +185,9 @@ export function registerTriggerCommands(
       );
       const result = await ctx.client.workflow.triggerByName(original.workflow, options);
       if (!result.ok) {
-        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(
+          triggerFailureMessage(original.workflow, result.reason),
+        );
         process.exit(1);
       }
       printWorkflowText(`Replaying "${original.workflow}" (original: ${resolvedId}).`);
@@ -245,7 +255,9 @@ export function registerTriggerCommands(
         },
       });
       if (!result.ok) {
-        printWorkflowError(`Workflow "${original.workflow}" is already queued.`);
+        printWorkflowError(
+          triggerFailureMessage(original.workflow, result.reason),
+        );
         process.exit(1);
       }
       printWorkflowText(`Resuming "${original.workflow}" from step "${opts.fromStep}" (source: ${resolvedId}).`);

@@ -11,14 +11,19 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type {
+  WorkflowPostReconcileInvariant,
+  WorkflowResourceInput,
+} from "#core/workflow/types.js";
 import {
   type BuilderDecompositionFailureKind,
   classifyBuilderFailureForDecomposition,
 } from "#modules/autonomy/builder-failure-classification.js";
 import {
-  type DecompositionSource,
-  resolveDecompositionOwnership,
-} from "./assessment-ownership.js";
+  BUILDER_TASK_EVENT,
+  readBuilderTaskPayload,
+} from "#modules/autonomy/workflows/builder/task-contract.js";
+import { resolveDecompositionOwnership } from "./assessment-ownership.js";
 
 export type DecomposerAssessment = {
   reason: string;
@@ -35,35 +40,17 @@ export type DecomposerAssessment = {
     }
 );
 
-type ResolvedSource = DecompositionSource & {
-  /** True when the trigger gives us no usable source context (non-builder recovery). */
-  skip: boolean;
+type ResolvedSource = {
+  runId: string;
+  runDir: string;
 };
 
 function resolveSourceRun(
   triggerEvent: string,
   payload: WorkflowRunTrigger["payload"],
 ): ResolvedSource {
-  if (triggerEvent === "runtime.recovered") {
-    const sourceWorkflow = payload.sourceWorkflow;
-    if (sourceWorkflow !== "builder") {
-      return { runId: "", runDir: "", skip: true };
-    }
-    const sourceRunId = payload.sourceRunId;
-    if (typeof sourceRunId !== "string") {
-      throw new Error(
-        "Decomposer recovery trigger payload must include sourceRunId when sourceWorkflow is builder",
-      );
-    }
-    const runId = validateWorkflowRunId(
-      sourceRunId,
-      "Decomposer recovery source",
-    );
-    return {
-      runId,
-      runDir: join(".kota", "runs", runId),
-      skip: false,
-    };
+  if (triggerEvent !== "workflow.completed") {
+    throw new Error("Decomposer accepts only workflow.completed triggers");
   }
 
   const runDir = payload.runDir;
@@ -83,7 +70,7 @@ function resolveSourceRun(
       `Decomposer trigger runDir must equal canonical run directory ${canonicalRunDir}`,
     );
   }
-  return { runId: validatedRunId, runDir: canonicalRunDir, skip: false };
+  return { runId: validatedRunId, runDir: canonicalRunDir };
 }
 
 function assertBuilderFailureMetadata(
@@ -94,7 +81,8 @@ function assertBuilderFailureMetadata(
     metadata.id !== source.runId ||
     metadata.workflow !== "builder" ||
     metadata.status !== "failed" ||
-    metadata.runDir !== source.runDir
+    metadata.runDir !== source.runDir ||
+    metadata.trigger.event !== BUILDER_TASK_EVENT
   ) {
     throw new Error(
       `Decomposer source metadata must identify failed builder run ${source.runId} at ${source.runDir}`,
@@ -102,25 +90,62 @@ function assertBuilderFailureMetadata(
   }
 }
 
+function readSourceMetadata(
+  stateDir: string,
+  source: ResolvedSource,
+): WorkflowRunMetadata | null {
+  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+    join(stateDir, "runs", source.runId, "metadata.json"),
+  );
+  if (metadata !== null) assertBuilderFailureMetadata(metadata, source);
+  return metadata;
+}
+
+export function decomposerTaskResources(
+  input: WorkflowResourceInput,
+): readonly string[] {
+  const source = resolveSourceRun(input.trigger.event, input.trigger.payload);
+  const metadata = readSourceMetadata(input.stateDir, source);
+  if (metadata === null) {
+    throw new Error(`Cannot claim decomposition target: metadata for ${source.runId} is missing`);
+  }
+  return [`task:${readBuilderTaskPayload(metadata.trigger.payload).taskId}`];
+}
+
+export const verifyDecomposerTaskContractAfterReconcile: WorkflowPostReconcileInvariant =
+  (input) => {
+    input.signal.throwIfAborted();
+    let source: ResolvedSource;
+    try {
+      source = resolveSourceRun(input.trigger.event, input.trigger.payload);
+    } catch (error) {
+      return {
+        satisfied: false,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+    const metadata = readSourceMetadata(input.stateDir, source);
+    if (metadata === null) {
+      return {
+        satisfied: false,
+        reason: `Decomposer source metadata for ${source.runId} is missing`,
+      };
+    }
+    const ownership = resolveDecompositionOwnership(input.scopeDir, metadata);
+    return ownership.kind === "owned-task"
+      ? { satisfied: true }
+      : { satisfied: false, reason: ownership.reason };
+  };
+
 function buildAssessment(
   projectDir: string,
+  stateDir: string,
   triggerEvent: string,
   triggerPayload: WorkflowRunTrigger["payload"],
 ): DecomposerAssessment {
   const source = resolveSourceRun(triggerEvent, triggerPayload);
-
-  if (source.skip) {
-    return {
-      shouldDecompose: false,
-      reason: "Recovery source was not builder — nothing for decomposer to do",
-      failedRunId: "",
-      failedRunDir: "",
-      failureKind: null,
-    };
-  }
-
-  const metadataPath = join(projectDir, source.runDir, "metadata.json");
-  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(metadataPath);
+  const metadataPath = join(stateDir, "runs", source.runId, "metadata.json");
+  const metadata = readSourceMetadata(stateDir, source);
   if (!metadata) {
     return {
       shouldDecompose: false,
@@ -130,8 +155,6 @@ function buildAssessment(
       failureKind: null,
     };
   }
-  assertBuilderFailureMetadata(metadata, source);
-
   const failureKind = classifyBuilderFailureForDecomposition(metadata);
   if (failureKind === null) {
     return {
@@ -143,14 +166,11 @@ function buildAssessment(
     };
   }
 
-  const ownership = resolveDecompositionOwnership(projectDir, source);
+  const ownership = resolveDecompositionOwnership(projectDir, metadata);
   if (ownership.kind !== "owned-task") {
     return {
       shouldDecompose: false,
-      reason:
-        ownership.kind === "missing-artifact"
-          ? "Builder run has no claimed task artifact to rescope"
-          : ownership.reason,
+      reason: ownership.reason,
       failedRunId: source.runId,
       failedRunDir: source.runDir,
       failureKind,
@@ -173,6 +193,7 @@ function buildAssessment(
 
 export function assertDecompositionOwnership(
   projectDir: string,
+  stateDir: string,
   assessment: DecomposerAssessment,
 ): void {
   if (!assessment.shouldDecompose) {
@@ -188,10 +209,17 @@ export function assertDecompositionOwnership(
       `Decomposer assessment runDir must equal canonical run directory ${canonicalRunDir}`,
     );
   }
-  const ownership = resolveDecompositionOwnership(projectDir, {
+  const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
+    join(stateDir, "runs", runId, "metadata.json"),
+  );
+  if (metadata === null) {
+    throw new Error(`Cannot apply decomposition for ${assessment.taskId}: source metadata is missing`);
+  }
+  assertBuilderFailureMetadata(metadata, {
     runId,
     runDir: canonicalRunDir,
   });
+  const ownership = resolveDecompositionOwnership(projectDir, metadata);
   if (
     ownership.kind !== "owned-task" ||
     ownership.task.id !== assessment.taskId ||
@@ -206,6 +234,7 @@ export function assertDecompositionOwnership(
 
 type DecomposerAssessmentInput = {
   projectDir: string;
+  stateDir: string;
   triggerEvent: string;
   triggerPayload: WorkflowRunTrigger["payload"];
 };
@@ -215,6 +244,7 @@ export function assessDecomposerFailureInWorker(
 ): DecomposerAssessment {
   return buildAssessment(
     input.projectDir,
+    input.stateDir,
     input.triggerEvent,
     input.triggerPayload,
   );
@@ -238,9 +268,10 @@ export const assessFailure = typedCodeStep<DecomposerAssessment>({
       "failureKind",
       "shouldDecompose",
     ]),
-  run: ({ projectDir, trigger, runBlocking }) =>
+  run: ({ projectDir, stateDir, trigger, runBlocking }) =>
     runBlocking(assessDecomposerFailureOperation, {
       projectDir,
+      stateDir,
       triggerEvent: trigger.event,
       triggerPayload: trigger.payload,
     }),

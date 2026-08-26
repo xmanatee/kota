@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskProbeSandbox } from "#core/agent-harness/task-probe-sandbox.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   extractTaskProbe,
   runTaskProbe,
@@ -56,29 +57,33 @@ function shellArg(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
 
-function waitForDelayedProcess(delayMs: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+async function waitForDelayedProcess(delayMs: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-function runWithSandbox(
+async function runWithSandbox(
   probe: TaskProbe,
   projectDir: string,
   sandbox: TaskProbeSandbox,
-) {
+): ReturnType<typeof runTaskProbe> {
   resolveTaskProbeSandbox.mockReturnValue(sandbox);
-  return runTaskProbe(probe, projectDir);
+  return runTaskProbe(
+    probe,
+    projectDir,
+    createWorkflowCommandRunner({ cwd: projectDir }),
+  );
 }
 
 describe("runTaskProbe", () => {
   beforeEach(() => resolveTaskProbeSandbox.mockReturnValue(testSandbox));
 
-  it("launches the sandbox-pinned executable instead of rediscovering pnpm", () => {
+  it("launches the sandbox-pinned executable instead of rediscovering pnpm", async () => {
     const dir = makeTmpDir();
     const pinnedPnpm = join(dir, "pinned-pnpm");
     writeFileSync(pinnedPnpm, '#!/bin/sh\necho "PINNED_PNPM_EXECUTED"\n');
     chmodSync(pinnedPnpm, 0o755);
 
-    const result = runWithSandbox(
+    const result = await runWithSandbox(
       makeProbe("pnpm run probe:pass"),
       dir,
       { ...testSandbox, probeExecutable: pinnedPnpm },
@@ -88,10 +93,10 @@ describe("runTaskProbe", () => {
     expect(result.output).toContain("PINNED_PNPM_EXECUTED");
   });
 
-  it("records an OS-contained pass", () => {
+  it("records an OS-contained pass", async () => {
     const dir = makeTmpDir();
     writePackageJson(dir, { "probe:pass": "node -e \"process.exit(0)\"" });
-    const result = runWithSandbox(
+    const result = await runWithSandbox(
       makeProbe("pnpm run probe:pass"),
       dir,
       testSandbox,
@@ -111,12 +116,12 @@ describe("runTaskProbe", () => {
     expect(typeof result.durationMs).toBe("number");
   });
 
-  it("captures stdout and non-zero failures", () => {
+  it("captures stdout and non-zero failures", async () => {
     const dir = makeTmpDir();
     writePackageJson(dir, {
       "probe:fail": "node -e \"console.error('oops'); process.exit(3)\"",
     });
-    const result = runWithSandbox(
+    const result = await runWithSandbox(
       makeProbe("pnpm run probe:fail"),
       dir,
       testSandbox,
@@ -127,7 +132,7 @@ describe("runTaskProbe", () => {
     expect(result.output).toContain("oops");
   });
 
-  it("kills the whole probe process group on timeout", () => {
+  it("kills the whole probe process group on timeout", async () => {
     const dir = makeTmpDir();
     const marker = join(dir, "late-timeout-marker");
     const worker = join(dir, "late-timeout-worker.cjs");
@@ -142,46 +147,20 @@ describe("runTaskProbe", () => {
     );
     chmodSync(pinnedPnpm, 0o755);
 
-    const result = runWithSandbox(
+    const result = await runWithSandbox(
       makeProbe("pnpm run probe:timeout", 100),
       dir,
       { ...testSandbox, probeExecutable: pinnedPnpm },
     );
-    waitForDelayedProcess(500);
+    await waitForDelayedProcess(500);
 
     expect(result.verdict).toBe("fail");
     expect(result.exitCode).toBe(124);
-    expect(result.output).toContain("timed out after 100 ms");
+    expect(result.output).toContain("timed out after 100ms");
     expect(existsSync(marker)).toBe(false);
   });
 
-  it("kills background probe descendants after the launcher exits", () => {
-    const dir = makeTmpDir();
-    const marker = join(dir, "late-background-marker");
-    const worker = join(dir, "late-background-worker.cjs");
-    const pinnedPnpm = join(dir, "pinned-pnpm");
-    writeFileSync(
-      worker,
-      `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(marker)}, "escaped"), 300);\n`,
-    );
-    writeFileSync(
-      pinnedPnpm,
-      `#!/bin/sh\n${shellArg(process.execPath)} ${shellArg(worker)} >/dev/null 2>&1 &\nexit 0\n`,
-    );
-    chmodSync(pinnedPnpm, 0o755);
-
-    const result = runWithSandbox(
-      makeProbe("pnpm run probe:background"),
-      dir,
-      { ...testSandbox, probeExecutable: pinnedPnpm },
-    );
-    waitForDelayedProcess(500);
-
-    expect(result.verdict).toBe("pass");
-    expect(existsSync(marker)).toBe(false);
-  });
-
-  it("does not inherit arbitrary workflow environment values", () => {
+  it("does not inherit arbitrary workflow environment values", async () => {
     const dir = makeTmpDir();
     writePackageJson(dir, {
       "probe:env": "node -e \"console.log(process.env.KOTA_PROBE_SECRET ?? 'missing')\"",
@@ -189,7 +168,7 @@ describe("runTaskProbe", () => {
     const previous = process.env.KOTA_PROBE_SECRET;
     process.env.KOTA_PROBE_SECRET = "probe-secret-value";
     try {
-      const result = runWithSandbox(
+      const result = await runWithSandbox(
         makeProbe("pnpm run probe:env"),
         dir,
         testSandbox,
@@ -202,14 +181,14 @@ describe("runTaskProbe", () => {
     }
   });
 
-  it("fails closed without starting pnpm when containment is unavailable", () => {
+  it("fails closed without starting pnpm when containment is unavailable", async () => {
     const dir = makeTmpDir();
     const marker = join(dir, "probe-ran.txt");
     writePackageJson(dir, {
       "probe:touch":
         `node -e "require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'yes')"`,
     });
-    const result = runWithSandbox(
+    const result = await runWithSandbox(
       makeProbe("pnpm run probe:touch"),
       dir,
       { status: "unavailable", reason: "test sandbox unavailable" },

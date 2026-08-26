@@ -8,6 +8,9 @@ import type {
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   aggregateCalibration,
   DEFAULT_CALIBRATION_MIN_SAMPLE,
@@ -73,8 +76,13 @@ function makeStepContext(
     stepResults?: Record<string, WorkflowStepResult>;
   },
 ): WorkflowStepContext {
+  const taskId = "task-1";
+  const taskDigest = "0".repeat(64);
   return {
     projectDir: overrides.projectDir,
+    scopeDir: overrides.projectDir,
+    stateDir: join(overrides.projectDir, ".kota"),
+    state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "builder",
@@ -83,12 +91,25 @@ function makeStepContext(
       runDir: "run-test",
       runDirPath: overrides.runDir,
     },
-    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    trigger: {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {
+        taskId,
+        taskPath: `data/tasks/ready/${taskId}.md`,
+        taskState: "ready",
+        taskUpdatedAt: "2026-04-20T11:59:00.000Z",
+        taskDigest,
+        idempotencyKey: `builder:${taskId}:${taskDigest}`,
+        title: "Calibration task",
+      },
+    },
     previousOutput: undefined,
     stepOutputs: overrides.stepOutputs ?? {},
     stepResults: overrides.stepResults ?? {},
     stepOutputList: [],
     runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+    runCommand: unexpectedWorkflowCommandRun,
     runTool: async () => {
       throw new Error("runTool not used");
     },
@@ -129,22 +150,6 @@ describe("writeCalibrationArtifact", () => {
         summary: "ok",
       }),
     );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: "task-1",
-        commitSha: TEST_SOURCE_REVISION,
-        filesChanged: [
-          "src/modules/autonomy/evaluator-calibration.ts",
-          "data/tasks/done/task-1.md",
-          "src/modules/autonomy/AGENTS.md",
-          "src/modules/autonomy/critic.ts",
-        ],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
-    );
 
     const ctx = makeStepContext({
       runDir,
@@ -176,27 +181,14 @@ describe("writeCalibrationArtifact", () => {
     expect(artifact.finalIterationFailures).toEqual([]);
     expect(artifact.criticFailureCount).toBe(1);
     expect(artifact.taskId).toBe("task-1");
-    expect(artifact.sourceRevision).toBe(TEST_SOURCE_REVISION);
-    expect(artifact.sourceFilesChanged).toEqual([
-      "src/modules/autonomy/evaluator-calibration.ts",
-      "src/modules/autonomy/critic.ts",
-    ]);
+    expect(artifact.sourceRevision).toBeNull();
+    expect(artifact.sourceFilesChanged).toEqual([]);
   });
 
   it("counts critic-review failures across all repair iterations", () => {
     writeFileSync(
       join(runDir, "critic-review.json"),
       JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
-    );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: ["src/core/foo.ts"],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
     );
 
     const ctx = makeStepContext({
@@ -236,16 +228,6 @@ describe("writeCalibrationArtifact", () => {
         critical_issues: [],
         warnings: [],
         summary: "ok",
-      }),
-    );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: ["src/core/foo.ts"],
-        completedAt: "2026-04-20T12:00:00.000Z",
       }),
     );
 
@@ -288,16 +270,6 @@ describe("writeCalibrationArtifact", () => {
         summary: "ok",
       }),
     );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: ["src/core/foo.ts"],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
-    );
 
     const ctx = makeStepContext({
       runDir,
@@ -335,16 +307,6 @@ describe("writeCalibrationArtifact", () => {
     writeFileSync(
       join(runDir, "critic-review.json"),
       JSON.stringify({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" }),
-    );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: ["src/core/foo.ts"],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
     );
 
     const ctx = makeStepContext({
@@ -407,16 +369,6 @@ describe("writeCalibrationArtifact", () => {
         summary: "Accepted with a traced warning.",
       }),
     );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: ["src/modules/autonomy/evaluator-calibration.ts"],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
-    );
 
     const ctx = makeStepContext({
       runDir,
@@ -443,6 +395,16 @@ describe("writeCalibrationArtifact", () => {
       warningCount: 1,
       criticalIssueCount: 0,
     });
+    writeWriterIntegrationFixture(join(root, "runs"), {
+      runId: "run-test",
+      workflow: "builder",
+      publishedHead: TEST_SOURCE_REVISION,
+      changedPaths: [
+        "src/modules/autonomy/evaluator-calibration.ts",
+        "data/tasks/done/task-1.md",
+      ],
+      completedAt: "2026-04-20T12:00:00.000Z",
+    });
 
     const aggregate = aggregateCalibration(join(root, "runs"), {
       criticPromptHash: TEST_PROMPT_HASH,
@@ -467,16 +429,6 @@ describe("writeCalibrationArtifact", () => {
   it("records verdict=absent when both critic verdict locations are missing", () => {
     const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
     mkdirSync(agentRunDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify({
-        runId: "run-test",
-        workflow: "builder",
-        taskId: null,
-        filesChanged: [],
-        completedAt: "2026-04-20T12:00:00.000Z",
-      }),
-    );
 
     const ctx = makeStepContext({
       runDir,

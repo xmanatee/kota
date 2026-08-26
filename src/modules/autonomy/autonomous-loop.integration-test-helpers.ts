@@ -142,10 +142,6 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
     }),
   );
   writeFileSync(
-    join(projectDir, ".kota/explorer-state.json"),
-    JSON.stringify({ lastExplorationAt: tenMinutesAgo }),
-  );
-  writeFileSync(
     join(projectDir, "package.json"),
     JSON.stringify({
       name: "test-fixture",

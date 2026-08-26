@@ -129,6 +129,7 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			}
 			if (res.status === 409) {
 				const conflictBody = (await res.json().catch(() => ({}))) as {
+					reason?: string;
 					state?: RepoTaskState;
 				};
 				return {
@@ -167,7 +168,9 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 				},
 			);
 			if (res.status === 404) return { ok: false, reason: "not_found" };
-			if (res.status === 409) return { ok: false, reason: "terminal" };
+			if (res.status === 409) {
+				return { ok: false, reason: "terminal" };
+			}
 			if (!res.ok) {
 				const error = await readRepoTaskRouteError(res);
 				if (error?.error === "Could not parse task file") {

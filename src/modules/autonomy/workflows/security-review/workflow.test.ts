@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validatePayloadSchema } from "#core/workflow/payload-validator.js";
 import securityReviewWorkflow from "./workflow.js";
 import { describeSecurityReviewFindingRunTests } from "./workflow-finding-run.test-cases.js";
@@ -7,28 +7,7 @@ import { describeSecurityReviewScanTests } from "./workflow-scan.test-cases.js";
 import { describeSecurityReviewTaskTests } from "./workflow-task.test-cases.js";
 import { describeSecurityReviewTaskIdentityTests } from "./workflow-task-identity.test-cases.js";
 
-vi.mock("#modules/autonomy/commit.js", () => ({
-  checkCommitStageable: vi.fn(() => "OK: mock stageable"),
-  commitWorkflowChanges: vi.fn(() => ({
-    committed: true,
-    committedPaths: ["data/tasks/ready/task-security.md"],
-    daemonRestartRequired: false,
-  })),
-}));
-
 describe("security-review workflow", () => {
-  it("orders security-review commit behind the explicit preflight gate", () => {
-    const stepIds = securityReviewWorkflow.steps.map((step) => step.id);
-
-    expect(stepIds.indexOf("create-follow-up-tasks")).toBeLessThan(
-      stepIds.indexOf("write-commit-message"),
-    );
-    expect(stepIds.indexOf("write-commit-message")).toBeLessThan(
-      stepIds.indexOf("validate-before-commit"),
-    );
-    expect(stepIds.indexOf("validate-before-commit")).toBe(stepIds.indexOf("commit") - 1);
-  });
-
   it("declares retryable output schemas for run-observed malformed agent output", () => {
     const investigationStep = securityReviewWorkflow.steps.find(
       (step) => step.id === "investigate-candidates",

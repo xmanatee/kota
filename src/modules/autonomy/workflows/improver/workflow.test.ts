@@ -3,17 +3,18 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
-  listAutonomyIssues,
+  emptyAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import {
-  checkCommitStageable,
-  commitWorkflowChanges,
-} from "#modules/autonomy/commit.js";
+import { publishImproverDisposition } from "./disposition-publication.js";
 import improverWorkflow, { agent } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -25,15 +26,6 @@ vi.mock("#core/util/repo-worktree.js", () => ({
     fingerprint: "",
     summary: "clean",
     headSha: "abc123",
-  })),
-}));
-
-vi.mock("#modules/autonomy/commit.js", () => ({
-  checkCommitStageable: vi.fn(),
-  commitWorkflowChanges: vi.fn(() => ({
-    committed: true,
-    committedPaths: ["data/tasks/ready/task-fixture.md"],
-    daemonRestartRequired: false,
   })),
 }));
 
@@ -66,15 +58,11 @@ const RESOLVED_DISPOSITION = {
   rationale: "The revised evidence proves the root cause is resolved.",
 };
 
-const mockedCheckCommitStageable = vi.mocked(checkCommitStageable);
-const mockedCommitWorkflowChanges = vi.mocked(commitWorkflowChanges);
-
 describe("improver issue disposition workflow", () => {
   let projectDir: string;
+  let projection: AutonomyIssueProjection;
 
   beforeEach(() => {
-    mockedCheckCommitStageable.mockClear();
-    mockedCommitWorkflowChanges.mockClear();
     projectDir = join(
       tmpdir(),
       `kota-improver-issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -86,6 +74,7 @@ describe("improver issue disposition workflow", () => {
       JSON.stringify({ scripts: { "validate-tasks": "true" } }),
       "utf-8",
     );
+    projection = emptyAutonomyIssueProjection();
   });
 
   afterEach(() => {
@@ -107,16 +96,22 @@ describe("improver issue disposition workflow", () => {
       signalIds: ["signal-fixture"],
     });
     const result = applyAutonomyIssueObservations({
-      projectDir,
+      current: projection,
       observations: [observation],
     });
+    projection = result.projection;
     return result.projection.issues[0]!;
+  }
+
+  function stateForProjection() {
+    const state = createTestTransactionalRunState();
+    state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 0, projection);
+    return state;
   }
 
   it("has no generic successful-completion trigger or implementation write scope", () => {
     expect(improverWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
       autonomyIssueDecisionRequested.name,
-      "runtime.recovered",
     ]);
     expect(improverWorkflow.triggers).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ event: "workflow.completed" })]),
@@ -146,37 +141,36 @@ describe("improver issue disposition workflow", () => {
       projectDir,
       trigger,
       stepMocks: { "review-issue": OBSERVED_DISPOSITION },
+      contextOverrides: {
+        runCommand: successfulWorkflowCommandRun,
+        state: stateForProjection(),
+      },
     }).run();
 
-    expect(first.status).toBe("success");
+    expect(first.status, JSON.stringify(first, null, 2)).toBe("success");
     expect(first.steps["review-issue"].status).toBe("success");
-    expect(first.steps["record-disposition"].status).toBe("success");
-    expect(first.steps["emit-attention"].status).toBe("skipped");
-    expect(listAutonomyIssues(projectDir)[0]?.disposition.kind).toBe("observed");
+    expect(first.steps["write-disposition-artifact"].status).toBe("success");
+    expect(projection.issues[0]?.disposition.kind).toBe("needs-decision");
+    projection = publishImproverDisposition({
+      scopeDir: projectDir,
+      sourceRunId: "harness",
+      currentProjection: projection,
+    }).nextProjection;
+    expect(projection.issues[0]?.disposition.kind).toBe("observed");
 
     const repeated = await new WorkflowTestHarness(improverWorkflow, {
       projectDir,
       trigger,
       stepMocks: { "review-issue": OBSERVED_DISPOSITION },
+      contextOverrides: {
+        runCommand: successfulWorkflowCommandRun,
+        state: stateForProjection(),
+      },
     }).run();
 
     expect(repeated.status).toBe("success");
     expect(repeated.steps["select-issue"].output).toMatchObject({ eligible: false });
     expect(repeated.steps["review-issue"].status).toBe("skipped");
-  });
-
-  it("recovery restores state without replaying AI review", async () => {
-    const result = await new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
-      trigger: { event: "runtime.recovered", payload: {} },
-      stepMocks: { "review-issue": OBSERVED_DISPOSITION },
-    }).run();
-
-    expect(result.steps["select-issue"].output).toMatchObject({
-      eligible: false,
-      reason: expect.stringContaining("without replaying AI review"),
-    });
-    expect(result.steps["review-issue"].status).toBe("skipped");
   });
 
   it("routes a repair through one stable task and resolves it on a revised issue", async () => {
@@ -200,6 +194,10 @@ describe("improver issue disposition workflow", () => {
       projectDir,
       trigger: triggerFor(1, "opened"),
       stepMocks: { "review-issue": TASK_DISPOSITION },
+      contextOverrides: {
+        runCommand: successfulWorkflowCommandRun,
+        state: stateForProjection(),
+      },
     }).run();
 
     expect(created.status, JSON.stringify(created, null, 2)).toBe("success");
@@ -211,17 +209,14 @@ describe("improver issue disposition workflow", () => {
     expect(
       existsSync(join(projectDir, "data", "tasks", "ready", `${taskId}.md`)),
     ).toBe(true);
-    expect(listAutonomyIssues(projectDir)[0]?.links.taskIds).toEqual([taskId]);
-    const readyPath = `data/tasks/ready/${taskId}.md`;
-    expect(mockedCheckCommitStageable).toHaveBeenLastCalledWith(projectDir, {
-      kind: "exact-paths",
-      paths: [readyPath],
-    });
-    expect(mockedCommitWorkflowChanges).toHaveBeenLastCalledWith(
-      projectDir,
-      expect.any(String),
-      { kind: "exact-paths", paths: [readyPath] },
-    );
+    expect(projection.issues[0]?.links.taskIds).toEqual([]);
+    projection = publishImproverDisposition({
+      scopeDir: projectDir,
+      sourceRunId: "harness",
+      currentProjection: projection,
+    }).nextProjection;
+    expect(projection.issues[0]?.links.taskIds).toEqual([taskId]);
+    expect(created.steps["validate-changes"].status).toBe("success");
 
     const revisedObservation = buildAutonomyIssueObservation({
       kind: "changed",
@@ -236,14 +231,20 @@ describe("improver issue disposition workflow", () => {
       observationCount: 1,
       signalIds: ["signal-fixture-resolution"],
     });
-    const revised = applyAutonomyIssueObservations({
-      projectDir,
+    const revisedResult = applyAutonomyIssueObservations({
+      current: projection,
       observations: [revisedObservation],
-    }).transitions[0]!;
+    });
+    projection = revisedResult.projection;
+    const revised = revisedResult.transitions[0]!;
     const resolved = await new WorkflowTestHarness(improverWorkflow, {
       projectDir,
       trigger: triggerFor(revised.semanticRevision, "revised"),
       stepMocks: { "review-issue": RESOLVED_DISPOSITION },
+      contextOverrides: {
+        runCommand: successfulWorkflowCommandRun,
+        state: stateForProjection(),
+      },
     }).run();
 
     expect(resolved.status).toBe("success");
@@ -255,23 +256,21 @@ describe("improver issue disposition workflow", () => {
     };
     expect(resolvedApplied.materialized).toMatchObject({
       taskId: null,
-      actions: [expect.objectContaining({ kind: "dropped-task", taskId })],
+      actions: expect.arrayContaining([
+        expect.objectContaining({ kind: "dropped-task", taskId }),
+        expect.objectContaining({ kind: "owner-question-dismissal-pending" }),
+      ]),
     });
     expect(
       existsSync(join(projectDir, "data", "tasks", "dropped", `${taskId}.md`)),
     ).toBe(true);
-    expect(mockedCommitWorkflowChanges).toHaveBeenLastCalledWith(
-      projectDir,
-      expect.any(String),
-      {
-        kind: "exact-paths",
-        paths: [
-          `data/tasks/dropped/${taskId}.md`,
-          `data/tasks/ready/${taskId}.md`,
-        ],
-      },
-    );
-    expect(listAutonomyIssues(projectDir)[0]).toMatchObject({
+    expect(resolved.steps["validate-changes"].status).toBe("success");
+    projection = publishImproverDisposition({
+      scopeDir: projectDir,
+      sourceRunId: "harness",
+      currentProjection: projection,
+    }).nextProjection;
+    expect(projection.issues[0]).toMatchObject({
       status: "resolved",
       links: { taskIds: [], ownerQuestionIds: [] },
     });

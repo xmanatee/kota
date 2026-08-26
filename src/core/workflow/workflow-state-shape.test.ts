@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -21,7 +21,7 @@ const BUILDER: WorkflowDefinition = {
   moduleRoot: "/test-module-root",
   description: "test",
   enabled: true,
-  recoveryCapable: false,
+  repository: "none",
   tags: [],
   triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
   steps: [],
@@ -48,7 +48,8 @@ describe("workflow state shape: start / completion separation", () => {
     expect(startedEntry?.lastStarted?.runId).toBe(handle.metadata.id);
     expect(startedEntry?.lastStarted?.startedAt).toBe(handle.metadata.startedAt);
     expect(startedEntry?.lastCompletion).toBeUndefined();
-    expect(afterStart.activeRuns?.some((r) => r.runId === handle.metadata.id)).toBe(true);
+    expect("activeRuns" in afterStart).toBe(false);
+    expect("pendingRuns" in afterStart).toBe(false);
 
     handle.finish({ status: "success", durationMs: 500 });
 
@@ -59,31 +60,11 @@ describe("workflow state shape: start / completion separation", () => {
     expect(finishedEntry?.lastCompletion?.status).toBe("success");
     expect(finishedEntry?.lastCompletion?.startedAt).toBe(handle.metadata.startedAt);
     expect(finishedEntry?.lastCompletion?.completedAt).toBeDefined();
-    expect(afterFinish.activeRuns ?? []).toEqual([]);
-  });
-
-  it("interruption records lastCompletion without conflating a newer run", () => {
-    const firstHandle = store.createRun(BUILDER, { event: "runtime.idle", schemaRef: null, payload: {} });
-    firstHandle.finish({ status: "success", durationMs: 500 });
-
-    const secondHandle = store.createRun(BUILDER, { event: "runtime.idle", schemaRef: null, payload: {} });
-
-    const midRunState = store.readState();
-    // lastStarted points at the new run; lastCompletion is still the first run.
-    expect(midRunState.workflows.builder?.lastStarted?.runId).toBe(secondHandle.metadata.id);
-    expect(midRunState.workflows.builder?.lastCompletion?.runId).toBe(firstHandle.metadata.id);
-    expect(midRunState.workflows.builder?.lastCompletion?.status).toBe("success");
-
-    store.recoverInterruptedRuns();
-
-    const afterRecovery = store.readState();
-    const recoveredEntry = afterRecovery.workflows.builder;
-    // lastStarted still describes the second run; lastCompletion now describes
-    // its interruption, not the earlier success.
-    expect(recoveredEntry?.lastStarted?.runId).toBe(secondHandle.metadata.id);
-    expect(recoveredEntry?.lastCompletion?.runId).toBe(secondHandle.metadata.id);
-    expect(recoveredEntry?.lastCompletion?.status).toBe("interrupted");
-    expect(afterRecovery.activeRuns ?? []).toEqual([]);
+    const persisted = JSON.parse(
+      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+    ) as Record<string, unknown>;
+    expect(persisted).not.toHaveProperty("activeRuns");
+    expect(persisted).not.toHaveProperty("pendingRuns");
   });
 
   it("rejects legacy flat workflow fields", () => {
@@ -94,7 +75,6 @@ describe("workflow state shape: start / completion separation", () => {
     // older completed run.
     const legacy = {
       completedRuns: 10,
-      pendingRuns: [],
       workflows: {
         "active-wf": {
           lastRunId: "run-running",
@@ -109,82 +89,10 @@ describe("workflow state shape: start / completion separation", () => {
           lastStatus: "failed",
         },
       },
-      activeRuns: [
-        {
-          runId: "run-running",
-          workflow: "active-wf",
-          startedAt: "2026-04-22T03:40:00.000Z",
-        },
-      ],
     };
     writeFileSync(statePath, JSON.stringify(legacy), "utf-8");
 
     expect(() => store.readState()).toThrow(JsonFileError);
     expect(() => store.readState()).toThrow(/uses legacy fields/);
-  });
-
-  it("rejects legacy queued triggers and batch envelopes without schema refs", () => {
-    const statePath = join(projectDir, ".kota", "workflow-state.json");
-    const timestamp = "2026-06-04T20:00:00.000Z";
-    const legacyInputEvent = {
-      event: "workflow.completed",
-      receivedAt: timestamp,
-      payload: { workflow: "builder", runId: "run-1" },
-    };
-    const legacy = {
-      completedRuns: 18400,
-      pendingRuns: [
-        {
-          runId: "queued-progress-review",
-          workflowName: "progress-reviewer",
-          trigger: {
-            event: "workflow.batch.flushed",
-            payload: {
-              scopeId: "scope-1",
-              projectId: "scope-1",
-              sourceEventName: "workflow.completed",
-              groupingKey: "scopeId=scope-1",
-              reason: "count",
-              count: 1,
-              window: {
-                firstEventAt: timestamp,
-                lastEventAt: timestamp,
-                flushedAt: timestamp,
-              },
-              inputEvents: [legacyInputEvent],
-              batch: {
-                workflow: "progress-reviewer",
-                triggerIndex: 0,
-                maxBufferSize: 100,
-                overflow: "drop-newest",
-                droppedInputCount: 0,
-              },
-            },
-          },
-          enqueuedAtMs: 1000,
-          notBeforeMs: 1000,
-        },
-      ],
-      workflows: {},
-      batchBuffers: {
-        "progress-reviewer:0:scope-1:scopeId=scope-1": {
-          definitionName: "progress-reviewer",
-          triggerIndex: 0,
-          sourceEventName: "workflow.completed",
-          scopeId: "scope-1",
-          projectId: "scope-1",
-          groupingKey: "scopeId=scope-1",
-          groupValues: [{ field: "scopeId", value: "scope-1" }],
-          firstEventAt: timestamp,
-          lastEventAt: timestamp,
-          inputEvents: [legacyInputEvent],
-          droppedInputCount: 0,
-        },
-      },
-    };
-    writeFileSync(statePath, JSON.stringify(legacy), "utf-8");
-
-    expect(() => store.readState()).toThrow(JsonFileError);
-    expect(() => store.readState()).toThrow(/invalid pendingRuns/);
   });
 });

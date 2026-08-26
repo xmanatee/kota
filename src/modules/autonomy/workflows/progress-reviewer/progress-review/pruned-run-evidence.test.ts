@@ -125,6 +125,8 @@ describe("progress-review pruned run evidence", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildDecisionAttributionReport } from "./decision-attribution.js";
 import {
+  builderTrigger,
   NOW,
   ownerInterventions,
   ownerRecord,
@@ -11,7 +12,7 @@ import {
   run,
   task,
   writeEvidence,
-  writeRunSummary,
+  writeWriterIntegration,
 } from "./decision-attribution.test-support.js";
 
 describe("buildDecisionAttributionReport", () => {
@@ -53,15 +54,16 @@ describe("buildDecisionAttributionReport", () => {
       ]),
     );
 
-    writeRunSummary(runsDir, "run-owner-product", ownerProduct.id);
+    writeWriterIntegration(runsDir, "run-owner-product");
     writeEvidence(runsDir, "run-owner-product", "operator-journey-transcript.txt");
-    writeRunSummary(runsDir, "run-kota-planned", kotaPlanned.id);
-    writeRunSummary(runsDir, "run-mixed", mixed.id);
-    writeRunSummary(runsDir, "run-weak-product", weakProduct.id);
+    writeWriterIntegration(runsDir, "run-kota-planned");
+    writeWriterIntegration(runsDir, "run-mixed");
+    writeWriterIntegration(runsDir, "run-weak-product");
 
     const report = buildDecisionAttributionReport({
       runs: [
         run("run-owner-product", {
+          trigger: builderTrigger(ownerProduct.id),
           steps: [
             {
               id: "validation",
@@ -73,10 +75,11 @@ describe("buildDecisionAttributionReport", () => {
             },
           ],
         }),
-        run("run-kota-planned"),
-        run("run-mixed"),
+        run("run-kota-planned", { trigger: builderTrigger(kotaPlanned.id) }),
+        run("run-mixed", { trigger: builderTrigger(mixed.id) }),
         run("run-unknown", { workflow: "manual-review" }),
         run("run-weak-product", {
+          trigger: builderTrigger(weakProduct.id),
           steps: [
             {
               id: "test",

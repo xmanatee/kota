@@ -1,8 +1,6 @@
 import {
-  existsSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -10,9 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  inspectAttentionDigestStep,
   NO_ATTENTION_ITEMS_TEXT,
   renderOnDemandAttention,
-  runAttentionDigestStep,
 } from "./step.js";
 
 function makeTaskDir(projectDir: string, state: string, count: number): void {
@@ -71,8 +69,9 @@ function writeRunMetadata(
   );
 }
 
-describe("runAttentionDigestStep", () => {
+describe("attention digest inspection", () => {
   let projectDir: string;
+  let stateDir: string;
   let runsDir: string;
   let emittedEvents: Array<{ event: string; payload: Record<string, unknown> }>;
   let emit: (event: string, payload: Record<string, unknown>) => void;
@@ -82,7 +81,8 @@ describe("runAttentionDigestStep", () => {
       tmpdir(),
       `kota-digest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runsDir = join(projectDir, ".kota", "runs");
+    stateDir = join(projectDir, ".kota");
+    runsDir = join(stateDir, "runs");
     mkdirSync(runsDir, { recursive: true });
     emittedEvents = [];
     emit = (event, payload) => emittedEvents.push({ event, payload });
@@ -93,8 +93,9 @@ describe("runAttentionDigestStep", () => {
   });
 
   function runSteps(n: number): void {
-    for (let i = 0; i < n; i++) {
-      runAttentionDigestStep(projectDir, runsDir, undefined, emit);
+    for (let count = 1; count <= n; count += 1) {
+      const result = inspectAttentionDigestStep({ projectDir, runsDir, count });
+      if (result.event) emit(result.event.name, result.event.payload);
     }
   }
 
@@ -209,11 +210,8 @@ describe("runAttentionDigestStep", () => {
 
   it("emits digest without emit callback (no-op, no throw)", () => {
     makeTaskDir(projectDir, "doing", 2);
-    // runSteps without emit — should not throw
-    for (let i = 0; i < 10; i++) {
-      runAttentionDigestStep(projectDir, runsDir);
-    }
-    expect(emittedEvents).toHaveLength(0); // our callback was never attached
+    inspectAttentionDigestStep({ projectDir, runsDir, count: 10 });
+    expect(emittedEvents).toHaveLength(0);
   });
 
   it("lists all run dirs to verify test isolation", () => {
@@ -443,25 +441,10 @@ describe("runAttentionDigestStep", () => {
       expect(result.text).toBe(NO_ATTENTION_ITEMS_TEXT);
     });
 
-    it("does not write the cadence counter file", () => {
-      makeTaskDir(projectDir, "doing", 2);
-      const counterFile = join(runsDir, "..", "attention-digest-counter.json");
-      expect(existsSync(counterFile)).toBe(false);
-
-      renderOnDemandAttention({ projectDir, runsDir });
-
-      expect(existsSync(counterFile)).toBe(false);
-    });
-
-    it("does not advance an existing cadence counter", () => {
-      const counterFile = join(runsDir, "..", "attention-digest-counter.json");
-      writeFileSync(counterFile, JSON.stringify({ count: 7 }), "utf-8");
+    it("does not depend on cadence state", () => {
       makeTaskDir(projectDir, "doing", 2);
 
-      renderOnDemandAttention({ projectDir, runsDir });
-
-      const persisted = JSON.parse(readFileSync(counterFile, "utf-8"));
-      expect(persisted.count).toBe(7);
+      expect(renderOnDemandAttention({ projectDir, runsDir }).items).toHaveLength(3);
     });
 
     it("does not emit workflow.attention.digest", () => {

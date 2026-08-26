@@ -61,8 +61,6 @@ function runStatusRole(status: string): SemanticRole {
       return "success";
     case "failed":
       return "error";
-    case "yielded":
-      return "warn";
     case "interrupted":
       return "warn";
     case "completed-with-warnings":

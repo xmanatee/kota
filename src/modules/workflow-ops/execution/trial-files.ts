@@ -1,7 +1,16 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	lstatSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { ensureDir } from "#core/workflow/run-io.js";
 import type { WorkflowTrialChangedFile } from "../client.js";
 import type { FileSnapshot } from "./trial-internal-types.js";
@@ -18,7 +27,7 @@ function shouldCopyPath(sourceProjectDir: string, path: string): boolean {
   if (parts[0] === "dist") return false;
   if (parts[0] === ".kota") {
     const second = parts[1];
-    if (second === "runs" || second === "eval-runs" || second === "task-archive") {
+    if (second === "runs" || second === "eval-runs") {
       return false;
     }
     const leaf = parts[parts.length - 1];
@@ -44,6 +53,51 @@ export function copyProjectForTrial(sourceProjectDir: string, attemptId: string)
   });
   ensureDir(join(trialProjectDir, ".kota"));
   return trialProjectDir;
+}
+
+function gitOutput(cwd: string, args: readonly string[]): string {
+	return execFileSync("git", args, {
+		cwd,
+		encoding: "utf8",
+		env: withProtectedGitBareRepositoryEnv(),
+		stdio: ["ignore", "pipe", "ignore"],
+	}).trim();
+}
+
+export function assertIsolatedTrialProjectRoot(
+	sourceProjectDir: string,
+	trialProjectDir: string,
+): void {
+	try {
+		const source = realpathSync(sourceProjectDir);
+		const trial = realpathSync(trialProjectDir);
+		const tempRoot = realpathSync(tmpdir());
+		const relativeToTemp = relative(tempRoot, trial);
+		const parent = resolve(trial, "..");
+		const commonDirValue = gitOutput(trial, ["rev-parse", "--git-common-dir"]);
+		const commonDir = realpathSync(
+			isAbsolute(commonDirValue)
+				? commonDirValue
+				: resolve(trial, commonDirValue),
+		);
+		const valid =
+			trial !== source &&
+			relativeToTemp !== "" &&
+			relativeToTemp !== ".." &&
+			!relativeToTemp.startsWith(`..${sep}`) &&
+			!isAbsolute(relativeToTemp) &&
+			basename(parent).startsWith("kota-workflow-trial-") &&
+			basename(trial) === basename(source) &&
+			realpathSync(gitOutput(trial, ["rev-parse", "--show-toplevel"])) === trial &&
+			commonDir === realpathSync(join(trial, ".git")) &&
+			!existsSync(join(trial, ".kota", "daemon-control.json"));
+		if (valid) return;
+	} catch {
+		// Collapse all missing or malformed structural facts into one authority error.
+	}
+	throw new Error(
+		"Workflow isolated trial root proof failed; refusing to construct a standalone runtime host",
+	);
 }
 
 function shouldSnapshotPath(rel: string): boolean {

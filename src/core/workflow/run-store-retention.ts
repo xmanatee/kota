@@ -12,7 +12,7 @@ import {
 import { validateEvidencePrunedReference } from "#core/evidence/pruned-reference.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "./run-types.js";
+import type { WorkflowRunMetadata } from "./run-types.js";
 
 export const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,7 +20,6 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type WorkflowRunPruneOptions = {
   projectDir: string;
   runsDir: string;
-  state: Pick<WorkflowRuntimeState, "activeRuns">;
   retentionDays?: number;
   minKeepPerWorkflow?: number;
   dryRun?: boolean;
@@ -79,7 +78,6 @@ export function pruneWorkflowRuns(opts: WorkflowRunPruneOptions): string[] {
   if (!existsSync(opts.runsDir)) return [];
 
   const protectedIds = new Set<string>(opts.protectedRunIds);
-  for (const run of opts.state.activeRuns ?? []) protectedIds.add(run.runId);
   for (const runId of listTrackedRunIds(opts.projectDir, opts.runsDir)) {
     protectedIds.add(runId);
   }

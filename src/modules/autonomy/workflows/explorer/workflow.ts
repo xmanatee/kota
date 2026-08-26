@@ -1,25 +1,17 @@
+import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
+import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  claimAwareStrategicReadyCoverageOperation,
-} from "#modules/autonomy/strategic-ready-coverage.js";
-import {
-  workflowCommitCheckOperation,
-  workflowCommitOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
+import { strategicReadyCoverageOperation } from "#modules/autonomy/strategic-ready-coverage.js";
 import { architectureReadyCoverageOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import {
   EXPLORATION_REFRESH_MS,
@@ -27,7 +19,16 @@ import {
   explorerAssessmentOperation,
 } from "./assessment.js";
 import { explorationRationaleCheckOperation } from "./exploration-rationale-operation.js";
-import { writeLastExplorationAt } from "./explorer-state.js";
+import {
+  EXPLORER_PUBLICATION_ARTIFACT,
+  EXPLORER_PUBLICATION_REQUESTED_EVENT,
+  explorerPublicationKey,
+} from "./explorer-publication.js";
+import {
+  decodeExplorerState,
+  EXPLORER_STATE_KEY,
+  type ExplorerState,
+} from "./explorer-state.js";
 import { readWatchlist, type WatchlistEntry } from "./watchlist.js";
 import {
   applyWatchlistUpdates,
@@ -65,8 +66,15 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "strategicReadyCoverageGap",
       "strategicBlockedAlternatives",
     ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(explorerAssessmentOperation, { projectDir }),
+  run: ({ projectDir, state, runBlocking }) => {
+    const current = decodeExplorerState(
+      state.read<ExplorerState>(EXPLORER_STATE_KEY).value,
+    );
+    return runBlocking(explorerAssessmentOperation, {
+      projectDir,
+      lastExplorationAt: current.lastExplorationAt,
+    });
+  },
 });
 
 type WatchlistEntrySummary = {
@@ -135,10 +143,11 @@ const inspectWatchlist = typedCodeStep<WatchlistInspection>({
 
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
   tags: ["monitored"],
-  recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
   triggers: [
     {
@@ -149,21 +158,8 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       event: "autonomy.queue.thin",
       cooldownMs: EXPLORATION_REFRESH_MS,
     },
-    {
-      event: "runtime.recovered",
-    },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "explorer",
-        }),
-    },
     inspectQueue,
     inspectWatchlist,
     {
@@ -174,20 +170,20 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => {
-        if (ctx.trigger.event === "runtime.recovered") return false;
-        return inspectQueue.outputRequired(ctx).needsAttention;
-      },
+      when: (ctx) => inspectQueue.outputRequired(ctx).needsAttention,
       repairLoop: {
         checks: [
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck(
-              "pnpm run validate-tasks",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
+            run: async (ctx) =>
+              workflowCommandOutput(
+                await ctx.runCommand({
+                  command: "pnpm",
+                  args: ["run", "validate-tasks"],
+                  cwd: ctx.projectDir,
+                }),
+              ),
           },
           {
             id: "architecture-ready-coverage",
@@ -205,7 +201,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             phase: 1,
             run: (ctx) =>
               withWorkflowBlockingOperation(ctx).runBlocking(
-                claimAwareStrategicReadyCoverageOperation,
+                strategicReadyCoverageOperation,
                 { projectDir: ctx.projectDir },
               ),
           },
@@ -226,15 +222,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
             },
           },
           {
-            id: "no-scratch-artifacts",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "scratch-artifacts", projectDir: ctx.projectDir },
-              ),
-          },
-          {
             id: "watchlist-update-commit-message",
             type: "code" as const,
             run: (ctx) =>
@@ -242,37 +229,34 @@ const explorerWorkflow: WorkflowDefinitionInput = {
                 resolveAgentRunDirFromContext(ctx),
               ),
           },
-          {
-            id: "commit-message-exists",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                {
-                  kind: "commit-message",
-                  projectDir: ctx.projectDir,
-                  runDirPath: resolveAgentRunDirFromContext(ctx),
-                },
-              ),
-          },
-          {
-            id: "commit-stageable",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "commit-stageable", projectDir: ctx.projectDir },
-              ),
-          },
         ],
       },
     },
     {
-      id: "record-exploration",
+      id: "record-exploration-publication",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ projectDir }) => {
-        writeLastExplorationAt(projectDir);
+      run: ({ workflow }) => {
+        const exploredAt = new Date().toISOString();
+        writeJsonFileAtomic(
+          join(workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT),
+          { exploredAt },
+        );
+        return { exploredAt };
+      },
+    },
+    {
+      id: "emit-exploration-publication",
+      type: "emit",
+      when: stepSucceeded("record-exploration-publication"),
+      event: EXPLORER_PUBLICATION_REQUESTED_EVENT,
+      payload: (ctx) => {
+        const publicationKey = explorerPublicationKey(ctx.workflow.runId);
+        return {
+          idempotencyKey: publicationKey,
+          publicationKey,
+          sourceRunId: ctx.workflow.runId,
+        };
       },
     },
     {
@@ -287,16 +271,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
         const applied = applyWatchlistUpdates(ctx.projectDir, payload);
         return { applied };
       },
-    },
-    {
-      id: "commit",
-      type: "code",
-      when: stepSucceeded("explore"),
-      run: (ctx) =>
-        ctx.runBlocking(workflowCommitOperation, {
-          projectDir: ctx.projectDir,
-          runDirPath: resolveAgentRunDirFromContext(ctx),
-        }),
     },
   ],
 };

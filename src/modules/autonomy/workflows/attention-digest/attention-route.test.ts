@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,16 +94,12 @@ describe("GET /api/attention", () => {
     expect(body.data.items.length).toBeGreaterThan(0);
   });
 
-  it("does not write the cadence counter or emit workflow.attention.digest", async () => {
-    const counterPath = join(runsDir, "..", "attention-digest-counter.json");
-    expect(existsSync(counterPath)).toBe(false);
-
+  it("does not emit workflow.attention.digest", async () => {
     const res = await fetch(`${baseUrl}/api/attention`, {
       headers: { Authorization: `Bearer ${TOKEN}` },
     });
     expect(res.status).toBe(200);
 
-    expect(existsSync(counterPath)).toBe(false);
     expect(observed).toEqual([]);
   });
 

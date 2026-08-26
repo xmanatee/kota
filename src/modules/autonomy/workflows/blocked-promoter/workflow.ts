@@ -3,38 +3,24 @@ import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
-import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
+  BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+  BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  blockedOwnerDecisionKey,
+} from "./owner-decision-follow-up.js";
 import {
   applyOutcome,
-  askStep,
-  consumeStep,
+  displayedOwnerAnswers,
   inspectBlocked,
+  inspectOwnerDecisionResolution,
   instructOperatorCapture,
   promoteAfterApproval,
   promoteDeterministic,
-  waitStep,
 } from "./resolution-steps.js";
 
 const writeBlockerActions = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-blocker-actions",
   type: "code",
   when: (ctx) => {
-    if (ctx.trigger.event === "runtime.recovered") return false;
     const inspection = inspectBlocked.output(ctx);
     return inspection !== undefined && inspection.actions.length > 0;
   },
@@ -78,15 +64,13 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   type: "code",
   validate: (raw) =>
     expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
-  when: (ctx) => {
-    if (ctx.trigger.event === "runtime.recovered") return false;
-    return workflowChangedAnything(
+  when: (ctx) =>
+    workflowChangedAnything(
       (promoteDeterministic.output(ctx)?.promotions ?? []).length,
       (promoteAfterApproval.output(ctx)?.promotions ?? []).length,
       (applyOutcome.output(ctx) ?? []).length,
       (instructOperatorCapture.output(ctx)?.instructions ?? []).length,
-    );
-  },
+    ),
   run: (ctx) => {
     const deterministic = promoteDeterministic.output(ctx)?.promotions ?? [];
     const followups = promoteAfterApproval.output(ctx)?.promotions ?? [];
@@ -120,8 +104,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -132,65 +116,70 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return object;
   },
   run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
 });
 
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const blockedPromoterWorkflow: WorkflowDefinitionInput = {
   name: "blocked-promoter",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Auto-promote blocked tasks whose typed unblock precondition is satisfied; re-ask owner-decision slots on a 14-day cadence.",
   tags: ["monitored"],
-  recoveryCapable: true,
   triggers: [
-    { event: "autonomy.queue.available", cooldownMs: 60_000 },
-    { event: "runtime.recovered" },
+    {
+      event: "autonomy.queue.available",
+      cooldownMs: 60_000,
+      queueMode: "latest",
+    },
+    {
+      event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+      cooldownMs: 0,
+      queueMode: "all",
+    },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "blocked-promoter",
-        }),
-    },
+    inspectOwnerDecisionResolution,
     inspectBlocked,
     promoteDeterministic,
-    askStep,
-    waitStep,
-    consumeStep,
     applyOutcome,
     promoteAfterApproval,
     instructOperatorCapture,
     writeBlockerActions,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
+    validateChanges,
+    {
+      id: "emit-owner-decision-requested",
+      type: "emit",
+      when: (ctx) =>
+        ctx.trigger.event !== BLOCKED_OWNER_DECISION_RESOLVED_EVENT &&
+        inspectBlocked.output(ctx)?.dirty === false &&
+        inspectBlocked.output(ctx)?.ownerAsk !== null,
+      event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+      payload: (ctx) => {
+        const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;
+        if (!candidate) throw new Error("owner-decision request has no candidate");
+        const { taskPath: _taskPath, ...portableCandidate } = candidate;
+        const requestKey = blockedOwnerDecisionKey(portableCandidate);
+        return {
+          idempotencyKey: requestKey,
+          requestKey,
+          candidate: portableCandidate,
+          displayedAnswers: displayedOwnerAnswers(candidate),
+        };
+      },
+    },
     {
       id: "emit-promoted",
       type: "emit",
       when: (ctx) =>
-        stepCommitted("commit")(ctx) &&
+        validateChanges.output(ctx)?.ok === true &&
         (promoteDeterministic.output(ctx)?.promotions ?? []).length +
           (promoteAfterApproval.output(ctx)?.promotions ?? []).length >
           0,
@@ -212,7 +201,7 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
       id: "emit-operator-capture-instructed",
       type: "emit",
       when: (ctx) =>
-        stepCommitted("commit")(ctx) &&
+        validateChanges.output(ctx)?.ok === true &&
         (instructOperatorCapture.output(ctx)?.instructions ?? []).length > 0,
       event: "autonomy.blocked.operator-capture-instructed",
       payload: (ctx) => ({
@@ -227,13 +216,6 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
           }),
         ),
       }),
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "blocked-promoter committed task promotions or owner-ask markers",
-      requires: ["commit"],
     },
   ],
 };

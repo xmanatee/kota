@@ -14,9 +14,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     status: "normal",
     counts: {
       activeRuns: 0,
-      activeTaskClaims: 0,
-      pendingMergeTaskClaims: 0,
-      blockedClaimRecoveries: 0,
       pendingApprovals: 0,
       pendingOwnerQuestions: 0,
       openDeadLetters: 0,
@@ -35,9 +32,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
       overloadedAt: 6,
       weights: {
         activeRuns: 1,
-        activeTaskClaims: 1,
-        pendingMergeTaskClaims: 2,
-        blockedClaimRecoveries: 2,
         pendingApprovals: 2,
         pendingOwnerQuestions: 2,
         openDeadLetters: 2,

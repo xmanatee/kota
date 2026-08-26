@@ -7,8 +7,9 @@ import {
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata, WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
@@ -194,8 +195,10 @@ export function registerFollowCommand(wfCmd: Command): void {
         await followWithSse(link, store, resolvedId);
       } else {
         if (!resolvedId) {
-          const wfState = readOptionalJsonFile<WorkflowRuntimeState>(store.statePath);
-          const firstActiveRunId = wfState?.activeRuns?.[0]?.runId;
+          const firstActiveRunId = readWorkflowOperationalState({
+            stateDir: store.rootDir,
+            projectDir: process.cwd(),
+          }).activeRuns[0]?.runId;
           if (!firstActiveRunId) {
             print(line(plain("No active run found and daemon is not running.")));
             return;
@@ -203,7 +206,12 @@ export function registerFollowCommand(wfCmd: Command): void {
           resolvedId = firstActiveRunId;
           print(line(plain(`Following run: ${resolvedId}`)));
         }
-        await followRunLogs(store.runsDir, store.statePath, resolvedId, undefined);
+        await followRunLogs(
+          store.runsDir,
+          { stateDir: store.rootDir, projectDir: process.cwd() },
+          resolvedId,
+          undefined,
+        );
       }
     });
 }

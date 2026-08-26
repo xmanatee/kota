@@ -221,6 +221,7 @@ describe("preset-parity model-id sweep — workflow agent step `tier` validates 
       const [validated] = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("preset-parity-balanced.ts", {
+            repository: "read",
             name: "preset-parity-balanced",
             moduleRoot: workflowRoot,
             triggers: [{ event: "preset-parity.probe" }],
@@ -251,6 +252,7 @@ describe("preset-parity model-id sweep — workflow agent step `tier` validates 
       const [validated] = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("preset-parity-capable.ts", {
+            repository: "read",
             name: "preset-parity-capable",
             moduleRoot: workflowRoot,
             triggers: [{ event: "preset-parity.probe" }],

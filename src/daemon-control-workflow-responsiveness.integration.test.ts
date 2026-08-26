@@ -58,6 +58,7 @@ describe("daemon control responsiveness during workflow execution", () => {
       pollIntervalMs: 60_000,
       workflows: [
         registerWorkflowDefinition("fixtures/control-responsive.ts", {
+          repository: "read",
           name: "control-responsive",
           triggers: [{ event: "manual" }],
           steps: [

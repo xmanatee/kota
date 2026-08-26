@@ -194,10 +194,8 @@ export type RunMetadata = {
   steps: readonly RunStepArtifact[];
 };
 
-export type RunSummaryArtifact = {
-  taskId: string | null;
-  taskTitle: string | null;
-  filesChanged: readonly string[];
+export type WriterIntegrationArtifact = {
+  changedPaths: readonly string[];
 };
 
 export type CalibrationArtifact = {
@@ -224,7 +222,7 @@ export type RunPatternSignal = {
 export type RunEvidence = {
   runDir: string;
   metadata: RunMetadata;
-  summary: RunSummaryArtifact | null;
+  integration: WriterIntegrationArtifact | null;
   calibration: CalibrationArtifact | null;
   commands: readonly FixtureCandidateCommand[];
   changedPaths: readonly string[];

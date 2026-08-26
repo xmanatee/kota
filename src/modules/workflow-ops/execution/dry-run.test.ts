@@ -29,12 +29,12 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   return {
     name: "test-workflow",
     enabled: true,
-    recoveryCapable: false,
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [{ event: "manual", cooldownMs: 0 }],
     steps: [],
     ...overrides,
+    repository: overrides.repository ?? "none",
     tags: overrides.tags ?? [],
   };
 }
@@ -181,6 +181,27 @@ describe("buildDryRunPlan", () => {
     const plan = await buildDryRunPlan(def);
     expect(plan.steps[0].whenResult).toBe("error");
     expect(plan.steps[0].whenError).toBe("bad context access");
+  });
+
+  it("rejects command execution from dry-run predicates explicitly", async () => {
+    const def = makeDefinition({
+      steps: [
+        {
+          id: "command-predicate",
+          type: "code",
+          run: () => null,
+          when: async (ctx) => {
+            await ctx.runCommand({ command: process.execPath, args: ["--version"] });
+            return true;
+          },
+        },
+      ],
+    });
+
+    const plan = await buildDryRunPlan(def);
+
+    expect(plan.steps[0].whenResult).toBe("error");
+    expect(plan.steps[0].whenError).toBe("dry-run: commands cannot be executed");
   });
 
   it("marks step skipped when when predicate accesses empty stepOutputs", async () => {

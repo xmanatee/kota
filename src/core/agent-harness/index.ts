@@ -35,12 +35,13 @@ export {
 } from "./command-trace.js";
 export {
   composeCanUseTools,
-  createAgentCommitGuard,
   createDaemonHostControlGuard,
   createScopeAuthorityMutationGuard,
   createWorkflowAgentGuards,
+  createWorkflowGitOwnershipGuard,
   isDaemonHostControlCommand,
   isGitCommitCommand,
+  isGitMetadataMutationCommand,
 } from "./guards.js";
 export type {
   HarnessHookKind,

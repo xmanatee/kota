@@ -71,19 +71,12 @@ Inside trusted domain code — agent loops, workflow execution, event handlers,
 business logic — values are expected to already carry their precise type. A
 `Record<string, unknown>` that flows past a decoder is a missing decoder.
 
-The mechanical guard for this policy is
-`src/strict-types-policy.integration.test.ts`. It scans every production
-`.ts` file under `src/` and counts the three boundary patterns (`: unknown`,
-`Record<string, unknown>`, `as unknown`) per file, ratcheting against the
-committed baseline:
-
-- A new file appearing with boundary patterns fails the test.
-- An existing file's count climbing past its baseline fails the test.
-- A reduction passes silently and the operator can regenerate via
-  `STRICT_TYPES_REGENERATE=1 pnpm test src/strict-types-policy.integration.test.ts`.
-
 When a runtime parser legitimately needs `unknown`, expose a typed decoder
 beside it (e.g. `parseQuietHours`, `decodeRootsListResult`,
 `decodeGitHubIssueList`) that returns either a precise shape or a
 discriminated `{ ok: false; error: string }` result. Downstream consumers
 must depend on the typed result, not on the raw boundary value.
+
+Use strict TypeScript and Biome as the mechanical guard. Tests cover decoder
+acceptance/rejection and typed propagation; do not count source tokens or keep
+per-file exception catalogs.

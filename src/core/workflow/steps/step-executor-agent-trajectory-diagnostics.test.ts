@@ -18,6 +18,7 @@ import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
+import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 
@@ -102,7 +103,7 @@ function makeDefinition(
   return {
     name: "trajectory-diagnostics-test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "read",
     definitionPath: "src/modules/test/workflows/trajectory/workflow.ts",
     moduleRoot: projectDir,
     triggers: [],
@@ -173,7 +174,12 @@ async function runDiagnosticScenario(args: {
   const { promise } = executeWorkflowRun(
     makeDefinition(args.projectDir, makeAgentStep(args.projectDir, harness)),
     TRIGGER,
-    { projectDir: args.projectDir, bus, store, log: () => {} },
+    {
+      runContext: createTestRunContext(args.projectDir, TRIGGER),
+      bus,
+      store,
+      log: () => {},
+    },
   );
   const result = await promise;
   expect(result.metadata.status).toBe("success");
@@ -332,7 +338,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
@@ -389,7 +395,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
@@ -470,7 +476,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const { step: completedStep, artifact } = readDiagnosticsArtifact(

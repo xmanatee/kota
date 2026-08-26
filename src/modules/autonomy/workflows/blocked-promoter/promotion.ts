@@ -124,6 +124,8 @@ export type OwnerAskCandidate = {
    * re-ask reason so the operator can pick the default at a glance.
    */
   recommendedAnswer: string | null;
+  /** Stable cadence revision used to deduplicate request and result delivery. */
+  requestRevision: string;
 };
 
 const OWNER_ASK_MIN_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -160,6 +162,7 @@ export function pickOwnerAskCandidate(
       context: precondition.context,
       proposedAnswers: precondition.proposedAnswers,
       recommendedAnswer: extractRecommendedAnswer(precondition.context),
+      requestRevision: existing?.lastAskedAt ?? "initial",
     });
   }
   return dueCandidates.length > 0 ? dueCandidates[0] : null;

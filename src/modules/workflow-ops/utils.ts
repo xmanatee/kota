@@ -23,7 +23,6 @@ export function statusIcon(status: string): string {
   switch (status) {
     case "success": return "✓";
     case "failed": return "✗";
-    case "yielded": return "↪";
     case "interrupted": return "⚡";
     case "running": return "▶";
     case "skipped": return "–";

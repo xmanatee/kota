@@ -146,7 +146,10 @@ export async function handleResolvedTelegramStatusCommand(
     return true;
   }
   if (text === "/digest") {
-    const { text: body } = renderOnDemandDigest({ projectDir: scope.projectDir });
+    const { text: body } = renderOnDemandDigest({
+      projectDir: scope.projectDir,
+      stateDir: join(scope.projectDir, ".kota"),
+    });
     await sendPlain(truncateForTelegram(body));
     return true;
   }

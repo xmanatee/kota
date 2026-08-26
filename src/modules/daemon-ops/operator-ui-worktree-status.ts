@@ -1,44 +1,66 @@
-import type { AutomationWorktreeOperatorStatus } from "#modules/git/worktree-lifecycle.js";
 import type { UiListItem, UiRole } from "./operator-ui-types.js";
-import type { StatusSnapshot } from "./status-cli.js";
+import type { StatusOperationalRun, StatusSnapshot } from "./status-cli.js";
 
-function worktreeRole(worktree: AutomationWorktreeOperatorStatus): UiRole {
-  if (worktree.state === "conflicted") return "error";
-  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge" || worktree.state === "stale") return "warn";
-  if (worktree.cleanupStatus === "eligible" || worktree.state === "merged") return "success";
-  return "muted";
+function runRole(run: StatusOperationalRun): UiRole {
+  switch (run.state) {
+    case "queued":
+    case "cancelled":
+      return "muted";
+    case "running":
+    case "integrating":
+      return "info";
+    case "waiting":
+      return "warn";
+    case "needs_attention":
+    case "failed":
+      return "error";
+    case "succeeded":
+      return "success";
+  }
 }
 
-function worktreeDetail(worktree: AutomationWorktreeOperatorStatus): string {
-  const cleanup = worktree.cleanupEligible
-    ? "cleanup eligible"
-    : worktree.cleanupStatus === "removed"
-      ? "cleanup removed"
-      : `cleanup blocked: ${worktree.cleanupBlockers.join("; ") || "unknown reason"}`;
-  const resources = worktree.runtimeResources;
-  const resourceSummary =
-    resources === undefined
-      ? null
-      : resources.ports === undefined
-        ? `resources ${resources.profileId}`
-        : `resources ${resources.profileId} ports ${resources.ports.start}-${resources.ports.end}`;
+function recordsValue(records: readonly Record<string, unknown>[]): string {
+  return records.length === 0 ? "none" : records.map((record) => JSON.stringify(record)).join("; ");
+}
+
+function runDetail(run: StatusOperationalRun): string {
+  const sandbox = run.sandbox;
+  const sandboxDetails = sandbox === null
+    ? ["sandbox not allocated"]
+    : [
+        `repository ${sandbox.repository}`,
+        `branch ${sandbox.branch ?? "none"}`,
+        `base ${sandbox.baseCommit ?? "none"}`,
+        `head ${
+          sandbox.workspace === null
+            ? "not applicable"
+            : sandbox.workspace.headCommit ?? "unavailable"
+        }`,
+        `dirty ${sandbox.workspace?.dirtySummary ?? "not applicable"}`,
+        `workspace ${sandbox.workspaceDir}`,
+      ];
   return [
-    `run ${worktree.runId}`,
-    `run-state ${worktree.runState}`,
-    `branch ${worktree.branch}`,
-    `dirty ${worktree.dirtyState}`,
-    `merge ${worktree.mergeStatus}`,
-    cleanup,
-    ...(resourceSummary !== null ? [resourceSummary] : []),
-    `next ${worktree.nextAction}`,
+    `resources ${run.resources.length === 0 ? "none" : run.resources.join(", ")}`,
+    `processes ${recordsValue(run.processes)}`,
+    ...sandboxDetails,
+    `wait ${run.wait === null ? "none" : JSON.stringify(run.wait)}`,
+    `error ${run.lastError ?? "none"}`,
   ].join(" · ");
 }
 
-export function statusWorktreeItems(snapshot: StatusSnapshot): UiListItem[] {
-  return (snapshot.worktrees ?? []).map((worktree) => ({
-    id: `${worktree.taskId}:${worktree.runId}`,
-    title: `${worktree.state}: ${worktree.taskId}`,
-    detail: worktreeDetail(worktree),
-    role: worktreeRole(worktree),
+export function statusRunSandboxItems(snapshot: StatusSnapshot): UiListItem[] {
+  if (!snapshot.runProjection.available) {
+    return [{
+      id: "run-projection-unavailable",
+      title: "Run projection unavailable",
+      detail: snapshot.runProjection.databasePath,
+      role: "warn",
+    }];
+  }
+  return snapshot.runProjection.runs.map((run) => ({
+    id: run.runId,
+    title: `${run.state}: ${run.workflow}`,
+    detail: runDetail(run),
+    role: runRole(run),
   }));
 }

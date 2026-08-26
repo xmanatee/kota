@@ -77,6 +77,7 @@ const evaluatorCalibrationNotify: WorkflowDefinitionInput = {
   name: "evaluator-calibration-notify",
   description:
     "Surface evaluator calibration drift through the normal attention channel so operators see a contradiction-rate spike without opening run artifacts.",
+  repository: "none",
   triggers: [{ event: "evaluator-calibration.regression.detected" }],
   steps: [
     {

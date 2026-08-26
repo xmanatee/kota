@@ -1,18 +1,20 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { executeWorkflowRun, type RunExecutorDeps } from "#core/workflow/run-executor.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { ensureDir, formatRunId, writeJsonFile } from "#core/workflow/run-io.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import { StandaloneRunHost } from "#core/workflow/standalone-run-host.js";
 import type {
   WorkflowTrialAttemptReport,
   WorkflowTrialBlockedSideEffect,
   WorkflowTrialEvent,
 } from "../client.js";
 import {
+	assertIsolatedTrialProjectRoot,
   cloneTrialChangedFile,
   copyProjectForTrial,
   diffTrialSnapshots,
@@ -42,6 +44,32 @@ function stepStatuses(
   }));
 }
 
+function initializeTrialRepository(projectDir: string): void {
+  const env = withProtectedGitBareRepositoryEnv();
+  const run = (args: string[]) => execFileSync("git", args, {
+    cwd: projectDir,
+    env,
+    stdio: "ignore",
+  });
+  run(["init", "--quiet"]);
+  run(["add", "--all"]);
+  run([
+    "-c",
+    "user.name=KOTA Trial",
+    "-c",
+    "user.email=kota-trial@localhost",
+    "commit",
+    "--quiet",
+    "--message",
+    "trial baseline",
+  ]);
+  writeFileSync(
+    join(projectDir, ".git", "info", "exclude"),
+    [".kota/", ".worktrees/runs/", ""].join("\n"),
+    "utf8",
+  );
+}
+
 export async function runTrialAttempt(args: {
   sourceProjectDir: string;
   reportDirPath: string;
@@ -51,11 +79,15 @@ export async function runTrialAttempt(args: {
 }): Promise<WorkflowTrialAttemptReport> {
   const attemptId = `${safeTrialSegment(args.variant.label)}-${args.repeatIndex + 1}`;
   const trialProjectDir = copyProjectForTrial(args.sourceProjectDir, attemptId);
+  initializeTrialRepository(trialProjectDir);
+	assertIsolatedTrialProjectRoot(args.sourceProjectDir, trialProjectDir);
   const before = snapshotTrialFiles(trialProjectDir);
   const attemptReportPath = join(args.reportDirPath, "attempts", `${attemptId}.json`);
   ensureDir(join(args.reportDirPath, "attempts"));
 
   let runtime: WorkflowTrialRuntime | undefined;
+  let host: StandaloneRunHost | undefined;
+  const stateDir = mkdtempSync(join(tmpdir(), "kota-workflow-trial-state-"));
   const busEvents: WorkflowTrialEvent[] = [];
   const queuedWorkflows: QueuedWorkflowReport[] = [];
   let metadata: WorkflowRunMetadata | undefined;
@@ -64,7 +96,7 @@ export async function runTrialAttempt(args: {
 
   try {
     runtime = await args.runtimeFactory(trialProjectDir, args.sourceProjectDir);
-    const definition = runtime.definitions.find((item) => item.name === args.variant.workflow);
+    const definition = runtime.workflows.find((item) => item.name === args.variant.workflow);
     if (!definition) {
       throw new WorkflowTrialRequestError(
         `Workflow "${args.variant.workflow}" not found`,
@@ -79,149 +111,61 @@ export async function runTrialAttempt(args: {
         payload: projectTrialPayload(event.payload),
       });
     });
-    const pbus = runtime.projectRuntime?.pbus
-      ?? new ProjectScopedEventBus(bus, deriveDirectoryScopeId(trialProjectDir));
-    const store = runtime.projectRuntime?.runStore
-      ?? new WorkflowRunStore(trialProjectDir);
     const runId = formatRunId(`${args.variant.workflow}-trial`);
-    const trigger: WorkflowRunTrigger = {
-      event: "manual",
-      schemaRef: null,
-      payload: {
-        ...args.variant.payload,
-        triggeredAt: new Date().toISOString(),
-        _runId: runId,
+    const projectId = deriveDirectoryScopeId(trialProjectDir);
+    host = new StandaloneRunHost({
+      stateDir,
+      project: {
+        projectId,
+        projectDir: trialProjectDir,
+        displayName: projectId,
       },
-    };
-
-    const triggerWorkflow: NonNullable<RunExecutorDeps["triggerWorkflow"]> = async (
-      workflowName,
-      payload,
-      waitFor,
-      signal,
-    ) => {
-      const childRunId = formatRunId(`${workflowName}-trial-child`);
-      const childTrigger: WorkflowRunTrigger = {
-        event: "trial.triggered",
-        schemaRef: null,
-        payload: {
-          ...payload,
-          triggeredAt: new Date().toISOString(),
-          _runId: childRunId,
-        },
-      };
-      if (waitFor === "completed") {
-        const childDefinition = runtime!.definitions.find((item) => item.name === workflowName);
-        if (!childDefinition) throw new Error(`Triggered workflow "${workflowName}" not found`);
-        const childAbortController = new AbortController();
-        if (signal) {
-          if (signal.aborted) {
-            childAbortController.abort(signal.reason);
-          } else {
-            signal.addEventListener(
-              "abort",
-              () => childAbortController.abort(signal.reason),
-              { once: true },
-            );
-          }
-        }
-        const child = executeWorkflowRun(childDefinition, childTrigger, {
-          projectDir: trialProjectDir,
-          bus,
-          pbus,
-          store,
-          config: runtime!.config,
-          log: () => {},
-          triggerWorkflow,
-          runTool: (name, input, context) => runTrialTool(
-            {
-              trialProjectDir,
-              stepId: context?.stepId ?? "unknown",
-              blockedExternalSideEffects,
-            },
-            name,
-            input,
-          ),
-          createAgentCanUseTool: (stepId) => createTrialAgentToolGuard({
-            trialProjectDir,
-            stepId,
-            blockedExternalSideEffects,
-          }),
-          resolveAgentDef: runtime!.resolveAgentDef,
-          resolveSkillsPrompt: runtime!.resolveSkillsPrompt,
-        }, childAbortController);
-        const childResult = await child.promise;
-        const childStatus = childResult.metadata.status === "success"
-          || childResult.metadata.status === "completed-with-warnings"
-          ? "completed"
-          : "failed";
-        queuedWorkflows.push({
-          workflow: workflowName,
-          runId: childRunId,
-          waitFor,
-          payload: projectTrialPayload(payload),
-          status: childStatus,
-        });
-        return { runId: childRunId, status: childStatus };
-      }
-
-      const state = store.readState();
-      const now = Date.now();
-      store.setPendingRuns([
-        ...state.pendingRuns,
-        {
-          runId: childRunId,
-          workflowName,
-          trigger: childTrigger,
-          enqueuedAtMs: now,
-          notBeforeMs: now,
-        },
-      ]);
-      queuedWorkflows.push({
-        workflow: workflowName,
-        runId: childRunId,
-        waitFor,
-        payload: projectTrialPayload(payload),
-        status: "queued",
-      });
-      return { runId: childRunId, status: "queued" };
-    };
-
-    const { promise } = executeWorkflowRun(definition, trigger, {
-      projectDir: trialProjectDir,
       bus,
-      pbus,
-      store,
+      workflows: runtime.workflows,
       config: runtime.config,
-      log: () => {},
-      triggerWorkflow,
-      runTool: (name, input, context) => runTrialTool(
-        {
-          trialProjectDir,
-          stepId: context?.stepId ?? "unknown",
-          blockedExternalSideEffects,
-        },
-        name,
-        input,
-      ),
-      createAgentCanUseTool: (stepId) => createTrialAgentToolGuard({
-        trialProjectDir,
-        stepId,
-        blockedExternalSideEffects,
-      }),
       resolveAgentDef: runtime.resolveAgentDef,
       resolveSkillsPrompt: runtime.resolveSkillsPrompt,
+      execution: (context) => ({
+        runTool: (name, input, toolContext) => runTrialTool(
+          {
+            trialProjectDir: context.sandbox.workspaceDir,
+            stepId: toolContext?.stepId ?? "unknown",
+            blockedExternalSideEffects,
+          },
+          name,
+          input,
+        ),
+        createAgentCanUseTool: (stepId) => createTrialAgentToolGuard({
+          trialProjectDir: context.sandbox.workspaceDir,
+          stepId,
+          blockedExternalSideEffects,
+        }),
+      }),
     });
-    const result = await promise;
-    metadata = result.metadata;
-    if (metadata.status !== "success" && metadata.status !== "completed-with-warnings") {
-      const failedStep = metadata.steps.find((step) => step.status === "failed");
-      error = failedStep?.error ?? `workflow finished with status ${metadata.status}`;
+    const result = await host.runToTerminal(definition.name, {
+      runId,
+      event: "manual",
+      payload: args.variant.payload,
+    });
+    metadata = result.metadata ?? undefined;
+    queuedWorkflows.push(...host.listNestedRuns().map((child) => ({
+      workflow: child.workflow,
+      runId: child.runId,
+      waitFor: child.waitFor,
+      payload: projectTrialPayload(child.payload),
+      status: child.status,
+    })));
+    if (result.run.state !== "succeeded") {
+      const failedStep = metadata?.steps.find((step) => step.status === "failed");
+      error = failedStep?.error ?? result.run.lastError
+        ?? `workflow finished with state ${result.run.state}`;
     }
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   } finally {
+    await host?.close();
     await runtime?.unload?.();
+    rmSync(stateDir, { force: true, recursive: true });
   }
 
   const after = snapshotTrialFiles(trialProjectDir);

@@ -8,8 +8,11 @@ import {
   type AwaitDelivery,
   readSuspension,
 } from "./awaits-store.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowQueuedRun } from "./run-types.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -17,7 +20,7 @@ function makeAwaitDefinition(): WorkflowDefinition {
   return {
     name: "test-await",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test-await/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -52,6 +55,55 @@ function makeAwaitDefinition(): WorkflowDefinition {
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
+function makeRunContext(
+  projectDir: string,
+  definition: WorkflowDefinition,
+  trigger: WorkflowRunTrigger,
+  signal = new AbortController().signal,
+): RunContext {
+  const runId = `${definition.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const tempDir = join(rootDir, "tmp");
+  const artifactDir = join(rootDir, "artifacts");
+  const agentDir = join(rootDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const path of [tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: definition.name,
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir,
+      workspaceDir: projectDir,
+      tempDir,
+      artifactDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir: projectDir,
+      runDir: rootDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
 describe("await-event step", () => {
   let projectDir: string;
   let store: WorkflowRunStore;
@@ -76,7 +128,7 @@ describe("await-event step", () => {
   it("(a) live: event arrives while the daemon is alive — step resolves and the workflow continues", async () => {
     const definition = makeAwaitDefinition();
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
       log,
@@ -114,7 +166,7 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { projectDir, bus, store, log },
+      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     // Wait for the suspension file to be written, then abort.
@@ -155,10 +207,10 @@ describe("await-event step", () => {
       "utf-8",
     );
 
-    // Phase 2: simulate daemon restart by calling recoverInterruptedRuns +
-    // installAwaitResumers, then dispatching the queued resume run.
-    store.recoverInterruptedRuns();
+    // Phase 2: simulate daemon restart by installing persisted await
+    // resumers, then dispatching the queued resume run.
     let scheduled = 0;
+    let resumeQueued: WorkflowQueuedRun | undefined;
     const newBus = new EventBus();
     installAwaitResumers({
       bus: newBus,
@@ -166,26 +218,26 @@ describe("await-event step", () => {
       definitions: [definition],
       log,
       appendResumeRun: (q) => {
-        const s = store.readState();
-        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
-        store.setPendingRuns([...s.pendingRuns, q]);
+        resumeQueued = q;
       },
       onScheduled: () => { scheduled += 1; },
     });
     expect(scheduled).toBe(1);
 
-    const queued = store.readState().pendingRuns;
-    expect(queued).toHaveLength(1);
-    const resumeQueued = queued[0];
+    expect(resumeQueued).toBeDefined();
+    if (!resumeQueued) throw new Error("resume run was not scheduled");
     expect(resumeQueued.workflowName).toBe("test-await");
     expect(resumeQueued.trigger.event).toBe("resume");
 
-    // Drain the queue: dispatch the queued resume run.
-    store.setPendingRuns([]);
     const resumed = await executeWorkflowRun(
       definition,
       resumeQueued.trigger,
-      { projectDir, bus: newBus, store, log },
+      {
+        runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
+        bus: newBus,
+        store,
+        log,
+      },
     ).promise;
     expect(resumed.metadata.status).toBe("success");
     expect(resumed.metadata.resumedFromRunId).toBe(suspendedRunId);
@@ -210,7 +262,7 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { projectDir, bus, store, log },
+      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     let suspendedRunId = "";
@@ -234,8 +286,8 @@ describe("await-event step", () => {
     await new Promise((r) => setTimeout(r, 60));
 
     // Phase 2: simulate daemon restart.
-    store.recoverInterruptedRuns();
     let scheduled = 0;
+    let resumeQueued: WorkflowQueuedRun | undefined;
     const newBus = new EventBus();
     installAwaitResumers({
       bus: newBus,
@@ -243,22 +295,24 @@ describe("await-event step", () => {
       definitions: [definition],
       log,
       appendResumeRun: (q) => {
-        const s = store.readState();
-        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
-        store.setPendingRuns([...s.pendingRuns, q]);
+        resumeQueued = q;
       },
       onScheduled: () => { scheduled += 1; },
     });
     expect(scheduled).toBe(1);
 
-    const queued = store.readState().pendingRuns;
-    expect(queued).toHaveLength(1);
-    store.setPendingRuns([]);
+    expect(resumeQueued).toBeDefined();
+    if (!resumeQueued) throw new Error("resume run was not scheduled");
 
     const resumed = await executeWorkflowRun(
       definition,
-      queued[0].trigger,
-      { projectDir, bus: newBus, store, log },
+      resumeQueued.trigger,
+      {
+        runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
+        bus: newBus,
+        store,
+        log,
+      },
     ).promise;
     expect(resumed.metadata.status).toBe("success");
 

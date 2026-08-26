@@ -41,7 +41,6 @@
  *   retry and appends exactly one failure history record.
  */
 
-import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import {
   createServer,
@@ -102,6 +101,10 @@ import {
 import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 
 /**
@@ -214,13 +217,11 @@ function startServer(
 }
 
 function makeProjectRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-capture-answer-"));
-  // git init so the tasks contributor's `git add` does not throw against
-  // a non-repo (the contributor swallows that failure either way, but a
-  // clean env keeps the surface honest).
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-answer-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "capture-answer",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -257,8 +258,9 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     const captureProvider = new CaptureProviderImpl({ classifier });
     captureProvider.register(createMemoryCaptureContributor(memoryStore));
     captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-    captureProvider.register(createTasksCaptureContributor(projectRoot));
-    captureProvider.register(createInboxContributor(projectRoot));
+    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    captureProvider.register(createTasksCaptureContributor(mutationTarget));
+    captureProvider.register(createInboxContributor(mutationTarget));
 
     const recallProvider = new RecallProviderImpl({
       onContributorError: () => {},

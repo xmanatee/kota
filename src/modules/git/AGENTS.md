@@ -14,22 +14,6 @@ This directory owns the `git` capability pack — version control operations wit
   config-selected, and remote-destructive forms are dangerous.
   Deletion of protected local branches is blocked. Large diffs are auto-truncated.
 - Tools and tests live here; no tool logic belongs in `src/core/tools/`.
-- Automation worktrees use `.worktreeinclude` as a line-oriented allowlist for
-  copied local setup files. Entries must be repo-relative, must point at
-  git-ignored files or directories, and must not be symlinks.
-- Preserved builder recovery checkpoints visible work on the existing task
-  branch, then reconciles canonical under the same lock and bounded conflict
-  boundary as the final merge gate. Worktree metadata keeps the original base,
-  checkpoint, integrated head, conflicts, and disposition. Text conflicts and
-  canonical destructive paths may reach the bounded resolver; canonical
-  destructive paths must remain absent. Other structural and binary conflicts
-  stay review-only.
-- Structured semantic conflict feedback can guide another already-budgeted
-  bounded attempt; it never expands paths, attempts, or merge authority.
-- Merge-gate contention waits cancelably and is never classified as a semantic
-  conflict. Lock ownership is token-bound, and locks owned by dead processes
-  are reclaimed before another canonical integration begins.
-
 ## Boundaries
 
 - Does not own GitHub API operations (those belong in `github/`).

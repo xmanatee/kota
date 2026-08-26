@@ -2,13 +2,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type AgentHarness,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import { deregisterTool, registerTool } from "#core/tools/index.js";
 import { RepairAgentRuntimeError } from "#core/workflow/repair-loop.js";
 import type {
   WorkflowRunMetadata,
@@ -28,10 +30,12 @@ import {
 } from "#core/workflow/steps/step-executor.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   KOTA_OWNER_QUESTIONS_MCP_SERVER,
   KOTA_OWNER_QUESTIONS_MCP_TOOL,
 } from "#modules/claude-agent-harness/kota-tools-mcp.js";
+import { createTestTransactionalRunState } from "./core/workflow/testing/run-context-fixture.js";
 import {
   makeDefinition,
   makeMetadata,
@@ -41,9 +45,28 @@ import {
   TRIGGER,
 } from "./workflow-step-executor-fixture.integration.js";
 
+const REPAIR_CHECK_TOOL = "repair_check_a_fixture";
+
 describe("executeStep repair loop", () => {
   let projectDir: string;
   let agentConfig: AgentStepConfig;
+
+  beforeAll(() => {
+    registerTool(
+      {
+        name: REPAIR_CHECK_TOOL,
+        description: "Read-only repair check fixture",
+        input_schema: { type: "object", properties: {} },
+      },
+      async () => ({ content: "unused registry runner" }),
+      undefined,
+      { effect: readOnlyLocalEffect() },
+    );
+  });
+
+  afterAll(() => {
+    deregisterTool(REPAIR_CHECK_TOOL);
+  });
 
   beforeEach(() => {
     projectDir = join(
@@ -62,6 +85,9 @@ describe("executeStep repair loop", () => {
   function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
     return {
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "test",
@@ -75,9 +101,8 @@ describe("executeStep repair loop", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
-      runAgentHarness: createWorkflowAgentHarnessRunner(
-        agentConfig.agentRunLimiter,
-      ),
+      runAgentHarness: createWorkflowAgentHarnessRunner(),
+      runCommand: unexpectedWorkflowCommandRun,
       runTool,
       emit: () => {},
       requestRestart: () => {},
@@ -100,7 +125,7 @@ describe("executeStep repair loop", () => {
     const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 2,
-        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+        checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],
       },
     });
 
@@ -140,7 +165,7 @@ describe("executeStep repair loop", () => {
     const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 3,
-        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+        checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],
       },
     });
 
@@ -211,7 +236,7 @@ describe("executeStep repair loop", () => {
       model: "test-model",
       repairLoop: {
         maxRepairAttempts: 2,
-        checks: [{ id: "check-lint", tool: "shell", input: { command: "pnpm lint" } }],
+        checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "pnpm lint" } }],
       },
     });
 
@@ -254,7 +279,7 @@ describe("executeStep repair loop", () => {
     const step = makeStep(projectDir, {
       repairLoop: {
         maxRepairAttempts: 3,
-        checks: [{ id: "check-lint", tool: "shell", input: { command: "npm run lint" } }],
+        checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],
       },
     });
 

@@ -16,6 +16,7 @@ type PrPayload = {
   title?: string | null;
   headBranch?: string | null;
   baseBranch?: string | null;
+  headSha?: string | null;
   isFork?: boolean | null;
   actorIntegrity?: GitHubWebhookActorIntegrity | null;
   actorIntegrityReason?: string | null;
@@ -29,7 +30,7 @@ function makeTrigger(overrides: PrPayload = {}) {
       action: "opened",
       number: 42,
       title: "Add feature X",
-      headBranch: "kota/task/task-feature-x",
+      headBranch: "feature/semantic-review",
       baseBranch: "main",
       isFork: false,
       headSha: "abc123",
@@ -46,7 +47,7 @@ function makeTrigger(overrides: PrPayload = {}) {
 function reviewDraft(overrides: { recommendation?: string; body?: string } = {}) {
   return {
     recommendation: overrides.recommendation ?? "approve",
-    body: overrides.body ?? "Summary: the task criteria are covered.",
+    body: overrides.body ?? "Summary: the pull request's stated intent is covered.",
   };
 }
 
@@ -78,7 +79,6 @@ function buildReviewPrompt(trigger: WorkflowRunTrigger): string {
     ...prReviewerWorkflow,
     enabled: prReviewerWorkflow.enabled ?? true,
     moduleRoot,
-    recoveryCapable: prReviewerWorkflow.recoveryCapable ?? false,
     definitionPath: "src/modules/autonomy/workflows/pr-reviewer/workflow.ts",
     tags: prReviewerWorkflow.tags ?? [],
     triggers: [{ event: "github.pull_request", cooldownMs: 0 }],
@@ -147,20 +147,6 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(result.steps.review.status).toBe("skipped");
   });
 
-  it("skips when headBranch does not match kota/task/*", async () => {
-    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
-      trigger: makeTrigger({ headBranch: "feature/some-other-branch" }),
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["assess-pr"].output).toMatchObject({
-      skip: true,
-      skipReason: expect.stringContaining("non-KOTA branch"),
-    });
-    expect(result.steps.review.status).toBe("skipped");
-  });
-
   it("skips when headBranch is null", async () => {
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ headBranch: null }),
@@ -169,6 +155,20 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     const result = await harness.run();
 
     expect(result.steps["assess-pr"].output).toMatchObject({ skip: true });
+    expect(result.steps.review.status).toBe("skipped");
+  });
+
+  it("skips when the head SHA is missing", async () => {
+    const harness = new WorkflowTestHarness(prReviewerWorkflow, {
+      trigger: makeTrigger({ headSha: null }),
+    });
+
+    const result = await harness.run();
+
+    expect(result.steps["assess-pr"].output).toMatchObject({
+      skip: true,
+      skipReason: expect.stringContaining("head SHA"),
+    });
     expect(result.steps.review.status).toBe("skipped");
   });
 
@@ -186,7 +186,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(result.steps.review.status).toBe("skipped");
   });
 
-  it("skips low-trust same-repo kota/task PRs before review", async () => {
+  it("skips low-trust same-repository PRs before review", async () => {
     const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({
@@ -242,7 +242,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
     expect(result.steps.review.status).toBe("skipped");
   });
 
-  it("does not skip when action is synchronize and branch is kota/task/*", async () => {
+  it("reviews a synchronize event without imposing a branch naming convention", async () => {
     const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger({ action: "synchronize" }),
@@ -260,14 +260,15 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       skip: false,
       prNumber: 42,
       repo: "owner/repo",
-      headBranch: "kota/task/task-feature-x",
+      headBranch: "feature/semantic-review",
+      headSha: "abc123",
     });
     expect(result.steps.review.status).toBe("success");
     expect(result.steps["post-comment"].status).toBe("success");
     expect(tools.calls).toHaveLength(1);
   });
 
-  it("runs review when action is opened and branch is kota/task/*", async () => {
+  it("reviews an opened trusted same-repository PR", async () => {
     const tools = toolSpy();
     const harness = new WorkflowTestHarness(prReviewerWorkflow, {
       trigger: makeTrigger(),
@@ -286,14 +287,15 @@ describe("pr-reviewer workflow — assess-pr step", () => {
       skip: false,
       repo: "owner/repo",
       prNumber: 42,
-      headBranch: "kota/task/task-feature-x",
+      headBranch: "feature/semantic-review",
+      headSha: "abc123",
     });
     expect(result.steps.review.status).toBe("success");
     expect(result.steps["prepare-comment"].output).toMatchObject({
       repo: "owner/repo",
       prNumber: 42,
       recommendation: "approve",
-      body: "**Recommendation:** approve\n\nSummary: the task criteria are covered.",
+      body: "**Recommendation:** approve\n\nSummary: the pull request's stated intent is covered.",
     });
     expect(result.steps["comment-policy"].output).toMatchObject({
       approvalRequired: true,
@@ -308,7 +310,7 @@ describe("pr-reviewer workflow — assess-pr step", () => {
         input: {
           repo: "owner/repo",
           number: 42,
-          body: "**Recommendation:** approve\n\nSummary: the task criteria are covered.",
+          body: "**Recommendation:** approve\n\nSummary: the pull request's stated intent is covered.",
         },
       },
     ]);

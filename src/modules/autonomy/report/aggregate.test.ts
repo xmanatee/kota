@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
+  emptyAutonomyIssueProjection,
+  materializeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
@@ -62,28 +64,45 @@ function writeRun(
   );
 }
 
-function writeRunSummary(
+function writeWriterIntegration(
   runsDir: string,
   id: string,
-  summary: Record<string, unknown>,
+  workflow: string,
+  changedPaths: readonly string[] = [],
 ): void {
   writeFileSync(
-    join(runsDir, id, "run-summary.json"),
+    join(runsDir, id, "writer-integration.json"),
     JSON.stringify({
+      version: 1,
       runId: id,
-      workflow: "builder",
-      taskId: null,
-      taskTitle: null,
-      outcome: "success",
-      commitSha: "abc",
+      workflow,
+      projectId: "test-project",
+      targetBranch: "main",
+      baseHead: "base",
+      integratedFromHead: "base",
+      publishedHead: "abc",
+      commitSubject: "x",
       commitMessage: "x",
-      filesChanged: [],
-      costUsd: null,
-      durationMs: null,
+      changedPaths,
       completedAt: new Date(NOW).toISOString(),
-      ...summary,
     }),
   );
+}
+
+function builderTrigger(taskId: string, title: string) {
+  const taskDigest = "0".repeat(64);
+  return {
+    event: "autonomy.queue.available",
+    payload: {
+      taskId,
+      taskPath: `data/tasks/ready/${taskId}.md`,
+      taskState: "ready",
+      taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      taskDigest,
+      idempotencyKey: `builder:${taskId}:${taskDigest}`,
+      title,
+    },
+  };
 }
 
 function writeTrajectoryDiagnostics(
@@ -346,25 +365,13 @@ describe("aggregateAutonomyReport", () => {
       status: "success",
       durationMs: 1000,
       totalCostUsd: 0.5,
-      steps: [
-        {
-          id: "commit",
-          type: "code",
-          status: "success",
-          startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
-          completedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
-          durationMs: 100,
-          output: {
-            committed: true,
-            addedTaskFiles: [
-              "data/tasks/backlog/task-strategic-add.md",
-              "data/tasks/backlog/task-fanout-add.md",
-              "data/tasks/backlog/task-missing.md",
-            ],
-          },
-        },
-      ],
+      steps: [],
     });
+    writeWriterIntegration(runsDir, explorerRunId, "explorer", [
+      "data/tasks/backlog/task-strategic-add.md",
+      "data/tasks/backlog/task-fanout-add.md",
+      "data/tasks/backlog/task-missing.md",
+    ]);
 
     const report = aggregateAutonomyReport({
       projectDir,
@@ -382,7 +389,7 @@ describe("aggregateAutonomyReport", () => {
     expect(counts).toEqual({ strategic: 1, "fan-out": 1, other: 0 });
   });
 
-  it("falls back to addedFilesBySha when explorer output omits addedTaskFiles", () => {
+  it("uses runtime integration evidence when explorer output omits addedTaskFiles", () => {
     writeTask(projectDir, "backlog", "task-explorer-fallback", {
       priority: "p1",
       area: "modules",
@@ -395,34 +402,18 @@ describe("aggregateAutonomyReport", () => {
       status: "success",
       durationMs: 1000,
       totalCostUsd: 0.5,
-      steps: [
-        {
-          id: "commit",
-          type: "code",
-          status: "success",
-          startedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
-          completedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
-          durationMs: 100,
-          // Older shape: only sha + committed flag, no addedTaskFiles inline.
-          output: { committed: true, sha: "deadbeef" },
-        },
-      ],
+      steps: [],
     });
+    writeWriterIntegration(runsDir, explorerRunId, "explorer", [
+      "data/tasks/backlog/task-explorer-fallback.md",
+      "src/modules/autonomy/report/aggregate.ts",
+    ]);
 
     const report = aggregateAutonomyReport({
       projectDir,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
-      addedFilesBySha: new Map([
-        [
-          "deadbeef",
-          [
-            "data/tasks/backlog/task-explorer-fallback.md",
-            "src/modules/autonomy/run-summary.ts",
-          ],
-        ],
-      ]),
     });
 
     expect(report.explorer.totalTaskAdditions).toBe(1);
@@ -451,12 +442,10 @@ describe("aggregateAutonomyReport", () => {
       status: "success",
       durationMs: 1000,
       totalCostUsd: 0.4,
+      trigger: builderTrigger("task-builder-arch", "Arch task"),
       steps: [],
     });
-    writeRunSummary(runsDir, archRunId, {
-      taskId: "task-builder-arch",
-      taskTitle: "Arch task",
-    });
+    writeWriterIntegration(runsDir, archRunId, "builder");
 
     const clientRunId = "2026-04-28T10-00-00-000Z-builder-ccc";
     writeRun(runsDir, clientRunId, {
@@ -465,12 +454,10 @@ describe("aggregateAutonomyReport", () => {
       status: "success",
       durationMs: 1000,
       totalCostUsd: 0.1,
+      trigger: builderTrigger("task-builder-client", "Client task"),
       steps: [],
     });
-    writeRunSummary(runsDir, clientRunId, {
-      taskId: "task-builder-client",
-      taskTitle: "Client task",
-    });
+    writeWriterIntegration(runsDir, clientRunId, "builder");
 
     const report = aggregateAutonomyReport({
       projectDir,
@@ -493,7 +480,7 @@ describe("aggregateAutonomyReport", () => {
     expect(byClass["fan-out"].totalCostUsd).toBeCloseTo(0.1);
   });
 
-  it("counts unresolved builder closures when run-summary or task is missing", () => {
+  it("counts unresolved builder closures when integration evidence or task is missing", () => {
     const orphanRunId = "2026-04-28T11-00-00-000Z-builder-ddd";
     writeRun(runsDir, orphanRunId, {
       workflow: "builder",
@@ -503,7 +490,7 @@ describe("aggregateAutonomyReport", () => {
       totalCostUsd: 0.05,
       steps: [],
     });
-    // No run-summary written.
+    // No writer integration evidence written.
 
     const ghostRunId = "2026-04-28T12-00-00-000Z-builder-eee";
     writeRun(runsDir, ghostRunId, {
@@ -512,9 +499,10 @@ describe("aggregateAutonomyReport", () => {
       status: "success",
       durationMs: 1,
       totalCostUsd: 0.05,
+      trigger: builderTrigger("task-no-such-task", "Ghost task"),
       steps: [],
     });
-    writeRunSummary(runsDir, ghostRunId, { taskId: "task-no-such-task" });
+    writeWriterIntegration(runsDir, ghostRunId, "builder");
 
     const report = aggregateAutonomyReport({
       projectDir,
@@ -646,9 +634,12 @@ describe("aggregateAutonomyReport", () => {
       ],
       observationCount: 2,
     });
-    applyAutonomyIssueObservations({ projectDir, observations: [observation] });
-    recordAutonomyIssueDispositions({
-      projectDir,
+    const projected = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
+      observations: [observation],
+    }).projection;
+    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+      current: projected,
       updates: [
         {
           issueKey: observation.issueKey,
@@ -658,7 +649,7 @@ describe("aggregateAutonomyReport", () => {
           ownerQuestionIds: [],
         },
       ],
-    });
+    }));
 
     const report = aggregateAutonomyReport({
       projectDir,

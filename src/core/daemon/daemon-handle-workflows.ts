@@ -39,10 +39,9 @@ export function buildDaemonWorkflowHandle(
       const workflows = lookupRuntime(projectId).workflowRuntime;
       const wfState = workflows.getState();
       const windowStatus = workflows.getDispatchWindowStatus();
-      const recovery = workflows.getRecoveryStatus();
-      const pause = workflows.getDispatchPauseStatus(recovery);
+      const pause = workflows.getDispatchPauseStatus();
       return {
-        activeRuns: wfState.activeRuns ?? [],
+        activeRuns: wfState.activeRuns,
         pendingRuns: wfState.pendingRuns,
         queueLength: wfState.queueLength,
         completedRuns: wfState.completedRuns,
@@ -54,9 +53,7 @@ export function buildDaemonWorkflowHandle(
         workflows: wfState.workflows,
         paused: workflows.isDispatchPaused(),
         pause,
-        recovery,
-        agentConcurrency: wfState.agentConcurrency,
-        codeConcurrency: wfState.codeConcurrency,
+        concurrency: wfState.concurrency,
         ...(windowStatus.blocked && {
           dispatchWindowBlocked: true,
           dispatchWindowOpensAt: windowStatus.opensAt,
@@ -65,21 +62,12 @@ export function buildDaemonWorkflowHandle(
     },
     pauseWorkflowDispatch: (projectId?: ProjectId) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
-      const already = workflows.isDispatchPaused();
+      const already = workflows.getDispatchPauseStatus().kind === "operator";
       if (!already) workflows.setDispatchPaused(true, "persistent");
       return { already };
     },
     resumeWorkflowDispatch: (projectId, options) => {
       const workflows = lookupRuntime(projectId).workflowRuntime;
-      const recovery = workflows.getRecoveryStatus();
-      const pause = workflows.getDispatchPauseStatus(recovery);
-      if (pause.kind === "dirty-recovery") {
-        return {
-          already: true,
-          blocked: "dirty-recovery" as const,
-          message: pause.nextAction,
-        };
-      }
       const already = !workflows.isDispatchPaused();
       const agentBackoffCleared = options?.retryAgent === true &&
         workflows.clearAgentBackoff("after explicit operator retry");

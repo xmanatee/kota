@@ -17,6 +17,7 @@ function skipReasonOf(step: { skipReason?: WorkflowStepSkipReason }): WorkflowSt
 describe("WorkflowTestHarness — typed skip reasons", () => {
   it("defaults projectDir to the OS temp directory", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -34,6 +35,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
 
   it("tags a when-false leaf skip as when-predicate", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -54,6 +56,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
   it("carries a predicate's skipLabel through the when-predicate reason", async () => {
     const gated = labeledPredicate("recovery-trigger-gate", () => false);
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -70,6 +73,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
 
   it("tags branch-arm children as branch-arm-not-taken", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -95,6 +99,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
 
   it("tags parallel child when-predicate skips on the child", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -122,6 +127,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
 
   it("tags foreach inner templates as foreach-empty when items is empty", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -142,6 +148,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
 
   it("tags children of a when-skipped parallel group as parent-skipped", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [

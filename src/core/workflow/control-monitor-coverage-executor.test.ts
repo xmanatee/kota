@@ -8,10 +8,65 @@ import {
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
   type ControlMonitorCoverageArtifact,
 } from "./control-monitor-coverage.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = projectDir,
+  repositoryHeadSha?: string,
+): RunContext {
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: repositoryHeadSha === undefined
+      ? {
+          runId,
+          repository: "none",
+          rootDir: projectDir,
+          workspaceDir,
+          tempDir: projectDir,
+          artifactDir: projectDir,
+        }
+      : {
+          runId,
+          repository: "read",
+          baseCommit: repositoryHeadSha,
+          rootDir: projectDir,
+          workspaceDir,
+          tempDir: projectDir,
+          artifactDir: projectDir,
+        },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 function writeJson(path: string, value: object): void {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
@@ -42,7 +97,7 @@ describe("control monitor coverage executor persistence", () => {
     const definition: WorkflowDefinition = {
       name: "coverage-smoke",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-smoke/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -57,11 +112,10 @@ describe("control monitor coverage executor persistence", () => {
     };
 
     const { promise } = executeWorkflowRun(definition, trigger, {
-      projectDir,
+      runContext: makeRunContext(projectDir, trigger, "executor-run"),
       bus: new EventBus(),
       store,
       log: vi.fn(),
-      runId: "executor-run",
     });
     const result = await promise;
     const artifactPath = join(
@@ -78,8 +132,47 @@ describe("control monitor coverage executor persistence", () => {
         id: "executor-run",
         workflow: "coverage-smoke",
         status: "success",
+        headSha: null,
       },
     });
+  });
+
+  it("uses the lifecycle-captured repository head without inspecting ambient Git", async () => {
+    const store = new WorkflowRunStore(projectDir);
+    const trigger: WorkflowRunTrigger = {
+      event: "runtime.idle",
+      schemaRef: null,
+      payload: {},
+    };
+    const definition: WorkflowDefinition = {
+      name: "coverage-snapshot",
+      enabled: true,
+      repository: "read",
+      definitionPath: "src/modules/test/workflows/coverage-snapshot/workflow.ts",
+      moduleRoot: projectDir,
+      triggers: [],
+      tags: [],
+      steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
+    };
+
+    const { promise } = executeWorkflowRun(definition, trigger, {
+      runContext: makeRunContext(
+        projectDir,
+        trigger,
+        "snapshot-run",
+        projectDir,
+        "captured-head",
+      ),
+      bus: new EventBus(),
+      store,
+      log: vi.fn(),
+    });
+    const result = await promise;
+    const artifact = readOptionalJsonFile<ControlMonitorCoverageArtifact>(
+      join(projectDir, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+    );
+
+    expect(artifact?.run.headSha).toBe("captured-head");
   });
 
   it("refreshes linked source run coverage when an async reviewer finishes", async () => {
@@ -87,7 +180,7 @@ describe("control monitor coverage executor persistence", () => {
     const sourceDefinition: WorkflowDefinition = {
       name: "monitored-source",
       enabled: true,
-      recoveryCapable: false,
+      repository: "read",
       definitionPath: "src/modules/test/workflows/monitored-source/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -103,7 +196,7 @@ describe("control monitor coverage executor persistence", () => {
     const reviewerDefinition: WorkflowDefinition = {
       name: "progress-reviewer",
       enabled: true,
-      recoveryCapable: false,
+      repository: "read",
       definitionPath: "src/modules/test/workflows/progress-reviewer/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -122,19 +215,25 @@ describe("control monitor coverage executor persistence", () => {
       ],
     };
     const bus = new EventBus();
+    const sourceTrigger: WorkflowRunTrigger = {
+      event: "runtime.idle",
+      schemaRef: null,
+      payload: {},
+    };
     const sourceRun = await executeWorkflowRun(
       sourceDefinition,
+      sourceTrigger,
       {
-        event: "runtime.idle",
-        schemaRef: null,
-        payload: {},
-      },
-      {
-        projectDir,
+        runContext: makeRunContext(
+          projectDir,
+          sourceTrigger,
+          "source-run",
+          projectDir,
+          "source-head",
+        ),
         bus,
         store,
         log: vi.fn(),
-        runId: "source-run",
       },
     ).promise;
     const sourceCoveragePath = join(
@@ -144,6 +243,7 @@ describe("control monitor coverage executor persistence", () => {
     );
     const initialCoverage =
       readOptionalJsonFile<ControlMonitorCoverageArtifact>(sourceCoveragePath);
+    expect(initialCoverage?.run.headSha).toBe("source-head");
     expect(initialCoverage?.families).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -153,9 +253,7 @@ describe("control monitor coverage executor persistence", () => {
       ]),
     );
 
-    await executeWorkflowRun(
-      reviewerDefinition,
-      {
+    const reviewerTrigger: WorkflowRunTrigger = {
         event: "workflow.batch.flushed",
         schemaRef: null,
         payload: {
@@ -195,18 +293,27 @@ describe("control monitor coverage executor persistence", () => {
             droppedInputCount: 0,
           },
         },
-      },
+    };
+    await executeWorkflowRun(
+      reviewerDefinition,
+      reviewerTrigger,
       {
-        projectDir,
+        runContext: makeRunContext(
+          projectDir,
+          reviewerTrigger,
+          "review-run",
+          projectDir,
+          "reviewer-head",
+        ),
         bus,
         store,
         log: vi.fn(),
-        runId: "review-run",
       },
     ).promise;
     const refreshed =
       readOptionalJsonFile<ControlMonitorCoverageArtifact>(sourceCoveragePath);
 
+    expect(refreshed?.run.headSha).toBe("source-head");
     expect(refreshed?.monitoredSurfaceCounts.postRunReviewLinks).toBe(1);
     expect(refreshed?.families).toEqual(
       expect.arrayContaining([
@@ -240,7 +347,7 @@ describe("control monitor coverage executor persistence", () => {
     const reviewerDefinition: WorkflowDefinition = {
       name: "progress-reviewer",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/modules/test/workflows/progress-reviewer/workflow.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -254,9 +361,7 @@ describe("control monitor coverage executor persistence", () => {
       ],
     };
 
-    await executeWorkflowRun(
-      reviewerDefinition,
-      {
+    const traversalTrigger: WorkflowRunTrigger = {
         event: "workflow.batch.flushed",
         schemaRef: null,
         payload: {
@@ -276,13 +381,19 @@ describe("control monitor coverage executor persistence", () => {
             },
           ],
         },
-      },
+    };
+    await executeWorkflowRun(
+      reviewerDefinition,
+      traversalTrigger,
       {
-        projectDir,
+        runContext: makeRunContext(
+          projectDir,
+          traversalTrigger,
+          "review-run-traversal",
+        ),
         bus: new EventBus(),
         store,
         log: vi.fn(),
-        runId: "review-run-traversal",
       },
     ).promise;
 

@@ -6,8 +6,8 @@
  * output cannot drift between operator surfaces.
  *
  * Honors the on-demand seam invariants from the workflow's local AGENTS.md:
- * reuses `renderOnDemandAttention`, so it does not write
- * `<runsDir>/../attention-digest-counter.json` and does not emit
+ * reuses `renderOnDemandAttention`, so it does not mutate runtime-owned
+ * cadence state and does not emit
  * `workflow.attention.digest`. Per the no-cost-bias-in-autonomy contract,
  * this body is operator-facing only — it never reaches an autonomy agent
  * prompt because the route is an HTTP handler, not an agent step with

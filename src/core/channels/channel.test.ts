@@ -17,7 +17,7 @@ const STUB_START_CTX: ChannelStartContext = {
   log: () => {},
   reportFailure: () => {},
   getWorkflowStatus: () => ({
-    runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+    runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
     dispatchPaused: false,
     runsDir: "/tmp/.kota/runs",
   }),

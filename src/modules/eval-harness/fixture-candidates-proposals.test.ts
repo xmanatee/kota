@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import { mineFixtureCandidates } from "./fixture-candidates.js";
 
 function writeJson(path: string, value: unknown): void {
@@ -46,11 +47,10 @@ function seedRun(
       { id: "verify", type: "code", status: "success", output: { command: commands[0] } },
     ],
   });
-  writeJson(join(runDir, "run-summary.json"), {
+  writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
     runId,
     workflow: "builder",
-    taskId: `task-${runId}`,
-    filesChanged: options.filesChanged ?? ["src/modules/eval-harness/candidate.ts"],
+    changedPaths: options.filesChanged ?? ["src/modules/eval-harness/candidate.ts"],
   });
   writeJson(join(runDir, "evaluator-calibration.json"), {
     runId,

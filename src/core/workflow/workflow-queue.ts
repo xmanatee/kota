@@ -1,8 +1,13 @@
-import type { KotaConfig } from "#core/config/config.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
-import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { RunCoordinator } from "./run-coordinator.js";
 import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
+import {
+  AdmissionKeyConflictError,
+  type RunAdmissionDisposition,
+  type RunStateDatabase,
+  type StoredRun,
+} from "./run-state-database.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import {
@@ -17,29 +22,36 @@ import {
   hasExplicitWorkflowDispatchKey,
   workflowDispatchIdempotency,
 } from "./workflow-idempotency.js";
-import {
-  buildBurstQueuedRuns,
-  burstDispatchSlots,
-  resolveWorkflowDispatchBurst,
-} from "./workflow-queue-burst.js";
 import { rejectInvalidTriggerPayload } from "./workflow-queue-validation.js";
 import { rejectUnadmittedWorkflowTrigger } from "./workflow-trigger-admission.js";
 
 export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
-  projectDir?: string;
-  getConfig?: () => KotaConfig | undefined;
-  idempotencyStore: IdempotencyStore;
+  runState: RunStateDatabase;
+  coordinator: RunCoordinator;
+  projectId: string;
+  projectDir: string;
   deadLetterQueue?: DeadLetterQueueStore;
   getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
   workflowUsesAgent: (definition: WorkflowDefinition) => boolean;
-  concurrencyLimit: (definition: WorkflowDefinition) => number;
-  isActiveRun: (workflowName: string) => boolean;
-  activeRunCount?: (workflowName: string) => number;
   getDefinitions: () => WorkflowDefinition[];
   log: (message: string) => void;
 };
+
+function asQueued(run: StoredRun): WorkflowQueuedRun {
+  return {
+    runId: run.id,
+    workflowName: run.workflow,
+    trigger: run.trigger,
+    enqueuedAtMs: Date.parse(run.admittedAt),
+    notBeforeMs: run.notBeforeAt ? Date.parse(run.notBeforeAt) : Date.parse(run.admittedAt),
+  };
+}
+
+function sameResources(left: readonly string[], right: readonly string[]): boolean {
+  return JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+}
 
 const RESTORABLE_CONTROL_TRIGGER_EVENTS = new Set([
   "manual",
@@ -88,55 +100,43 @@ function resolveRestoredTrigger(
   return triggerConfig ? { kind: "declared", triggerConfig } : null;
 }
 
-function restoredRunIsDistinct(
-  triggerConfig: WorkflowTrigger,
-  trigger: WorkflowRunTrigger,
-  dispatchBurst: number,
-): boolean {
-  return trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
-    dispatchBurst > 1 ||
-    triggerConfig.queueMode === "all" ||
-    (hasExplicitWorkflowDispatchKey(trigger) &&
-      triggerConfig.queueMode !== "latest");
-}
-
+/** Trigger admission adapter. RunStateDatabase is the only durable queue. */
 export class WorkflowQueueManager {
-  private queue: WorkflowQueuedRun[] = [];
-
   constructor(private readonly config: WorkflowQueueManagerConfig) {}
 
   get length(): number {
-    return this.queue.length;
+    return this.getRuns().length;
   }
 
   getRuns(): WorkflowQueuedRun[] {
-    return this.queue;
+    return this.config.runState
+      .listRuns(this.config.projectId, ["queued"])
+      .map(asQueued);
   }
 
-  setRuns(runs: WorkflowQueuedRun[]): void {
-    this.queue = runs;
-  }
-
-  persist(): void {
-    this.config.store.setPendingRuns(this.queue);
-  }
-
+  /** Revalidate durable queued work after definitions are loaded. */
   restorePending(): void {
-    const state = this.config.store.readState();
     const definitions = new Map(
       this.config
         .getDefinitions()
         .filter((definition) => definition.enabled)
         .map((definition) => [definition.name, definition]),
     );
-    const restored: WorkflowQueuedRun[] = [];
-    for (const item of state.pendingRuns) {
-      const definition = definitions.get(item.workflowName);
-      if (!definition) continue;
-      const resolution = resolveRestoredTrigger(definition, item.trigger);
-      if (!resolution) {
-        this.config.log(
-          `Skipped restored workflow "${definition.name}" from event "${item.trigger.event}": event is not accepted by the current definition`,
+    const pending = this.config.runState.listRuns(this.config.projectId, [
+      "queued",
+    ]);
+    let restored = 0;
+    for (const run of pending) {
+      const definition = definitions.get(run.workflow);
+      if (!definition) {
+        this.cancelRestoredRun(run, "workflow is unavailable or disabled");
+        continue;
+      }
+      const resolution = resolveRestoredTrigger(definition, run.trigger);
+      if (resolution === null) {
+        this.cancelRestoredRun(
+          run,
+          `event "${run.trigger.event}" is not accepted by the current definition`,
         );
         continue;
       }
@@ -144,64 +144,51 @@ export class WorkflowQueueManager {
         resolution.kind === "declared" &&
         rejectInvalidTriggerPayload({
           definition,
-          trigger: item.trigger,
+          trigger: run.trigger,
           deadLetterQueue: this.config.deadLetterQueue,
           scopeId: this.config.getScopeId(),
           log: this.config.log,
         })
       ) {
+        this.cancelRestoredRun(run, "payload validation failed");
         continue;
       }
       if (
         rejectUnadmittedWorkflowTrigger({
           definition,
-          projectDir: this.config.projectDir ?? process.cwd(),
-          trigger: item.trigger,
+          projectDir: this.config.projectDir,
+          stateDir: this.config.store.rootDir,
+          projectId: this.config.projectId,
+          runState: this.config.runState,
+          trigger: run.trigger,
           log: this.config.log,
         })
       ) {
+        this.cancelRestoredRun(run, "definition admission rejected the trigger");
         continue;
       }
+      const resources = definition.resources?.({
+        projectDir: this.config.projectDir,
+        stateDir: this.config.store.rootDir,
+        workflowName: definition.name,
+        trigger: run.trigger,
+      }) ?? [];
       if (
-        resolution.kind === "declared" &&
-        !restoredRunIsDistinct(
-          resolution.triggerConfig,
-          item.trigger,
-          resolveWorkflowDispatchBurst({
-            definition,
-            trigger: item.trigger,
-            projectDir: this.config.projectDir ?? process.cwd(),
-            config: this.config.getConfig?.(),
-            concurrencyLimit: this.config.concurrencyLimit(definition),
-          }),
-        )
+        run.repository !== definition.repository ||
+        !sameResources(run.resources, resources)
       ) {
-        const existingIndex = restored.findIndex(
-          (queued) =>
-            queued.workflowName === item.workflowName &&
-            queued.trigger.event === item.trigger.event,
+        this.cancelRestoredRun(
+          run,
+          "definition repository or resource ownership changed",
         );
-        if (existingIndex >= 0) {
-          const existing = restored[existingIndex]!;
-          restored[existingIndex] = {
-            ...item,
-            runId: existing.runId,
-            enqueuedAtMs: existing.enqueuedAtMs,
-            notBeforeMs: Math.max(existing.notBeforeMs, item.notBeforeMs),
-          };
-          this.config.log(
-            `Coalesced restored workflow "${definition.name}" with event "${item.trigger.event}" against the current definition`,
-          );
-          continue;
-        }
+        continue;
       }
-      restored.push(item);
+      restored += 1;
     }
-    this.queue = restored;
-    this.persist();
-    if (this.queue.length > 0) {
-      this.config.log(`Recovered ${this.queue.length} queued workflow run(s)`);
+    if (restored > 0) {
+      this.config.log(`Recovered ${restored} durable queued workflow run(s)`);
     }
+    this.config.coordinator.refill();
   }
 
   enqueue(
@@ -216,211 +203,203 @@ export class WorkflowQueueManager {
         deadLetterQueue: this.config.deadLetterQueue,
         scopeId: this.config.getScopeId(),
         log: this.config.log,
+      }) ||
+      rejectUnadmittedWorkflowTrigger({
+        definition,
+        projectDir: this.config.projectDir,
+        stateDir: this.config.store.rootDir,
+        projectId: this.config.projectId,
+        runState: this.config.runState,
+        trigger,
+        log: this.config.log,
       })
     ) return;
 
-    if (rejectUnadmittedWorkflowTrigger({
-      definition,
-      projectDir: this.config.projectDir ?? process.cwd(),
-      trigger,
-      log: this.config.log,
-    })) return;
-
-    const dispatchBurst = resolveWorkflowDispatchBurst({
-      definition,
-      trigger,
-      projectDir: this.config.projectDir ?? process.cwd(),
-      config: this.config.getConfig?.(),
-      concurrencyLimit: this.config.concurrencyLimit(definition),
-    });
-    const queueEveryDelivery = triggerConfig.queueMode === "all";
-    const explicitlyKeyed = hasExplicitWorkflowDispatchKey(trigger);
-    const idempotency = workflowDispatchIdempotency(
-      this.config.idempotencyStore,
-      definition.name,
-      trigger,
-    );
-    const distinctQueuedRun =
-      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
-      dispatchBurst > 1 ||
-      queueEveryDelivery ||
-      (explicitlyKeyed && triggerConfig.queueMode !== "latest");
-    const existingIndex = distinctQueuedRun
-      ? -1
-      : this.queue.findIndex(
-          (queued) =>
-            queued.workflowName === definition.name &&
-            queued.trigger.event === trigger.event,
-        );
-    const state = this.config.store.readState();
-    const existing = existingIndex >= 0 ? this.queue[existingIndex] : undefined;
-    const providedRunId =
-      workflowRunIdFromPayload(
-        typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined,
-        `Workflow "${definition.name}" trigger`,
-      );
-    const queuedRun: WorkflowQueuedRun = {
-      runId: existing?.runId ?? providedRunId ?? formatRunId(definition.name),
-      workflowName: definition.name,
-      trigger,
-      enqueuedAtMs: existing ? existing.enqueuedAtMs : Date.now(),
-      notBeforeMs: getEligibleAtMs(
+    const now = Date.now();
+    const backoff = this.config.workflowUsesAgent(definition)
+      ? this.config.getActiveBackoff()
+      : null;
+    const eligibleAt = Math.max(
+      getEligibleAtMs(
         definition.name,
         triggerConfig.cooldownMs,
-        state,
+        this.config.store.readState(),
       ),
-    };
-
-    if (idempotency) {
-      const idempotencyResult = this.config.idempotencyStore.record({
-        scopeId: idempotency.scopeId,
-        operation: "workflow-dispatch",
-        key: idempotency.key,
-        parameterFingerprint: idempotency.parameterFingerprint,
-        result: {
-          workflowName: definition.name,
-          runId: queuedRun.runId ?? "",
-          triggerEvent: trigger.event,
-          queuedAt: new Date(queuedRun.enqueuedAtMs).toISOString(),
-        },
-      });
-      if (idempotencyResult.status !== "accepted") {
-        this.config.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" due to idempotency status "${idempotencyResult.status}"`,
-        );
-        return;
-      }
-    }
-
-    if (dispatchBurst > 1) {
-      const queuedSameWorkflow = this.queue.filter(
-        (item) => item.workflowName === definition.name,
-      ).length;
-      const activeSameWorkflow = this.config.activeRunCount?.(definition.name) ?? 0;
-      const slots = burstDispatchSlots({
-        dispatchBurst,
-        queuedSameWorkflow,
-        activeSameWorkflow,
-      });
-      if (slots === 0) {
-        this.config.log(
-          `Skipped workflow "${definition.name}" from event "${trigger.event}" because burst dispatch is already full`,
-        );
-        return;
-      }
-      const runs = buildBurstQueuedRuns({ queuedRun, slots });
-      this.queue.push(...runs);
-      this.persist();
-      this.config.log(
-        `${this.config.isActiveRun(definition.name) ? "Queued reruns for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}" (${runs.length} run(s))`,
-      );
-      return;
-    }
-
-    if (existingIndex >= 0) {
-      this.queue[existingIndex] = {
-        ...queuedRun,
-        notBeforeMs: Math.max(
-          existing!.notBeforeMs,
-          queuedRun.notBeforeMs,
-        ),
-      };
-      this.config.log(
-        `Updated queued workflow "${definition.name}" with event "${trigger.event}"`,
-      );
-      this.persist();
-      return;
-    }
-
-    this.queue.push(queuedRun);
-    this.persist();
-    this.config.log(
-      `${this.config.isActiveRun(definition.name) ? "Queued rerun for" : "Queued"} workflow "${definition.name}" from event "${trigger.event}"`,
+      backoff ? Date.parse(backoff.until) : now,
     );
+    const providedRunId = workflowRunIdFromPayload(
+      typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined,
+      `Workflow "${definition.name}" trigger`,
+    );
+    const resources = definition.resources?.({
+      projectDir: this.config.projectDir,
+      stateDir: this.config.store.rootDir,
+      workflowName: definition.name,
+      trigger,
+    }) ?? [];
+    const distinct =
+      trigger.event === WORKFLOW_BATCH_FLUSH_EVENT ||
+      triggerConfig.queueMode === "all" ||
+      (hasExplicitWorkflowDispatchKey(trigger) && triggerConfig.queueMode !== "latest");
+    const existing = distinct
+      ? null
+      : this.config.runState.findQueuedRun({
+          projectId: this.config.projectId,
+          workflow: definition.name,
+          triggerEvent: trigger.event,
+        });
+
+    const runId = existing && sameResources(existing.resources, resources)
+      ? existing.id
+      : providedRunId ?? formatRunId(definition.name);
+    const admission = workflowDispatchIdempotency(
+      this.config.getScopeId(),
+      definition.name,
+      trigger,
+    ) ?? undefined;
+
+    if (existing?.id === runId) {
+      try {
+        const disposition = this.config.runState.updateQueuedRun({
+          runId,
+          trigger,
+          admission,
+          admittedAt: new Date(now).toISOString(),
+          notBeforeAt: new Date(
+            Math.max(existing.notBeforeAt ? Date.parse(existing.notBeforeAt) : 0, eligibleAt),
+          ).toISOString(),
+        });
+        this.config.log(
+          `${disposition.status === "duplicate" ? "Retained" : "Updated"} queued workflow "${definition.name}" from event "${trigger.event}"`,
+        );
+      } catch (error) {
+        if (!(error instanceof AdmissionKeyConflictError)) throw error;
+        this.config.log(
+          `Rejected workflow "${definition.name}" from event "${trigger.event}": ${error.message}`,
+        );
+        return;
+      }
+    } else {
+      this.admit(definition, trigger, runId, now, eligibleAt, resources, admission);
+    }
+    this.config.coordinator.refill();
   }
 
-  appendRun(queued: WorkflowQueuedRun): void {
-    if (this.queue.some((item) => item.runId === queued.runId)) return;
-    this.queue.push(queued);
-    this.persist();
+  appendRun(queued: WorkflowQueuedRun): RunAdmissionDisposition | null {
+    const definition = this.definition(queued.workflowName);
+    if (!definition?.enabled) return null;
+    if (
+      rejectInvalidTriggerPayload({
+        definition,
+        trigger: queued.trigger,
+        deadLetterQueue: this.config.deadLetterQueue,
+        scopeId: this.config.getScopeId(),
+        log: this.config.log,
+      }) ||
+      rejectUnadmittedWorkflowTrigger({
+        definition,
+        projectDir: this.config.projectDir,
+        stateDir: this.config.store.rootDir,
+        projectId: this.config.projectId,
+        runState: this.config.runState,
+        trigger: queued.trigger,
+        log: this.config.log,
+      })
+    ) {
+      return null;
+    }
+    const disposition = this.admit(
+      definition,
+      queued.trigger,
+      queued.runId ?? formatRunId(queued.workflowName),
+      queued.enqueuedAtMs,
+      queued.notBeforeMs,
+    );
+    this.config.coordinator.refill();
+    return disposition;
   }
 
   appendResumeRun(queued: WorkflowQueuedRun): void {
+    const runId = queued.runId ?? formatRunId(queued.workflowName);
+    const current = this.config.runState.getRun(runId);
+    if (current?.state === "waiting" || current?.state === "needs_attention") {
+      this.config.runState.resumeRun(runId, new Date(queued.notBeforeMs).toISOString());
+      this.config.coordinator.refill();
+      return;
+    }
     this.appendRun(queued);
   }
 
   cancel(runId: string): { cancelled: boolean } {
-    const index = this.queue.findIndex((item) => item.runId === runId);
-    if (index === -1) return { cancelled: false };
-    this.queue.splice(index, 1);
-    this.persist();
-    return { cancelled: true };
+    return { cancelled: this.config.coordinator.cancel(runId) };
   }
 
   cancelByWorkflow(workflowName: string): number {
-    const before = this.queue.length;
-    this.queue = this.queue.filter((item) => item.workflowName !== workflowName);
-    const removed = before - this.queue.length;
-    if (removed > 0) this.persist();
-    return removed;
+    let cancelled = 0;
+    for (const run of this.config.runState.listRuns(this.config.projectId)) {
+      if (run.workflow !== workflowName) continue;
+      if (this.config.coordinator.cancel(run.id)) cancelled += 1;
+    }
+    return cancelled;
   }
 
-  pick(canDispatch?: (def: WorkflowDefinition) => boolean): WorkflowQueuedRun | null {
-    const now = Date.now();
-    const activeAgentBackoff = this.config.getActiveBackoff();
-    const freshState = this.config.store.readState();
-    let timingChanged = false;
-    const eligible = this.queue
-      .map((item, index) => ({ item, index }))
-      .filter(({ item }) => {
-        const definition = this.config
-          .getDefinitions()
-          .find((candidate) => candidate.name === item.workflowName);
+  private definition(name: string): WorkflowDefinition | undefined {
+    return this.config.getDefinitions().find((candidate) => candidate.name === name);
+  }
 
-        // Avoid enqueue-time cooldown drift after concurrent finish() writes.
-        let effectiveNotBefore = item.notBeforeMs;
-        if (definition) {
-          const trigger = definition.triggers.find(
-            (t) => t.event === item.trigger.event,
-          );
-          if (trigger) {
-            if (trigger.cooldownMs > 0) {
-              const lastCompletedAt =
-                freshState.workflows[item.workflowName]?.lastCompletion?.completedAt;
-              if (lastCompletedAt) {
-                const freshEligibleAtMs =
-                  new Date(lastCompletedAt).getTime() + trigger.cooldownMs;
-                effectiveNotBefore = Math.max(effectiveNotBefore, freshEligibleAtMs);
-              }
-            } else {
-              effectiveNotBefore = Math.min(effectiveNotBefore, now);
-            }
-          }
-        }
+  private cancelRestoredRun(run: StoredRun, reason: string): void {
+    this.config.runState.cancelQueuedRun(run.id, new Date().toISOString());
+    this.config.log(
+      `Cancelled durable queued workflow "${run.workflow}" (${run.id}): ${reason}`,
+    );
+  }
 
-        if (effectiveNotBefore !== item.notBeforeMs) {
-          item.notBeforeMs = effectiveNotBefore;
-          timingChanged = true;
-        }
-        if (effectiveNotBefore > now) {
-          return false;
-        }
-        if (!canDispatch && this.config.isActiveRun(item.workflowName)) return false;
-        if (activeAgentBackoff && definition && this.config.workflowUsesAgent(definition)) {
-          return false;
-        }
-        if (canDispatch && definition && !canDispatch(definition)) return false;
-        return true;
-      })
-      .sort((a, b) => a.item.enqueuedAtMs - b.item.enqueuedAtMs);
-
-    if (eligible.length === 0) {
-      if (timingChanged) this.persist();
-      return null;
+  private admit(
+    definition: WorkflowDefinition,
+    trigger: WorkflowRunTrigger,
+    runId: string,
+    enqueuedAtMs: number,
+    notBeforeMs: number,
+    resolvedResources?: readonly string[],
+    resolvedAdmission?: ReturnType<typeof workflowDispatchIdempotency> | undefined,
+  ): RunAdmissionDisposition | null {
+    const resources = resolvedResources ?? definition.resources?.({
+      projectDir: this.config.projectDir,
+      stateDir: this.config.store.rootDir,
+      workflowName: definition.name,
+      trigger,
+    }) ?? [];
+    const admission = resolvedAdmission ?? workflowDispatchIdempotency(
+      this.config.getScopeId(),
+      definition.name,
+      trigger,
+    ) ?? undefined;
+    try {
+      const disposition = this.config.runState.admitRun({
+        id: runId,
+        projectId: this.config.projectId,
+        workflow: definition.name,
+        trigger,
+        repository: definition.repository,
+        resources,
+        admission,
+        admittedAt: new Date(enqueuedAtMs).toISOString(),
+        ...(notBeforeMs > enqueuedAtMs
+          ? { notBeforeAt: new Date(notBeforeMs).toISOString() }
+          : {}),
+      });
+      this.config.log(
+        `${disposition.status === "duplicate" ? "Retained" : "Admitted"} workflow "${definition.name}" from event "${trigger.event}"`,
+      );
+      return disposition;
+    } catch (error) {
+      if (error instanceof AdmissionKeyConflictError) {
+        this.config.log(
+          `Rejected workflow "${definition.name}" from event "${trigger.event}": ${error.message}`,
+        );
+        return null;
+      }
+      throw error;
     }
-    const picked = eligible[0];
-    this.queue.splice(picked.index, 1);
-    this.persist();
-    return picked.item;
   }
 }

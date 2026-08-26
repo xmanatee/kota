@@ -11,15 +11,12 @@ This workflow owns bounded evidence review for scoped activity.
   their own latest-only event slot, while the explicit request event is
   lossless, so owner/system requests cannot replace or be replaced by a
   superseded automatic revision.
-- Reject consumed or superseded automatic revisions through the workflow's
-  canonical `triggerAdmission` watermark before pending-queue insertion.
-  Delivery-attempt keys dedupe replayed events while allowing cleanup-deferred
-  input to receive a fresh delivery.
-- If canonical tracked state becomes dirty before review, park the unconsumed
-  revision and let dispatcher redeliver it after cleanup; never advance the
-  consumption watermark for a skipped run.
+- Reject consumed automatic revisions through the workflow's canonical
+  `triggerAdmission` watermark before durable run admission. The watermark is
+  one runtime state row; `RunStateDatabase` owns queued work and
+  delivery-attempt keys own replay dedupe.
 - Treat the complete current open queue, anchors, dependencies, durable issues,
-  recovery projection, and owner decisions as canonical state. Recent terminal
+  durable run state, and owner decisions as canonical state. Recent terminal
   task history can add context but must not stand in for queue truth.
 - Bind runtime-authored evidence to its pre-agent digest. The reviewer receives
   a machine-enforced per-run `agent-output/` directory while sibling evidence,
@@ -33,3 +30,7 @@ This workflow owns bounded evidence review for scoped activity.
   spam the queue.
 - Reconcile generated tasks and owner questions through the shared proposal
   lifecycle when canonical state disproves their premise.
+- Stage task changes and semantic publication evidence in the writer run.
+  Owner-question reconciliation and the consumed semantic watermark publish
+  through the staged `progress-review-publication` `repository: none`
+  follow-up, using compare-and-set against the runtime state row.

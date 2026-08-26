@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   type FixtureCandidateReport,
   mineFixtureCandidates,
@@ -61,15 +62,13 @@ function seedRun(
       },
     ],
   });
-  writeJson(join(runDir, "run-summary.json"), {
+  writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
     runId,
     workflow: options.workflow ?? "builder",
-    taskId: options.taskId ?? `task-${runId}`,
-    taskTitle: "Candidate run",
-    outcome: "success",
-    commitSha: "abc123",
+    publishedHead: "abc123",
+    commitSubject: "Candidate",
     commitMessage: "Candidate",
-    filesChanged: options.filesChanged ?? ["src/modules/eval-harness/candidate.ts"],
+    changedPaths: options.filesChanged ?? ["src/modules/eval-harness/candidate.ts"],
     completedAt: "2026-06-01T00:01:00.000Z",
   });
   writeJson(join(runDir, "evaluator-calibration.json"), {

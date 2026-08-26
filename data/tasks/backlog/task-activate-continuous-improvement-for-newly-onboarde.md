@@ -8,7 +8,7 @@ task_class: Product
 depends_on: [task-add-one-transactional-external-scope-onboarding-se]
 summary: Gate the existing live-registration review on setup readiness and expose the selected proposal and builder posture to clients.
 created_at: 2026-07-31T16:12:57.060Z
-updated_at: 2026-08-15T22:55:00.000Z
+updated_at: 2026-08-26T00:00:00.000Z
 ---
 
 ## Problem
@@ -50,8 +50,8 @@ builder policy and existing guardrails remain authoritative.
 - Activation occurs only after registry, runtime, trust/policy, project state,
   and required setup are committed. A blocked scope remains registered with an
   explainable readiness state but does not dispatch impossible work.
-- Each scope has isolated runs, claims, worktrees, events, tasks, fingerprint
-  consumption, and recovery state.
+- Each scope has isolated run ownership, repository sandboxes, events, tasks,
+  fingerprint consumption, and recovery state.
 - Repeated activation or daemon restart must not duplicate pending runs, tasks,
   or the initial improvement request. Use the consumed/pending fingerprint
   contract and latest-only request coalescing.

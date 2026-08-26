@@ -32,12 +32,7 @@ export type {
   CandidateAssessment,
 } from "./baseline-assessment.js";
 export { assessAgainstBaseline } from "./baseline-assessment.js";
-export type { PersistedBaseline } from "./baseline-store.js";
-export {
-  baselineFilePath,
-  loadBaseline,
-  saveBaseline,
-} from "./baseline-store.js";
+export type { PersistedBaseline } from "./baseline-state.js";
 export type {
   CodeHealthAggregate,
   CodeHealthDiagnostics,

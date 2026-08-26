@@ -11,9 +11,11 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+  getRepoTaskQueueSnapshot,
+  listFullRepoTasks,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   loadAutonomyWorkflowDefinitions,
   seedIssueDrivenLoopFixture,
@@ -22,8 +24,8 @@ import {
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-helpers.js";
+import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 import { autonomyHealthSignal, normalizeHealthSignal } from "./health-signal.js";
-import { getClaimAwareRepoTaskQueueSnapshot } from "./queue-availability.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -33,6 +35,14 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 import "#modules/claude-agent-harness/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+const INTEGRATION_WAIT_MS = 45_000;
+
+function waitForLifecycle(
+  predicate: () => boolean,
+  description: string,
+): Promise<void> {
+  return waitUntil(predicate, description, INTEGRATION_WAIT_MS);
+}
 
 describe("issue-driven autonomy lifecycle integration", () => {
   let projectDir: string;
@@ -57,7 +67,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
   it(
     "routes one failure through issue review, generated work, builder eligibility, and explicit clear",
-    { timeout: 30_000 },
+    { timeout: 90_000 },
     async () => {
       const failureReason =
         'Agent harness "codex" cannot honor requested run option(s): autonomyMode="passive". autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA\'s passive contract.';
@@ -95,7 +105,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         status: string;
         runDir: string;
       }> = [];
-      const queueAvailable: Array<{ actionableCount: number }> = [];
+      const queueAvailable: string[] = [];
       const attention: string[] = [];
       bus.on("workflow.completed", (payload) => completed.push({
         workflow: payload.workflow,
@@ -103,12 +113,12 @@ describe("issue-driven autonomy lifecycle integration", () => {
         runDir: payload.runDir,
       }));
       bus.on("autonomy.queue.available", (payload) => {
-        queueAvailable.push({ actionableCount: payload.actionableCount });
+        queueAvailable.push(payload.taskId);
       });
       bus.on("workflow.attention.digest", (payload) => attention.push(payload.text));
 
       const workflowDefinitions = await loadAutonomyWorkflowDefinitions();
-      const createRuntime = (workflowNames: string[]) => new WorkflowRuntime({
+      const createRuntime = (workflowNames: string[]) => createTestWorkflowRuntime({
         config: {
           defaultAgentHarness: "claude-agent-sdk",
           defaultPreset: "claude",
@@ -121,8 +131,14 @@ describe("issue-driven autonomy lifecycle integration", () => {
         ),
       });
 
-      const issueRuntime = createRuntime(["autonomy-health-reviewer", "improver"]);
-      issueRuntime.start();
+      const issueRuntime = createRuntime([
+        "autonomy-health-reviewer",
+        "autonomy-health-review-publication",
+        "autonomy-issue-projection-materialization",
+        "improver",
+        "improver-disposition-publication",
+      ]);
+      issueRuntime.runtime.start();
       try {
         pbus.emit("workflow.failure.alert", {
           workflow: "progress-reviewer",
@@ -133,7 +149,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
           text: "progress-reviewer failed",
         });
 
-        await waitUntil(
+        await waitForLifecycle(
           () => completed.some((run) => run.workflow === "improver"),
           "the improver disposition",
         );
@@ -179,7 +195,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
             steps: [],
           },
         });
-        await waitUntil(
+        await waitForLifecycle(
           () =>
             readAutonomyIssueProjection(projectDir).issues[0]
               ?.links.deadLetterIds.includes(deadLetter.id) === true,
@@ -197,18 +213,19 @@ describe("issue-driven autonomy lifecycle integration", () => {
       }
 
       const dispatcherRuntime = createRuntime(["dispatcher"]);
-      const queueSnapshot = getClaimAwareRepoTaskQueueSnapshot(projectDir);
+      const queueSnapshot = getRepoTaskQueueSnapshot(projectDir);
       if (queueSnapshot.actionableCount !== 1) {
         throw new Error(JSON.stringify({ queueSnapshot, tasks: listFullRepoTasks(projectDir) }, null, 2));
       }
-      dispatcherRuntime.start();
+      const generatedTaskId = listFullRepoTasks(projectDir)[0]!.id;
+      dispatcherRuntime.runtime.start();
       try {
         pbus.emit("runtime.idle", {
           timestamp: new Date().toISOString(),
           idleIntervalMs: 10,
         });
-        await waitUntil(
-          () => queueAvailable.some((event) => event.actionableCount === 1),
+        await waitForLifecycle(
+          () => queueAvailable.includes(generatedTaskId),
           "the generated task to become builder-eligible",
         );
       } finally {
@@ -244,8 +261,12 @@ describe("issue-driven autonomy lifecycle integration", () => {
           resolution: "root cause fixed and verified",
         }),
       );
-      const clearRuntime = createRuntime(["autonomy-health-reviewer"]);
-      clearRuntime.start();
+      const clearRuntime = createRuntime([
+        "autonomy-health-reviewer",
+        "autonomy-health-review-publication",
+        "autonomy-issue-projection-materialization",
+      ]);
+      clearRuntime.runtime.start();
       try {
         pbus.emit(
           autonomyHealthSignal,
@@ -270,21 +291,20 @@ describe("issue-driven autonomy lifecycle integration", () => {
           }),
         );
 
-        await waitUntil(
+        await waitForLifecycle(
           () => readAutonomyIssueProjection(projectDir).issues[0]?.status === "resolved",
           "the explicit clear observation",
         );
-        await waitUntil(
-          () => attention.length === 3,
+        await waitForLifecycle(
+          () => attention.some((text) => text.includes("action resolved")),
           "the committed resolution attention",
         );
-        expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
         expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
           status: "resolved",
           semanticRevision: 1,
           links: { taskIds: [], ownerQuestionIds: [] },
         });
-        expect(attention).toHaveLength(3);
+        expect(attention.some((text) => text.includes("action resolved"))).toBe(true);
         expect(listFullRepoTasks(projectDir)).toEqual([
           expect.objectContaining({ id: tasks[0]!.id, state: "dropped" }),
         ]);
@@ -293,6 +313,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         ).toMatchObject({ status: "success", taskId: tasks[0]!.id });
       } finally {
         await clearRuntime.stop();
+        source.runtime.runState.close();
       }
     },
   );

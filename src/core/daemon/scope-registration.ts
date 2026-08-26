@@ -69,6 +69,32 @@ export async function registerDirectoryScope(
     };
   }
 
+  try {
+    options.runState.registerProject({
+      id: project.projectId,
+      rootPath: project.projectDir,
+      displayName: project.displayName,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    try {
+      options.registry.remove(project.projectId);
+    } catch (rollbackError) {
+      return {
+        ok: false,
+        reason: "rollback_failed",
+        message: `${errorMessage(error as Error)}; rollback failed: ${errorMessage(rollbackError as Error)}`,
+        scopeId: project.projectId,
+      };
+    }
+    return {
+      ok: false,
+      reason: "persistence_failed",
+      message: errorMessage(error as Error),
+      scopeId: project.projectId,
+    };
+  }
+
   let runtimeAdded = false;
   try {
     options.runtimes.add(runtime);

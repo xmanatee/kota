@@ -10,6 +10,7 @@ import {
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { createCriticCheck } from "./critic.js";
 import {
   type CriticReviewInspectionInput,
@@ -52,6 +53,7 @@ function makeContext(
       input: CriticReviewInspectionInput,
     ) =>
       inspectCriticReviewInWorker(input as CriticReviewInspectionInput) as never,
+    runCommand: successfulWorkflowCommandRun,
     runTool: vi.fn(),
     runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
     emit: vi.fn(),
@@ -79,6 +81,18 @@ describe("critic harness tool-control preflight", () => {
       "---\nid: task-preflight\ntitle: Preflight\nstatus: doing\npriority: p1\narea: architecture\nsummary: Exercise critic preflight.\n---\n\n## Done When\n\n- The critic runs.\n",
     );
     execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "test@example.com"], {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+    execFileSync("git", ["config", "user.name", "Test User"], {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
+    execFileSync("git", ["commit", "--allow-empty", "-m", "initial"], {
+      cwd: projectDir,
+      stdio: "ignore",
+    });
   });
 
   afterEach(() => {

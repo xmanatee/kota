@@ -1,30 +1,37 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   buildDiffSummaryConsistencyRecord,
+  collectGitNameStatus,
   type DiffSummaryNameStatus,
   parseGitNameStatus,
 } from "./diff-summary-consistency.js";
-import type { WorkflowRunSummary } from "./run-summary.js";
+import type { AutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 
 const KNOWN_MODULES = ["autonomy", "eval-harness", "repo-tasks"];
 
-function summary(
+function delivery(
   commitMessage: string,
   filesChanged: string[],
-  overrides: Partial<WorkflowRunSummary> = {},
-): WorkflowRunSummary {
+  overrides: Partial<AutonomyRunDeliveryEvidence> = {},
+): AutonomyRunDeliveryEvidence {
   return {
+    version: 1,
     runId: "2026-06-24T00-00-00-000Z-builder-test",
     workflow: "builder",
+    projectId: "project-test",
+    targetBranch: "main",
+    baseHead: "base123",
+    integratedFromHead: "base123",
+    publishedHead: "abc123",
+    commitSubject: commitMessage,
+    commitMessage,
+    changedPaths: filesChanged,
+    completedAt: "2026-06-24T00:00:00.000Z",
     taskId: "task-eval-harness",
     taskTitle: "Fix eval-harness recorder guard",
-    outcome: "success",
-    commitSha: "abc123",
-    commitMessage,
-    filesChanged,
     costUsd: null,
     durationMs: null,
-    completedAt: "2026-06-24T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -51,7 +58,7 @@ describe("diff-summary consistency diagnostic", () => {
     ];
 
     const record = buildDiffSummaryConsistencyRecord({
-      runSummary: summary("Fix eval-harness recorder guard", files),
+      delivery: delivery("Fix eval-harness recorder guard", files),
       commitMessageFile: "Fix eval-harness recorder guard",
       task: task(),
       nameStatus: files.map((file) => status(file)),
@@ -71,7 +78,7 @@ describe("diff-summary consistency diagnostic", () => {
   it("flags task-only completions that claim implementation work", () => {
     const files = ["data/tasks/done/task-eval-harness.md"];
     const record = buildDiffSummaryConsistencyRecord({
-      runSummary: summary("Fix eval-harness recorder guard", files),
+      delivery: delivery("Fix eval-harness recorder guard", files),
       commitMessageFile: "Fix eval-harness recorder guard",
       task: task(),
       nameStatus: files.map((file) => status(file)),
@@ -92,7 +99,7 @@ describe("diff-summary consistency diagnostic", () => {
     ];
 
     const record = buildDiffSummaryConsistencyRecord({
-      runSummary: summary("Fix eval-harness recorder guard", files),
+      delivery: delivery("Fix eval-harness recorder guard", files),
       commitMessageFile: "Fix eval-harness recorder guard",
       task: task(),
       nameStatus: files.map((file) => status(file)),
@@ -111,7 +118,7 @@ describe("diff-summary consistency diagnostic", () => {
     ];
 
     const record = buildDiffSummaryConsistencyRecord({
-      runSummary: summary("Fix eval-harness recorder guard", files),
+      delivery: delivery("Fix eval-harness recorder guard", files),
       commitMessageFile: "Fix eval-harness recorder guard",
       task: task(),
       nameStatus: files.map((file) => status(file)),
@@ -126,7 +133,7 @@ describe("diff-summary consistency diagnostic", () => {
 
   it("records missing metadata explicitly instead of inferring scope", () => {
     const record = buildDiffSummaryConsistencyRecord({
-      runSummary: null,
+      delivery: null,
       commitMessageFile: null,
       task: null,
       nameStatus: null,
@@ -134,7 +141,7 @@ describe("diff-summary consistency diagnostic", () => {
     });
 
     expect(record.missingData).toEqual([
-      "run-summary",
+      "writer-integration",
       "commit-message-file",
       "diff-name-status",
     ]);
@@ -152,5 +159,31 @@ describe("diff-summary consistency diagnostic", () => {
       { status: "deleted", path: "old.ts" },
       { status: "renamed", previousPath: "before.ts", path: "after.ts" },
     ]);
+  });
+
+  it("collects commit-range facts through the injected workflow runner", async () => {
+    const runCommand = vi.fn(successfulWorkflowCommandRun);
+    runCommand.mockResolvedValueOnce({
+      ...(await successfulWorkflowCommandRun({ command: "git" })),
+      stdout: {
+        text: "M\tsrc/runtime.ts\nA\tsrc/runtime.test.ts\n",
+        totalBytes: 41,
+        truncated: false,
+      },
+    });
+
+    await expect(
+      collectGitNameStatus("/project", runCommand, "base123", "head456"),
+    ).resolves.toEqual([
+      { status: "modified", path: "src/runtime.ts" },
+      { status: "added", path: "src/runtime.test.ts" },
+    ]);
+    expect(runCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: "git",
+        args: ["diff", "--name-status", "base123..head456", "--"],
+        cwd: "/project",
+      }),
+    );
   });
 });

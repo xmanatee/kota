@@ -22,6 +22,11 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     projectDir: "/repo",
     projectName: "repo",
     controlFile: { kind: "fresh", pid: 1234, baseURL: "http://127.0.0.1:8765" },
+    runProjection: {
+      available: true,
+      databasePath: "/repo/.kota/kota.sqlite",
+      runs: [],
+    },
     ...overrides,
   };
 }
@@ -233,11 +238,7 @@ describe("operator inbox", () => {
       status: status({
         daemonRunning: false,
         controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
-        historicalWorkflow: {
-          activeRuns: 0,
-          queuedRuns: 2,
-          workflowPaused: false,
-        },
+        queuedRuns: 2,
       }),
     });
 

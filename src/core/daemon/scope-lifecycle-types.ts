@@ -1,4 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type {
   ScopeDrainBlocker,
@@ -92,6 +93,7 @@ export type ScopeRemovalResult =
 
 export type ScopeLifecycleOptions = {
   registry: ScopeRegistry;
+  runState: RunStateDatabase;
   runtimes: ProjectRuntimeRegistry;
   runtimeHost: ScopeRuntimeHost;
   bus: EventBus;

@@ -4,6 +4,7 @@ import {
   NETWORK_COMMAND,
   VERIFY_COMMAND,
 } from "./fixture-candidates-commands.js";
+import { isJsonObject } from "./fixture-candidates-json.js";
 import {
   type CandidateClassificationContext,
   duplicateReferencesFor,
@@ -24,7 +25,7 @@ import type {
   FixtureCandidateStatus,
   FixtureCandidateVerifierHints,
   RunEvidence,
-  RunSummaryArtifact,
+  RunMetadata,
 } from "./fixture-candidates-types.js";
 import { stableUnique } from "./fixture-candidates-types.js";
 
@@ -169,11 +170,18 @@ function reasonSummary(
 }
 
 function inferTaskId(
-  summary: RunSummaryArtifact | null,
+  metadata: RunMetadata,
   calibration: CalibrationArtifact | null,
   changedPaths: readonly string[],
 ): string | null {
-  if (summary?.taskId !== null && summary?.taskId !== undefined) return summary.taskId;
+  const payload = metadata.trigger?.payload;
+  if (
+    isJsonObject(payload) &&
+    typeof payload.taskId === "string" &&
+    payload.taskId.length > 0
+  ) {
+    return payload.taskId;
+  }
   if (calibration?.taskId !== null && calibration?.taskId !== undefined) {
     return calibration.taskId;
   }
@@ -209,7 +217,7 @@ export function toCandidate(
     runId: evidence.metadata.id,
     workflow: evidence.metadata.workflow,
     runStatus: evidence.metadata.status,
-    taskId: inferTaskId(evidence.summary, evidence.calibration, evidence.changedPaths),
+    taskId: inferTaskId(evidence.metadata, evidence.calibration, evidence.changedPaths),
     taskFinalState: evidence.calibration?.taskFinalState ?? null,
     status: classification.status,
     disposition: classification.disposition,

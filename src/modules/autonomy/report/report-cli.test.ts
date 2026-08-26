@@ -1,10 +1,9 @@
-import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildReportCommand, collectAddedFilesBySha } from "./report-cli.js";
+import { buildReportCommand } from "./report-cli.js";
 
 async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
   const chunks: string[] = [];
@@ -82,43 +81,6 @@ function watchlistEntry(args: {
     );
   }
   return lines.join("\n");
-}
-
-function initSourceRepoWithAddedFile(dir: string): void {
-  execFileSync("git", ["init", "--quiet"], { cwd: dir, stdio: "ignore" });
-  execFileSync("git", ["config", "user.email", "test@example.com"], {
-    cwd: dir,
-    stdio: "ignore",
-  });
-  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir, stdio: "ignore" });
-  writeFileSync(join(dir, "added.txt"), "added\n", "utf-8");
-  execFileSync("git", ["add", "added.txt"], { cwd: dir, stdio: "ignore" });
-  execFileSync("git", ["commit", "--quiet", "-m", "seed"], { cwd: dir, stdio: "ignore" });
-}
-
-function createBareCloneWithHookConfig(dir: string): {
-  bareDir: string;
-  markerPath: string;
-} {
-  const sourceDir = join(dir, "source");
-  const bareDir = join(dir, "nested.git");
-  const hooksDir = join(dir, "malicious-hooks");
-  const markerPath = join(dir, "hook-marker");
-  mkdirSync(sourceDir, { recursive: true });
-  mkdirSync(hooksDir, { recursive: true });
-  initSourceRepoWithAddedFile(sourceDir);
-  execFileSync("git", ["clone", "--bare", sourceDir, bareDir], {
-    cwd: dir,
-    stdio: "ignore",
-  });
-  const hookPath = join(hooksDir, "pre-commit");
-  writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
-  chmodSync(hookPath, 0o755);
-  execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
-    cwd: dir,
-    stdio: "ignore",
-  });
-  return { bareDir, markerPath };
 }
 
 describe("kota report CLI", () => {
@@ -335,12 +297,5 @@ describe("kota report CLI", () => {
       disposition: "adopt",
       coverageStatuses: ["covered-by-done-task"],
     });
-  });
-
-  it("rejects implicit nested bare repository discovery when collecting added files", () => {
-    const { bareDir, markerPath } = createBareCloneWithHookConfig(projectDir);
-
-    expect(collectAddedFilesBySha(bareDir, 0)).toEqual(new Map());
-    expect(existsSync(markerPath)).toBe(false);
   });
 });

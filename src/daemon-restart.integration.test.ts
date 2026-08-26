@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { RESTART_EXIT_CODE } from "#core/daemon/index.js";
@@ -27,6 +27,7 @@ describe("Daemon restart recovery", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -48,9 +49,12 @@ describe("Daemon restart recovery", () => {
       const startPromise = daemon.start();
       await wait(120);
 
-      const state = daemon.getDashboardSnapshot();
-      expect(state.lastCompletedStatus).toBe("failed");
-      expect(state.lastCompletedWorkflow).toBe("builder");
+      const state = JSON.parse(
+        readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf8"),
+      ) as {
+        workflows: Record<string, { lastCompletion?: { status: string } }>;
+      };
+      expect(state.workflows.builder?.lastCompletion?.status).toBe("failed");
       expect(daemon.getDashboardSnapshot().completedRuns).toBeGreaterThanOrEqual(1);
       expect(process.exitCode).not.toBe(RESTART_EXIT_CODE);
       expect(daemon.isRunning()).toBe(true);
@@ -66,6 +70,7 @@ describe("Daemon restart recovery", () => {
     const previousExitCode = process.exitCode;
     const workflows = [
       registerWorkflowDefinition("test/builder.ts", {
+        repository: "read",
         name: "builder",
         triggers: [
           {
@@ -88,6 +93,7 @@ describe("Daemon restart recovery", () => {
         ],
       }),
       registerWorkflowDefinition("test/improver.ts", {
+        repository: "read",
         name: "improver",
         triggers: [
           {
@@ -140,6 +146,7 @@ describe("Daemon restart recovery", () => {
     const previousExitCode = process.exitCode;
     const workflows = [
       registerWorkflowDefinition("test/builder.ts", {
+        repository: "read",
         name: "builder",
         triggers: [
           {

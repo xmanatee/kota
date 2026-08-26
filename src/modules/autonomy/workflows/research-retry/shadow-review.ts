@@ -46,7 +46,6 @@ export function createResearchRetryShadowReviewStep(args: {
 }): TypedCodeStepInput<ShadowSemanticReviewStepResult> {
   return createShadowSemanticReviewStep({
     id: "shadow-semantic-review",
-    when: (ctx) => ctx.trigger.event !== "runtime.recovered",
     declaration: {
       id: "research-retry-source-decision",
       mode: "advisory",
@@ -92,7 +91,7 @@ async function resolveResearchRetryShadowTarget(
     shadowSemanticReviewTargetOperation,
     {
       kind: "workflow-mutations",
-      projectDir: ctx.workspaceDir ?? ctx.projectDir,
+      projectDir: ctx.projectDir,
     },
   );
   return {

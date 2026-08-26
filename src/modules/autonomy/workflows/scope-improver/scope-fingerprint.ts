@@ -3,8 +3,11 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { readScopeImprovementConfig } from "./scope-improvement-state.js";
-import { SCOPE_IMPROVEMENT_CONFIG_PATH } from "./scope-improvement-types.js";
+import { readScopeImprovementConfigFromStateDir } from "./scope-improvement-state.js";
+import {
+  SCOPE_IMPROVEMENT_CONFIG_FILE,
+  SCOPE_IMPROVEMENT_CONFIG_PATH,
+} from "./scope-improvement-types.js";
 
 const SKIPPED_DIRECTORIES = new Set([
   ".git",
@@ -111,7 +114,9 @@ function scopePolicyMaterial(policy: ResolvedScopePolicy) {
 export function computeScopeContentFingerprint(
   projectDir: string,
   scopePolicy: ResolvedScopePolicy,
+  stateDir?: string,
 ): ScopeContentFingerprint {
+  const canonicalStateDir = stateDir ?? join(projectDir, ".kota");
   const scopeId = deriveDirectoryScopeId(projectDir);
   if (scopePolicy.scopeId !== scopeId) {
     throw new Error(
@@ -122,7 +127,7 @@ export function computeScopeContentFingerprint(
     .sort((a, b) => a.localeCompare(b));
   const refs = [
     ...guidanceRefs,
-    ...(existsSync(join(projectDir, SCOPE_IMPROVEMENT_CONFIG_PATH))
+    ...(existsSync(join(canonicalStateDir, SCOPE_IMPROVEMENT_CONFIG_FILE))
       ? [SCOPE_IMPROVEMENT_CONFIG_PATH]
       : []),
     scopePolicyEvidenceRef(scopePolicy.scopeId),
@@ -135,7 +140,7 @@ export function computeScopeContentFingerprint(
     hash.update("\0");
   }
   hash.update("scope-improvement-config\0");
-  hash.update(JSON.stringify(readScopeImprovementConfig(projectDir)));
+  hash.update(JSON.stringify(readScopeImprovementConfigFromStateDir(canonicalStateDir)));
   hash.update("\0resolved-scope-policy\0");
   hash.update(JSON.stringify(scopePolicyMaterial(scopePolicy)));
   hash.update("\0");

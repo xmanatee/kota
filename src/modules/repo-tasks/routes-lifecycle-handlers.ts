@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type {
   RepoTaskState as ContractRepoTaskState,
@@ -7,17 +6,11 @@ import type {
   RepoTaskPriority,
 } from "./client.js";
 import {
-  getRepoInboxDir,
-  moveTaskById,
-  REPO_TASK_STATES,
-  writeRepoInboxFile,
-} from "./repo-tasks-domain.js";
-import {
-  captureInboxTask,
-  createNormalizedTask,
-  gcTerminalTasks,
-  showTask,
-} from "./repo-tasks-operations.js";
+  mutateRepoTask,
+  type RepoTaskMutationTarget,
+} from "./repo-task-mutation-boundary.js";
+import { REPO_TASK_STATES } from "./repo-tasks-domain.js";
+import { showTask } from "./repo-tasks-operations.js";
 import { readRouteJsonBody } from "./route-body.js";
 import { isRepoTaskId } from "./task-id.js";
 
@@ -42,7 +35,7 @@ function isRepoTaskPriority(value: string): value is RepoTaskPriority {
 export async function handleTaskCreate(
   req: IncomingMessage,
   res: ServerResponse,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -54,15 +47,18 @@ export async function handleTaskCreate(
   }
   const summary = typeof body.summary === "string" ? body.summary.trim() : "";
   const id = `task-${slugify(title)}-${Math.random().toString(36).slice(2, 7)}`;
-  const filename = `${id}.md`;
-  const filePath = join(getRepoInboxDir(projectDir), filename);
   try {
-    writeRepoInboxFile(
-      projectDir,
-      filePath,
-      `# ${title}\n${summary ? `\n${summary}\n` : ""}`,
-    );
-    jsonResponse(res, 201, { id, state: "inbox" });
+    const result = await mutateRepoTask(target, {
+      kind: "quick-create",
+      id,
+      title,
+      summary,
+    });
+    if (!result.ok) {
+      jsonResponse(res, 400, { reason: result.reason, error: result.message });
+      return;
+    }
+    jsonResponse(res, 201, { id: result.id, state: "inbox" });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -90,7 +86,7 @@ export async function handleTaskMove(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   if (!isRepoTaskId(id)) {
     jsonResponse(res, 400, { reason: "invalid_id", error: "Invalid task id" });
@@ -108,7 +104,23 @@ export async function handleTaskMove(
     return;
   }
   try {
-    const result = moveTaskById(projectDir, id, state);
+    const result = await mutateRepoTask(target, { kind: "move", id, state });
+    if (!result.ok) {
+      if (result.reason === "invalid_id") {
+        jsonResponse(res, 400, { reason: result.reason, error: "Invalid task id" });
+        return;
+      }
+      if (result.reason === "not_found") {
+        jsonResponse(res, 404, { reason: result.reason, error: `Task "${id}" not found` });
+        return;
+      }
+      jsonResponse(res, 409, {
+        reason: result.reason,
+        state: result.state,
+        error: `Task "${id}" is already in "${state}"`,
+      });
+      return;
+    }
     jsonResponse(res, 200, {
       id: result.id,
       fromState: result.fromState,
@@ -137,7 +149,7 @@ export async function handleTaskMove(
 export async function handleTaskCreateNormalized(
   req: IncomingMessage,
   res: ServerResponse,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -175,7 +187,7 @@ export async function handleTaskCreateNormalized(
     state,
     ...(typeof body.summary === "string" && { summary: body.summary }),
   };
-  const result = createNormalizedTask(projectDir, options);
+  const result = await mutateRepoTask(target, { kind: "create", options });
   if (!result.ok) {
     const status = result.reason === "already_exists" ? 409 : 400;
     jsonResponse(res, status, { reason: result.reason, error: result.message });
@@ -187,7 +199,7 @@ export async function handleTaskCreateNormalized(
 export async function handleTaskCapture(
   req: IncomingMessage,
   res: ServerResponse,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -196,7 +208,7 @@ export async function handleTaskCapture(
     jsonResponse(res, 400, { error: "title is required" });
     return;
   }
-  const result = captureInboxTask(projectDir, body.title);
+  const result = await mutateRepoTask(target, { kind: "capture", title: body.title });
   if (!result.ok) {
     const status = result.reason === "already_exists" ? 409 : 400;
     jsonResponse(res, status, { reason: result.reason, error: result.message });
@@ -208,7 +220,7 @@ export async function handleTaskCapture(
 export async function handleTaskGc(
   req: IncomingMessage,
   res: ServerResponse,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -218,10 +230,12 @@ export async function handleTaskGc(
     jsonResponse(res, 400, { error: "days must be a positive number" });
     return;
   }
-  const result = gcTerminalTasks(projectDir, {
-    ...(days !== undefined && { days }),
-    ...(typeof body.delete === "boolean" && { delete: body.delete }),
-    ...(typeof body.dryRun === "boolean" && { dryRun: body.dryRun }),
+  const result = await mutateRepoTask(target, {
+    kind: "gc",
+    options: {
+      ...(days !== undefined && { days }),
+      ...(typeof body.dryRun === "boolean" && { dryRun: body.dryRun }),
+    },
   });
   jsonResponse(res, 200, result);
 }

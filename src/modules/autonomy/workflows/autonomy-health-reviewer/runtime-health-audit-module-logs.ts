@@ -169,7 +169,7 @@ function classifyLogObservation(
 }
 
 export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
-  const modulesDir = join(ctx.projectDir, ".kota", "modules");
+  const modulesDir = join(ctx.stateDir, "modules");
   if (!existsSync(modulesDir)) return;
 
   for (const entry of readdirSync(modulesDir, { withFileTypes: true })) {

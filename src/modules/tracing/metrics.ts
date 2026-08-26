@@ -9,12 +9,7 @@ import type { WorkflowAgentBackoffKind } from "#core/workflow/trigger-types.js";
 type WorkflowCompletedPayload = {
   workflow: string;
   runId: string;
-  status:
-    | "success"
-    | "failed"
-    | "yielded"
-    | "interrupted"
-    | "completed-with-warnings";
+  status: "success" | "failed" | "interrupted" | "completed-with-warnings";
   triggerEvent: string;
   durationMs: number;
   definitionPath: string;

@@ -6,7 +6,7 @@ import {
   type InboundSignalReceivedPayload,
   type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalRouted,
+  inboundSignalWorkflowTargeted,
 } from "#modules/inbound-signals/events.js";
 import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import type { SlackEventsApiPayload, SlackMessageEvent } from "./client.js";
@@ -131,6 +131,7 @@ type RoutedProbePayload = {
 };
 
 const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
+  repository: "read",
   name: "slack-signal-probe",
   description: "Test-only route target for Slack-origin inbound signals.",
   triggers: [{ event: "manual" }],
@@ -198,7 +199,7 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
           });
           return {
             ok: true,
-            path: "queue",
+            path: "daemon",
             queued: slackSignalProbeWorkflow.name,
             runId: "run-slack-d123",
           };
@@ -217,7 +218,7 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
       sourceId: "slack:T123:channel:D123",
     });
     expect(queued[0]).toMatchObject({
-      event: inboundSignalRouted.name,
+      event: inboundSignalWorkflowTargeted,
       payload: {
         projectId: "project-slack",
         routeId: "slack-d123-capture",

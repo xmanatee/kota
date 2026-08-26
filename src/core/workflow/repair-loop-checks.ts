@@ -1,3 +1,4 @@
+import { getToolEffect } from "#core/tools/index.js";
 import type {
   WorkflowRepairCheck,
   WorkflowStepContext,
@@ -32,7 +33,16 @@ async function runRepairCheck(
     const input = typeof check.input === "function"
       ? await check.input(context)
       : (check.input ?? {});
-    const result = await context.runTool(check.tool, input);
+    const effect = getToolEffect(check.tool, input);
+    if (effect === undefined) throw new Error(`Unknown tool: ${check.tool}`);
+    if (effect.kind !== "read") {
+      throw new Error(
+        `Repair check "${check.id}" must resolve to a read-only tool effect`,
+      );
+    }
+    const result = await context.runTool(check.tool, input, {
+      stepId: `${parentStep.id}:repair-check:${check.id}`,
+    });
     const output = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
     return { id: check.id, passed: true, output, severity };
   } catch (error) {

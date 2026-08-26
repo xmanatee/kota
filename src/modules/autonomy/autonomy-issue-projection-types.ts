@@ -30,7 +30,6 @@ export type AutonomyIssueLinks = {
   taskIds: string[];
   ownerQuestionIds: string[];
   deadLetterIds: string[];
-  recoveryDispositionRefs: string[];
 };
 
 export type AutonomyIssueObservation = {
@@ -47,7 +46,7 @@ export type AutonomyIssueObservation = {
   evidenceRefs: AutonomyHealthEvidenceRef[];
   observationCount: number;
   semanticFingerprint: string;
-  links: Pick<AutonomyIssueLinks, "deadLetterIds" | "recoveryDispositionRefs">;
+  links: Pick<AutonomyIssueLinks, "deadLetterIds">;
 };
 
 export type AutonomyIssueHistoryEntry = AutonomyIssueObservation & {

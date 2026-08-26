@@ -1,3 +1,4 @@
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 /**
  * Integration test for the `askOwnerSteps` workflow recipe. Covers the three
  * outcomes called out by `task-convert-askowner-from-held-await-polling-to-await-`:
@@ -28,8 +29,10 @@ import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { type AwaitedOwnerOutcome, askOwnerSteps } from "./ask-owner-step.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { type AwaitDelivery, readSuspension } from "./awaits-store.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import type { WorkflowQueuedRun } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -52,12 +55,61 @@ function makeAskWorkflow(queue: OwnerQuestionQueue): WorkflowDefinition {
   return {
     name: "ask-owner-recipe-test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/core/workflow/ask-owner-step.test.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
     steps: [steps.ask, steps.wait, steps.consume],
     tags: [],
+  };
+}
+
+function makeRunContext(
+  projectDir: string,
+  definition: WorkflowDefinition,
+  trigger: WorkflowRunTrigger,
+  signal = new AbortController().signal,
+): RunContext {
+  const runId = `${definition.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const tempDir = join(rootDir, "tmp");
+  const artifactDir = join(rootDir, "artifacts");
+  const agentDir = join(rootDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const path of [tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: definition.name,
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir,
+      workspaceDir: projectDir,
+      tempDir,
+      artifactDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir: projectDir,
+      runDir: rootDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
   };
 }
 
@@ -91,7 +143,7 @@ describe("askOwnerSteps", () => {
   it("(a) answered: operator answers live; consume returns a typed answered outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
       log,
@@ -129,7 +181,7 @@ describe("askOwnerSteps", () => {
   it("(a') answered with suspicious payload: detector flags the answer and renders a banner", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
       log,
@@ -163,7 +215,7 @@ describe("askOwnerSteps", () => {
   it("(b) dismissed: operator dismisses; consume returns a typed dismissed outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
       log,
@@ -199,7 +251,7 @@ describe("askOwnerSteps", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { projectDir, bus, store, log },
+      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
 
@@ -245,10 +297,10 @@ describe("askOwnerSteps", () => {
       "utf-8",
     );
 
-    // Phase 2: restart. recoverInterruptedRuns + installAwaitResumers should
-    // queue a resume run; we dispatch it and read the consume step output.
-    store.recoverInterruptedRuns();
+    // Phase 2: the restart resumer should queue a resume run; we dispatch it
+    // and read the consume step output.
     let scheduled = 0;
+    let resumeQueued: WorkflowQueuedRun | undefined;
     const newBus = new EventBus();
     installAwaitResumers({
       bus: newBus,
@@ -256,9 +308,7 @@ describe("askOwnerSteps", () => {
       definitions: [definition],
       log,
       appendResumeRun: (q) => {
-        const s = store.readState();
-        if (s.pendingRuns.some((r) => r.runId === q.runId)) return;
-        store.setPendingRuns([...s.pendingRuns, q]);
+        resumeQueued = q;
       },
       onScheduled: () => {
         scheduled += 1;
@@ -266,15 +316,13 @@ describe("askOwnerSteps", () => {
     });
     expect(scheduled).toBe(1);
 
-    const queued = store.readState().pendingRuns;
-    expect(queued).toHaveLength(1);
-    const resumeQueued = queued[0];
+    expect(resumeQueued).toBeDefined();
+    if (!resumeQueued) throw new Error("resume run was not scheduled");
     expect(resumeQueued.workflowName).toBe("ask-owner-recipe-test");
     expect(resumeQueued.trigger.event).toBe("resume");
-    store.setPendingRuns([]);
 
     const resumed = await executeWorkflowRun(definition, resumeQueued.trigger, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
       bus: newBus,
       store,
       log,
@@ -297,7 +345,7 @@ describe("askOwnerSteps", () => {
     expect(getEventBus()).toBe(bus);
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, definition, TRIGGER),
       bus,
       store,
       log,

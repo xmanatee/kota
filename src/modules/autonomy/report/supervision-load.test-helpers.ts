@@ -9,9 +9,6 @@ import type {
 export const NOW = Date.parse("2026-07-07T12:00:00.000Z");
 
 export function createKnownStores(projectDir: string): void {
-  mkdirSync(join(projectDir, ".kota", "task-claims", "active"), {
-    recursive: true,
-  });
   mkdirSync(join(projectDir, ".kota", "approvals"), { recursive: true });
   mkdirSync(join(projectDir, ".kota", "owner-questions"), { recursive: true });
   mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), {
@@ -51,48 +48,6 @@ export function writeTask(
     dependsOn: [],
     anchor: false,
   };
-}
-
-export function writeClaim(
-  projectDir: string,
-  taskId: string,
-  runId: string,
-  status: "active" | "pending-merge",
-): void {
-  const dir = join(projectDir, ".kota", "task-claims", "active");
-  mkdirSync(dir, { recursive: true });
-  const now = new Date(NOW).toISOString();
-  writeFileSync(
-    join(dir, `${taskId}.json`),
-    `${JSON.stringify(
-      {
-        schemaVersion: 2,
-        taskId,
-        taskState: "ready",
-        taskFile: {
-          path: `data/tasks/ready/${taskId}.md`,
-          snapshot: { dev: 1, ino: 1, size: 1, mtimeMs: 1, ctimeMs: 1 },
-        },
-        runId,
-        workflowId: "builder",
-        owner: "workflow:builder",
-        workspaceDir: join(projectDir, ".worktrees", taskId),
-        branch: `kota/task/${taskId}`,
-        baseCommit: "abc123",
-        leaseMs: 3600000,
-        leaseAcquiredAt: now,
-        leaseExpiresAt: new Date(NOW + 3600000).toISOString(),
-        createdAt: now,
-        updatedAt: now,
-        status,
-        evidence:
-          status === "pending-merge" ? "builder branch pending merge" : null,
-      },
-      null,
-      2,
-    )}\n`,
-    "utf-8",
-  );
 }
 
 export function writeApproval(

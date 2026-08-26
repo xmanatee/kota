@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { RUNTIME_PROBE_ARTIFACT_WRITER_SOURCE } from "./critic-runtime-probe-artifact-writer-source.js";
 
 const WRITER_MAX_BUFFER = 1024 * 1024;
@@ -54,25 +54,22 @@ function decodeWriterResponse(stdout: string): ArtifactWriterResponse {
   throw new Error("Runtime Probe artifact writer returned an invalid response");
 }
 
-export function writeAnchoredRuntimeProbeArtifact(
+export async function writeAnchoredRuntimeProbeArtifact(
   request: ArtifactWriterRequest,
-): void {
-  const result = spawnSync(
-    process.execPath,
-    ["--input-type=module", "--eval", RUNTIME_PROBE_ARTIFACT_WRITER_SOURCE],
-    {
-      cwd: request.runDirectoryPath,
-      encoding: "utf8",
-      env: {},
-      input: JSON.stringify(request),
-      maxBuffer: WRITER_MAX_BUFFER,
-      windowsHide: true,
-    },
-  );
-  if (result.error !== undefined || result.status !== 0) {
-    throw new Error("Runtime Probe isolated artifact writer failed");
-  }
+  runCommand: WorkflowCommandRunner,
+): Promise<void> {
+  const result = await runCommand({
+    command: process.execPath,
+    args: ["--input-type=module", "--eval", RUNTIME_PROBE_ARTIFACT_WRITER_SOURCE],
+    cwd: request.runDirectoryPath,
+    env: {},
+    envMode: "replace",
+    stdin: JSON.stringify(request),
+    timeoutMs: 30_000,
+    outputLimitBytes: WRITER_MAX_BUFFER,
+    captureLimitBytesPerStream: WRITER_MAX_BUFFER,
+  });
 
-  const response = decodeWriterResponse(result.stdout);
+  const response = decodeWriterResponse(result.stdout.text);
   if (!response.ok) throw new Error(response.reason);
 }

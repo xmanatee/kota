@@ -1,4 +1,5 @@
 import {
+  isWorkflowRepairErrorKind,
   isWorkflowStepTimeoutErrorKind,
   type WorkflowRunMetadata,
 } from "#core/workflow/run-types.js";
@@ -11,12 +12,6 @@ export function classifyBuilderFailureForDecomposition(
   const buildStep = metadata.steps.find((step) => step.id === "build");
   if (!buildStep || buildStep.status !== "failed") return null;
   if (isWorkflowStepTimeoutErrorKind(buildStep.errorKind)) return "timeout";
-  if (
-    buildStep.errorKind === "repair-no-progress" ||
-    buildStep.errorKind === "repair-attempts-exhausted" ||
-    buildStep.errorKind === "repair-decompose"
-  ) {
-    return "repair-exhausted";
-  }
+  if (isWorkflowRepairErrorKind(buildStep.errorKind)) return "repair-exhausted";
   return null;
 }

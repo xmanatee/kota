@@ -32,7 +32,9 @@ import type { WorkflowAgentStep } from "./step-types.js";
 import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import { createWorkflowCommandRunner } from "./workflow-command.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
@@ -71,6 +73,9 @@ function registerRepairHarness(
 function makeContext(projectDir: string): WorkflowStepContext {
   return {
     projectDir,
+    scopeDir: projectDir,
+    stateDir: join(projectDir, ".kota"),
+    state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "test-workflow",
@@ -85,11 +90,12 @@ function makeContext(projectDir: string): WorkflowStepContext {
     stepResults: {},
     stepOutputList: [],
     runAgentHarness,
+    runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: (promptPath) => readFileSync(join(projectDir, promptPath), "utf-8"),
-    readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+    readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
     reportProgress: vi.fn(),
     triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
   };
@@ -254,47 +260,6 @@ describe("runAgentRepairLoop", () => {
     expect(prompt.indexOf("Fix these issues now.")).toBeGreaterThan(
       prompt.indexOf("</untrusted-content>"),
     );
-  });
-
-  it("stages workspace changes before repair checks run", async () => {
-    const harnessName = uniqueName("repair-runtime-staging");
-    const repairHarness = vi.fn<AgentHarness["run"]>();
-    registerRepairHarness(harnessName, repairHarness);
-    const step = makeStep(projectDir, harnessName, {
-      repairLoop: {
-        maxRepairAttempts: 1,
-        checks: [
-          {
-            id: "staged-input",
-            type: "code",
-            run: () => execFileSync(
-              "git",
-              ["diff", "--cached", "--name-only"],
-              { cwd: projectDir, encoding: "utf8" },
-            ).trim(),
-          },
-        ],
-      },
-    });
-    initGitRepo(projectDir);
-    writeFileSync(join(projectDir, "seed.txt"), "updated\n", "utf-8");
-
-    await runAgentRepairLoop(
-      step,
-      makeInitialResult(),
-      makeContext(projectDir),
-      makeMetadata(),
-      new AbortController(),
-      vi.fn(),
-      { projectDir },
-    );
-
-    expect(execFileSync(
-      "git",
-      ["diff", "--cached", "--name-only"],
-      { cwd: projectDir, encoding: "utf8" },
-    ).trim()).toBe("seed.txt");
-    expect(repairHarness).not.toHaveBeenCalled();
   });
 
   it("composes repair iteration tool guards from the step and workflow", async () => {

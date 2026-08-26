@@ -78,6 +78,8 @@ export type EventEnvelopeTraceContext = {
 };
 
 export type EventEnvelopeIdempotency = {
+  /** Stable identity supplied by the workflow outbox for retry-safe delivery. */
+  eventId?: string;
   idempotencyKey?: string;
   externalProviderId?: string;
 };

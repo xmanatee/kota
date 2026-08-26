@@ -30,6 +30,8 @@ export type WorkflowToolStep = WorkflowBaseStep & {
 
 export type WorkflowAgentStep = WorkflowProgressStep & {
   type: "agent";
+  /** Disabled automatically for repository writers before execution. */
+  ownerQuestionAccess?: "available" | "disabled";
   /** Name of the agent definition used, if the step was configured via agentName. */
   agentName?: string;
   /**
@@ -129,8 +131,6 @@ export type WorkflowCodeStep = WorkflowProgressStep & {
   type: "code";
   run: (context: WorkflowCodeStepContext) => Promise<unknown> | unknown;
   resolveAgentContract?: WorkflowAgentRunContractResolver;
-  updatesWorkspaceDir?: boolean;
-  updatesRuntimeResources?: boolean;
   rerunOnRetry?: boolean;
   /**
    * Runtime decoder propagated by the step validator. When present, the

@@ -3,14 +3,13 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import {
   applyScopeImprovementRecommendations,
   collectScopeImprovementInputs,
@@ -18,6 +17,7 @@ import {
   gatherScopeImprovementEvidence,
   recommendScopeImprovements,
 } from "./scope-improvement.js";
+import { emptyScopeImprovementState } from "./scope-improvement-state.js";
 import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
 
 const NOW = new Date("2026-06-04T12:00:00.000Z");
@@ -47,6 +47,7 @@ function trigger(files: string[]) {
 function runCycle(projectDir: string, files: string[]) {
   const inputs = collectScopeImprovementInputs({
     projectDir,
+    state: emptyScopeImprovementState(deriveDirectoryScopeId(projectDir)),
     trigger: trigger(files),
     now: NOW,
     scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
@@ -78,22 +79,22 @@ describe("scope improvement actions", () => {
     return dir;
   }
 
-  it("creates owner questions for missing guidance when edits are not allowed", () => {
+  it("stages owner questions for post-integration publication", () => {
     const projectDir = track("question");
     const result = runCycle(projectDir, ["plans/trip.txt"]);
 
-    expect(result.actions.ownerQuestionIds).toHaveLength(1);
-    const questionFiles = readdirSync(join(projectDir, ".kota", "owner-questions"));
-    expect(questionFiles).toHaveLength(1);
-    expect(
-      readFileSync(join(projectDir, ".kota", "owner-questions", questionFiles[0]!), "utf-8"),
-    ).toContain("What durable guidance should KOTA follow");
+    expect(result.actions.ownerQuestionIds).toEqual([]);
+    expect(result.actions.applied).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "owner-question-pending" })]),
+    );
+    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
   });
 
   it("commits the task drop when one proposal changes to an owner question", () => {
     const projectDir = track("task-to-question");
     const inputs = collectScopeImprovementInputs({
       projectDir,
+      state: emptyScopeImprovementState(deriveDirectoryScopeId(projectDir)),
       trigger: trigger(["src/feature.ts"]),
       now: NOW,
       scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),

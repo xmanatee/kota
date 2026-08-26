@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
+  emptyAutonomyIssueProjection,
+  materializeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "./autonomy-issue-projection.js";
 import { collectCurrentAutonomyHealthIssueCards } from "./health-issue-cards.js";
@@ -62,12 +64,12 @@ describe("current autonomy health issue cards", () => {
       runId: "improver-1",
       observedAt: "2026-06-17T13:00:00.000Z",
     });
-    applyAutonomyIssueObservations({
-      projectDir,
+    const projected = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
       observations: [first, second],
-    });
-    recordAutonomyIssueDispositions({
-      projectDir,
+    }).projection;
+    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+      current: projected,
       updates: [
         {
           issueKey: first.issueKey,
@@ -77,7 +79,7 @@ describe("current autonomy health issue cards", () => {
           ownerQuestionIds: [],
         },
       ],
-    });
+    }));
 
     const evidence = collectCurrentAutonomyHealthIssueCards(projectDir, {
       nowIso: "2026-06-17T13:01:00.000Z",
@@ -136,10 +138,11 @@ describe("current autonomy health issue cards", () => {
       observedAt: "2026-06-17T14:00:00.000Z",
       signalIds: ["health-builder-cleared"],
     });
-    applyAutonomyIssueObservations({
-      projectDir,
+    const projected = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
       observations: [present, cleared],
-    });
+    }).projection;
+    materializeAutonomyIssueProjection(projectDir, projected);
 
     expect(
       collectCurrentAutonomyHealthIssueCards(projectDir).issueCards,

@@ -25,11 +25,11 @@ function workflow(
     enabled: true,
     moduleRoot: "/tmp/kota-simulation",
     definitionPath: `/tmp/kota-simulation/${name}.ts`,
-    recoveryCapable: false,
     tags: [],
     triggers: [],
     steps: [],
     ...overrides,
+    repository: overrides.repository ?? "none",
   };
 }
 

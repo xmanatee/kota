@@ -95,6 +95,7 @@ describe("resolved workflow agent run-contract validation", () => {
     step: Record<string, unknown>,
   ): RegisteredWorkflowDefinitionInput {
     return registerWorkflowDefinition(DEFINITION_PATH, {
+      repository: "read",
       name: "contract-fixture",
       moduleRoot: projectDir,
       triggers: [{ event: "manual" }],
@@ -236,6 +237,7 @@ describe("resolved workflow agent run-contract validation", () => {
     ]);
     registerAgentHarness(harness);
     const nested = registerWorkflowDefinition(DEFINITION_PATH, {
+      repository: "read",
       name: "nested-contract-fixture",
       moduleRoot: projectDir,
       triggers: [{ event: "manual" }],

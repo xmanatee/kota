@@ -1,20 +1,27 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+export const EXPLORER_STATE_KEY = "autonomy/explorer/cooldown";
 
-const EXPLORER_STATE_FILE = ".kota/explorer-state.json";
+export type ExplorerState = {
+  lastExplorationAt: string | null;
+};
 
-export function readLastExplorationAt(projectDir: string): string | undefined {
-  const filePath = join(projectDir, EXPLORER_STATE_FILE);
-  if (!existsSync(filePath)) return undefined;
-  try {
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return typeof data.lastExplorationAt === "string" ? data.lastExplorationAt : undefined;
-  } catch {
-    return undefined;
+export function decodeExplorerState(value: unknown): ExplorerState {
+  if (value === null || value === undefined) return { lastExplorationAt: null };
+  const lastExplorationAt = (value as Partial<ExplorerState>)?.lastExplorationAt;
+  if (
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    (lastExplorationAt !== null &&
+      (typeof lastExplorationAt !== "string" ||
+        Number.isNaN(Date.parse(lastExplorationAt))))
+  ) {
+    throw new Error("explorer cooldown state is invalid");
   }
+  return { lastExplorationAt };
 }
 
-export function writeLastExplorationAt(projectDir: string): void {
-  const filePath = join(projectDir, EXPLORER_STATE_FILE);
-  writeFileSync(filePath, JSON.stringify({ lastExplorationAt: new Date().toISOString() }), "utf-8");
+export function explorerStateAfterCompletion(exploredAt: string): ExplorerState {
+  if (Number.isNaN(Date.parse(exploredAt))) {
+    throw new Error("explorer completion timestamp is invalid");
+  }
+  return { lastExplorationAt: exploredAt };
 }

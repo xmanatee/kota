@@ -34,7 +34,7 @@ function readInterruptedRunErrorSummary(
 ): string | null {
   const errorPath = join(
     storedWorkflowRunDirectory(
-      join(ctx.projectDir, ".kota", "runs"),
+      join(ctx.stateDir, "runs"),
       run,
     ),
     "error.txt",
@@ -148,7 +148,7 @@ function interruptedRunPattern(
 }
 
 export function scanRuns(ctx: RuntimeHealthAuditContext): void {
-  const runsDir = join(ctx.projectDir, ".kota", "runs");
+  const runsDir = join(ctx.stateDir, "runs");
   const runs = loadRunsInWindow(runsDir, ctx.windowStartMs);
   ctx.inspected.recentRuns = runs.length;
 

@@ -4,7 +4,7 @@ import {
   type InboundSignalRouteTargetResult,
   type InboundSignalSourceStatus,
   inboundSignalReceived,
-  inboundSignalRouted,
+  inboundSignalWorkflowTargeted,
 } from "./events.js";
 import { workflowBatchTrigger } from "./routing-batch.js";
 import { selectInboundSignalRouteOutcome } from "./routing-matching.js";
@@ -133,7 +133,7 @@ async function dispatchTargets(
     }
     try {
       const result = await deps.triggerWorkflow(target.name, {
-        event: inboundSignalRouted.name,
+        event: inboundSignalWorkflowTargeted,
         payload: workflowTriggerPayload({ signal, route, target, sourceStatus }),
       });
       if (result.ok) {

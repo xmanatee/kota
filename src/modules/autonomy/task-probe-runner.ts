@@ -5,27 +5,34 @@ import {
   type TaskProbeSandbox,
 } from "#core/agent-harness/task-probe-sandbox.js";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import { runProcessGroupCommandSync } from "#modules/execution/process-group-command.js";
+import {
+  WorkflowCommandError,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import type { TaskProbe, TaskProbeResult } from "./task-probe.js";
 
 const MAX_PROBE_OUTPUT_CHARS = 20_000;
+const MAX_PROBE_OUTPUT_BYTES = 256 * 1024;
 
-export function runTaskProbe(
+export async function runTaskProbe(
   probe: TaskProbe,
   projectDir: string,
-): TaskProbeResult {
+  runCommand: WorkflowCommandRunner,
+): Promise<TaskProbeResult> {
   return runTaskProbeInSandbox(
     probe,
     projectDir,
     resolveTaskProbeSandbox(projectDir, probe.timeoutMs),
+    runCommand,
   );
 }
 
-function runTaskProbeInSandbox(
+async function runTaskProbeInSandbox(
   probe: TaskProbe,
   projectDir: string,
   sandbox: TaskProbeSandbox,
-): TaskProbeResult {
+  runCommand: WorkflowCommandRunner,
+): Promise<TaskProbeResult> {
   if (sandbox.status === "unavailable") {
     return {
       verdict: "fail",
@@ -37,43 +44,68 @@ function runTaskProbeInSandbox(
       isolation: sandbox,
     };
   }
+
   const runtimeHome = mkdtempSync(join(projectDir, ".kota-runtime-probe-"));
   const start = Date.now();
   try {
-    const result = runProcessGroupCommandSync({
+    const result = await runCommand({
       command: sandbox.command,
-      args: [...sandbox.prefixArgs, sandbox.probeExecutable, ...probe.args],
+      args: [
+        ...sandbox.prefixArgs,
+        sandbox.probeExecutable,
+        ...probe.args,
+      ],
       cwd: projectDir,
       env: buildTaskProbeEnv(runtimeHome),
+      envMode: "replace",
       timeoutMs: probe.timeoutMs,
-      outputLimit: MAX_PROBE_OUTPUT_CHARS,
+      outputLimitBytes: MAX_PROBE_OUTPUT_BYTES,
+      captureLimitBytesPerStream: MAX_PROBE_OUTPUT_CHARS,
     });
-    const durationMs = Date.now() - start;
-    const combined = [
-      result.stdout,
-      result.stderr,
-    ]
-      .filter((part) => part.length > 0)
-      .join("\n");
-    const output = truncateTail(combined, MAX_PROBE_OUTPUT_CHARS);
-    const exitCode = result.exitCode ?? -1;
-    return {
-      verdict: exitCode === 0 ? "pass" : "fail",
-      exitCode,
-      durationMs,
-      output,
+    return taskProbeResult({
       probe,
-      execution: "os-contained-command",
-      isolation: {
-        status: "enforced",
-        kind: sandbox.kind,
-        processBoundary: sandbox.processBoundary,
-        evidence: sandbox.evidence,
-      },
-    };
+      sandbox,
+      durationMs: Date.now() - start,
+      exitCode: 0,
+      output: [result.stdout.text, result.stderr.text]
+        .filter((part) => part.length > 0)
+        .join("\n"),
+    });
+  } catch (error) {
+    if (!(error instanceof WorkflowCommandError)) throw error;
+    return taskProbeResult({
+      probe,
+      sandbox,
+      durationMs: Date.now() - start,
+      exitCode: error.kind === "timed-out" ? 124 : (error.exitCode ?? -1),
+      output: error.message,
+    });
   } finally {
     rmSync(runtimeHome, { recursive: true, force: true });
   }
+}
+
+function taskProbeResult(args: {
+  probe: TaskProbe;
+  sandbox: Extract<TaskProbeSandbox, { status: "available" }>;
+  durationMs: number;
+  exitCode: number;
+  output: string;
+}): TaskProbeResult {
+  return {
+    verdict: args.exitCode === 0 ? "pass" : "fail",
+    exitCode: args.exitCode,
+    durationMs: args.durationMs,
+    output: truncateTail(args.output, MAX_PROBE_OUTPUT_CHARS),
+    probe: args.probe,
+    execution: "os-contained-command",
+    isolation: {
+      status: "enforced",
+      kind: args.sandbox.kind,
+      processBoundary: args.sandbox.processBoundary,
+      evidence: args.sandbox.evidence,
+    },
+  };
 }
 
 function buildTaskProbeEnv(runtimeHome: string): NodeJS.ProcessEnv {
@@ -88,5 +120,5 @@ function buildTaskProbeEnv(runtimeHome: string): NodeJS.ProcessEnv {
 
 function truncateTail(text: string, limit: number): string {
   if (text.length <= limit) return text;
-  return `[... ${text.length - limit} chars truncated — showing tail ...]\n${text.slice(-limit)}`;
+  return `[... ${text.length - limit} chars truncated - showing tail ...]\n${text.slice(-limit)}`;
 }

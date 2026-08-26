@@ -39,6 +39,7 @@ export type PrReviewAssessment =
       prNumber: number;
       headBranch: string;
       baseBranch: string;
+      headSha: string;
       title: string;
     };
 
@@ -46,10 +47,6 @@ const REVIEWABLE_ACTIONS = new Set(["opened", "synchronize"]);
 
 function isNonEmptyString(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isKotaTaskBranch(branch: string | null | undefined): branch is string {
-  return typeof branch === "string" && branch.startsWith("kota/task/");
 }
 
 function isReviewRecommendation(value: string): value is PrReviewRecommendation {
@@ -199,18 +196,25 @@ export const assessPr = typedCodeStep<PrReviewAssessment>({
     if (!isNonEmptyString(p.action) || !REVIEWABLE_ACTIONS.has(p.action)) {
       return skip(`irrelevant action '${String(p.action)}' is not reviewable`);
     }
-    if (!isKotaTaskBranch(p.headBranch)) {
-      return skip(`non-KOTA branch '${String(p.headBranch)}' is not a kota/task/* branch`);
-    }
     if (p.isFork === true) return skip("fork PR is not eligible for automated review");
     if (p.isFork !== false) return skip("missing explicit fork status in webhook payload");
     const actorIntegritySkipReason = assessActorIntegrity(p);
     if (actorIntegritySkipReason) return skip(actorIntegritySkipReason);
-    if (!isNonEmptyString(p.repo) || typeof p.number !== "number") {
+    if (
+      !isNonEmptyString(p.repo) ||
+      typeof p.number !== "number" ||
+      !Number.isSafeInteger(p.number) ||
+      p.number < 1
+    ) {
       return skip("missing repo or PR number in webhook payload");
     }
-    if (!isNonEmptyString(p.baseBranch) || !isNonEmptyString(p.title)) {
-      return skip("missing base branch or title in webhook payload");
+    if (
+      !isNonEmptyString(p.title) ||
+      !isNonEmptyString(p.headBranch) ||
+      !isNonEmptyString(p.baseBranch) ||
+      !isNonEmptyString(p.headSha)
+    ) {
+      return skip("missing PR title, branches, or head SHA in webhook payload");
     }
     return {
       skip: false,
@@ -218,6 +222,7 @@ export const assessPr = typedCodeStep<PrReviewAssessment>({
       prNumber: p.number,
       headBranch: p.headBranch,
       baseBranch: p.baseBranch,
+      headSha: p.headSha,
       title: p.title,
     };
   },

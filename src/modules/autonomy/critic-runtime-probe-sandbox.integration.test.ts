@@ -12,6 +12,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 
 const DETACHED_PROCESS_STARTED = "KOTA_RUNTIME_PROBE_DETACHED_PROCESS_STARTED";
@@ -177,11 +178,12 @@ describe("Runtime Probe mutable workspace containment", () => {
       const hostServer = await listenOnUnixSocket(fixture.outsideSocket);
 
       try {
-        const result = runProbeIfDeclared(
+        const result = await runProbeIfDeclared(
           fixture.taskContent,
           fixture.doingTask,
           fixture.projectDir,
           fixture.runDir,
+          createWorkflowCommandRunner({ cwd: fixture.projectDir }),
         );
 
         expect(result).not.toBeNull();
@@ -234,16 +236,17 @@ describe("Runtime Probe mutable workspace containment", () => {
 
   it.runIf(process.platform !== "win32")(
     "fails closed before package launch when the workspace contains an ordinary FIFO",
-    () => {
+    async () => {
       const fixture = makeFixture("untracked");
       makeFifo(join(fixture.projectDir, "host.fifo"));
 
       try {
-        const result = runProbeIfDeclared(
+        const result = await runProbeIfDeclared(
           fixture.taskContent,
           fixture.doingTask,
           fixture.projectDir,
           fixture.runDir,
+          createWorkflowCommandRunner({ cwd: fixture.projectDir }),
         );
 
         expect(result).toMatchObject({

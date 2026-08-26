@@ -1,5 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import type { SpawnedProcess, SpawnOptions } from "@anthropic-ai/claude-agent-sdk";
+import {
+  NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+  signalNativeCliProcessGroup,
+} from "#core/agent-harness/native-cli-process-group.js";
+import {
+  type ProcessSpawnObserver,
+  ProcessSupervisor,
+} from "#core/execution/process-supervisor.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
 export const SDK_ABORT_FORCE_KILL_MS = 10_000;
@@ -25,6 +33,7 @@ export function detectLocalClaudeCodeExecutable(): string | undefined {
 
 export function spawnClaudeCodeProcessWithAbortKill(
   options: SpawnOptions,
+  onProcessSpawn?: ProcessSpawnObserver,
 ): SpawnedProcess {
   const stderrMode: "pipe" | "ignore" = options.env.DEBUG_CLAUDE_AGENT_SDK
     ? "pipe"
@@ -33,9 +42,16 @@ export function spawnClaudeCodeProcessWithAbortKill(
     cwd: options.cwd,
     env: withProtectedGitBareRepositoryEnv(options.env as NodeJS.ProcessEnv),
     signal: options.signal,
+    ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["pipe", "pipe", stderrMode],
     windowsHide: true,
   });
+  try {
+    ProcessSupervisor.notifySpawnedProcessGroup(child.pid, onProcessSpawn);
+  } catch (error) {
+    signalNativeCliProcessGroup(child, "SIGKILL");
+    throw error;
+  }
 
   if (child.stderr) {
     child.stderr.on("data", (chunk) => process.stderr.write(chunk));
@@ -51,8 +67,9 @@ export function spawnClaudeCodeProcessWithAbortKill(
   };
   const scheduleForceKill = () => {
     if (forceKillTimer) return;
+    signalNativeCliProcessGroup(child, "SIGTERM");
     forceKillTimer = setTimeout(() => {
-      if (child.exitCode === null) child.kill("SIGKILL");
+      if (child.exitCode === null) signalNativeCliProcessGroup(child, "SIGKILL");
     }, SDK_ABORT_FORCE_KILL_MS);
     forceKillTimer.unref();
   };

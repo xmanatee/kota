@@ -55,8 +55,7 @@ export function makeRemoteReconnectHandle(
       },
     },
     paused: false,
-    agentConcurrency: 1,
-    codeConcurrency: 4,
+    concurrency: 4,
   };
   const sessions = [{
     id: REMOTE_RECONNECT_SESSION_ID,

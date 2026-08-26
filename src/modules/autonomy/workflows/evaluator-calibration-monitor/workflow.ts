@@ -1,7 +1,7 @@
 /**
  * Live-run evaluator calibration monitor.
  *
- * Aggregates calibration artifacts after builder commits, materializes a
+ * Aggregates calibration artifacts after successful builder completions, materializes a
  * deterministic repair action when drift crosses the active threshold, and
  * emits typed regression and health signals for operators and automation.
  */
@@ -18,32 +18,15 @@ import type {
   CalibrationRepairArtifact,
   CalibrationRepairProposal,
 } from "#modules/autonomy/calibration-repair.js";
-import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
+import { proposeCalibrationRepair } from "#modules/autonomy/calibration-repair.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import { buildEvaluatorCalibrationDriftHealthSignal } from "#modules/autonomy/health-signal-emitters.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-} from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
 import {
   type EvaluatorCalibrationInspection,
   inspectEvaluatorCalibrationOperation,
 } from "./inspection.js";
 import {
   applyCalibrationRepairOperation,
-  proposeCalibrationRepairOperation,
 } from "./repair-operations.js";
 
 type GateInspection = EvaluatorCalibrationInspection;
@@ -51,7 +34,6 @@ type GateInspection = EvaluatorCalibrationInspection;
 const inspectGate = typedCodeStep<GateInspection>({
   id: "evaluate-calibration",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<GateInspection>(raw, [
       "dirty",
@@ -65,8 +47,8 @@ const inspectGate = typedCodeStep<GateInspection>({
       "passWithWarningsMinSample",
       "aggregate",
     ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectEvaluatorCalibrationOperation, { projectDir }),
+  run: ({ projectDir, stateDir, runBlocking }) =>
+    runBlocking(inspectEvaluatorCalibrationOperation, { projectDir, stateDir }),
 });
 
 type ProposeResult = { proposal: CalibrationRepairProposal };
@@ -82,15 +64,19 @@ const proposeRepair = typedCodeStep<ProposeResult>({
     expectStructuredOutput<ProposeResult>(raw, ["proposal"]),
   run: async (ctx) => {
     const inspection = inspectGate.outputRequired(ctx);
-    const proposal = await ctx.runBlocking(proposeCalibrationRepairOperation, {
-      projectDir: ctx.projectDir,
-      decisionReason: inspection.reason,
-      driftKinds: inspection.driftKinds,
-      aggregate: inspection.aggregate,
-      thresholdRate: inspection.thresholdRate,
-      passWithWarningsThresholdRate: inspection.passWithWarningsThresholdRate,
-      nowIso: new Date().toISOString(),
-    });
+    const proposal = await proposeCalibrationRepair(
+      {
+        projectDir: ctx.projectDir,
+        decisionReason: inspection.reason,
+        driftKinds: inspection.driftKinds,
+        aggregate: inspection.aggregate,
+        thresholdRate: inspection.thresholdRate,
+        passWithWarningsThresholdRate:
+          inspection.passWithWarningsThresholdRate,
+        nowIso: new Date().toISOString(),
+      },
+      ctx.runCommand,
+    );
     return { proposal };
   },
 });
@@ -196,8 +182,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -208,57 +194,36 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return obj;
   },
   run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, {
-      signal: ctx.signal,
-    });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
 });
 
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
   name: "evaluator-calibration-monitor",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
-    "After each builder commit, aggregate evaluator calibration. When the gate fires, open or promote a calibration repair task and emit a typed regression event for the attention bridge.",
+    "After each successful builder completion, aggregate evaluator calibration. When the gate fires, open or promote a calibration repair task and emit a typed regression event for the attention bridge.",
   tags: ["monitored"],
-  recoveryCapable: true,
   triggers: [
-    { event: "workflow.build.committed" },
-    { event: "runtime.recovered" },
+    {
+      event: "workflow.completed",
+      filter: { workflow: ["builder"], status: ["success", "completed-with-warnings"] },
+      queueMode: "all",
+    },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "evaluator-calibration-monitor",
-        }),
-    },
     inspectGate,
     proposeRepair,
     applyRepair,
     writeArtifact,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
+    validateChanges,
     {
       id: "emit-regression",
       type: "emit",
@@ -303,13 +268,6 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
           createdAt: new Date().toISOString(),
         });
       },
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "evaluator-calibration-monitor committed a calibration repair task",
-      requires: ["commit"],
     },
   ],
 };

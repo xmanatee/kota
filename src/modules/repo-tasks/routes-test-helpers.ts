@@ -4,6 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { vi } from "vitest";
+import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import type { RepoTaskMutationTarget } from "./repo-task-mutation-boundary.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "./repo-task-mutation-test-support.js";
 
 type JsonValue =
   | string
@@ -16,12 +22,22 @@ type JsonValue =
 type JsonObject = { readonly [key: string]: JsonValue };
 
 export function makeProjectDir(): string {
-  const dir = join(
+  const scopeDir = join(
     tmpdir(),
     `kota-task-routes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(dir, { recursive: true });
-  return dir;
+  return createRepoTaskRuntimeSandbox(
+    scopeDir,
+    `route-test-${Math.random().toString(36).slice(2, 8)}`,
+  ).projectDir;
+}
+
+export function resetRouteTestAuthority(): void {
+  resetProviderRegistry();
+}
+
+export function mutationTarget(projectDir: string): RepoTaskMutationTarget {
+  return repoTaskRuntimeSandboxTarget(projectDir);
 }
 
 export function writeTaskFile(

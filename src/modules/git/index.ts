@@ -14,61 +14,6 @@ import { networkWriteEffect } from "#core/tools/effect.js";
 import { gitTool, runGit } from "./git.js";
 import { resolveGitToolEffect } from "./push-safety.js";
 
-export type { CheckpointAndReconcileAutomationWorktreeInput } from "./worktree-canonical-reconciliation.js";
-export { checkpointAndReconcileAutomationWorktree } from "./worktree-canonical-reconciliation.js";
-export { updateAutomationWorktreeCanonicalReconciliation } from "./worktree-canonical-reconciliation-metadata.js";
-export type {
-	AutomationWorktreeCleanupStatus,
-	AutomationWorktreeDirtySummary,
-	AutomationWorktreeInspection,
-	AutomationWorktreeMetadata,
-	AutomationWorktreeOperatorState,
-	AutomationWorktreeOperatorStatus,
-	AutomationWorktreeReconcileAction,
-	AutomationWorktreeReconcileItem,
-	AutomationWorktreeReconcileResult,
-	AutomationWorktreeRunState,
-	AutomationWorktreeRuntimeResources,
-	AutomationWorktreeSelector,
-	AutomationWorktreeState,
-	CleanupEligibility,
-	CreateAutomationWorktreeInput,
-	WorktreeDirtyState,
-	WorktreeLockState,
-	WorktreePushState,
-} from "./worktree-lifecycle.js";
-export {
-	cleanupAutomationWorktree,
-	createAutomationWorktree,
-	inspectAutomationWorktree,
-	listAutomationWorktreeStatuses,
-	lockAutomationWorktree,
-	prepareAutomationWorktree,
-	reconcileAutomationWorktrees,
-	unlockAutomationWorktree,
-	updateAutomationWorktreeRuntimeResources,
-	updateAutomationWorktreeState,
-} from "./worktree-lifecycle.js";
-export type {
-	AutomationWorktreeCanonicalConflict,
-	AutomationWorktreeCanonicalReconciliation,
-	AutomationWorktreeCanonicalReconciliationDisposition,
-	AutomationWorktreeCanonicalReconciliationPhase,
-	AutomationWorktreeCanonicalValidation,
-} from "./worktree-lifecycle-types.js";
-export type {
-	MergeAutomationWorktreeInput,
-	MergeConflictKind,
-	MergeGateConflict,
-	MergeGateResolver,
-	MergeGateResolverRequest,
-	MergeGateResolverResult,
-	MergeGateResult,
-	MergeGateStatus,
-	MergeGateValidation,
-} from "./worktree-merge-gate.js";
-export { mergeAutomationWorktree } from "./worktree-merge-gate.js";
-
 const tools: ToolDef[] = [
   {
     tool: gitTool,
@@ -82,7 +27,6 @@ const gitModule: KotaModule = {
   name: "git",
   version: "1.0.0",
   description: "Git version control tool with safety guardrails",
-  dependencies: ["execution"],
   manifest: {
     schemaVersion: 1,
     capabilities: [

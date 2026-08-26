@@ -10,21 +10,24 @@
  *
  * The data + render pipeline is shared with the on-demand digest, while its
  * repository and run-history scan executes through the workflow blocking
- * boundary together with cadence artifact/state writes. The code step only
- * emits the resulting operator event on the daemon thread.
+ * boundary. The code step stages cadence state and the resulting operator event
+ * so both become visible only when the run succeeds.
  */
 
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import type { DailyDigestData } from "./aggregate.js";
+import {
+  type DailyDigestData,
+  type DigestState,
+  digestStateFromCounts,
+} from "./aggregate.js";
 import {
   DAILY_DIGEST_DIGEST_JSON,
   DAILY_DIGEST_DIGEST_TXT,
-  DAILY_DIGEST_STATE_FILENAME,
   dailyDigestBuildOperation,
 } from "./blocking-operations.js";
+import { DAILY_DIGEST_STATE_KEY } from "./on-demand.js";
 
-export { DAILY_DIGEST_STATE_FILENAME };
 export const DAILY_DIGEST_EVENT = "workflow.daily.digest";
 export { DAILY_DIGEST_DIGEST_JSON, DAILY_DIGEST_DIGEST_TXT };
 
@@ -38,17 +41,29 @@ const buildDigest = typedCodeStep<DailyDigestData>({
       "queueDelta",
       "quiet",
     ]),
-  run: async ({ projectDir, workflow, emit, runBlocking }) => {
+  run: async ({ projectDir, stateDir, state, workflow, emit, runBlocking }) => {
+    const previous = state.read<DigestState>(DAILY_DIGEST_STATE_KEY);
     const snapshot = await runBlocking(dailyDigestBuildOperation, {
       projectDir,
+      stateDir,
       runDirPath: workflow.runDirPath,
+      previousQueueCounts: previous.value?.counts ?? null,
     });
+
+    state.compareAndSet(
+      DAILY_DIGEST_STATE_KEY,
+      previous.revision,
+      digestStateFromCounts(snapshot.currentCounts, snapshot.windowEndMs),
+    );
 
     emit(DAILY_DIGEST_EVENT, {
       windowStartedAt: snapshot.data.windowStartedAt,
       windowEndedAt: snapshot.data.windowEndedAt,
       text: snapshot.text,
       quiet: snapshot.data.quiet,
+    }, {
+      delivery: "on-run-success",
+      stepId: "build-digest",
     });
 
     return snapshot.data;
@@ -59,6 +74,7 @@ const dailyDigestWorkflow: WorkflowDefinitionInput = {
   name: "daily-digest",
   description:
     "Emit one operator-facing digest of completed and pending autonomy work over a rolling 24h window.",
+  repository: "read",
   triggers: [
     {
       // 08:00 local — predictable morning summary; operators can override the

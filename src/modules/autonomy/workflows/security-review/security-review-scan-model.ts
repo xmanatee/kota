@@ -203,7 +203,7 @@ export const SURFACE_MATCHERS: readonly SurfaceMatcher[] = [
   {
     surface: "task-workflow-mutation",
     name: "task-workflow-mutation",
-    pattern: /\b(moveTaskById|createNormalizedTask|commitWorkflowChanges|writeFileSync)\b|workflow\.|git add|data\/tasks/i,
+    pattern: /\b(moveTaskById|createNormalizedTask|writeFileSync)\b|workflow\.|git add|data\/tasks/i,
   },
 ];
 

@@ -28,6 +28,11 @@ import "#modules/claude-agent-harness/index.js";
 
 describe("production completion routing replay", () => {
   const tempDirs: string[] = [];
+  const expectedCompletionConsumers = [
+    "attention-digest",
+    "evaluator-calibration-monitor",
+    "fan-out-consolidator",
+  ];
 
   afterEach(() => {
     for (const dir of tempDirs.splice(0)) {
@@ -118,7 +123,9 @@ describe("production completion routing replay", () => {
         0,
       );
 
-      expect(invocations).toEqual([]);
+      expect(
+        [...new Set(invocations.map((run) => run.workflow))].sort(),
+      ).toEqual(expectedCompletionConsumers);
       expect(pendingInputs).toBe(0);
       expect(
         invocations.filter((run) =>

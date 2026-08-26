@@ -11,6 +11,7 @@ import {
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
+import { createTestRunContext } from "../testing/run-context-fixture.js";
 import {
   AGENT_OK_RESULT,
   makeAgentStep,
@@ -102,7 +103,7 @@ describe("workflow native-harness capability artifacts", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -194,7 +195,7 @@ describe("workflow native-harness capability artifacts", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 

@@ -3,7 +3,6 @@ import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { initializeAutonomyIssueProjection } from "./autonomy-issue-projection-rebuild.js";
 
 export type AutonomyIssueEventScope = {
   projectId: string;
@@ -61,7 +60,6 @@ export function resolveAutonomyIssueRuntimeScope(
   }
 
   const projectDir = resolution.runtime.project.projectDir;
-  initializeAutonomyIssueProjection(projectDir);
   return {
     scopeId: selectedId,
     projectDir,

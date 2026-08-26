@@ -170,6 +170,7 @@ function makeRetractStub(
 function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
   return {
     runtimeState: {
+      activeRuns: [],
       completedRuns: 5,
       pendingRuns: [],
       workflows: {
@@ -241,7 +242,7 @@ describe("buildStatusText", () => {
   it("omits last status section when no workflows have status", () => {
     const text = buildStatusText(
       makeStatusInfo({
-        runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+        runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
       }),
     );
     expect(text).not.toContain("*Last status:*");
@@ -333,8 +334,7 @@ describe("startTelegramStatusPoll", () => {
       workflows: {},
       paused: true,
       pendingAbort: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
     }));
     const client = {
       forProject: vi.fn(() => ({
@@ -403,7 +403,10 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(mockedRenderOnDemandDigest).toHaveBeenCalledWith({ projectDir: FAKE_PROJECT_DIR });
+    expect(mockedRenderOnDemandDigest).toHaveBeenCalledWith({
+      projectDir: FAKE_PROJECT_DIR,
+      stateDir: join(FAKE_PROJECT_DIR, ".kota"),
+    });
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
     expect(sendCall?.[2]).toMatchObject({

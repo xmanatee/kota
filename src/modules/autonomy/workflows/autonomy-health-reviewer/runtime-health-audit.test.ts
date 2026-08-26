@@ -1,8 +1,8 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
+  collectRuntimeHealthAuditForProject,
   makeRuntimeHealthAuditProjectDir,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
@@ -36,7 +36,7 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
@@ -68,7 +68,7 @@ describe("runtime health audit", () => {
   it("requests one issue decision for stale open DLQ items", () => {
     writeRuntimeHealthDeadLetterQueue(projectDir, [staleWorkflowDispatchDeadLetter()]);
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
@@ -107,7 +107,7 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
@@ -193,7 +193,7 @@ describe("runtime health audit", () => {
       "utf-8",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });

@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { writeAnchoredRuntimeProbeArtifact } from "./critic-runtime-probe-artifact-writer.js";
 import {
@@ -67,12 +68,13 @@ function makeArtifactFixture(program: (fixture: ArtifactFixture) => string): Art
   return fixture;
 }
 
-function runFixture(fixture: ArtifactFixture): void {
-  runProbeIfDeclared(
+async function runFixture(fixture: ArtifactFixture): Promise<void> {
+  await runProbeIfDeclared(
     fixture.taskContent,
     fixture.taskPath,
     fixture.projectDir,
     fixture.runDir,
+    createWorkflowCommandRunner({ cwd: fixture.projectDir }),
     fixture.projectDir,
   );
 }
@@ -84,7 +86,7 @@ afterEach(() => {
 });
 
 describe("Runtime Probe artifact writes", () => {
-  it("refuses a run-directory pathname swapped after its identity was captured", () => {
+  it("refuses a run-directory pathname swapped after its identity was captured", async () => {
     const projectDir = makeTmpDir();
     const outsideRunDir = makeTmpDir();
     const runDir = makeRunDir(projectDir);
@@ -97,34 +99,37 @@ describe("Runtime Probe artifact writes", () => {
     renameSync(runDir, relocatedRunDir);
     symlinkSync(outsideRunDir, runDir, "dir");
 
-    expect(() =>
-      writeAnchoredRuntimeProbeArtifact({
-        expectedArtifactIdentity: null,
-        runDirectoryIdentity: { dev: runStats.dev, ino: runStats.ino },
-        runDirectoryPath: runDir,
-        serializedArtifact: '{"status":"passed"}',
-      })
-    ).toThrow(/run directory must not be a symbolic link/);
+    await expect(
+      writeAnchoredRuntimeProbeArtifact(
+        {
+          expectedArtifactIdentity: null,
+          runDirectoryIdentity: { dev: runStats.dev, ino: runStats.ino },
+          runDirectoryPath: runDir,
+          serializedArtifact: '{"status":"passed"}',
+        },
+        createWorkflowCommandRunner({ cwd: projectDir }),
+      ),
+    ).rejects.toThrow(/run directory must not be a symbolic link/);
 
     expect(readFileSync(externalTarget, "utf8")).toBe("ORIGINAL");
     expect(existsSync(join(outsideRunDir, "runtime-probe.json"))).toBe(false);
     expect(existsSync(join(relocatedRunDir, "runtime-probe.json"))).toBe(false);
   });
 
-  it("rejects a pre-planted artifact symlink after the probe without changing its target", () => {
+  it("rejects a pre-planted artifact symlink after the probe without changing its target", async () => {
     const fixture = makeArtifactFixture(
       ({ markerPath }) =>
         `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "yes")`,
     );
     symlinkSync(fixture.externalTarget, fixture.artifactPath);
 
-    expect(() => runFixture(fixture)).toThrow(/must not be a symbolic link/);
+    await expect(runFixture(fixture)).rejects.toThrow(/must not be a symbolic link/);
 
     expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
     expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
   });
 
-  it("rejects an artifact symlink created by the probe without changing its target", () => {
+  it("rejects an artifact symlink created by the probe without changing its target", async () => {
     const fixture = makeArtifactFixture(
       ({ artifactPath, externalTarget, markerPath }) => [
         'const fs = require("node:fs")',
@@ -133,13 +138,13 @@ describe("Runtime Probe artifact writes", () => {
       ].join("; "),
     );
 
-    expect(() => runFixture(fixture)).toThrow(/must not be a symbolic link/);
+    await expect(runFixture(fixture)).rejects.toThrow(/must not be a symbolic link/);
 
     expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
     expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
   });
 
-  it("rejects a non-regular artifact created by the probe", () => {
+  it("rejects a non-regular artifact created by the probe", async () => {
     const fixture = makeArtifactFixture(
       ({ artifactPath, markerPath }) => [
         'const fs = require("node:fs")',
@@ -148,13 +153,13 @@ describe("Runtime Probe artifact writes", () => {
       ].join("; "),
     );
 
-    expect(() => runFixture(fixture)).toThrow(/must be a regular file/);
+    await expect(runFixture(fixture)).rejects.toThrow(/must be a regular file/);
 
     expect(readFileSync(fixture.externalTarget, "utf8")).toBe("ORIGINAL");
     expect(readFileSync(fixture.markerPath, "utf8")).toBe("yes");
   });
 
-  it("revalidates a probe-created run-directory link against the real workspace root", () => {
+  it("revalidates a probe-created run-directory link against the real workspace root", async () => {
     const outsideRunDir = makeTmpDir();
     fixtureRoots.push(outsideRunDir);
     const fixture = makeArtifactFixture(
@@ -166,7 +171,7 @@ describe("Runtime Probe artifact writes", () => {
       ].join("; "),
     );
 
-    expect(() => runFixture(fixture)).toThrow(
+    await expect(runFixture(fixture)).rejects.toThrow(
       /run directory must be inside the active workspace/,
     );
 
@@ -175,18 +180,21 @@ describe("Runtime Probe artifact writes", () => {
     expect(existsSync(join(outsideRunDir, "runtime-probe.json"))).toBe(false);
   });
 
-  it("writes a regular artifact through the anchored directory", () => {
+  it("writes a regular artifact through the anchored directory", async () => {
     const projectDir = makeTmpDir();
     const runDir = makeRunDir(projectDir);
     fixtureRoots.push(projectDir);
     const runStats = lstatSync(runDir);
 
-    writeAnchoredRuntimeProbeArtifact({
-      expectedArtifactIdentity: null,
-      runDirectoryIdentity: { dev: runStats.dev, ino: runStats.ino },
-      runDirectoryPath: realpathSync.native(runDir),
-      serializedArtifact: '{"status":"passed"}',
-    });
+    await writeAnchoredRuntimeProbeArtifact(
+      {
+        expectedArtifactIdentity: null,
+        runDirectoryIdentity: { dev: runStats.dev, ino: runStats.ino },
+        runDirectoryPath: realpathSync.native(runDir),
+        serializedArtifact: '{"status":"passed"}',
+      },
+      createWorkflowCommandRunner({ cwd: projectDir }),
+    );
 
     expect(readFileSync(join(runDir, "runtime-probe.json"), "utf8")).toBe(
       '{"status":"passed"}',

@@ -66,15 +66,6 @@ function assertLoadableAgentContractsInSteps(
           definitionPath: definition.definitionPath,
         });
       }
-      const continuation = step.repairLoop?.continuation;
-      if (continuation?.resolveAgentContract !== undefined) {
-        assertLoadableAgentContract({
-          resolveContract: () => continuation.resolveAgentContract!(step),
-          workflowName: definition.name,
-          stepLabel: `${stepLabel}.repairLoop.continuation`,
-          definitionPath: definition.definitionPath,
-        });
-      }
       continue;
     }
     if (step.type === "code" && step.resolveAgentContract !== undefined) {

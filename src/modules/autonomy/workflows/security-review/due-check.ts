@@ -1,8 +1,11 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import {
+  WRITER_INTEGRATION_EVIDENCE,
+  type WriterIntegrationEvidence,
+} from "#core/workflow/writer-integration-evidence.js";
 import {
   getRepoTaskStateDir,
   type RepoTaskState,
@@ -100,6 +103,14 @@ export type SecurityReviewDueDecision = {
 export type InspectSecurityReviewDueOptions = {
   cooldownMs?: number;
   now?: Date;
+  stateDir: string;
+};
+
+export type SecurityReviewGitEvidence = {
+  currentHead: SecurityReviewGitHead;
+  lastReview: SecurityReviewLastEvidence;
+  comparison: SecurityReviewComparison;
+  changedPaths: string[];
 };
 
 type RunMetadataJson = {
@@ -107,16 +118,6 @@ type RunMetadataJson = {
   workflow?: string;
   status?: string;
   completedAt?: string;
-  steps?: Array<{
-    id?: string;
-    output?: {
-      sha?: string;
-    };
-  }>;
-};
-
-type RunSummaryJson = {
-  commitSha?: string;
 };
 
 type SecurityReviewOutcomeJson = {
@@ -129,19 +130,23 @@ type SecurityReviewChangedPathClassification = {
   surfaces: SecurityReviewSurface[];
 };
 
-function gitLines(projectDir: string, args: readonly string[]): string[] {
-  const output = execFileSync("git", args, {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+function outputLines(output: string): string[] {
   return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 }
 
-function tryGitLines(projectDir: string, args: readonly string[]): string[] | null {
+async function tryGitLines(
+  runCommand: WorkflowCommandRunner,
+  projectDir: string,
+  args: readonly string[],
+): Promise<string[] | null> {
   try {
-    return gitLines(projectDir, args);
+    const result = await runCommand({
+      command: "git",
+      args,
+      cwd: projectDir,
+      captureLimitBytesPerStream: 1_000_000,
+    });
+    return outputLines(result.stdout.text);
   } catch {
     return null;
   }
@@ -156,19 +161,6 @@ function readJsonFile<T>(path: string): T | null {
   }
 }
 
-function currentGitHead(projectDir: string): SecurityReviewGitHead {
-  const lines = tryGitLines(projectDir, ["rev-parse", "HEAD"]);
-  const sha = lines?.[0];
-  if (!sha) {
-    return { kind: "unavailable", reason: "git-head-unavailable" };
-  }
-  return { kind: "commit", sha };
-}
-
-function commitExists(projectDir: string, sha: string): boolean {
-  return tryGitLines(projectDir, ["cat-file", "-e", `${sha}^{commit}`]) !== null;
-}
-
 function parseTimestamp(value: string | undefined): SecurityReviewTimestamp {
   if (!value) {
     return { kind: "unavailable", reason: "missing-completed-at" };
@@ -180,19 +172,12 @@ function parseTimestamp(value: string | undefined): SecurityReviewTimestamp {
   return { kind: "timestamp", value, epochMs };
 }
 
-function extractCommitHead(
-  projectDir: string,
-  runDirPath: string,
-  metadata: RunMetadataJson,
-): SecurityReviewGitHead {
-  const summary = readJsonFile<RunSummaryJson>(join(runDirPath, "run-summary.json"));
-  if (summary?.commitSha && commitExists(projectDir, summary.commitSha)) {
-    return { kind: "commit", sha: summary.commitSha };
-  }
-
-  const commitStepSha = metadata.steps?.find((step) => step.id === "commit")?.output?.sha;
-  if (commitStepSha && commitExists(projectDir, commitStepSha)) {
-    return { kind: "commit", sha: commitStepSha };
+function extractRecordedCommitHead(runDirPath: string): SecurityReviewGitHead {
+  const integration = readJsonFile<WriterIntegrationEvidence>(
+    join(runDirPath, WRITER_INTEGRATION_EVIDENCE),
+  );
+  if (integration?.publishedHead) {
+    return { kind: "commit", sha: integration.publishedHead };
   }
 
   return { kind: "unavailable", reason: "review-commit-unavailable" };
@@ -204,8 +189,10 @@ function outcomeLabel(outcome: SecurityReviewOutcomeJson | null): string {
   return outcome.outcome ?? "unknown";
 }
 
-function findLastSecurityReviewEvidence(projectDir: string): SecurityReviewLastEvidence {
-  const runsDir = join(projectDir, ".kota", "runs");
+function findLastSecurityReviewEvidence(
+  stateDir: string,
+): SecurityReviewLastEvidence {
+  const runsDir = join(stateDir, "runs");
   if (!existsSync(runsDir)) return { kind: "none" };
 
   const candidates: Array<{
@@ -257,7 +244,7 @@ function findLastSecurityReviewEvidence(projectDir: string): SecurityReviewLastE
     workflow: last.metadata.workflow ?? "unknown",
     outcome: outcomeLabel(last.outcome),
     completedAt: last.completedAt,
-    head: extractCommitHead(projectDir, last.runDirPath, last.metadata),
+    head: extractRecordedCommitHead(last.runDirPath),
   };
 }
 
@@ -284,33 +271,72 @@ function buildComparison(
   return { kind: "full-tree", reason: "missing-review-baseline" };
 }
 
-function changedPathsForComparison(
+async function changedPathsForComparison(
+  runCommand: WorkflowCommandRunner,
   projectDir: string,
   comparison: SecurityReviewComparison,
-): string[] {
+): Promise<string[]> {
   if (comparison.kind === "unavailable") return [];
-  const paths = (() => {
+  const gitArgs = (() => {
     if (comparison.kind === "commit-range") {
-      return tryGitLines(projectDir, [
+      return [
         "diff",
         "--name-only",
         `${comparison.baseSha}..${comparison.headSha}`,
         "--",
-      ]);
+      ];
     }
     if (comparison.kind === "since-time") {
-      return tryGitLines(projectDir, [
+      return [
         "log",
         "--format=",
         "--name-only",
         `--since=${comparison.since}`,
         "--",
-      ]);
+      ];
     }
-    return tryGitLines(projectDir, ["ls-files"]);
+    return ["ls-files"];
   })();
+  const paths = await tryGitLines(runCommand, projectDir, gitArgs);
 
   return Array.from(new Set(paths ?? [])).sort();
+}
+
+export async function collectSecurityReviewGitEvidence(args: {
+  projectDir: string;
+  stateDir: string;
+  runCommand: WorkflowCommandRunner;
+}): Promise<SecurityReviewGitEvidence> {
+  const headLines = await tryGitLines(args.runCommand, args.projectDir, [
+    "rev-parse",
+    "HEAD",
+  ]);
+  const currentHead: SecurityReviewGitHead = headLines?.[0]
+    ? { kind: "commit", sha: headLines[0] }
+    : { kind: "unavailable", reason: "git-head-unavailable" };
+  const recordedReview = findLastSecurityReviewEvidence(args.stateDir);
+  const lastReview =
+    recordedReview.kind === "found" && recordedReview.head.kind === "commit" &&
+      (await tryGitLines(args.runCommand, args.projectDir, [
+        "cat-file",
+        "-e",
+        `${recordedReview.head.sha}^{commit}`,
+      ])) === null
+      ? {
+          ...recordedReview,
+          head: {
+            kind: "unavailable",
+            reason: "review-commit-unavailable",
+          } as const,
+        }
+      : recordedReview;
+  const comparison = buildComparison(currentHead, lastReview);
+  const changedPaths = await changedPathsForComparison(
+    args.runCommand,
+    args.projectDir,
+    comparison,
+  );
+  return { currentHead, lastReview, comparison, changedPaths };
 }
 
 function classifyChangedPaths(
@@ -427,14 +453,12 @@ function decideDue(args: {
 
 export function inspectSecurityReviewDue(
   projectDir: string,
-  options: InspectSecurityReviewDueOptions = {},
+  options: InspectSecurityReviewDueOptions,
+  git: SecurityReviewGitEvidence,
 ): SecurityReviewDueDecision {
   const cooldownMs = options.cooldownMs ?? SECURITY_REVIEW_ROUTINE_COOLDOWN_MS;
   const nowMs = (options.now ?? new Date()).getTime();
-  const currentHead = currentGitHead(projectDir);
-  const lastReview = findLastSecurityReviewEvidence(projectDir);
-  const comparison = buildComparison(currentHead, lastReview);
-  const changedPaths = changedPathsForComparison(projectDir, comparison);
+  const { currentHead, lastReview, comparison, changedPaths } = git;
   const changedPathClassifications = classifyChangedPaths(projectDir, changedPaths);
   const changedSurfaces = changedSurfacesForPaths(changedPathClassifications);
   const highRiskChangedPaths = changedPathClassifications

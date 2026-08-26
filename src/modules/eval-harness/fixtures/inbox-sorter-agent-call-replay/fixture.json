@@ -1,8 +1,9 @@
 {
   "id": "inbox-sorter-agent-call-replay",
-  "description": "End-to-end replay of inbox-sorter's `sort-inbox` agent step plus the surrounding inspect-inbox and commit steps. Seeds one inbox capture so `needsAttention` fires on `inspect-inbox`, forwards a fixed `_runId` so predicates can inspect `.kota/runs/<id>/metadata.json` deterministically, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9 — the real inbox-sorter run that committed 241b3382 (Graduate broken decomposer-replay-fixture inbox note into a p1 ready task).",
+  "description": "End-to-end replay of inbox-sorter's `sort-inbox` agent step plus the surrounding inspection and semantic-review behavior. Seeds one inbox capture so `needsAttention` fires on `inspect-inbox`, forwards a fixed `_runId` so predicates can inspect `.kota/runs/<id>/metadata.json` deterministically, and routes the agent step through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9 — the real inbox-sorter run that committed 241b3382 (Graduate broken decomposer-replay-fixture inbox note into a p1 ready task).",
   "role": "inbox-sorter",
   "workflowName": "inbox-sorter",
+  "triggerEvent": "autonomy.inbox.available",
   "budgetMs": 180000,
   "triggerPayload": {
     "_runId": "fixture-inbox-sorter-agent-call-replay-2026-04-24",
@@ -40,10 +41,6 @@
     },
     {
       "kind": "file-exists",
-      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/agent-output/commit-message.txt"
-    },
-    {
-      "kind": "file-exists",
       "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/metadata.json"
     },
     {
@@ -58,13 +55,8 @@
     },
     {
       "kind": "file-contains",
-      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/metadata.json",
-      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/metadata.json",
-      "needle": "\"committed\": true"
+      "path": ".kota/runs/fixture-inbox-sorter-agent-call-replay-2026-04-24/writer-integration.json",
+      "needle": "\"workflow\": \"inbox-sorter\""
     }
   ],
   "tags": [

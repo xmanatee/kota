@@ -1,6 +1,8 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWriterIntegrationEvidence } from "#core/workflow/writer-integration-evidence.js";
+import { isCalibrationSourceFile } from "./evaluator-calibration-artifact.js";
 import {
   type CalibrationDriftKind,
   type CalibrationGateConfig,
@@ -41,10 +43,21 @@ function loadCalibrationArtifactsInWindow(
       join(runsDir, entry, EVALUATOR_CALIBRATION_ARTIFACT),
     );
     if (!raw || raw.criticPromptHash !== criticPromptHash) continue;
-    const completedAtMs = Date.parse(raw.completedAt);
+    const integration = readWriterIntegrationEvidence(runsDir, entry);
+    const artifact: EvaluatorCalibrationArtifact = integration
+      ? {
+          ...raw,
+          completedAt: integration.completedAt,
+          sourceRevision: integration.publishedHead,
+          sourceFilesChanged: integration.changedPaths.filter(
+            isCalibrationSourceFile,
+          ),
+        }
+      : raw;
+    const completedAtMs = Date.parse(artifact.completedAt);
     if (!Number.isFinite(completedAtMs)) continue;
     if (completedAtMs < cutoffMs || completedAtMs > nowMs) continue;
-    loaded.push({ completedAtMs, artifact: raw });
+    loaded.push({ completedAtMs, artifact });
   }
   loaded.sort((a, b) => a.completedAtMs - b.completedAtMs);
   return loaded;

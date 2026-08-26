@@ -58,6 +58,23 @@ function progressReview(verdict: string, localScope: object): object {
   };
 }
 
+function builderTrigger(taskId: string): WorkflowRunMetadata["trigger"] {
+  const taskDigest = "0".repeat(64);
+  return {
+    event: "autonomy.queue.available",
+    schemaRef: null,
+    payload: {
+      taskId,
+      taskPath: `data/tasks/ready/${taskId}.md`,
+      taskState: "ready",
+      taskUpdatedAt: NOW,
+      taskDigest,
+      idempotencyKey: `builder:${taskId}:${taskDigest}`,
+      title: taskId,
+    },
+  };
+}
+
 describe("review scrutiny aggregation", () => {
   let projectDir: string;
   let runsDir: string;
@@ -144,32 +161,21 @@ describe("review scrutiny aggregation", () => {
     expect(report.thinAcceptances).toBe(0);
   });
 
-  it("links task-backed critic reviews from run-summary and step outputs", () => {
-    const summaryRun = writeRunMetadata(runsDir, "summary-builder-run", "builder");
-    writeJson(runsDir, summaryRun.id, "run-summary.json", {
-      taskId: "task-from-run-summary",
+  it("links task-backed critic reviews from immutable trigger metadata", () => {
+    const firstRun = writeRunMetadata(runsDir, "first-builder-run", "builder", {
+      trigger: builderTrigger("task-from-first-trigger"),
     });
-    writeJson(runsDir, summaryRun.id, "critic-review.json", {
+    writeJson(runsDir, firstRun.id, "critic-review.json", {
       verdict: "pass",
       critical_issues: [],
       warnings: [],
       summary: "Accepted with no findings.",
     });
 
-    const stepRun = writeRunMetadata(runsDir, "step-builder-run", "builder", {
-      steps: [
-        {
-          id: "write-run-summary",
-          type: "code",
-          status: "success",
-          startedAt: NOW,
-          completedAt: NOW,
-          durationMs: 1,
-          output: { taskId: "task-from-step-output" },
-        },
-      ],
+    const secondRun = writeRunMetadata(runsDir, "second-builder-run", "builder", {
+      trigger: builderTrigger("task-from-second-trigger"),
     });
-    writeJson(runsDir, stepRun.id, "critic-review.json", {
+    writeJson(runsDir, secondRun.id, "critic-review.json", {
       verdict: "pass_with_warnings",
       critical_issues: [],
       warnings: ["Tracked follow-up exists."],
@@ -178,16 +184,16 @@ describe("review scrutiny aggregation", () => {
 
     const report = collectReviewScrutinyReport({
       runsDir,
-      runs: [summaryRun, stepRun],
+      runs: [firstRun, secondRun],
     });
 
     expect(report.records.map((record) => record.taskId)).toEqual([
-      "task-from-run-summary",
-      "task-from-step-output",
+      "task-from-first-trigger",
+      "task-from-second-trigger",
     ]);
     expect(report.thinAcceptanceRefs[0]).toMatchObject({
-      runId: summaryRun.id,
-      taskId: "task-from-run-summary",
+      runId: firstRun.id,
+      taskId: "task-from-first-trigger",
     });
   });
 

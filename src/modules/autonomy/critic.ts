@@ -9,14 +9,22 @@ import {
   judgeUnavailableResult,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
+import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import {
   clearCriticOutcomeArtifacts,
   handleVerdict,
   parseVerdict,
 } from "./critic-verdict.js";
-import { resolveDurableOperatorEvidenceDir } from "./product-evidence.js";
+import {
+  checkProductOperatorEvidence,
+  resolveDurableOperatorEvidenceDir,
+} from "./product-evidence.js";
 import { criticReviewInspectionOperation } from "./review-input-operations.js";
 import { formatProbeBlock } from "./task-probe.js";
+import {
+  readTaskReviewMutationStatus,
+  type TaskReviewContract,
+} from "./task-review-target.js";
 
 export type { AgentJudgeConfig } from "./agent-judge.js";
 export {
@@ -25,13 +33,13 @@ export {
   judgeUnavailableResult,
   resolveAgentJudgeRunContract,
 } from "./agent-judge.js";
-export {
-  getChangedFiles,
-  getStagedDiff,
-  getStagedDiffContent,
-} from "./critic-diff.js";
 export type { CriticVerdict } from "./critic-verdict.js";
 export { handleVerdict, parseVerdict } from "./critic-verdict.js";
+export {
+  getWorkflowChangedFiles,
+  getWorkflowDiffContent,
+  getWorkflowDiffStat,
+} from "./workflow-diff.js";
 
 const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
 
@@ -125,6 +133,9 @@ type CriticCheckOptions = {
   runDirPath?: string;
   harnessName?: string;
   model?: string;
+  resolveTaskReviewContract?: (
+    payload: Record<string, unknown>,
+  ) => TaskReviewContract;
 };
 
 function resolveCriticJudgeConfig(
@@ -154,23 +165,28 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
     resolveAgentContract: (parentStep) =>
       resolveAgentJudgeRunContract(resolveCriticJudgeConfig(parentStep, options)),
     run: async (ctx, parentStep) => {
-      const reviewDir = ctx.workspaceDir ?? ctx.projectDir;
+      const reviewDir = ctx.projectDir;
       const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
       const durableEvidenceDir = options?.runDirPath !== undefined
         ? runDir
         : resolveDurableOperatorEvidenceDir(reviewDir, runDir);
+      const inspectionInput = options?.resolveTaskReviewContract === undefined
+        ? {
+            reviewDir,
+            taskMutationStatus: await readTaskReviewMutationStatus(
+              reviewDir,
+              ctx.runCommand,
+            ),
+          }
+        : {
+            reviewDir,
+            taskContract: options.resolveTaskReviewContract(ctx.trigger.payload),
+          };
       const inspection = await withWorkflowBlockingOperation(ctx).runBlocking(
         criticReviewInspectionOperation,
-        {
-          reviewDir,
-          runDir,
-          durableEvidenceDir,
-          ...(options?.runDirPath === undefined && workspaceRunDir !== undefined
-            ? { artifactWorkspaceDir: reviewDir }
-            : {}),
-        },
+        inspectionInput,
       );
       if (inspection.status === "no-task") {
         return "OK: no task in doing/ — skipping critic review";
@@ -181,11 +197,26 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         diffStat,
         diffContent,
         changedFiles,
-        probeResult,
-        productEvidence,
         fallbackFileLineCitations,
       } = inspection;
       const taskContent = target.content;
+      const probeResult = await runProbeIfDeclared(
+        taskContent,
+        target.path,
+        reviewDir,
+        runDir,
+        ctx.runCommand,
+        options?.runDirPath === undefined && workspaceRunDir !== undefined
+          ? reviewDir
+          : undefined,
+      );
+      const productEvidence = checkProductOperatorEvidence({
+        taskContent,
+        taskState: target.state,
+        evidenceDirPath: durableEvidenceDir,
+        changedFiles,
+        hasRuntimeProbeResult: probeResult !== null,
+      });
       const taskId = taskIdFromReviewTargetPath(target.path);
       const verdictContext = {
         runId: ctx.workflow.runId,

@@ -3,6 +3,8 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Mock, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type { CriticVerdict } from "./critic.js";
 import {
   type CriticReviewInspectionInput,
@@ -32,10 +34,10 @@ const mockRunBlocking = vi.fn(
     operation: { exportName: string },
     input: CriticReviewInspectionInput,
   ) => {
-    if (operation.exportName !== "inspectCriticReviewInWorker") {
-      throw new Error(`Unexpected blocking operation ${operation.exportName}`);
+    if (operation.exportName === "inspectCriticReviewInWorker") {
+      return inspectCriticReviewInWorker(input);
     }
-    return inspectCriticReviewInWorker(input);
+    throw new Error(`Unexpected blocking operation ${operation.exportName}`);
   },
 );
 
@@ -87,6 +89,10 @@ export function getMockRunBlocking(): typeof mockRunBlocking {
 export function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-critic-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
+  runGit(dir, ["init"]);
+  runGit(dir, ["config", "user.email", "test@example.com"]);
+  runGit(dir, ["config", "user.name", "Test User"]);
+  runGit(dir, ["commit", "--allow-empty", "-m", "initial"]);
   return dir;
 }
 
@@ -145,10 +151,14 @@ export function makeContext(
   runDirPath?: string,
   workspaceDir?: string,
   agentRunDir?: string,
+  triggerPayload: Record<string, unknown> = {},
+  taskMutationStatus?: string,
 ) {
+  const activeProjectDir = workspaceDir ?? projectDir;
+  const supervisedCommand = createWorkflowCommandRunner({ cwd: activeProjectDir });
   return {
-    projectDir,
-    ...(workspaceDir !== undefined ? { workspaceDir } : {}),
+    projectDir: activeProjectDir,
+    scopeDir: projectDir,
     ...(agentRunDir !== undefined
       ? {
           runtimeResources: {
@@ -164,10 +174,29 @@ export function makeContext(
       runDirPath: runDirPath ?? join(projectDir, ".kota/runs/test-run"),
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     },
-    trigger: { event: "autonomy.queue.available", payload: {} },
+    trigger: { event: "autonomy.queue.available", payload: triggerPayload },
     stepOutputs: {},
     stepResults: {},
     runBlocking: mockRunBlocking,
+    runCommand: taskMutationStatus === undefined
+      ? supervisedCommand
+      : async (input: Parameters<typeof supervisedCommand>[0]) => {
+          if (
+            input.command === "git" &&
+            input.args?.includes("--name-status") &&
+            input.args.includes("data/tasks/done/")
+          ) {
+            return {
+              ...(await successfulWorkflowCommandRun(input)),
+              stdout: {
+                text: taskMutationStatus,
+                totalBytes: Buffer.byteLength(taskMutationStatus),
+                truncated: false,
+              },
+            };
+          }
+          return supervisedCommand(input);
+        },
     runTool: vi.fn(),
     runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),

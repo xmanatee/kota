@@ -6,40 +6,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { AwaitEventStepOutput } from "#core/workflow/steps/step-executor-await-event.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
+import {
+  BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+  BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  type BlockedOwnerDecisionRequest,
+  type BlockedOwnerDecisionResolution,
+} from "./owner-decision-follow-up.js";
 import blockedPromoterWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/blocked/task-owner-decision.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
 
 vi.mock("#core/daemon/owner-question-queue.js", () => ({
   getOwnerQuestionQueue: vi.fn(),
@@ -105,6 +83,10 @@ function taskBody(question: string): string {
 
 function projectFixture(): { projectDir: string; taskPath: string } {
   const projectDir = mkdtempSync(join(tmpdir(), "blocked-promoter-auth-"));
+  writeFileSync(
+    join(projectDir, "package.json"),
+    JSON.stringify({ scripts: { "validate-tasks": "true" } }),
+  );
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     const dir = join(projectDir, "data", "tasks", state);
     mkdirSync(dir, { recursive: true });
@@ -141,6 +123,39 @@ async function useOwnerAnswer(answer: string): Promise<void> {
   );
 }
 
+async function resolveOwnerDecision(
+  projectDir: string,
+  answer: string,
+): Promise<BlockedOwnerDecisionResolution> {
+  await useOwnerAnswer(answer);
+  const requestRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+    trigger: { event: "autonomy.queue.available", payload: {} },
+    projectDir,
+  }).run();
+  const request = requestRun.emitted.find(
+    (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+  )?.payload as BlockedOwnerDecisionRequest | undefined;
+  if (!request) throw new Error("blocked promoter did not emit an owner request");
+  const followUp = await new WorkflowTestHarness(
+    blockedPromoterOwnerDecisionWorkflow,
+    {
+      trigger: {
+        event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+        payload: request,
+      },
+      projectDir,
+      stepMocks: {
+        "blocked-promoter-owner-decision-wait": awaitAnswered(),
+      },
+    },
+  ).run();
+  const resolution = followUp.emitted.find(
+    (event) => event.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  )?.payload as BlockedOwnerDecisionResolution | undefined;
+  if (!resolution) throw new Error("owner follow-up did not emit a resolution");
+  return resolution;
+}
+
 describe("blocked-promoter owner-decision authorization", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -160,11 +175,13 @@ describe("blocked-promoter owner-decision authorization", () => {
     "keeps a negatively phrased task blocked after ambiguous '%s'",
     async (answer) => {
       const { projectDir, taskPath } = projectFixture();
-      await useOwnerAnswer(answer);
+      const resolution = await resolveOwnerDecision(projectDir, answer);
       const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
-        trigger: { event: "autonomy.queue.available", payload: {} },
+        trigger: {
+          event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+          payload: resolution,
+        },
         projectDir,
-        stepMocks: { "blocked-promoter-ask-wait": awaitAnswered() },
       }).run();
 
       expect(result.status).toBe("success");
@@ -178,16 +195,14 @@ describe("blocked-promoter owner-decision authorization", () => {
 
   it("fails closed when the precondition changes during the owner wait", async () => {
     const { projectDir, taskPath } = projectFixture();
-    await useOwnerAnswer("unblock");
+    const resolution = await resolveOwnerDecision(projectDir, "unblock");
+    writeFileSync(taskPath, taskBody("Which variant should we pick?"));
     const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
-      stepMocks: {
-        "blocked-promoter-ask-wait": () => {
-          writeFileSync(taskPath, taskBody("Which variant should we pick?"));
-          return awaitAnswered();
-        },
+      trigger: {
+        event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+        payload: resolution,
       },
+      projectDir,
     }).run();
 
     expect(result.status).toBe("failed");

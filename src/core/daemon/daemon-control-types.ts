@@ -12,10 +12,7 @@ import type {
 } from "#core/events/module-event.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsSnapshot } from "#core/tools/guardrails.js";
-import type {
-  WorkflowDispatchPauseStatus,
-  WorkflowRecoveryStatus,
-} from "#core/workflow/recovery-status-types.js";
+import type { WorkflowDispatchPauseStatus } from "#core/workflow/dispatch-pause-types.js";
 import type {
   ToolCallSummaryEntry,
   WorkflowActiveRun,
@@ -172,15 +169,12 @@ export type WorkflowLiveStatus = {
   workflows: WorkflowRuntimeState["workflows"];
   paused: boolean;
   pause?: WorkflowDispatchPauseStatus;
-  recovery?: WorkflowRecoveryStatus;
   /** True when a dispatchWindow is configured and the current time is outside it. */
   dispatchWindowBlocked?: boolean;
   /** ISO timestamp of the next time the dispatch window opens (when blocked). */
   dispatchWindowOpensAt?: string;
-  /** Active agent workflow concurrency limit (from scheduler.agentConcurrency or default 1). */
-  agentConcurrency: number;
-  /** Active code workflow concurrency limit (from scheduler.codeConcurrency or default 4). */
-  codeConcurrency: number;
+  /** Daemon-wide top-level automation concurrency limit. */
+  concurrency: number;
 };
 
 export type WorkflowResumeOptions = {
@@ -284,7 +278,10 @@ export type DeadLetterQueueListResult = {
 
 export type DeadLetterQueueMutationResult =
   | { ok: true; item: DeadLetterItem; runId?: string; workflowName?: string; event?: string }
-  | { ok: false; reason: "not_found" | "not_redrivable" | "unknown_workflow" };
+  | {
+      ok: false;
+      reason: "not_found" | "not_redrivable" | "unknown_workflow" | "admission_rejected";
+    };
 
 export type {
   ComponentStatus,

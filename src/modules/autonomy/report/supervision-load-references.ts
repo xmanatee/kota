@@ -1,12 +1,10 @@
-import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { TaskClaimInspection } from "#modules/autonomy/task-claims.js";
+import { reportRunTriggerPayload } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 import {
+  builderTaskAssociation,
   scopeFromPayload,
-  stringField,
-  taskFromPayload,
   taskIdFromText,
 } from "./supervision-load-json.js";
 import {
@@ -20,7 +18,6 @@ import {
 
 export function buildTopReferences(input: {
   activeRuns: readonly WorkflowRunMetadata[];
-  claims: readonly TaskClaimInspection[];
   approvals: readonly ApprovalRecord[];
   ownerQuestions: readonly OwnerQuestionRecord[];
   deadLetters: readonly DeadLetterRecord[];
@@ -30,7 +27,6 @@ export function buildTopReferences(input: {
 }): SupervisionLoadReference[] {
   return [
     ...activeRunReferences(input.activeRuns, input.taskById),
-    ...claimReferences(input.claims, input.taskById),
     ...approvalReferences(input.approvals),
     ...ownerQuestionReferences(input.ownerQuestions, input.taskById),
     ...deadLetterReferences(input.deadLetters),
@@ -44,37 +40,21 @@ function activeRunReferences(
   taskById: ReadonlyMap<string, RepoTaskFullRecord>,
 ): SupervisionLoadReference[] {
   return activeRuns.map((run) => {
-    const payload = run.trigger.payload as KotaJsonObject;
-    const task = taskFromPayload(payload, taskById);
+    const payload = reportRunTriggerPayload(run);
+    if (payload === null) {
+      throw new Error(`Malformed current workflow run "${run.id}": missing trigger`);
+    }
+    const taskAssociation = builderTaskAssociation(run, taskById);
     const scope = scopeFromPayload(payload);
     return {
       kind: "active-run",
       id: run.id,
       reason: `running ${run.workflow}`,
       workflow: run.workflow,
-      taskId: task?.id ?? stringField(payload.taskId),
-      taskTitle: task?.title ?? null,
+      taskId: taskAssociation?.taskId ?? null,
+      taskTitle: taskAssociation?.task?.title ?? null,
       scopeId: scope.scopeId,
       projectId: scope.projectId,
-    };
-  });
-}
-
-function claimReferences(
-  claims: readonly TaskClaimInspection[],
-  taskById: ReadonlyMap<string, RepoTaskFullRecord>,
-): SupervisionLoadReference[] {
-  return claims.map((inspection) => {
-    const task = taskById.get(inspection.claim.taskId);
-    return {
-      kind: "task-claim",
-      id: `${inspection.claim.taskId}:${inspection.claim.runId}`,
-      reason: `${inspection.recoveryStatus} claim`,
-      workflow: inspection.claim.workflowId,
-      taskId: inspection.claim.taskId,
-      taskTitle: task?.title ?? null,
-      scopeId: null,
-      projectId: null,
     };
   });
 }

@@ -59,9 +59,13 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 					}),
 				},
 				digest: {
-					snapshot: () => renderOnDemandDigest({
-						projectDir: ctx.getDefaultProjectRuntime().project.projectDir,
-					}),
+					snapshot: () => {
+						const projectDir = ctx.getDefaultProjectRuntime().project.projectDir;
+						return renderOnDemandDigest({
+							projectDir,
+							stateDir: join(projectDir, ".kota"),
+						});
+					},
 				},
 			});
 
@@ -115,3 +119,5 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 		},
 	};
 }
+
+import { join } from "node:path";

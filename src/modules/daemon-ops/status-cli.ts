@@ -17,7 +17,11 @@ export {
 export type {
   DaemonControlIdentity,
   StatusDashboard,
+  StatusOperationalRun,
+  StatusRunProjection,
+  StatusRunSandbox,
   StatusSnapshot,
+  StatusWorkspaceEvidence,
 } from "./status-cli-types.js";
 
 export function buildStatusCommand(_ctx: ModuleContext): Command {
@@ -31,15 +35,10 @@ export function buildStatusCommand(_ctx: ModuleContext): Command {
       "--explain",
       "Show where each runtime verdict came from, including offline/stale state",
     )
-    .option(
-      "--all-worktrees",
-      "Include removed automation worktree metadata in the status output",
-    )
-    .action(async (opts: { project?: string; explain?: boolean; allWorktrees?: boolean }) => {
+    .action(async (opts: { project?: string; explain?: boolean }) => {
       const projectDir = resolveProjectDir();
       const snap = await gatherStatus(projectDir, {
         ...(opts.project ? { projectId: opts.project } : {}),
-        ...(opts.allWorktrees === true ? { includeRemovedWorktrees: true } : {}),
       });
       print(buildStatusNode(snap, { explain: opts.explain === true }));
       if (snap.pendingApprovals > 0) process.exit(1);

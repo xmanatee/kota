@@ -1,10 +1,11 @@
-import { execFileSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
-  type FileDiff,
-  parseAddedLinesByFile,
-  readStagedDiff,
-} from "./staged-diff.js";
+  readWorkspaceChangeEvidence,
+  type WorkspaceChange,
+  WorkspaceChangeOutputLimitError,
+} from "#core/workflow/workspace-change-evidence.js";
+import { type FileDiff, parseAddedLinesByFile } from "./workflow-diff.js";
 
 export const SOURCE_FILE_SIZE_WARNING_TYPE = "source-file-size";
 export const SOURCE_FILE_LINE_THRESHOLD = 300;
@@ -183,37 +184,65 @@ export function extractSourceFileSizeWarningsFromBuildOutput(
   });
 }
 
-function readStagedLineCount(projectDir: string, file: string): number | null {
-  try {
-    const content = execFileSync("git", ["show", `:${file}`], {
-      cwd: projectDir,
-      encoding: "utf8",
-      env: withProtectedGitBareRepositoryEnv(),
-      maxBuffer: 20 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    return countLines(content);
-  } catch {
-    return null;
-  }
+function fileDiffsForChanges(
+  diff: string,
+  changes: readonly WorkspaceChange[],
+): FileDiff[] {
+  const parsedByPath = new Map(
+    parseAddedLinesByFile(diff)
+      .filter((fileDiff) => fileDiff.file.length > 0)
+      .map((fileDiff) => [fileDiff.file, fileDiff]),
+  );
+  return changes.map((change) =>
+    parsedByPath.get(change.path) ?? {
+      file: change.path,
+      addedLines: [],
+      deletedLines: [],
+    }
+  );
 }
 
-export function scanStagedSourceFileSizes(projectDir: string): SourceFileSizeScan {
-  const diff = readStagedDiff(projectDir, ["."]);
-  if (!diff.trim()) return { diff, changedFiles: [], warnings: [] };
-  const fileDiffs = parseAddedLinesByFile(diff);
+function readWorkspaceLineCount(
+  projectDir: string,
+  changeByPath: ReadonlyMap<string, WorkspaceChange>,
+  file: string,
+): number | null {
+  const change = changeByPath.get(file);
+  if (change === undefined) {
+    throw new Error(`Missing workspace change status for source file ${file}`);
+  }
+  if (change.status === "deleted") return null;
+  return countLines(readFileSync(join(projectDir, file), "utf8"));
+}
+
+export function scanWorkspaceSourceFileSizes(projectDir: string): SourceFileSizeScan {
+  const evidence = readWorkspaceChangeEvidence(projectDir, {
+    pathspecs: ["."],
+    unifiedLines: 0,
+  });
+  if (evidence.diff.truncated) {
+    throw new WorkspaceChangeOutputLimitError("diff", evidence.diff.limitBytes);
+  }
+  const diff = evidence.diff.text;
+  if (evidence.changes.length === 0) {
+    return { diff, changedFiles: [], warnings: [] };
+  }
+  const fileDiffs = fileDiffsForChanges(diff, evidence.changes);
+  const changeByPath = new Map(
+    evidence.changes.map((change) => [change.path, change]),
+  );
   return {
     diff,
     changedFiles: fileDiffs.map(toChangedFile),
     warnings: detectSourceFileSizeWarningsFromFileDiffs(fileDiffs, (file) =>
-      readStagedLineCount(projectDir, file)
+      readWorkspaceLineCount(projectDir, changeByPath, file)
     ),
   };
 }
 
 export function checkSourceFileSize(projectDir: string): string {
-  const { diff, warnings } = scanStagedSourceFileSizes(projectDir);
-  if (!diff.trim()) return "OK: no staged source changes";
+  const { changedFiles, warnings } = scanWorkspaceSourceFileSizes(projectDir);
+  if (changedFiles.length === 0) return "OK: no workspace source changes";
   if (warnings.length === 0) {
     return "OK: changed source files are under source-size warning thresholds";
   }

@@ -80,6 +80,8 @@ export async function executeParallelStepGroup(
     childStep: WorkflowParallelGroup["steps"][number],
   ): Promise<ParallelChildOutcome> => {
     const childStepStartedAt = Date.now();
+    let emitOrdinal = 0;
+    let toolOrdinal = 0;
     const childContext: WorkflowStepContext = {
       ...context,
       stepOutputs: { ...context.stepOutputs },
@@ -89,6 +91,16 @@ export async function executeParallelStepGroup(
         context.runTool(name, input, {
           ...toolContext,
           stepId: toolContext?.stepId ?? childStep.id,
+          effectId: toolContext?.effectId === undefined
+            ? `parallel:${childStep.id}:tool:${toolOrdinal++}`
+            : `parallel:${childStep.id}:${toolContext.effectId}`,
+        }),
+      emit: (event, payload, options) =>
+        context.emit(event, payload, {
+          ...options,
+          stepId: options?.stepId === undefined
+            ? `parallel:${childStep.id}:emit:${emitOrdinal++}`
+            : `parallel:${childStep.id}:${options.stepId}`,
         }),
     };
     const runDecision = await evaluateStepRunDecision(childStep, childContext);

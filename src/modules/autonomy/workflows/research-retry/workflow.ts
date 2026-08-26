@@ -1,23 +1,13 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
-import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
+import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  workflowCommitCheckOperation,
-  workflowCommitOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
 import {
   inspectResearchRetryCandidatesOperation,
   markResearchRetryAttemptOperation,
@@ -38,10 +28,56 @@ export const agent: AgentDef = {
   writeScope: ["data/tasks/", "data/inbox/"],
 };
 
+const RESEARCH_RETRY_EVENT = "autonomy.blocked-research.attemptable";
+const QUEUE_COUNT_KEYS = [
+  "backlog",
+  "ready",
+  "doing",
+  "blocked",
+  "done",
+  "dropped",
+] as const;
+
+function isNonNegativeInteger(
+  value: WorkflowRunTrigger["payload"][string],
+): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function hasValidQueueCounts(
+  value: WorkflowRunTrigger["payload"][string],
+): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    QUEUE_COUNT_KEYS.every((key) => isNonNegativeInteger(Reflect.get(value, key)))
+  );
+}
+
+function assertResearchRetryTrigger(trigger: WorkflowRunTrigger): void {
+  if (trigger.event !== RESEARCH_RETRY_EVENT) {
+    throw new Error(`Research-retry accepts only ${RESEARCH_RETRY_EVENT} triggers`);
+  }
+  const { projectId, candidateCount, attemptableCount, counts } = trigger.payload;
+  if (
+    typeof projectId !== "string" ||
+    projectId.length === 0 ||
+    !isNonNegativeInteger(candidateCount) ||
+    !isNonNegativeInteger(attemptableCount) ||
+    attemptableCount === 0 ||
+    attemptableCount > candidateCount ||
+    !hasValidQueueCounts(counts)
+  ) {
+    throw new Error(
+      `Research-retry trigger payload must match ${RESEARCH_RETRY_EVENT}`,
+    );
+  }
+}
+
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",
   type: "code",
-  when: onNormalTrigger,
   exposeOutputToAgent: true,
   validate: (raw) =>
     expectStructuredOutput<InspectResult>(raw, [
@@ -53,8 +89,10 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectResearchRetryCandidatesOperation, { projectDir }),
+  run: ({ projectDir, runBlocking, trigger }) => {
+    assertResearchRetryTrigger(trigger);
+    return runBlocking(inspectResearchRetryCandidatesOperation, { projectDir });
+  },
 });
 
 const markAttempt = typedCodeStep<MarkAttemptResult>({
@@ -87,32 +125,14 @@ const researchRetryShadowReview = createResearchRetryShadowReviewStep({
 
 const researchRetryWorkflow: WorkflowDefinitionInput = {
   name: "research-retry",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Re-attempt inaccessible sources in blocked research tasks using the browser module's authenticated / rendered tools, then update task state honestly.",
   tags: ["monitored"],
-  recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
-  triggers: [
-    {
-      event: "autonomy.blocked-research.attemptable",
-      cooldownMs: 60_000,
-    },
-    {
-      event: "runtime.recovered",
-    },
-  ],
+  triggers: [{ event: RESEARCH_RETRY_EVENT, cooldownMs: 60_000 }],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "research-retry",
-          restoreBaseBranch: true,
-        }),
-    },
     inspectCandidates,
     {
       id: "retry",
@@ -123,7 +143,6 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {
-        if (ctx.trigger.event === "runtime.recovered") return false;
         const inspection = inspectCandidates.outputRequired(ctx);
         return !inspection.dirty && inspection.candidate !== null;
       },
@@ -132,41 +151,13 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck(
-              "pnpm run validate-tasks",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "no-scratch-artifacts",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "scratch-artifacts", projectDir: ctx.projectDir },
-              ),
-          },
-          {
-            id: "commit-message-exists",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                {
-                  kind: "commit-message",
-                  projectDir: ctx.projectDir,
-                  runDirPath: resolveAgentRunDirFromContext(ctx),
-                },
-              ),
-          },
-          {
-            id: "commit-stageable",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "commit-stageable", projectDir: ctx.projectDir },
+            run: async (ctx) =>
+              workflowCommandOutput(
+                await ctx.runCommand({
+                  command: "pnpm",
+                  args: ["run", "validate-tasks"],
+                  cwd: ctx.projectDir,
+                }),
               ),
           },
         ],
@@ -174,16 +165,6 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
     },
     markAttempt,
     researchRetryShadowReview,
-    {
-      id: "commit",
-      type: "code",
-      when: stepSucceeded("retry"),
-      run: (ctx) =>
-        ctx.runBlocking(workflowCommitOperation, {
-          projectDir: ctx.projectDir,
-          runDirPath: resolveAgentRunDirFromContext(ctx),
-        }),
-    },
   ],
 };
 

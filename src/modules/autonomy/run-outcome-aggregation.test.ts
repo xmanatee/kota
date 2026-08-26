@@ -7,6 +7,7 @@ import type {
   WorkflowStepResult,
   WorkflowStepStatus,
 } from "#core/workflow/run-types.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   aggregateRunOutcomes,
   findDurationOutliers,
@@ -357,26 +358,18 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     };
     writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
     if (commitSubject) {
-      writeFileSync(
-        join(runDir, "run-summary.json"),
-        JSON.stringify({
-          runId: id,
-          workflow,
-          taskId: null,
-          taskTitle: null,
-          outcome: "success",
-          commitSha: "abc123",
-          commitMessage: `${commitSubject}\n\nExtended body.`,
-          filesChanged: [],
-          costUsd: 1,
-          durationMs,
-          completedAt: new Date().toISOString(),
-        }),
-      );
+      writeWriterIntegrationFixture(runsDir, {
+        runId: id,
+        workflow,
+        publishedHead: "abc123",
+        commitSubject,
+        commitMessage: `${commitSubject}\n\nExtended body.`,
+        completedAt: new Date().toISOString(),
+      });
     }
   }
 
-  it("includes commit subject from run-summary.json in duration outliers", () => {
+  it("includes commit subject from writer integration evidence in duration outliers", () => {
     writeRun("baseline-1", "improver", 500_000, 499_000);
     writeRun("baseline-2", "improver", 600_000, 599_000);
     writeRun("baseline-3", "improver", 700_000, 699_000);
@@ -396,7 +389,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     });
   });
 
-  it("omits commitSubject when the run has no run-summary.json", () => {
+  it("omits commitSubject when the run has no writer integration evidence", () => {
     writeRun("baseline-1", "improver", 500_000, 499_000);
     writeRun("baseline-2", "improver", 600_000, 599_000);
     writeRun("baseline-3", "improver", 700_000, 699_000);

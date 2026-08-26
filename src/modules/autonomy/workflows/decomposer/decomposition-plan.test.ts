@@ -18,7 +18,6 @@ function subtask(dependsOn: number[]) {
     sourceIntent: "Preserve the original safety finding.",
     initiative: "Safe autonomous execution.",
     acceptanceEvidence: ["A regression transcript proves the boundary."],
-    reuseTaskId: null,
     dependsOn,
   };
 }
@@ -31,24 +30,6 @@ describe("decodeDecompositionPlan", () => {
     });
 
     expect(result.subtasks[1]?.dependsOn).toEqual([0]);
-  });
-
-  it("accepts an explicit open-task reuse target", () => {
-    const result = decodeDecompositionPlan({
-      rationale: "Reuse the equivalent open slice instead of duplicating it.",
-      subtasks: [{ ...subtask([]), reuseTaskId: "task-existing-safety-slice" }],
-    });
-
-    expect(result.subtasks[0]?.reuseTaskId).toBe("task-existing-safety-slice");
-  });
-
-  it("rejects a malformed reuse target", () => {
-    expect(() =>
-      decodeDecompositionPlan({
-        rationale: "Invalid reuse identity.",
-        subtasks: [{ ...subtask([]), reuseTaskId: "existing-safety-slice" }],
-      }),
-    ).toThrow();
   });
 
   it("rejects dependencies on the same or a later subtask", () => {

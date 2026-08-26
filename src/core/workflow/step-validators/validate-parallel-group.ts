@@ -73,8 +73,6 @@ export function validateParallelGroup(
       childIndex,
       label,
       {
-        allowWorkspaceDirUpdate: false,
-        allowRuntimeResourcesUpdate: false,
         allowRerunOnRetry: false,
       },
       options,

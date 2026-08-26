@@ -8,7 +8,7 @@ task_class: Platform
 depends_on: [task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har]
 summary: Add baseline-versus-candidate model matrices, repeats, cost and latency metrics, live-key skips, and shadow comparison artifacts so GLM, Kimi, OpenRouter, and local models are judged against Codex on KOTA scenarios.
 created_at: 2026-06-25T14:23:20.760Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T00:00:00.000Z
 ---
 
 ## Problem
@@ -52,7 +52,7 @@ skips when credentials are absent.
   tool counts, approval counts, verification result, pass@k/pass^k aggregates,
   trajectory diagnostics, and eval-harness resource/config evidence when the
   target is an eval fixture.
-- A shadow-comparison operation can run a candidate against a cloned worktree
+- A shadow-comparison operation can run a candidate against a runtime-owned repository sandbox
   or read-only observer path and compare plan, diff, tests, failures, cost, and
   latency against the primary Codex run.
 - The CLI and daemon route share the same matrix execution path.

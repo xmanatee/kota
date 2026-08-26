@@ -2,10 +2,6 @@ import {
   action,
   resultSpec,
 } from "#core/daemon/ui-surface-builders.js";
-import {
-  formatOperatorRecoverySummary,
-  recoveryIsUnavailable,
-} from "./operator-ui-recovery-summary.js";
 import type { UiListItem, UiStatusEntry } from "./operator-ui-types.js";
 import type { StatusSnapshot } from "./status-cli.js";
 
@@ -14,9 +10,7 @@ export function statusEntries(
   explain: boolean,
 ): UiStatusEntry[] {
   const dispatchValue = snapshot.daemonRunning
-    ? snapshot.workflowPause?.kind === "dirty-recovery"
-      ? formatOperatorRecoverySummary(snapshot.workflowPause.recovery)
-      : snapshot.workflowPause?.kind === "operator"
+    ? snapshot.workflowPause?.kind === "operator"
         ? "paused by operator"
         : snapshot.workflowPaused
           ? "paused"
@@ -37,10 +31,10 @@ export function statusEntries(
     },
     {
       label: "Runs",
-      value: snapshot.daemonRunning
-        ? `${snapshot.activeRuns} active, ${snapshot.queuedRuns} queued`
-        : "offline (live run state unavailable)",
-      role: snapshot.daemonRunning ? "neutral" : "muted",
+      value: `${snapshot.activeRuns} active, ${snapshot.queuedRuns} queued${
+        snapshot.daemonRunning ? "" : " (durable database)"
+      }`,
+      role: snapshot.activeRuns > 0 || snapshot.queuedRuns > 0 ? "warn" : "muted",
     },
     {
       label: "Approvals",
@@ -49,33 +43,12 @@ export function statusEntries(
     },
   ];
 
-  if (snapshot.historicalWorkflow && !snapshot.daemonRunning) {
-    entries.push({
-      label: "Historical run store",
-      value:
-        `${snapshot.historicalWorkflow.activeRuns} active, ` +
-        `${snapshot.historicalWorkflow.queuedRuns} queued from offline files` +
-        `${snapshot.historicalWorkflow.workflowPaused ? "; pause present" : ""}`,
-      role: "warn",
-    });
-  }
-
-  if (snapshot.pendingRecovery) {
-    entries.push({
-      label: recoveryIsUnavailable(snapshot.pendingRecovery)
-        ? "Recovery status"
-        : "Pending recovery",
-      value: formatOperatorRecoverySummary(snapshot.pendingRecovery),
-      role: "warn",
-    });
-  }
-
   if (explain) {
     entries.push({
       label: "Runtime source",
       value: snapshot.daemonRunning
         ? "daemon control API"
-        : "local files only; daemon API and event stream unavailable",
+        : "durable run database and local files; daemon API and event stream unavailable",
       role: snapshot.daemonRunning ? "success" : "warn",
     });
   }
@@ -92,7 +65,7 @@ export function statusWarnings(
     warnings.push({
       id: "daemon-offline",
       title: "Daemon is offline",
-      detail: "Dispatch, event stream, live sessions, and live run state are unavailable.",
+      detail: "Dispatch, event stream, and live sessions are unavailable.",
       role: "warn",
       action: action({
         surfaceId: "status",
@@ -101,7 +74,7 @@ export function statusWarnings(
         label: "Start daemon",
         effect: "write",
         operation: { kind: "client-namespace", namespace: "daemonOps", method: "start" },
-        result: resultSpec("Daemon start requested."),
+        result: resultSpec("Daemon started."),
       }),
     });
   }
@@ -140,23 +113,6 @@ export function statusWarnings(
         scopeId,
         label: "Open inbox",
         operation: { kind: "daemon-route", method: "GET", path: "/attention" },
-      }),
-    });
-  }
-  if (snapshot.pendingRecovery) {
-    warnings.push({
-      id: "dirty-recovery",
-      title: recoveryIsUnavailable(snapshot.pendingRecovery)
-        ? "Recovery status unavailable"
-        : "Dirty recovery pending",
-      detail: formatOperatorRecoverySummary(snapshot.pendingRecovery),
-      role: "warn",
-      action: action({
-        surfaceId: "status",
-        actionId: "workflow.status",
-        scopeId,
-        label: "Open workflow status",
-        operation: { kind: "client-namespace", namespace: "workflow", method: "status" },
       }),
     });
   }

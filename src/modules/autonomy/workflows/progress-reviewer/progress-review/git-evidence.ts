@@ -1,33 +1,47 @@
-import { execFileSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   PROGRESS_REVIEW_MAX_GIT_COMMITS,
   PROGRESS_REVIEW_MAX_GIT_ENTRIES,
   PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT,
   PROGRESS_REVIEW_MAX_GIT_STATUS_LINES,
 } from "./constants.js";
-import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
+import {
+  readWindowMs,
+  requestPayload,
+  selectEvidenceTarget,
+  sourceEvidenceId,
+  sourceSummary,
+} from "./trigger-target.js";
 import type {
   ProgressReviewDirectorySource,
   ProgressReviewGitEvidence,
 } from "./types.js";
 
-function gitLines(projectDir: string, args: readonly string[]): string[] {
-  const output = execFileSync("git", args, {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
+export type ProgressReviewGitEvidenceByScope = Record<
+  string,
+  { evidence: ProgressReviewGitEvidence[]; excluded: string[] }
+>;
+
+function outputLines(output: string): string[] {
   return output.split(/\r?\n/).filter((line) => line.trim().length > 0);
 }
 
-function hasGitHead(projectDir: string): boolean {
+async function tryGitLines(
+  runCommand: WorkflowCommandRunner,
+  projectDir: string,
+  args: readonly string[],
+): Promise<string[] | null> {
   try {
-    gitLines(projectDir, ["rev-parse", "--verify", "HEAD"]);
-    return true;
+    const result = await runCommand({
+      command: "git",
+      args,
+      cwd: projectDir,
+      captureLimitBytesPerStream: 1_000_000,
+    });
+    return outputLines(result.stdout.text);
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -41,47 +55,35 @@ function commitTimestamp(unixSeconds: string): string | null {
   return new Date(seconds * 1000).toISOString();
 }
 
-function listGitStatusEvidence(
+function parseGitStatusEvidence(
   source: ProgressReviewDirectorySource,
+  status: readonly string[],
   excluded: string[],
 ): ProgressReviewGitEvidence[] {
-  try {
-    const status = gitLines(source.projectDir, ["status", "--short"]);
-    if (status.length > PROGRESS_REVIEW_MAX_GIT_STATUS_LINES) {
-      excluded.push(
-        `${source.displayName} git status: truncated ${status.length} entries to ${PROGRESS_REVIEW_MAX_GIT_STATUS_LINES}`,
-      );
-    }
-    return status
-      .slice(0, PROGRESS_REVIEW_MAX_GIT_STATUS_LINES)
-      .map((line, index) => ({
-        id: sourceEvidenceId(source, `git:status:${index + 1}`),
-        kind: "git" as const,
-        gitKind: "worktree-status" as const,
-        statusLine: line,
-        summary: sourceSummary(source, `worktree ${line}`),
-      }));
-  } catch {
-    excluded.push(`${source.displayName} git: status unavailable`);
-    return [];
+  if (status.length > PROGRESS_REVIEW_MAX_GIT_STATUS_LINES) {
+    excluded.push(
+      `${source.displayName} git status: truncated ${status.length} entries to ${PROGRESS_REVIEW_MAX_GIT_STATUS_LINES}`,
+    );
   }
+  return status
+    .slice(0, PROGRESS_REVIEW_MAX_GIT_STATUS_LINES)
+    .map((line, index) => ({
+      id: sourceEvidenceId(source, `git:status:${index + 1}`),
+      kind: "git" as const,
+      gitKind: "worktree-status" as const,
+      statusLine: line,
+      summary: sourceSummary(source, `worktree ${line}`),
+    }));
 }
 
-function gitCommitFiles(
+function parseGitCommitFiles(
   source: ProgressReviewDirectorySource,
   commit: string,
   committedAt: string,
+  files: readonly string[],
   excluded: string[],
 ): ProgressReviewGitEvidence[] {
   const short = shortCommit(commit);
-  const files = gitLines(source.projectDir, [
-    "diff-tree",
-    "--root",
-    "--no-commit-id",
-    "--name-status",
-    "-r",
-    commit,
-  ]);
   if (files.length > PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT) {
     excluded.push(
       `${source.displayName} git commit ${short}: truncated ${files.length} changed files to ${PROGRESS_REVIEW_MAX_GIT_FILES_PER_COMMIT}`,
@@ -105,56 +107,100 @@ function gitCommitFiles(
   });
 }
 
-function listGitCommitEvidence(
+async function collectGitEvidenceForSource(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
-  excluded: string[],
-): ProgressReviewGitEvidence[] {
-  if (!hasGitHead(source.projectDir)) return [];
-  try {
-    const commits = gitLines(source.projectDir, [
-      "log",
-      `--since=${new Date(windowStartMs).toISOString()}`,
-      `--max-count=${PROGRESS_REVIEW_MAX_GIT_COMMITS}`,
-      "--format=%H%x00%ct%x00%s",
-    ]);
-    const evidence: ProgressReviewGitEvidence[] = [];
-    for (const line of commits) {
-      const [commit, unixSeconds, subject] = line.split("\0");
-      if (!commit || !unixSeconds || subject === undefined) continue;
-      const committedAt = commitTimestamp(unixSeconds);
-      if (!committedAt) continue;
-      const short = shortCommit(commit);
-      evidence.push({
-        id: sourceEvidenceId(source, `git:commit:${short}`),
-        kind: "git",
-        gitKind: "commit",
-        commit,
-        committedAt,
-        summary: sourceSummary(source, `commit ${short}: ${subject}`),
-      });
-      evidence.push(...gitCommitFiles(source, commit, committedAt, excluded));
-    }
-    return evidence;
-  } catch {
-    excluded.push(`${source.displayName} git: recent commits unavailable`);
-    return [];
-  }
-}
+  runCommand: WorkflowCommandRunner,
+): Promise<{ evidence: ProgressReviewGitEvidence[]; excluded: string[] }> {
+  const excluded: string[] = [];
+  const status = await tryGitLines(runCommand, source.projectDir, ["status", "--short"]);
+  const statusEvidence = status
+    ? parseGitStatusEvidence(source, status, excluded)
+    : [];
+  if (!status) excluded.push(`${source.displayName} git: status unavailable`);
 
-export function listScopedGitEvidence(
-  sources: readonly ProgressReviewDirectorySource[],
-  windowStartMs: number,
-  excluded: string[],
-): ProgressReviewGitEvidence[] {
-  const evidence = sources.flatMap((source) => [
-    ...listGitStatusEvidence(source, excluded),
-    ...listGitCommitEvidence(source, windowStartMs, excluded),
+  const hasHead = await tryGitLines(runCommand, source.projectDir, [
+    "rev-parse",
+    "--verify",
+    "HEAD",
   ]);
+  if (!hasHead) return { evidence: statusEvidence, excluded };
+
+  const commits = await tryGitLines(runCommand, source.projectDir, [
+    "log",
+    `--since=${new Date(windowStartMs).toISOString()}`,
+    `--max-count=${PROGRESS_REVIEW_MAX_GIT_COMMITS}`,
+    "--format=%H%x00%ct%x00%s",
+  ]);
+  if (!commits) {
+    excluded.push(`${source.displayName} git: recent commits unavailable`);
+    return { evidence: statusEvidence, excluded };
+  }
+
+  const commitEvidence: ProgressReviewGitEvidence[] = [];
+  for (const line of commits) {
+    const [commit, unixSeconds, subject] = line.split("\0");
+    if (!commit || !unixSeconds || subject === undefined) continue;
+    const committedAt = commitTimestamp(unixSeconds);
+    if (!committedAt) continue;
+    const short = shortCommit(commit);
+    commitEvidence.push({
+      id: sourceEvidenceId(source, `git:commit:${short}`),
+      kind: "git",
+      gitKind: "commit",
+      commit,
+      committedAt,
+      summary: sourceSummary(source, `commit ${short}: ${subject}`),
+    });
+    const files = await tryGitLines(runCommand, source.projectDir, [
+      "diff-tree",
+      "--root",
+      "--no-commit-id",
+      "--name-status",
+      "-r",
+      commit,
+    ]);
+    if (!files) {
+      excluded.push(`${source.displayName} git commit ${short}: files unavailable`);
+      continue;
+    }
+    commitEvidence.push(
+      ...parseGitCommitFiles(source, commit, committedAt, files, excluded),
+    );
+  }
+
+  const evidence = [...statusEvidence, ...commitEvidence];
   if (evidence.length > PROGRESS_REVIEW_MAX_GIT_ENTRIES) {
     excluded.push(
       `git: truncated ${evidence.length} status and commit entries to ${PROGRESS_REVIEW_MAX_GIT_ENTRIES}`,
     );
   }
-  return evidence.slice(0, PROGRESS_REVIEW_MAX_GIT_ENTRIES);
+  return {
+    evidence: evidence.slice(0, PROGRESS_REVIEW_MAX_GIT_ENTRIES),
+    excluded,
+  };
+}
+
+export async function collectProgressReviewGitEvidence(args: {
+  projectDir: string;
+  scopeDir: string;
+  stateDir: string;
+  trigger: WorkflowRunTrigger;
+  now: Date;
+  runCommand: WorkflowCommandRunner;
+}): Promise<ProgressReviewGitEvidenceByScope> {
+  const target = selectEvidenceTarget(
+    args.projectDir,
+    args.scopeDir,
+    args.trigger,
+    args.stateDir,
+  );
+  const windowStartMs = args.now.getTime() - readWindowMs(requestPayload(args.trigger));
+  const entries = await Promise.all(
+    target.sources.map(async (source) => [
+      source.scopeId,
+      await collectGitEvidenceForSource(source, windowStartMs, args.runCommand),
+    ] as const),
+  );
+  return Object.fromEntries(entries);
 }

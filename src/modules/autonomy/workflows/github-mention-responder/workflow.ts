@@ -8,9 +8,11 @@ import {
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { inboundSignalWorkflowTargeted } from "#modules/inbound-signals/events.js";
 import {
   assessActorIntegrity,
   boundedBody,
+  GITHUB_MENTION_INTAKE_COMMENT_REQUESTED_EVENT,
   type GithubMentionAssessment,
   isNonEmptyString,
   mentionPayloadFromTrigger,
@@ -44,6 +46,15 @@ const assessMention = typedCodeStep<GithubMentionAssessment>({
   type: "code",
   validate: validateAssessment,
   run: ({ trigger }) => {
+    if (trigger.event === GITHUB_MENTION_INTAKE_COMMENT_REQUESTED_EVENT) {
+      const comment = validatePreparedComment(trigger.payload);
+      return {
+        decision: "prepared",
+        agentEligible: false,
+        commentEligible: true,
+        comment,
+      };
+    }
     const p = mentionPayloadFromTrigger(trigger);
 
     if (!isNonEmptyString(p.action) || p.action !== "created") {
@@ -83,6 +94,7 @@ const prepareComment = typedCodeStep<PreparedGithubMentionComment>({
     if (assessment.decision === "skip") {
       throw new Error("cannot prepare a comment for a skipped GitHub mention");
     }
+    if (assessment.decision === "prepared") return assessment.comment;
     const draft = validateResponseDraft(ctx.stepOutputs["draft-response"]);
     const { body } = draft;
     const bounded = boundedBody(body);
@@ -99,12 +111,10 @@ const prepareComment = typedCodeStep<PreparedGithubMentionComment>({
   },
 });
 
-// Not recovery-capable: this workflow does not mutate the local worktree. Its
-// side effect is an external GitHub comment after an explicit approval step, so
-// crash recovery cannot safely replay the response path without duplicate risk.
 const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
   name: "github-mention-responder",
   description: "Answer trusted GitHub issue or PR mention comments with one bounded response.",
+  repository: "none",
   tags: ["monitored"],
   // The agent only drafts structured output. Native capable-tier harnesses
   // require autonomous mode; deny-all plus whole-step mutation enforcement
@@ -112,7 +122,13 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "autonomous",
   triggers: [
     {
+      event: inboundSignalWorkflowTargeted,
+    },
+    {
       event: "github-mention-responder.requested",
+    },
+    {
+      event: GITHUB_MENTION_INTAKE_COMMENT_REQUESTED_EVENT,
     },
   ],
   steps: [
@@ -174,6 +190,8 @@ const githubMentionResponderWorkflow: WorkflowDefinitionInput = {
           isPullRequest: comment.isPullRequest,
           originalCommentId: comment.originalCommentId,
           mode: comment.mode,
+          idempotencyKey:
+            `github-mention-posted:${comment.repo}:${comment.originalCommentId}:${comment.mode}`,
         };
       },
     },

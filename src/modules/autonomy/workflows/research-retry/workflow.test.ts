@@ -8,7 +8,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import researchRetryWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -39,22 +43,6 @@ vi.mock("#core/agent-harness/index.js", async () => {
   };
 });
 
-vi.mock("#modules/autonomy/recovery.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/recovery.js")>(
-    "#modules/autonomy/recovery.js",
-  );
-  return {
-    ...actual,
-    resetWorktreeForRecovery: vi.fn(() => ({
-      stashed: false,
-      stashSummary: "test reset",
-      branchRestored: false,
-      previousBranch: null,
-      currentBranch: "main",
-    })),
-  };
-});
-
 vi.mock("./candidates.js", async () => {
   const actual = await vi.importActual<typeof import("./candidates.js")>(
     "./candidates.js",
@@ -68,10 +56,6 @@ vi.mock("./candidates.js", async () => {
 vi.mock("./runtime-detect.js", () => ({
   isPlaywrightAvailable: vi.fn(() => false),
   readBrowserConfig: vi.fn(() => ({})),
-}));
-
-vi.mock("#modules/autonomy/commit.js", () => ({
-  commitWorkflowChanges: vi.fn(),
 }));
 
 async function mockCleanWorktree() {
@@ -125,16 +109,82 @@ function createTempProfile(): string {
   return path;
 }
 
+function researchRetryTrigger(): WorkflowRunTrigger {
+  return {
+    event: "autonomy.blocked-research.attemptable",
+    schemaRef: null,
+    payload: {
+      projectId: "project-research-retry",
+      candidateCount: 1,
+      attemptableCount: 1,
+      counts: {
+        backlog: 0,
+        ready: 0,
+        doing: 0,
+        blocked: 1,
+        done: 0,
+        dropped: 0,
+      },
+    },
+  };
+}
+
 describe("research-retry workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("wakes from blocked research availability and recovery", () => {
+  it("wakes only from blocked research availability", () => {
     expect(researchRetryWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
       "autonomy.blocked-research.attemptable",
-      "runtime.recovered",
     ]);
+  });
+
+  it("fails closed on unsupported triggers and malformed availability payloads", async () => {
+    const validTrigger = researchRetryTrigger();
+    const unsupported = await new WorkflowTestHarness(researchRetryWorkflow, {
+      trigger: {
+        event: "runtime.idle",
+        payload: validTrigger.payload,
+      },
+    }).run();
+    expect(unsupported.steps["inspect-candidates"].error).toContain(
+      "accepts only autonomy.blocked-research.attemptable triggers",
+    );
+
+    const malformed = await new WorkflowTestHarness(researchRetryWorkflow, {
+      trigger: {
+        event: "autonomy.blocked-research.attemptable",
+        payload: {},
+      },
+    }).run();
+    expect(malformed.steps["inspect-candidates"].error).toContain(
+      "payload must match autonomy.blocked-research.attemptable",
+    );
+  });
+
+  it("runs task validation through the supervised command rail", async () => {
+    const retryStep = researchRetryWorkflow.steps.find(
+      (step): step is WorkflowAgentStepInput =>
+        "id" in step && step.id === "retry" && step.type === "agent",
+    );
+    const check = retryStep?.repairLoop?.checks.find(
+      (entry) => entry.id === "task-queue-valid",
+    );
+    if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
+    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-command-"));
+    const runCommand = vi.fn(successfulWorkflowCommandRun);
+
+    await check.run(
+      { projectDir, runCommand } as unknown as WorkflowStepContext,
+      {} as never,
+    );
+
+    expect(runCommand).toHaveBeenCalledWith({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: projectDir,
+    });
   });
 
   it("skips the agent step when there are no blocked research candidates", async () => {
@@ -143,7 +193,7 @@ describe("research-retry workflow", () => {
     await setCapability({ playwright: true });
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
     });
 
     const result = await harness.run();
@@ -156,7 +206,6 @@ describe("research-retry workflow", () => {
     });
     expect(result.steps.retry.status).toBe("skipped");
     expect(result.steps["mark-attempt"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("skips the agent step when worktree is dirty", async () => {
@@ -176,7 +225,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
     });
 
     const result = await harness.run();
@@ -200,7 +249,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
     });
 
     const result = await harness.run();
@@ -216,7 +265,6 @@ describe("research-retry workflow", () => {
     expect(output.examined[0].skipReason.kind).toBe("capability-absent");
     expect(result.steps.retry.status).toBe("skipped");
     expect(result.steps["mark-attempt"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("skips when fingerprint marker matches the current URL set", async () => {
@@ -241,7 +289,7 @@ describe("research-retry workflow", () => {
     ]);
 
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
     });
 
     const result = await harness.run();
@@ -255,7 +303,6 @@ describe("research-retry workflow", () => {
     );
     expect(result.steps.retry.status).toBe("skipped");
     expect(result.steps["mark-attempt"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
   });
 
   it("picks the next candidate when the oldest is stale", async () => {
@@ -285,13 +332,8 @@ describe("research-retry workflow", () => {
       },
     ]);
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-    } as never);
-
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
       stepMocks: {
         retry: { turns: [], totalCostUsd: 0.01 },
         "mark-attempt": { written: false, reason: "task moved to done" },
@@ -307,7 +349,6 @@ describe("research-retry workflow", () => {
     expect(output.examined.map((e) => e.id)).toEqual(["task-stale"]);
     expect(result.steps.retry.status).toBe("success");
     expect(result.steps["mark-attempt"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
   });
 
   it("picks the oldest candidate when capability is met and nothing is stale", async () => {
@@ -325,11 +366,8 @@ describe("research-retry workflow", () => {
         urls: ["https://example.com/article"],
       },
     ]);
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
-
     const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "autonomy.blocked-research.attemptable", payload: {} },
+      trigger: researchRetryTrigger(),
       stepMocks: {
         retry: { turns: [], totalCostUsd: 0.01 },
         "mark-attempt": { written: false, reason: "no resource URLs remain" },
@@ -344,23 +382,6 @@ describe("research-retry workflow", () => {
     });
     expect(result.steps.retry.status).toBe("success");
     expect(result.steps["mark-attempt"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
-  });
-
-  it("skips all work on runtime.recovered triggers", async () => {
-    await mockCleanWorktree();
-    await setCapability({ playwright: true, storageStatePath: createTempProfile() });
-    await setCandidates([
-      { id: "task-a", updatedAt: "2026-04-14T00:00:00.000Z", urls: ["https://example.com/"] },
-    ]);
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: { event: "runtime.recovered", payload: {} },
-    });
-
-    const result = await harness.run();
-    expect(result.steps["inspect-candidates"].status).toBe("skipped");
-    expect(result.steps.retry.status).toBe("skipped");
-    expect(result.steps["mark-attempt"].status).toBe("skipped");
   });
 
   it("writeMarkerForCandidate refreshes the marker after the agent edits resources", async () => {

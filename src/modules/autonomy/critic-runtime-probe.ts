@@ -4,6 +4,7 @@ import {
   type Stats,
 } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   type FileIdentity,
   writeAnchoredRuntimeProbeArtifact,
@@ -24,35 +25,43 @@ type ArtifactLocation = {
   runRoot: string;
 };
 
-export function runProbeIfDeclared(
+export async function runProbeIfDeclared(
   taskContent: string,
   taskPath: string,
   projectDir: string,
   runDir: string,
+  runCommand: WorkflowCommandRunner,
   artifactWorkspaceDir?: string,
-): TaskProbeResult | null {
+): Promise<TaskProbeResult | null> {
   const probe = extractTaskProbe(taskContent);
   if (!probe) return null;
 
-  const provenance = verifyTaskProbeProvenance({ projectDir, taskPath, probe });
+  const provenance = await verifyTaskProbeProvenance({
+    projectDir,
+    taskPath,
+    probe,
+    runCommand,
+  });
   if (provenance.status === "untrusted") {
     const result = rejectedTaskProbeResult(probe, provenance.reason);
-    writeRuntimeProbeArtifact(
+    await writeRuntimeProbeArtifact(
       artifactWorkspaceDir ?? projectDir,
       runDir,
       result,
+      runCommand,
     );
     throw new Error(`Runtime Probe not executed: ${provenance.reason}`);
   }
 
   const result = {
-    ...runTaskProbe(probe, projectDir),
+    ...(await runTaskProbe(probe, projectDir, runCommand)),
     provenance,
   };
-  writeRuntimeProbeArtifact(
+  await writeRuntimeProbeArtifact(
     artifactWorkspaceDir ?? projectDir,
     runDir,
     result,
+    runCommand,
   );
   return result;
 }
@@ -146,18 +155,22 @@ function identity(stats: Stats): FileIdentity {
   return { dev: stats.dev, ino: stats.ino };
 }
 
-function writeRuntimeProbeArtifact(
+async function writeRuntimeProbeArtifact(
   workspaceDir: string,
   runDir: string,
   result: TaskProbeResult,
-): void {
+  runCommand: WorkflowCommandRunner,
+): Promise<void> {
   const location = resolveArtifactLocation(workspaceDir, runDir);
   const expectedStats = inspectExistingArtifact(location.artifactPath);
-  writeAnchoredRuntimeProbeArtifact({
-    expectedArtifactIdentity:
-      expectedStats === undefined ? null : identity(expectedStats),
-    runDirectoryIdentity: location.runDirectoryIdentity,
-    runDirectoryPath: location.runRoot,
-    serializedArtifact: JSON.stringify(result, null, 2),
-  });
+  await writeAnchoredRuntimeProbeArtifact(
+    {
+      expectedArtifactIdentity:
+        expectedStats === undefined ? null : identity(expectedStats),
+      runDirectoryIdentity: location.runDirectoryIdentity,
+      runDirectoryPath: location.runRoot,
+      serializedArtifact: JSON.stringify(result, null, 2),
+    },
+    runCommand,
+  );
 }

@@ -13,7 +13,7 @@ import type {
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type { WorkflowRunSummary } from "../run-summary.js";
+import { taskIdentityFromRunTrigger } from "../run-delivery-evidence.js";
 
 export const PROCESS_DISCIPLINE_WEAK_SAMPLE_THRESHOLD = 3;
 export { PROCESS_DISCIPLINE_RUBRIC_VERSION };
@@ -97,10 +97,8 @@ function buildRunProcessDisciplineRecords(
   runsDir: string,
   taskById: ReadonlyMap<string, RepoTaskFullRecord>,
 ): ProcessDisciplineReportRecord[] {
-  const summary = readOptionalJsonFile<WorkflowRunSummary>(
-    join(runsDir, run.id, "run-summary.json"),
-  );
-  const task = summary?.taskId ? taskById.get(summary.taskId) : undefined;
+  const taskId = taskIdentityFromRunTrigger(run).taskId;
+  const task = taskId ? taskById.get(taskId) : undefined;
   return run.steps.flatMap((step) => {
     if (step.type !== "agent") return [];
     const artifactPath = step.trajectoryDiagnostics?.artifactPath;
@@ -126,7 +124,7 @@ function buildRunProcessDisciplineRecords(
         workflow: run.workflow,
         stepId: step.id,
         harness: stepHarness(step),
-        taskId: summary?.taskId ?? null,
+        taskId,
         taskClass: task?.taskClass ?? "(missing)",
         taskArea: task?.area || "(missing)",
         sourceArtifactPath: artifactPath,

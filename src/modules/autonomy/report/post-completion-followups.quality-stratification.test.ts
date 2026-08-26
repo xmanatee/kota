@@ -6,8 +6,8 @@ import {
   MS_PER_DAY,
   NOW,
   writeRun,
-  writeRunSummary,
   writeTask,
+  writeWriterIntegration,
 } from "./post-completion-followups.test-helpers.js";
 
 describe("post-completion follow-up quality stratification", () => {
@@ -40,7 +40,7 @@ describe("post-completion follow-up quality stratification", () => {
         startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
         status: "success",
       });
-      writeRunSummary(runsDir, runId, completedTaskId, commitSha);
+      writeWriterIntegration(runsDir, runId, completedTaskId, commitSha);
       writeTask(projectDir, "done", completedTaskId, {
         priority: "p2",
         area: "autonomy",
@@ -99,7 +99,7 @@ describe("post-completion follow-up quality stratification", () => {
       startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       status: "success",
     });
-    writeRunSummary(
+    writeWriterIntegration(
       runsDir,
       parentRunId,
       "task-completed-parent",

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { SourceFileSizeWarning } from "#modules/autonomy/source-size-check.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { buildCodeHealthDriftReport } from "./code-health-drift.js";
@@ -29,11 +30,25 @@ function task(attrs: Partial<RepoTaskFullRecord> = {}): RepoTaskFullRecord {
 }
 
 function run(id: string, startedAt: number): WorkflowRunMetadata {
+  const taskId = "task-parent";
+  const taskDigest = "0".repeat(64);
   return {
     id,
     workflow: "builder",
     definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    trigger: {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {
+        taskId,
+        taskPath: `data/tasks/ready/${taskId}.md`,
+        taskState: "ready",
+        taskUpdatedAt: new Date(startedAt).toISOString(),
+        taskDigest,
+        idempotencyKey: `builder:${taskId}:${taskDigest}`,
+        title: "Parent",
+      },
+    },
     startedAt: new Date(startedAt).toISOString(),
     status: "success",
     runDir: `.kota/runs/${id}`,
@@ -52,34 +67,23 @@ function warning(file = WARNED_FILE, changedLines = 12): SourceFileSizeWarning {
   };
 }
 
-function writeRunSummary(
+function writeWriterIntegration(
   runsDir: string,
   id: string,
   overrides: Partial<{
-    taskId: string | null;
     commitSha: string;
     filesChanged: string[];
   }> = {},
 ): void {
-  const dir = join(runsDir, id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "run-summary.json"),
-    JSON.stringify({
-      runId: id,
-      workflow: "builder",
-      taskId: "task-parent",
-      taskTitle: "Parent",
-      outcome: "success",
-      commitSha: "abc123def4567890",
-      commitMessage: "x",
-      filesChanged: [WARNED_FILE],
-      costUsd: null,
-      durationMs: null,
-      completedAt: new Date(NOW).toISOString(),
-      ...overrides,
-    }),
-  );
+  writeWriterIntegrationFixture(runsDir, {
+    runId: id,
+    workflow: "builder",
+    publishedHead: overrides.commitSha ?? "abc123def4567890",
+    commitSubject: "x",
+    commitMessage: "x",
+    changedPaths: overrides.filesChanged ?? [WARNED_FILE],
+    completedAt: new Date(NOW).toISOString(),
+  });
 }
 
 function writeSourceReview(
@@ -109,7 +113,7 @@ describe("buildCodeHealthDriftReport", () => {
 
   it("counts a clean builder run with no warnings", () => {
     const runId = "2026-04-28T10-00-00-000Z-builder-clean";
-    writeRunSummary(runsDir, runId);
+    writeWriterIntegration(runsDir, runId);
     writeSourceReview(runsDir, runId, {
       outcome: "ok",
       warnings: [],
@@ -131,7 +135,7 @@ describe("buildCodeHealthDriftReport", () => {
 
   it("links a source-size advisory to an active cleanup task", () => {
     const runId = "2026-04-28T11-00-00-000Z-builder-warning";
-    writeRunSummary(runsDir, runId);
+    writeWriterIntegration(runsDir, runId);
     writeSourceReview(runsDir, runId, {
       outcome: "advisory",
       warnings: [warning()],
@@ -159,7 +163,7 @@ describe("buildCodeHealthDriftReport", () => {
   it("counts warning-family totals by warning record, not warning run", () => {
     const runId = "2026-04-28T11-30-00-000Z-builder-multi-warning";
     const coreFile = "src/core/workflow/runtime.ts";
-    writeRunSummary(runsDir, runId, {
+    writeWriterIntegration(runsDir, runId, {
       filesChanged: [WARNED_FILE, coreFile],
     });
     writeSourceReview(runsDir, runId, {
@@ -192,7 +196,7 @@ describe("buildCodeHealthDriftReport", () => {
     const current = "2026-04-28T12-00-00-000Z-builder-current";
     const prior = "2026-04-20T12-00-00-000Z-builder-prior";
     for (const id of [current, prior]) {
-      writeRunSummary(runsDir, id);
+      writeWriterIntegration(runsDir, id);
       writeSourceReview(runsDir, id, {
         outcome: "advisory",
         warnings: [warning()],
@@ -225,7 +229,7 @@ describe("buildCodeHealthDriftReport", () => {
 
   it("treats reducing cleanup exceptions as coverage instead of worse drift", () => {
     const runId = "2026-04-28T13-00-00-000Z-builder-exception";
-    writeRunSummary(runsDir, runId);
+    writeWriterIntegration(runsDir, runId);
     writeSourceReview(runsDir, runId, {
       outcome: "exception",
       warnings: [warning(WARNED_FILE, -22)],
@@ -255,34 +259,30 @@ describe("buildCodeHealthDriftReport", () => {
     expect(report.records[0]).toMatchObject({ outcome: "cleanup-exception" });
   });
 
-  it("counts malformed and old run artifacts as unsupported without throwing", () => {
+  it("counts malformed and incomplete run evidence as unsupported without throwing", () => {
     const malformed = "2026-04-28T14-00-00-000Z-builder-malformed";
-    writeRunSummary(runsDir, malformed);
+    writeWriterIntegration(runsDir, malformed);
     writeFileSync(join(runsDir, malformed, "source-file-size-review.json"), "{bad");
 
     const malformedClean = "2026-04-28T14-30-00-000Z-builder-malformed-clean";
-    writeRunSummary(runsDir, malformedClean);
+    writeWriterIntegration(runsDir, malformedClean);
     writeSourceReview(runsDir, malformedClean, {
       outcome: "ok",
       message: "Missing expected warnings array.",
     });
 
-    const invalidOld = "2026-04-28T15-00-00-000Z-builder-old-invalid";
-    mkdirSync(join(runsDir, invalidOld), { recursive: true });
-    writeFileSync(
-      join(runsDir, invalidOld, "run-summary.json"),
-      JSON.stringify({ runId: invalidOld, workflow: "builder", taskId: "task-old" }),
-    );
+    const missingIntegration = "2026-04-28T15-00-00-000Z-builder-missing-integration";
+    mkdirSync(join(runsDir, missingIntegration), { recursive: true });
 
     const unsupportedOld = "2026-04-28T16-00-00-000Z-builder-old-unsupported";
-    writeRunSummary(runsDir, unsupportedOld);
+    writeWriterIntegration(runsDir, unsupportedOld);
 
     const report = buildCodeHealthDriftReport({
       tasks: [],
       runs: [
         run(malformed, NOW - DAY),
         run(malformedClean, NOW - DAY),
-        run(invalidOld, NOW - DAY),
+        run(missingIntegration, NOW - DAY),
         run(unsupportedOld, NOW - DAY),
       ],
       runsDir,

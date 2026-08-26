@@ -294,6 +294,72 @@ describe("EventJournal", () => {
     expect(restarted.query({ sinceMs: Date.parse("2026-06-05T10:00:03.000Z") })).toHaveLength(1);
   });
 
+  it("assigns unique journal ids to repeated ordinary live events", () => {
+    const journal = new EventJournal(trackTempDir());
+    const bus = new EventBus();
+    const wildcard: BusEnvelope[] = [];
+    bus.on("*", (envelope) => wildcard.push(envelope));
+    installEventJournal(bus, journal);
+
+    bus.emit("publication.retry", { attempt: 1 });
+    bus.emit("publication.retry", { attempt: 2 });
+
+    expect(wildcard.map((envelope) => envelope.eventId)).toEqual([
+      "evtj-000000000001",
+      "evtj-000000000002",
+    ]);
+    expect(journal.query({ type: "publication.retry" }).map((event) => event.id)).toEqual([
+      "evtj-000000000001",
+      "evtj-000000000002",
+    ]);
+  });
+
+  it("journals an authoritative outbox event once across redelivery and restart", () => {
+    const dir = trackTempDir();
+    const eventId = "workflow:run-a:emit:announce";
+    const payload = { attempt: 1 };
+
+    const firstBus = new EventBus();
+    const firstDeliveries: BusEnvelope[] = [];
+    firstBus.on("*", (envelope) => firstDeliveries.push(envelope));
+    installEventJournal(firstBus, new EventJournal(dir));
+    firstBus.deliverOutbox("publication.retry", payload, eventId);
+    firstBus.deliverOutbox("publication.retry", payload, eventId);
+
+    const restartedBus = new EventBus();
+    const restartedDeliveries: BusEnvelope[] = [];
+    restartedBus.on("*", (envelope) => restartedDeliveries.push(envelope));
+    const restartedJournal = new EventJournal(dir);
+    installEventJournal(restartedBus, restartedJournal);
+    restartedBus.deliverOutbox("publication.retry", payload, eventId);
+
+    expect(firstDeliveries).toHaveLength(2);
+    expect(restartedDeliveries).toHaveLength(1);
+    expect(
+      [...firstDeliveries, ...restartedDeliveries].map((envelope) => envelope.eventId),
+    ).toEqual([eventId, eventId, eventId]);
+    expect(restartedJournal.query({ type: "publication.retry" })).toMatchObject([
+      {
+        id: "evtj-000000000001",
+        idempotency: { eventId },
+        payload: { kind: "inline", payload },
+      },
+    ]);
+  });
+
+  it("rejects changed content for an authoritative outbox event id", () => {
+    const journal = new EventJournal(trackTempDir());
+    const bus = new EventBus();
+    installEventJournal(bus, journal);
+    const eventId = "workflow:run-a:emit:announce";
+
+    bus.deliverOutbox("publication.retry", { attempt: 1 }, eventId);
+    expect(() =>
+      bus.deliverOutbox("publication.retry", { attempt: 2 }, eventId),
+    ).toThrow(/redelivered with different content/);
+    expect(journal.query({ type: "publication.retry" })).toHaveLength(1);
+  });
+
   it("recovers the next sequence from a large existing journal", () => {
     const dir = trackTempDir();
     writeFileSync(

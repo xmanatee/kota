@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
+import { emptyAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   type AutonomyHealthSignalInput,
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
-  applyAutonomyHealthReviewActions,
   buildAutonomyHealthReview,
+  stageAutonomyHealthReviewActions,
 } from "./health-review.js";
 
 const NOW = "2026-06-17T12:30:00.000Z";
@@ -148,8 +149,10 @@ describe("autonomy health review terminal task handling", () => {
     const expectedTaskId =
       "task-health-dead-letter-execution-workflow-runtime-progress-reviewer";
 
-    const actions = applyAutonomyHealthReviewActions({
+    const actions = stageAutonomyHealthReviewActions({
       projectDir,
+      currentProjection: emptyAutonomyIssueProjection(),
+      scopeDir: projectDir,
       review,
     });
 

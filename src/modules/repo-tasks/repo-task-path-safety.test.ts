@@ -126,7 +126,7 @@ updated_at: 2020-01-01
     symlinkSync(outsideDir, join(tasksDir, "done"), "dir");
 
     expect(() =>
-      gcTerminalTasks(projectDir, { days: 30, delete: true }),
+      gcTerminalTasks(projectDir, { days: 30 }),
     ).toThrow(/symbolic-link directory components are forbidden/);
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
   });

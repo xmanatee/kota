@@ -191,6 +191,8 @@ export function buildDaemonDeadLetterControlRoutes(
           jsonResponse(res, status, {
             error: result.reason === "unknown_workflow"
               ? "Redrive workflow is not available"
+              : result.reason === "admission_rejected"
+                ? "Redrive workflow admission was rejected"
               : "Dead-letter item is not redrivable",
             reason: result.reason,
           });

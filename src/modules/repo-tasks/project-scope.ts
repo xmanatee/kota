@@ -28,6 +28,13 @@ export type RepoTasksProjectStoresOptions = {
 	getDefaultProvider?: () => RepoTasksProvider | null;
 };
 
+export type ResolvedRepoTasksProject = {
+	authority: "canonical";
+	projectId: ProjectId;
+	projectDir: string;
+	store: RepoTasksProvider;
+};
+
 export class RepoTasksProjectStores {
 	private readonly fallbackProject: ConfiguredProject;
 	private readonly fallbackProjects: readonly ConfiguredProject[];
@@ -63,7 +70,7 @@ export class RepoTasksProjectStores {
 	resolve(
 		projectId: string | null | undefined,
 	):
-		| { ok: true; projectId: ProjectId; projectDir: string; store: RepoTasksProvider }
+		| ({ ok: true } & ResolvedRepoTasksProject)
 		| { ok: false; error: UnknownRepoTasksProjectError } {
 		const snapshot = this.snapshot();
 		const requested = projectId?.trim();
@@ -86,6 +93,7 @@ export class RepoTasksProjectStores {
 		}
 		return {
 			ok: true,
+			authority: "canonical",
 			projectId: project.projectId,
 			projectDir: project.projectDir,
 			store: this.storeFor(project, snapshot.defaultProjectId),

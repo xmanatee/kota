@@ -8,7 +8,7 @@ import {
   defaultAgentStep,
   initGitRepo,
   seedSourceRun,
-  writeCommitArtifact,
+  seedWriterIntegration,
   writeFile,
 } from "./recorder.test-helpers.js";
 
@@ -30,9 +30,9 @@ describe("extractAgentStepRecording errors", () => {
     rmSync(fixtureDir, { recursive: true, force: true });
   });
 
-  it("rejects a non-committing source run with the run id named", () => {
+  it("rejects a source run without writer integration evidence", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-nocommit";
-    const runDir = seedSourceRun(
+    seedSourceRun(
       projectDir,
       runId,
       "decomposer",
@@ -40,8 +40,6 @@ describe("extractAgentStepRecording errors", () => {
       defaultAgentStep("decompose"),
       [],
     );
-    writeCommitArtifact(runDir, { committed: false });
-
     let err: unknown;
     try {
       extractAgentStepRecording({
@@ -56,10 +54,10 @@ describe("extractAgentStepRecording errors", () => {
     expect(err).toBeInstanceOf(Error);
     const message = (err as Error).message;
     expect(message).toContain(runId);
-    expect(message).toContain("did not commit");
+    expect(message).toContain("no writer-integration.json");
   });
 
-  it("rejects a source run with no commit.json", () => {
+  it("rejects a source run with no integration evidence", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-nostep";
     seedSourceRun(
       projectDir,
@@ -76,7 +74,7 @@ describe("extractAgentStepRecording errors", () => {
         stepId: "decompose",
         fixtureDir,
       }),
-    ).toThrow(/no steps\/commit\.json/);
+    ).toThrow(/no writer-integration\.json/);
   });
 
   it("rejects traversal-shaped source run and step ids before deriving paths", () => {
@@ -111,7 +109,7 @@ describe("extractAgentStepRecording errors", () => {
       cwd: projectDir,
       encoding: "utf-8",
     }).trim();
-    const runDir = seedSourceRun(
+    seedSourceRun(
       projectDir,
       runId,
       "decomposer",
@@ -135,7 +133,10 @@ describe("extractAgentStepRecording errors", () => {
         }),
       ],
     );
-    writeCommitArtifact(runDir, { committed: true, sha, message: "inside" });
+    seedWriterIntegration(projectDir, runId, {
+      publishedHead: sha,
+      message: "inside",
+    });
 
     const result = extractAgentStepRecording({
       projectDir,

@@ -13,6 +13,7 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
+import { createTestRunContext } from "../testing/run-context-fixture.js";
 import {
   AGENT_OK_RESULT,
   makeAgentStep,
@@ -112,7 +113,7 @@ describe("native workflow agent scope policy", () => {
       makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
       TRIGGER,
       {
-        projectDir,
+        runContext: createTestRunContext(projectDir, TRIGGER),
         bus,
         store,
         log: () => {},

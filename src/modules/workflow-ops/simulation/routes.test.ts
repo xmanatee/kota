@@ -27,7 +27,7 @@ function workflowDefinition(): WorkflowDefinition {
     name: "route-simulation",
     enabled: true,
     moduleRoot: "/tmp/kota-route-test",
-    recoveryCapable: false,
+    repository: "none",
     tags: [],
     definitionPath: "/tmp/kota-route-test/workflow.ts",
     triggers: [

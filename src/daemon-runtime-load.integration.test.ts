@@ -25,7 +25,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
@@ -47,6 +47,10 @@ import {
   type AutonomyHealthSignal,
   autonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
+import {
+  initializeRuntimeRoutingProject,
+  waitForRuntimeEvidence,
+} from "#root/daemon-runtime-routing-fixture.integration.js";
 
 function readControlAddress(stateDir: string): DaemonControlAddress {
   const raw = readFileSync(join(stateDir, "daemon-control.json"), "utf-8");
@@ -74,6 +78,7 @@ describe("daemon runtime module load", () => {
     stateDir = join(projectDir, ".kota");
     mkdirSync(projectDir, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
+    initializeRuntimeRoutingProject(projectDir);
     resetEventBus();
     resetScheduler();
     resetProviderRegistry();
@@ -86,16 +91,17 @@ describe("daemon runtime module load", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("rejects a daemon host whose loader is bound to a different event authority", () => {
+  it("rejects a daemon host whose loader is bound to a different event authority", async () => {
     const loaderBus = new EventBus();
     const loader = new ModuleLoader({}, false, { mode: "runtime" });
     loader.setBus(loaderBus);
 
-    expect(() => new Daemon({
+    const daemon = new Daemon({
       runtimeModuleHost: { eventBus: new EventBus(), moduleLoader: loader },
       projectDir,
       stateDir,
-    })).toThrow(/bound to a different EventBus authority/);
+    });
+    await expect(daemon.start()).rejects.toThrow(/bound to a different EventBus authority/);
   });
 
   it("loadRuntimeModules binds provider routes and live failure traffic across restart", async () => {
@@ -177,11 +183,18 @@ describe("daemon runtime module load", () => {
       eventBus,
     });
     const restartedSourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
-    const reviewerWorkflow = restartedLoader.getContributedWorkflows().find(
-      (workflow) => workflow.name === "autonomy-health-reviewer",
-    );
+    const issueProjectionWorkflowNames = new Set([
+      "autonomy-health-reviewer",
+      "autonomy-health-review-publication",
+      "autonomy-issue-projection-materialization",
+    ]);
+    const issueProjectionWorkflows = restartedLoader
+      .getContributedWorkflows()
+      .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name));
     expect(restartedSourceListenerCount).toBe(sourceListenerCount);
-    expect(reviewerWorkflow).toBeDefined();
+    expect(issueProjectionWorkflows.map((workflow) => workflow.name).sort()).toEqual(
+      [...issueProjectionWorkflowNames].sort(),
+    );
 
     const healthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
@@ -195,9 +208,9 @@ describe("daemon runtime module load", () => {
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
-      // Keep the restarted fixture bounded to the workflow that consumes the
-      // source-owned health event and projects its durable decision handoff.
-      workflows: [reviewerWorkflow!],
+      // Keep the restarted fixture bounded to the transactional issue state
+      // publication and its derived read-only projection.
+      workflows: issueProjectionWorkflows,
       channels: [],
       controlRoutes: restartedLoader.getContributedControlRoutes(),
       routes: restartedLoader.getRoutes(),
@@ -232,13 +245,24 @@ describe("daemon runtime module load", () => {
       const runtimeScopeProvider = getProviderRegistry()?.get(
         DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
       );
-      expect(runtimeScopeProvider?.resolve(scopeId)).toEqual(
+      const resolvedRuntimeScope = runtimeScopeProvider?.resolve(scopeId);
+      expect(resolvedRuntimeScope).toEqual(
         expect.objectContaining({ ok: true }),
       );
-      const stopDecisionObservation = eventBus.on(
-        autonomyIssueDecisionRequested,
-        (payload) => decisions.push(payload),
-      );
+      if (!resolvedRuntimeScope?.ok) {
+        throw new Error("daemon runtime scope was unavailable");
+      }
+      const decisionObserved = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("timed out waiting for scoped autonomy issue decision")),
+          3000,
+        );
+        eventBus.on(autonomyIssueDecisionRequested, (payload) => {
+          decisions.push(payload);
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
       new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
         workflow: "builder",
         runId: "daemon-runtime-event-run",
@@ -254,17 +278,14 @@ describe("daemon runtime module load", () => {
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
-      try {
-        await vi.waitFor(() => expect(decisions).toHaveLength(1), {
-          interval: 20,
-          timeout: 10_000,
-        });
-      } finally {
-        stopDecisionObservation();
-      }
+      await decisionObserved;
       expect(decisions).toEqual([
         expect.objectContaining({ scopeId, projectId: scopeId }),
       ]);
+      await waitForRuntimeEvidence(
+        () => readAutonomyIssueProjection(projectDir).issues.length === 1,
+        "scoped autonomy issue state was not materialized",
+      );
       expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
         expect.objectContaining({
           status: "needs-decision",

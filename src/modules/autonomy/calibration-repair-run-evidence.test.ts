@@ -1,6 +1,10 @@
 import { renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  createWorkflowCommandRunner,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "./calibration-repair.js";
 import { inspectCalibrationRepairFreshness } from "./calibration-repair-freshness.js";
 import {
@@ -12,16 +16,18 @@ import {
 
 describe("calibration repair run-evidence trust", () => {
   let projectDir: string;
+  let runCommand: WorkflowCommandRunner;
 
   beforeEach(() => {
     projectDir = makeProject();
+    runCommand = createWorkflowCommandRunner({ cwd: projectDir });
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("rejects the formerly accepted metadata-less artifact", () => {
+  it("rejects the formerly accepted metadata-less artifact", async () => {
     const repair = closeRepairTask(projectDir);
     const descendant = commitDescendant(projectDir);
     const seeded = seedArtifact(
@@ -33,15 +39,16 @@ describe("calibration repair run-evidence trust", () => {
     rmSync(seeded.metadataPath);
 
     expect(
-      inspectCalibrationRepairFreshness(
+      await inspectCalibrationRepairFreshness(
         projectDir,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
+        runCommand,
       ),
     ).toEqual({ status: "awaiting-descendant", repairRevision: repair.revision });
   });
 
-  it("rejects mismatched run identities and non-builder metadata", () => {
+  it("rejects mismatched run identities and non-builder metadata", async () => {
     const repair = closeRepairTask(projectDir);
     const descendant = commitDescendant(projectDir);
     seedArtifact(projectDir, "metadata-id-mismatch", descendant, "task-a", {
@@ -56,15 +63,16 @@ describe("calibration repair run-evidence trust", () => {
     });
 
     expect(
-      inspectCalibrationRepairFreshness(
+      (await inspectCalibrationRepairFreshness(
         projectDir,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
-      ).status,
+        runCommand,
+      )).status,
     ).toBe("awaiting-descendant");
   });
 
-  it("rejects non-terminal runs and evidence without the canonical code step", () => {
+  it("rejects non-terminal runs and evidence without the canonical code step", async () => {
     const repair = closeRepairTask(projectDir);
     const descendant = commitDescendant(projectDir);
     seedArtifact(projectDir, "running-builder", descendant, "task-a", {
@@ -89,15 +97,16 @@ describe("calibration repair run-evidence trust", () => {
     rmSync(missingStepRecord.stepPath);
 
     expect(
-      inspectCalibrationRepairFreshness(
+      (await inspectCalibrationRepairFreshness(
         projectDir,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
-      ).status,
+        runCommand,
+      )).status,
     ).toBe("awaiting-descendant");
   });
 
-  it("rejects malformed and symlinked artifact files", () => {
+  it("rejects malformed and symlinked artifact files", async () => {
     const repair = closeRepairTask(projectDir);
     const descendant = commitDescendant(projectDir);
     const malformed = seedArtifact(
@@ -119,15 +128,16 @@ describe("calibration repair run-evidence trust", () => {
     symlinkSync(artifactTarget, linkedArtifact.artifactPath);
 
     expect(
-      inspectCalibrationRepairFreshness(
+      (await inspectCalibrationRepairFreshness(
         projectDir,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
-      ).status,
+        runCommand,
+      )).status,
     ).toBe("awaiting-descendant");
   });
 
-  it("rejects a symlinked run-directory entry", () => {
+  it("rejects a symlinked run-directory entry", async () => {
     const repair = closeRepairTask(projectDir);
     const descendant = commitDescendant(projectDir);
     const seeded = seedArtifact(
@@ -141,11 +151,12 @@ describe("calibration repair run-evidence trust", () => {
     symlinkSync(target, seeded.runDir, "dir");
 
     expect(
-      inspectCalibrationRepairFreshness(
+      (await inspectCalibrationRepairFreshness(
         projectDir,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
-      ).status,
+        runCommand,
+      )).status,
     ).toBe("awaiting-descendant");
   });
 });

@@ -5,8 +5,16 @@
   "trigger": {
     "event": "autonomy.queue.available",
     "payload": {
-      "pullableCount": 1,
-      "actionableCount": 1
+      "taskId": "task-fixture-decomposer-decision-seed",
+      "taskPath": "data/tasks/doing/task-fixture-decomposer-decision-seed.md",
+      "taskState": "doing",
+      "taskUpdatedAt": "2026-04-24T00:00:00.000Z",
+      "taskDigest": "d0c6c231c3b3f550b713de32cb5ad993692d09602a951ebe4d663ca8b01b6a1a",
+      "title": "Seed task for decomposer non-timeout decision-gate fixture",
+      "priority": "p3",
+      "taskClass": "Unclassified",
+      "dependsOn": [],
+      "idempotencyKey": "builder:task-fixture-decomposer-decision-seed:d0c6c231c3b3f550b713de32cb5ad993692d09602a951ebe4d663ca8b01b6a1a"
     }
   },
   "startedAt": "2026-04-24T12:00:00.000Z",

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   validateWorkflowDefinitions,
@@ -46,6 +46,7 @@ function shippedModule(
 describe("workflow contribution precedence", () => {
   let projectDir: string;
   let globalConfigPath: string;
+  const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
     projectDir = join(
@@ -58,6 +59,7 @@ describe("workflow contribution precedence", () => {
   });
 
   afterEach(async () => {
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -71,25 +73,18 @@ describe("workflow contribution precedence", () => {
         projectDir,
         "project-heartbeat",
         `
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-
 export default {
   name: "project-heartbeat",
   workflows: [
     {
       name: "project-heartbeat-run",
+      repository: "none",
       triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
       steps: [
         {
-          id: "write-sentinel",
+          id: "record-heartbeat",
           type: "code",
-          run: (context) => {
-            const target = join(context.projectDir, "data", "heartbeat.txt");
-            mkdirSync(join(context.projectDir, "data"), { recursive: true });
-            writeFileSync(target, "beat");
-            return { wrote: target };
-          },
+          run: () => ({ beat: true }),
         },
       ],
     },
@@ -115,25 +110,30 @@ export default {
       // moduleRoot by default.
       expect(wf.moduleRoot).toBe(projectDir);
 
-      const runtime = new WorkflowRuntime({
+      const { runtime, runState } = createTestWorkflowRuntime({
         bus: new EventBus(),
         projectDir,
         idleIntervalMs: 10,
         workflows: contributed,
       });
+      runStates.push(runState);
 
       runtime.start();
       const deadline = Date.now() + 3000;
       while (Date.now() < deadline) {
-        if (existsSync(join(projectDir, "data", "heartbeat.txt"))) break;
+        const runsDir = join(projectDir, ".kota", "runs");
+        if (
+          existsSync(runsDir) &&
+          readdirSync(runsDir).some((runId) => {
+            const path = join(runsDir, runId, "metadata.json");
+            if (!existsSync(path)) return false;
+            return JSON.parse(readFileSync(path, "utf-8")).status === "success";
+          })
+        ) break;
         await wait(25);
       }
       await runtime.stop();
       await loader.unloadAll();
-
-      expect(existsSync(join(projectDir, "data", "heartbeat.txt"))).toBe(true);
-      expect(readFileSync(join(projectDir, "data", "heartbeat.txt"), "utf-8"))
-        .toBe("beat");
 
       const runsDir = join(projectDir, ".kota", "runs");
       expect(existsSync(runsDir)).toBe(true);
@@ -144,6 +144,7 @@ export default {
       );
       expect(meta.workflow).toBe("project-heartbeat-run");
       expect(meta.status).toBe("success");
+      expect(meta.steps[0]?.output).toEqual({ beat: true });
     },
   );
 
@@ -173,6 +174,7 @@ export default {
       );
 
       const shippedWorkflow: WorkflowDefinitionInput = {
+        repository: "read",
         name: "shared-workflow",
         triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
         steps: [

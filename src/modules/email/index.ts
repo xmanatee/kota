@@ -23,8 +23,6 @@ type EmailConfig = {
   };
   from: string;
   to: string | string[];
-  /** Opt-in extra events (e.g. "workflow.build.committed"). Default: all notification events. */
-  events?: string[];
 };
 
 const NOTIFICATION_EVENTS = [
@@ -35,10 +33,6 @@ const NOTIFICATION_EVENTS = [
   "module.crash.alert",
   "approval.requested",
   "owner.question.asked",
-] as const satisfies readonly (keyof BusEvents)[];
-
-const OPT_IN_EVENTS = [
-  "workflow.build.committed",
 ] as const satisfies readonly (keyof BusEvents)[];
 
 function getConfig(ctx: ModuleContext): EmailConfig | null {
@@ -268,15 +262,8 @@ const emailModule: KotaModule = {
 
     mailer = createMailer(cfg.smtp);
     const send = makeEmailSender(cfg, ctx.log);
-    const optInEvents = new Set(cfg.events ?? []);
-
     unsubs = [
       ...NOTIFICATION_EVENTS.map((event) =>
-        ctx.events.subscribe(event, (payload) => {
-          send(event, payload as Record<string, unknown>);
-        }),
-      ),
-      ...OPT_IN_EVENTS.filter((e) => optInEvents.has(e)).map((event) =>
         ctx.events.subscribe(event, (payload) => {
           send(event, payload as Record<string, unknown>);
         }),

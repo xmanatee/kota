@@ -1,12 +1,9 @@
 import type { EventBus } from "#core/events/event-bus.js";
-import { subscribeWorkflowFailureAlert } from "#core/workflow/failure-alert.js";
 import type { WorkflowRuntimeInitialDispatch } from "#core/workflow/runtime-lifecycle.js";
-import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
 import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScheduledItem } from "./scheduler.js";
 
 type HostedRuntimeResources = {
-  stopFailureAlert: () => void;
   stopSchedulerBus: () => void;
   stopSchedulerTimer: () => void;
 };
@@ -15,12 +12,6 @@ export type ScopeRuntimeHostOptions = {
   bus: EventBus;
   pollIntervalMs: number;
   onDueItems: (runtime: ProjectRuntime, items: ScheduledItem[]) => void;
-  onLog: (message: string) => void;
-  alertCooldownMs?: number;
-  getWorkflowNotify?: (
-    runtime: ProjectRuntime,
-    workflowName: string,
-  ) => WorkflowNotifyConfig | undefined;
 };
 
 /** Owns every live subscription and timer attached to a scope runtime. */
@@ -30,13 +21,16 @@ export class ScopeRuntimeHost {
 
   constructor(private readonly options: ScopeRuntimeHostOptions) {}
 
-  async startInitial(registry: ProjectRuntimeRegistry): Promise<void> {
+  async startInitial(
+    registry: ProjectRuntimeRegistry,
+    initialDispatch: WorkflowRuntimeInitialDispatch = "active",
+  ): Promise<void> {
     if (this.active) return;
     this.active = true;
     const started: ProjectRuntime[] = [];
     try {
       for (const runtime of registry.list()) {
-        await this.start(runtime);
+        await this.start(runtime, initialDispatch);
         started.push(runtime);
       }
     } catch (error) {
@@ -60,7 +54,6 @@ export class ScopeRuntimeHost {
 
     let stopSchedulerBus = (): void => {};
     let stopSchedulerTimer = (): void => {};
-    let stopFailureAlert = (): void => {};
     try {
       runtime.workflowRuntime.validateDefinitions();
       stopSchedulerBus = runtime.scheduler.connectBus(
@@ -71,24 +64,12 @@ export class ScopeRuntimeHost {
         this.options.pollIntervalMs,
         (items) => this.options.onDueItems(runtime, items),
       );
-      stopFailureAlert = subscribeWorkflowFailureAlert(
-        runtime.pbus,
-        runtime.project.projectDir,
-        this.options.onLog,
-        {
-          alertCooldownMs: this.options.alertCooldownMs,
-          getWorkflowNotify: (workflowName) =>
-            this.options.getWorkflowNotify?.(runtime, workflowName),
-        },
-      );
       runtime.workflowRuntime.start(initialDispatch);
       this.hosted.set(scopeId, {
-        stopFailureAlert,
         stopSchedulerBus,
         stopSchedulerTimer,
       });
     } catch (error) {
-      stopFailureAlert();
       stopSchedulerTimer();
       stopSchedulerBus();
       await runtime.workflowRuntime.stop(1, 1_000);
@@ -165,7 +146,6 @@ export class ScopeRuntimeHost {
     runtime: ProjectRuntime,
     resources: HostedRuntimeResources,
   ): void {
-    resources.stopFailureAlert();
     resources.stopSchedulerTimer();
     resources.stopSchedulerBus();
     runtime.notificationGate?.dispose();

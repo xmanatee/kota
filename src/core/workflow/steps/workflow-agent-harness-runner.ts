@@ -1,9 +1,9 @@
 import { runAgentHarness } from "#core/agent-harness/index.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { WorkflowAgentHarnessRunner } from "../run-types.js";
-import type { AgentRunLimiter } from "./agent-run-limiter.js";
 
 export function createWorkflowAgentHarnessRunner(
-  limiter: AgentRunLimiter | undefined,
+  onProcessSpawn?: ProcessSpawnObserver,
 ): WorkflowAgentHarnessRunner {
   return async (harness, options, execution = {}) => {
     const abortController = new AbortController();
@@ -11,21 +11,16 @@ export function createWorkflowAgentHarnessRunner(
     if (execution.signal?.aborted) forwardAbort();
     else execution.signal?.addEventListener("abort", forwardAbort, { once: true });
 
-    const run = () =>
-      runAgentHarness(
+    try {
+      return await runAgentHarness(
         harness,
-        { ...options, abortController },
+        {
+          ...options,
+          ...(onProcessSpawn === undefined ? {} : { onProcessSpawn }),
+          abortController,
+        },
         execution.writer,
       );
-    try {
-      if (limiter === undefined) return await run();
-      return execution.workspaceKey === undefined
-        ? await limiter.run(run, execution.signal)
-        : await limiter.runExclusive(
-            execution.workspaceKey,
-            run,
-            execution.signal,
-          );
     } finally {
       execution.signal?.removeEventListener("abort", forwardAbort);
     }

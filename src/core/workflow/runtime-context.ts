@@ -12,19 +12,16 @@ import {
   workflowAgentRuntimeId,
 } from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
+import { withWorkflowFailureAlert } from "./failure-alert.js";
+import type { RunCoordinator } from "./run-coordinator.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
+import type { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
   maybeStartNext,
-  type WorkflowActiveRunReservation,
 } from "./runtime-dispatch.js";
-import { concurrencyLimitForDefinition } from "./runtime-dispatch-concurrency.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
-import {
-  type AgentRunLimiter,
-  createAgentRunLimiter,
-} from "./steps/agent-run-limiter.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WatchTriggerManager } from "./watch-triggers.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
@@ -32,13 +29,14 @@ import { WorkflowQueueManager } from "./workflow-queue.js";
 /**
  * Single state container shared by every per-lifecycle-phase helper. Each
  * phase file (`runtime-lifecycle.ts`, `runtime-definitions.ts`,
- * `runtime-runs-control.ts`, `runtime-events.ts`, `runtime-recovery.ts`,
- * `runtime-dispatch.ts`) declares its own narrow input interface; the context
- * is a structural superset of every one of them, so a single object satisfies
- * each helper without per-call casts.
+ * `runtime-runs-control.ts`, `runtime-events.ts`, and `runtime-dispatch.ts`)
+ * declares its own narrow input interface; the context is a structural
+ * superset of every one of them, so a single object satisfies each helper
+ * without per-call casts.
  */
 export interface WorkflowRuntimeContext {
   readonly projectDir: string;
+  readonly projectId: string;
   readonly config?: KotaConfig;
   readonly store: WorkflowRunStore;
   readonly deadLetterQueue?: DeadLetterQueueStore;
@@ -50,9 +48,9 @@ export interface WorkflowRuntimeContext {
   readonly watchTriggers: WatchTriggerManager;
   readonly eventBatches: WorkflowEventBatchManager;
   readonly backoff: AgentBackoffManager;
-  readonly agentConcurrency: number;
-  readonly agentRunLimiter: AgentRunLimiter;
-  readonly codeConcurrency: number;
+  readonly runState: RunStateDatabase;
+  readonly runCoordinator: RunCoordinator;
+  readonly daemonEpoch: number;
   readonly runtimeConfig: WorkflowRuntimeConfig;
   /**
    * Per-project view over the runtime's underlying bus. Every project-scoped
@@ -69,12 +67,6 @@ export interface WorkflowRuntimeContext {
   readonly resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   readonly definitionSourceEnabled: Map<string, boolean>;
   readonly awaitResumeDisposers: Array<() => void>;
-  /**
-   * Active runs keyed by run id. The value carries the workflow name so
-   * dispatch can count same-workflow and group concurrency independently.
-   */
-  readonly activeRuns: Map<string, WorkflowActiveRunReservation>;
-  workspaceDir?: string;
 
   // Mutable lifecycle / dispatch slots. Phase helpers reassign these as the
   // runtime moves through start, dispatch, recovery, and stop.
@@ -126,19 +118,14 @@ export function createWorkflowRuntimeContext(
   );
   const wfQueue = new WorkflowQueueManager({
     store,
+    runState: runtimeConfig.runState,
+    coordinator: runtimeConfig.runCoordinator,
+    projectId: runtimeConfig.projectId,
     projectDir,
-    getConfig: () => ctx.config,
-    idempotencyStore,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     getScopeId: () => ctx.pbus.getScopeId(),
     getActiveBackoff: () => backoff.getActive(),
     workflowUsesAgent,
-    concurrencyLimit: (definition) =>
-      concurrencyLimitForDefinition(ctx, definition),
-    isActiveRun: (name) =>
-      [...ctx.activeRuns.values()].some((run) => run.workflowName === name),
-    activeRunCount: (name) =>
-      [...ctx.activeRuns.values()].filter((run) => run.workflowName === name).length,
     getDefinitions: () => ctx.definitions,
     log,
   });
@@ -158,7 +145,6 @@ export function createWorkflowRuntimeContext(
     log,
   );
 
-  const agentConcurrency = runtimeConfig.agentConcurrency ?? 1;
   const eventBatches = new WorkflowEventBatchManager(
     store,
     () => ctx.stopping,
@@ -170,6 +156,7 @@ export function createWorkflowRuntimeContext(
 
   ctx = {
     projectDir,
+    projectId: runtimeConfig.projectId,
     config: runtimeConfig.config,
     store,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
@@ -181,9 +168,9 @@ export function createWorkflowRuntimeContext(
     watchTriggers,
     eventBatches,
     backoff,
-    agentConcurrency,
-    agentRunLimiter: createAgentRunLimiter(agentConcurrency)!,
-    codeConcurrency: runtimeConfig.codeConcurrency ?? 4,
+    runState: runtimeConfig.runState,
+    runCoordinator: runtimeConfig.runCoordinator,
+    daemonEpoch: runtimeConfig.daemonEpoch,
     runtimeConfig,
     pbus,
     model: runtimeConfig.model,
@@ -194,8 +181,10 @@ export function createWorkflowRuntimeContext(
     resolveSkillsPrompt: runtimeConfig.resolveSkillsPrompt,
     definitionSourceEnabled: new Map(),
     awaitResumeDisposers: [],
-    activeRuns: new Map(),
-    workflowInputs: runtimeConfig.workflows,
+    workflowInputs: withWorkflowFailureAlert(
+      runtimeConfig.workflows,
+      runtimeConfig.config?.notifications?.alertCooldownMs,
+    ),
     definitions: [],
     idleTimer: null,
     stopBus: null,

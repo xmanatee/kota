@@ -86,7 +86,7 @@ function makeFakeWorkflowDefinition(name: string): WorkflowDefinition {
     name,
     enabled: true,
     moduleRoot: "/tmp",
-    recoveryCapable: false,
+    repository: "none",
     tags: [],
     definitionPath: `test/${name}.ts`,
     triggers: [],
@@ -500,15 +500,16 @@ describe("Daemon — two-project isolation across emit/persist/session boundarie
       workflows: [
         registerWorkflowDefinition("test/non-default-event.ts", {
           name: "non-default-event-listener",
+          repository: "none",
           triggers: [{ event: "test.scope.event" }],
           steps: [
             {
               id: "mark-project",
               type: "code",
-              run: ({ projectDir }) => {
-                mkdirSync(join(projectDir, ".kota"), { recursive: true });
+              run: ({ scopeDir }) => {
+                mkdirSync(join(scopeDir, ".kota"), { recursive: true });
                 writeFileSync(
-                  join(projectDir, ".kota", "scoped-event-marker.txt"),
+                  join(scopeDir, ".kota", "scoped-event-marker.txt"),
                   "ran\n",
                   "utf-8",
                 );

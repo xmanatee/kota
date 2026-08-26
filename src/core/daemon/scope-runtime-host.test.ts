@@ -1,11 +1,55 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
 import { ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
+
+const openRunStates: RunStateDatabase[] = [];
+
+function createTestRuntimeRegistry(
+  registry: ScopeRegistry,
+  bus: EventBus,
+  stateDir: string,
+): ProjectRuntimeRegistry {
+  const runState = new RunStateDatabase(join(stateDir, "run-state"));
+  openRunStates.push(runState);
+  const startedAt = new Date().toISOString();
+  for (const project of registry.list()) {
+    runState.registerProject({
+      id: project.projectId,
+      rootPath: project.projectDir,
+      displayName: project.displayName,
+      createdAt: startedAt,
+    });
+  }
+  const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
+  let runtimes!: ProjectRuntimeRegistry;
+  const runCoordinator = new RunCoordinator({
+    store: runState,
+    daemonEpoch,
+    concurrency: 4,
+    execute: (run, signal) =>
+      runtimes.get(run.projectId).workflowRuntime.executeAdmittedRun(run, signal),
+  });
+  runtimes = ProjectRuntimeRegistry.create({
+    registry,
+    bus,
+    onLog: () => {},
+    runState,
+    runCoordinator,
+    daemonEpoch,
+  });
+  return runtimes;
+}
+
+afterEach(() => {
+  for (const runState of openRunStates.splice(0)) runState.close();
+});
 
 describe("ScopeRuntimeHost", () => {
   it("owns each runtime subscription and schedule connection exactly once", async () => {
@@ -14,56 +58,29 @@ describe("ScopeRuntimeHost", () => {
     const stateDir = mkdtempSync(join(root, "state-"));
     const bus = new EventBus();
     const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir }] });
-    const runtimes = ProjectRuntimeRegistry.create({ registry, bus, onLog: () => {} });
+    const runtimes = createTestRuntimeRegistry(registry, bus, stateDir);
     const runtime = runtimes.getDefault();
     runtime.scheduler.addEventTrigger("host fixture", "test.scope-runtime-host");
     let scheduleFireCount = 0;
-    let failureAlertCount = 0;
-    bus.on("workflow.failure.alert", () => {
-      failureAlertCount += 1;
-    });
     const host = new ScopeRuntimeHost({
       bus,
       pollIntervalMs: 60_000,
       onDueItems: (_runtime, items) => {
         scheduleFireCount += items.length;
       },
-      onLog: () => {},
     });
 
     await host.startInitial(runtimes);
     await host.startInitial(runtimes);
     await expect(host.start(runtime)).rejects.toThrow(/already hosted/);
     bus.emit("test.scope-runtime-host", {});
-    runtime.pbus.emit("workflow.completed", {
-      workflow: "fixture",
-      runId: "run-fixture",
-      status: "failed",
-      triggerEvent: "manual",
-      durationMs: 1,
-      definitionPath: "fixture/workflow.ts",
-      runDir: ".kota/runs/run-fixture",
-      tags: [],
-    });
     expect(scheduleFireCount).toBe(1);
-    expect(failureAlertCount).toBe(1);
     expect(host.hostedCount()).toBe(1);
 
     await host.stop(runtime, 0);
     await host.stop(runtime, 0);
     bus.emit("test.scope-runtime-host", {});
-    runtime.pbus.emit("workflow.completed", {
-      workflow: "fixture",
-      runId: "run-after-stop",
-      status: "failed",
-      triggerEvent: "manual",
-      durationMs: 1,
-      definitionPath: "fixture/workflow.ts",
-      runDir: ".kota/runs/run-after-stop",
-      tags: [],
-    });
     expect(scheduleFireCount).toBe(1);
-    expect(failureAlertCount).toBe(1);
     expect(host.hostedCount()).toBe(0);
     await host.stopAll(runtimes, 0);
     rmSync(root, { recursive: true, force: true });
@@ -75,7 +92,7 @@ describe("ScopeRuntimeHost", () => {
     const stateDir = mkdtempSync(join(root, "state-"));
     const bus = new EventBus();
     const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir }] });
-    const runtimes = ProjectRuntimeRegistry.create({ registry, bus, onLog: () => {} });
+    const runtimes = createTestRuntimeRegistry(registry, bus, stateDir);
     const runtime = runtimes.getDefault();
     runtime.scheduler.addEventTrigger("abort fixture", "test.scope-runtime-abort");
     let scheduleFireCount = 0;
@@ -85,7 +102,6 @@ describe("ScopeRuntimeHost", () => {
       onDueItems: (_runtime, items) => {
         scheduleFireCount += items.length;
       },
-      onLog: () => {},
     });
     await host.startInitial(runtimes);
     vi.spyOn(runtime.workflowRuntime, "stop").mockRejectedValueOnce(
@@ -113,7 +129,7 @@ describe("ScopeRuntimeHost", () => {
       stateDir,
       projects: [{ projectDir: projectA }, { projectDir: projectB }],
     });
-    const runtimes = ProjectRuntimeRegistry.create({ registry, bus, onLog: () => {} });
+    const runtimes = createTestRuntimeRegistry(registry, bus, stateDir);
     const [runtimeA, runtimeB] = runtimes.list();
     runtimeA!.scheduler.addEventTrigger("scope A fixture", "test.scope-schedule");
     runtimeB!.scheduler.addEventTrigger("scope B fixture", "test.scope-schedule");
@@ -122,7 +138,6 @@ describe("ScopeRuntimeHost", () => {
       bus,
       pollIntervalMs: 60_000,
       onDueItems: (runtime) => firedIn.push(runtime.project.projectId),
-      onLog: () => {},
     });
 
     await host.startInitial(runtimes);

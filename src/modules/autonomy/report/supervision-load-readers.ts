@@ -3,10 +3,6 @@ import { join } from "node:path";
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import {
-  readTaskClaimInspectionStore,
-  type TaskClaimInspection,
-} from "#modules/autonomy/task-claims.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import {
   isJsonObject,
@@ -30,11 +26,9 @@ export function readSupervisionLoadStores(input: {
   projectDir: string;
   runsDir: string;
   runs: readonly WorkflowRunMetadata[];
-  windowEndMs: number;
 }): SupervisionLoadStoreReads {
   return {
     activeRuns: readActiveRuns(input.runsDir, input.runs),
-    taskClaims: readTaskClaims(input.projectDir, input.windowEndMs),
     approvals: readApprovals(input.projectDir),
     ownerQuestions: readOwnerQuestions(input.projectDir),
     deadLetters: readDeadLetters(input.projectDir),
@@ -52,42 +46,6 @@ function readActiveRuns(
     items: runs.filter((run) => run.status === "running"),
     evidence,
   };
-}
-
-function readTaskClaims(
-  projectDir: string,
-  windowEndMs: number,
-): StoreResult<TaskClaimInspection> {
-  const activeClaimsDir = join(projectDir, ".kota", "task-claims", "active");
-  try {
-    const store = readTaskClaimInspectionStore(projectDir, new Date(windowEndMs));
-    if (!store.available) {
-      return {
-        items: null,
-        evidence: {
-          source: "task-claims",
-          status: "missing",
-          path: activeClaimsDir,
-          message: "task-claims store is not available",
-        },
-      };
-    }
-    return {
-      items: store.items,
-      evidence: {
-        source: "task-claims",
-        status: "available",
-        path: activeClaimsDir,
-        message: "task-claims store read",
-      },
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      items: null,
-      evidence: unreadableEvidence("task-claims", activeClaimsDir, message),
-    };
-  }
 }
 
 function readApprovals(projectDir: string): StoreResult<ApprovalRecord> {

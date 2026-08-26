@@ -1,26 +1,30 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import type {
+  AutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   type AutonomyHealthReviewActionResult,
-  applyAutonomyHealthReviewActions,
+  stageAutonomyHealthReviewActions,
 } from "./health-review.js";
 
-export type ApplyHealthReviewActionsInput = {
+export type StageHealthReviewActionsInput = {
   projectDir: string;
-  review: Parameters<typeof applyAutonomyHealthReviewActions>[0]["review"];
+  currentProjection: AutonomyIssueProjection;
+  review: Parameters<typeof stageAutonomyHealthReviewActions>[0]["review"];
 };
 
-export type ApplyHealthReviewActionsOutput = {
+export type StageHealthReviewActionsOutput = {
   actions: AutonomyHealthReviewActionResult;
 };
 
-export function applyAutonomyHealthReviewActionsInWorker(
-  input: ApplyHealthReviewActionsInput,
-): ApplyHealthReviewActionsOutput {
-  return { actions: applyAutonomyHealthReviewActions(input) };
+export function stageAutonomyHealthReviewActionsInWorker(
+  input: StageHealthReviewActionsInput,
+): StageHealthReviewActionsOutput {
+  return { actions: stageAutonomyHealthReviewActions(input) };
 }
 
-export const applyAutonomyHealthReviewActionsOperation =
+export const stageAutonomyHealthReviewActionsOperation =
   defineWorkflowBlockingOperation<
-    ApplyHealthReviewActionsInput,
-    ApplyHealthReviewActionsOutput
-  >(import.meta.url, "applyAutonomyHealthReviewActionsInWorker");
+    StageHealthReviewActionsInput,
+    StageHealthReviewActionsOutput
+  >(import.meta.url, "stageAutonomyHealthReviewActionsInWorker");

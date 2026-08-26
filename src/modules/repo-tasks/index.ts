@@ -28,14 +28,9 @@ import {
 	createRepoTasksProjectStores,
 	type RepoTasksProjectStores,
 } from "./project-scope.js";
-import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
-import {
-	captureInboxTask,
-	createNormalizedTask,
-	gcTerminalTasks,
-	showTask,
-	updateTaskBody,
-} from "./repo-tasks-operations.js";
+import { mutateRepoTask } from "./repo-task-mutation-boundary.js";
+import { getRepoTasksDir } from "./repo-tasks-domain.js";
+import { showTask } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 import { taskControlRoutes, taskRoutes } from "./routes.js";
 import { repoTasksUiSurfaceSource } from "./ui-surface.js";
@@ -122,47 +117,29 @@ const repoTasksModule: KotaModule = {
 			},
 			async move(id, toState, project) {
 				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				try {
-					const result = moveTaskById(resolved.projectDir, id, toState);
-					return {
-						ok: true,
-						id: result.id,
-						fromState: result.fromState,
-						toState: result.toState,
-						path: result.path,
-						previousPath: result.previousPath,
-					};
-				} catch (err) {
-					const message = err instanceof Error ? err.message : String(err);
-					if (/invalid task id/i.test(message)) {
-						return { ok: false, reason: "invalid_id" };
-					}
-					if (/not found/i.test(message)) {
-						return { ok: false, reason: "not_found" };
-					}
-					if (/already in/i.test(message)) {
-						return { ok: false, reason: "already_in_state", state: toState };
-					}
-					throw err;
-				}
+				return await mutateRepoTask(resolved, {
+					kind: "move",
+					id,
+					state: toState,
+				});
 			},
 			async updateBody(id, body, project) {
 				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				return updateTaskBody(resolved.projectDir, id, body);
+				return await mutateRepoTask(resolved, { kind: "update-body", id, body });
 			},
 			async create(options) {
 				const { projectId, ...taskOptions } = options;
 				const resolved = resolveRepoTasksProject(projectStores, projectId);
-				return createNormalizedTask(resolved.projectDir, taskOptions);
+				return await mutateRepoTask(resolved, { kind: "create", options: taskOptions });
 			},
 			async capture(title, project) {
 				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				return captureInboxTask(resolved.projectDir, title);
+				return await mutateRepoTask(resolved, { kind: "capture", title });
 			},
 			async gc(options) {
 				const { projectId, ...gcOptions } = options ?? {};
 				const resolved = resolveRepoTasksProject(projectStores, projectId);
-				return gcTerminalTasks(resolved.projectDir, gcOptions);
+				return await mutateRepoTask(resolved, { kind: "gc", options: gcOptions });
 			},
 			async search(query, filter): Promise<RepoTaskSearchResult> {
 				const semantic = filter?.semantic !== false;

@@ -154,7 +154,6 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
     unchangedFindingIds: ["confirmed-fetch"],
   });
   expect(replay.steps["write-commit-message"].status).toBe("skipped");
-  expect(replay.steps["validate-before-commit"].status).toBe("skipped");
   expect(readFileSync(taskPath, "utf-8")).toBe(taskBeforeReplay);
   const replayOutcome = JSON.parse(
     readFileSync(

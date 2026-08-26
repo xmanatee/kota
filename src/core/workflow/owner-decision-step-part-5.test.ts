@@ -26,6 +26,7 @@ import {
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowApprovalStep } from "./step-types.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -117,7 +118,7 @@ describe("owner decision workflow helpers", () => {
     return {
       name: "owner-decision-data-fixture",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/core/workflow/owner-decision-step.test.ts",
       moduleRoot: "/test-module-root",
       triggers: [],
@@ -182,7 +183,7 @@ describe("owner decision workflow helpers", () => {
     return {
       name: "owner-decision-action-fixture",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "src/core/workflow/owner-decision-step.test.ts",
       moduleRoot: "/test-module-root",
       triggers: [],
@@ -228,11 +229,48 @@ describe("owner decision workflow helpers", () => {
     throw new Error("approval was not enqueued");
   }
 
+  function runContext(): RunExecutorDeps["runContext"] {
+    const runId = `owner-decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      run: { id: runId, attempt: 1, daemonEpoch: 1 },
+      project: { id: "scope-a", root: projectDir },
+      workflow: "owner-decision-fixture",
+      trigger: TRIGGER,
+      sandbox: {
+        runId,
+        repository: "none",
+        rootDir: projectDir,
+        workspaceDir: projectDir,
+        tempDir: projectDir,
+        artifactDir: projectDir,
+      },
+      resources: {
+        runId,
+        attempt: 1,
+        daemonEpoch: 1,
+        workspaceDir: projectDir,
+        runDir: projectDir,
+        tempDir: projectDir,
+        artifactDir: projectDir,
+        agentDir: projectDir,
+        packageCacheDir: projectDir,
+        ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+        env: {},
+      },
+      signal: new AbortController().signal,
+      processes: { register: vi.fn() },
+      effects: { execute: (effect) => effect.execute() },
+      publications: { stageEmit: vi.fn() },
+      state: createTestTransactionalRunState(),
+    };
+  }
+
+
   function runExecutorDeps(
     overrides: Partial<RunExecutorDeps> = {},
   ): RunExecutorDeps {
     return {
-      projectDir,
+      runContext: runContext(),
       bus,
       pbus,
       store,
@@ -278,7 +316,7 @@ describe("owner decision workflow helpers", () => {
       {
         name: "owner-decision-action-replay-fixture",
         enabled: true,
-        recoveryCapable: false,
+        repository: "none",
         definitionPath: "src/core/workflow/owner-decision-step.test.ts",
         moduleRoot: "/test-module-root",
         triggers: [],

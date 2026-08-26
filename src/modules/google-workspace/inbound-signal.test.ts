@@ -7,7 +7,7 @@ import {
   type InboundSignalReceivedPayload,
   type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalRouted,
+  inboundSignalWorkflowTargeted,
   validateInboundSignalPayload,
 } from "#modules/inbound-signals/events.js";
 import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
@@ -262,6 +262,7 @@ type RoutedProbePayload = {
 };
 
 const googleWorkspaceSignalProbeWorkflow: WorkflowDefinitionInput = {
+  repository: "read",
   name: "google-workspace-signal-probe",
   description: "Test-only route target for Google Workspace inbound signals.",
   triggers: [{ event: "manual" }],
@@ -329,7 +330,7 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
           });
           return {
             ok: true,
-            path: "queue",
+            path: "daemon",
             queued: googleWorkspaceSignalProbeWorkflow.name,
             runId: "run-gmail-owner",
           };
@@ -348,7 +349,7 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
       sourceId: "google:gmail:owner@example.com",
     });
     expect(queued[0]).toMatchObject({
-      event: inboundSignalRouted.name,
+      event: inboundSignalWorkflowTargeted,
       payload: {
         projectId: "project-google",
         routeId: "gmail-owner-capture",

@@ -33,17 +33,14 @@ export function buildSupervisionLoadReport(
     projectDir: input.projectDir,
     runsDir: input.runsDir,
     runs: input.runs,
-    windowEndMs: input.windowEndMs,
   });
 
-  const claimItems = stores.taskClaims.items;
   const approvalItems = stores.approvals.items;
   const questionItems = stores.ownerQuestions.items;
   const deadLetterItems = stores.deadLetters.items;
   const attentionRecords = stores.attentionItems.items;
   const counts = buildCounts({
     activeRunCount: stores.activeRuns.items?.length ?? null,
-    claimItems,
     approvalItems,
     questionItems,
     deadLetterItems,
@@ -58,7 +55,6 @@ export function buildSupervisionLoadReport(
 
   const evidence = [
     stores.activeRuns.evidence,
-    stores.taskClaims.evidence,
     stores.approvals.evidence,
     stores.ownerQuestions.evidence,
     stores.deadLetters.evidence,
@@ -73,14 +69,9 @@ export function buildSupervisionLoadReport(
     score,
     thresholds: DEFAULT_SUPERVISION_LOAD_THRESHOLDS,
     evidence,
-    workstreams: buildWorkstreamGroups(
-      stores.activeRuns.items ?? [],
-      claimItems ?? [],
-      taskById,
-    ),
+    workstreams: buildWorkstreamGroups(stores.activeRuns.items ?? [], taskById),
     topReferences: buildTopReferences({
       activeRuns: stores.activeRuns.items ?? [],
-      claims: claimItems ?? [],
       approvals: approvalItems ?? [],
       ownerQuestions: questionItems ?? [],
       deadLetters: deadLetterItems ?? [],
@@ -93,9 +84,6 @@ export function buildSupervisionLoadReport(
 
 function buildCounts(input: {
   activeRunCount: number | null;
-  claimItems: NonNullable<
-    ReturnType<typeof readSupervisionLoadStores>["taskClaims"]["items"]
-  > | null;
   approvalItems: NonNullable<
     ReturnType<typeof readSupervisionLoadStores>["approvals"]["items"]
   > | null;
@@ -113,15 +101,6 @@ function buildCounts(input: {
 }): SupervisionLoadCounts {
   return {
     activeRuns: input.activeRunCount,
-    activeTaskClaims: input.claimItems?.length ?? null,
-    pendingMergeTaskClaims:
-      input.claimItems?.filter(
-        (inspection) => inspection.claim.status === "pending-merge",
-      ).length ?? null,
-    blockedClaimRecoveries:
-      input.claimItems?.filter(
-        (inspection) => inspection.recoveryStatus === "pending-merge",
-      ).length ?? null,
     pendingApprovals:
       input.approvalItems?.filter((item) => item.status === "pending").length ??
       null,

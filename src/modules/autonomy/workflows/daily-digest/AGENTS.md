@@ -64,12 +64,10 @@ drift. The cross-client conformance fixture
 `clients/conformance/contract-fixture.json` `digest` arm pins the wire
 shape every fan-out client decoder must accept.
 
-Snapshot invariant: the on-demand path does not write
-`.kota/daily-digest-state.json`. That file is owned by the cadence run
-and must reflect "previous cadence window", not "previous on-demand
-call" — otherwise a mid-day `/digest` would corrupt the next 08:00
-delta. The cadence and on-demand paths share `computeDigestSnapshot`
-so the rendered body cannot drift.
+Snapshot invariant: the queue-delta baseline is revisioned project state owned
+by the workflow runtime. The cadence run stages its update transactionally;
+on-demand reads consume the committed value without advancing it. The cadence
+and on-demand paths share `computeDigestSnapshot` so rendering cannot drift.
 
 Bus invariant: the on-demand path does not emit `workflow.daily.digest`.
 Other notification channels must not see an operator's mid-day `/digest`

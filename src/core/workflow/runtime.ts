@@ -1,19 +1,24 @@
 import type { AwaitSuspension } from "./awaits-store.js";
+import { resolveWorkflowDispatchPause } from "./dispatch-pause.js";
+import type { WorkflowDispatchPauseStatus } from "./dispatch-pause-types.js";
 import type {
   WorkflowBatchDispatchInput,
   WorkflowBatchDispatchResult,
 } from "./event-batches.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
+import type { RunExecutionOutcome } from "./run-coordinator.js";
 import {
-  reconcileWorkflowRecovery,
-  resolveWorkflowDispatchPause,
-} from "./recovery-status.js";
+  continueRunIntegration,
+  validateRunIntegration,
+  verifyRunPostReconcileInvariant,
+} from "./run-integration-policy.js";
+import { formatRunId } from "./run-io.js";
+import { RunLifecycle } from "./run-lifecycle.js";
+import type { StoredRun } from "./run-state-database.js";
+import type { PendingRunPublication, RunPublication } from "./run-state-types.js";
 import type {
-  WorkflowDispatchPauseStatus,
-  WorkflowRecoveryStatus,
-} from "./recovery-status-types.js";
-import type {
-  WorkflowRuntimeState,
+  WorkflowRunStatus,
+  WorkflowRuntimeSnapshot,
 } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
 import {
@@ -31,6 +36,11 @@ import {
   setWorkflowInputs,
   validateDefinitions,
 } from "./runtime-definitions.js";
+import {
+  createIntegratedWorkflowPublication,
+  deliverIntegratedWorkflowPublication,
+  executeAdmittedWorkflowRun,
+} from "./runtime-dispatch.js";
 import {
   getDispatchWindowStatus,
   isBusy,
@@ -59,7 +69,11 @@ import {
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
 import type { PendingWatchTriggerBuffer } from "./watch-triggers.js";
-import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
+import type {
+  ExecuteWorkflowRequest,
+  ExecuteWorkflowResult,
+  WebhookRunPayload,
+} from "./workflow-dispatcher-provider.js";
 
 export type { WorkflowRuntimeConfig };
 export { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WORKFLOW_STOP_ABORT_WAIT_MS };
@@ -72,9 +86,46 @@ export { ABORT_SIGNAL_FILE, PAUSE_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WORKFLOW_STOP
  */
 export class WorkflowRuntime {
   private readonly ctx: WorkflowRuntimeContext;
+  private readonly lifecycle: RunLifecycle;
 
   constructor(runtimeConfig: WorkflowRuntimeConfig) {
     this.ctx = createWorkflowRuntimeContext(runtimeConfig);
+    this.lifecycle = new RunLifecycle({
+      store: runtimeConfig.runState,
+      daemonEpoch: runtimeConfig.daemonEpoch,
+      executeWorkflow: (context, run) =>
+        executeAdmittedWorkflowRun(this.ctx, run, context),
+      validate: (context, input) => {
+        const definition = this.ctx.definitions.find(
+          (candidate) => candidate.name === context.workflow,
+        );
+        if (!definition?.integration) {
+          throw new Error(`Writer workflow "${context.workflow}" has no integration policy`);
+        }
+        return validateRunIntegration(context, definition.integration, input);
+      },
+      verifyPostReconcile: (context, input) => {
+        const definition = this.ctx.definitions.find(
+          (candidate) => candidate.name === context.workflow,
+        );
+        if (!definition?.integration) {
+          throw new Error(`Writer workflow "${context.workflow}" has no integration policy`);
+        }
+        return verifyRunPostReconcileInvariant(
+          context,
+          definition.integration,
+          this.ctx.store.rootDir,
+          input,
+        );
+      },
+      continueIntegration: (context, issue) =>
+        continueRunIntegration(
+          context,
+          issue,
+          runtimeConfig.config,
+          runtimeConfig.authorityConfigPath,
+        ),
+    });
   }
 
   start(initialDispatch: WorkflowRuntimeInitialDispatch = "active"): void {
@@ -86,6 +137,59 @@ export class WorkflowRuntime {
     abortWaitMs = WORKFLOW_STOP_ABORT_WAIT_MS,
   ): Promise<void> {
     return stopRuntime(this.ctx, gracePeriodMs, abortWaitMs);
+  }
+
+  executeAdmittedRun(
+    run: StoredRun,
+    signal: AbortSignal,
+  ): Promise<RunExecutionOutcome> {
+    return this.lifecycle.execute(run, signal).then((outcome) => {
+      if (
+        outcome.kind === "terminal" &&
+        this.ctx.store.getRun(run.id) !== null
+      ) {
+        return this.finalizeTerminalOutcome(run, outcome);
+      }
+      return outcome;
+    });
+  }
+
+  createPublication(
+    run: StoredRun,
+    status: WorkflowRunStatus,
+  ): Omit<RunPublication, "createdAt" | "deliveredAt"> {
+    return createIntegratedWorkflowPublication(this.ctx, run, status);
+  }
+
+  finalizeTerminalOutcome(
+    run: StoredRun,
+    outcome: Extract<RunExecutionOutcome, { kind: "terminal" }>,
+  ): Extract<RunExecutionOutcome, { kind: "terminal" }> {
+    const metadata = this.ctx.store.getRun(run.id);
+    if (metadata === null || metadata.status === "running") {
+      throw new Error(`Cannot finalize terminal workflow run "${run.id}"`);
+    }
+    const status: WorkflowRunStatus = outcome.state === "succeeded"
+      ? metadata.status === "completed-with-warnings"
+        ? "completed-with-warnings"
+        : "success"
+      : outcome.state === "cancelled"
+        ? "interrupted"
+        : "failed";
+    this.ctx.store.reconcileTerminalStatus(run.id, status, outcome.error);
+    return {
+      ...outcome,
+      publication: this.createPublication(run, status),
+    };
+  }
+
+  deliverPublication(publication: PendingRunPublication): void {
+    if (publication.projectId !== this.ctx.runtimeConfig.projectId) {
+      throw new Error(
+        `Publication "${publication.id}" belongs to project "${publication.projectId}"`,
+      );
+    }
+    deliverIntegratedWorkflowPublication(this.ctx, publication);
   }
 
   isBusy(): boolean {
@@ -116,19 +220,10 @@ export class WorkflowRuntime {
     return this.ctx.watchTriggers.listPendingBuffers();
   }
 
-  getRecoveryStatus(): WorkflowRecoveryStatus {
-    return reconcileWorkflowRecovery({
-      projectDir: this.ctx.projectDir,
-      workspaceDir: this.ctx.workspaceDir ?? this.ctx.runtimeConfig.workspaceDir,
-      store: this.ctx.store,
-    });
-  }
-
-  getDispatchPauseStatus(recovery = this.getRecoveryStatus()): WorkflowDispatchPauseStatus {
+  getDispatchPauseStatus(): WorkflowDispatchPauseStatus {
     return resolveWorkflowDispatchPause({
       projectDir: this.ctx.projectDir,
-      runtimePaused: this.ctx.dispatchPaused,
-      recovery,
+      runtimePaused: isDispatchPaused(this.ctx),
     });
   }
 
@@ -165,6 +260,55 @@ export class WorkflowRuntime {
     return enqueuePendingRun(this.ctx, name, options);
   }
 
+  async execute(request: ExecuteWorkflowRequest): Promise<ExecuteWorkflowResult> {
+    if (request.projectId !== this.ctx.runtimeConfig.projectId) {
+      return {
+        ok: false,
+        error: `Workflow runtime ${this.ctx.runtimeConfig.projectId} cannot execute for ${request.projectId}`,
+      };
+    }
+    if (this.isDispatchPaused()) {
+      return { ok: false, error: `Scope ${request.projectId} workflow dispatch is paused` };
+    }
+    const runId = formatRunId(request.workflow);
+    const admitted = this.enqueuePendingRun(request.workflow, {
+      event: request.event,
+      payload: { ...request.payload },
+      runId,
+    });
+    if (!admitted.ok || admitted.runId !== runId) {
+      return {
+        ok: false,
+        error: admitted.error ?? `Workflow "${request.workflow}" was not admitted`,
+      };
+    }
+    while (true) {
+      const run = this.ctx.runtimeConfig.runState.getRun(runId);
+      if (run === null) {
+        return { ok: false, error: `Workflow run "${runId}" disappeared` };
+      }
+      if (run.state === "succeeded") {
+        const metadata = this.ctx.store.getRun(runId);
+        const output = metadata?.steps
+          .slice()
+          .reverse()
+          .find((step) => step.output !== undefined)?.output;
+        return { ok: true, runId, output };
+      }
+      if (
+        run.state === "failed" ||
+        run.state === "cancelled" ||
+        run.state === "needs_attention"
+      ) {
+        return {
+          ok: false,
+          error: run.lastError ?? `Workflow run "${runId}" ended in ${run.state}`,
+        };
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
   enqueueWebhookRun(
     name: string,
     webhookPayload: WebhookRunPayload,
@@ -186,7 +330,7 @@ export class WorkflowRuntime {
     target: "original" | "simulation" = "original",
   ): {
     ok: boolean;
-    reason?: "not_found" | "not_redrivable" | "unknown_workflow";
+    reason?: "not_found" | "not_redrivable" | "unknown_workflow" | "admission_rejected";
     runId?: string;
     workflowName?: string;
     event?: string;
@@ -215,10 +359,9 @@ export class WorkflowRuntime {
     return enableWorkflow(this.ctx, name);
   }
 
-  getState(): WorkflowRuntimeState & {
+  getState(): WorkflowRuntimeSnapshot & {
     queueLength: number;
-    agentConcurrency: number;
-    codeConcurrency: number;
+    concurrency: number;
   } {
     return getRuntimeState(this.ctx);
   }

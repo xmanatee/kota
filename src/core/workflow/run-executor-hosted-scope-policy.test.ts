@@ -24,10 +24,62 @@ import {
   executeToolCalls,
   type ToolResultEntry,
 } from "#core/tools/tool-runner.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = join(projectDir, ".kota", "runtime", runId, "workspace"),
+): RunContext {
+  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const tempDir = join(rootDir, "tmp");
+  const artifactDir = join(rootDir, "artifacts");
+  const agentDir = join(rootDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const path of [workspaceDir, tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "hosted-live-scope-policy-test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir,
+      workspaceDir,
+      tempDir,
+      artifactDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: rootDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 vi.mock("#core/workflow/steps/agent-write-scope.js", async (importOriginal) => {
   const actual = await importOriginal<
@@ -158,7 +210,7 @@ describe("workflow hosted tool live scope policy", () => {
       const definition: WorkflowDefinition = {
         name: "hosted-live-scope-policy-test",
         enabled: true,
-        recoveryCapable: false,
+        repository: "none",
         definitionPath: "src/modules/test/workflows/hosted-policy/workflow.ts",
         moduleRoot: projectDir,
         triggers: [],
@@ -177,13 +229,17 @@ describe("workflow hosted tool live scope policy", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
+        runContext: makeRunContext(projectDir, TRIGGER),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),
         scopePolicyAuthority: authority,
       });
-      await firstCallFinished;
+      const firstCallOutcome = await Promise.race([
+        firstCallFinished.then(() => ({ kind: "called" as const })),
+        promise.then((result) => ({ kind: "completed" as const, result })),
+      ]);
+      expect(firstCallOutcome).toEqual({ kind: "called" });
       expect(firstResult).toMatchObject({ content: "executed" });
       expect(hostedRunner).toHaveBeenCalledTimes(1);
 

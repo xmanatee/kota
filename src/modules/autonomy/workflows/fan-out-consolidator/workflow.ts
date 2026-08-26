@@ -3,24 +3,6 @@ import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-} from "#modules/autonomy/shared.js";
-
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
-import {
   detectAndSeedFanOutOperation,
   type FanOutDetectionInspection,
 } from "./blocking-operations.js";
@@ -28,7 +10,6 @@ import {
 const detectAndSeed = typedCodeStep<FanOutDetectionInspection>({
   id: "detect-and-seed",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<FanOutDetectionInspection>(raw, [
       "dirty",
@@ -90,8 +71,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -100,60 +81,34 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return obj;
   },
   run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
 });
 
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const fanOutConsolidatorWorkflow: WorkflowDefinitionInput = {
   name: "fan-out-consolidator",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Detect completed multi-client fan-out batches and seed one consolidation review task per new batch in ready/.",
   tags: ["monitored"],
-  recoveryCapable: true,
   triggers: [
-    { event: "workflow.build.committed" },
-    { event: "runtime.recovered" },
+    {
+      event: "workflow.completed",
+      filter: { workflow: ["builder"], status: ["success", "completed-with-warnings"] },
+      queueMode: "all",
+    },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "fan-out-consolidator",
-        }),
-    },
     detectAndSeed,
     writeArtifact,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "fan-out-consolidator committed seeded consolidation tasks",
-      requires: ["commit"],
-    },
+    validateChanges,
   ],
 };
 

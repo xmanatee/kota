@@ -1,13 +1,17 @@
 # PR Reviewer Workflow
 
-This directory owns automated review for KOTA-created task PRs.
+This directory owns automated semantic review for trusted GitHub pull requests.
 
 ## Scope
 
-- Review only PRs whose head branch matches `kota/task/*`.
-- Skip forks, non-KOTA branches, irrelevant webhook actions, and PR events
-  whose normalized actor integrity is missing, blocked, or below the workflow's
-  trust threshold.
+- Review `opened` and `synchronize` events only when normalized webhook metadata
+  proves the pull request is from the same repository and its actor meets the
+  configured trust threshold.
+- Require explicit repository, PR number, title, head branch, base branch, and
+  head SHA metadata. Branch names are PR coordinates, never task identity or
+  ownership evidence.
+- Skip forks, irrelevant webhook actions, incomplete payloads, and events whose
+  normalized actor integrity is missing, blocked, or below the trust threshold.
 - The review is advisory — it does not gate or auto-merge the PR.
 - Keep the review agent passive: it drafts structured output only. The workflow
   validates/bounds the body, gates approval, and posts through `github_comment`.

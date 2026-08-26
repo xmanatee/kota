@@ -46,6 +46,7 @@ export function workflowDef(
   triggers: RegisteredWorkflowDefinitionInput["triggers"],
 ): RegisteredWorkflowDefinitionInput {
   return {
+    repository: "read",
     name,
     triggers,
     steps: [],

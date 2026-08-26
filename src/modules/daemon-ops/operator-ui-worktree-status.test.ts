@@ -3,8 +3,8 @@ import { buildStatusUiSurface } from "./operator-ui.js";
 import type { UiNode } from "./operator-ui-types.js";
 import type { StatusSnapshot } from "./status-cli.js";
 
-function isAutomationWorktreesList(node: UiNode): node is Extract<UiNode, { kind: "list" }> {
-  return node.kind === "list" && node.title === "Automation worktrees";
+function isRunSandboxList(node: UiNode): node is Extract<UiNode, { kind: "list" }> {
+  return node.kind === "list" && node.title === "Run sandboxes";
 }
 
 function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
@@ -18,58 +18,65 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     projectDir: "/repo",
     projectName: "repo",
     controlFile: { kind: "missing" },
-    ...overrides,
-  };
-}
-
-function worktree(
-  overrides: Partial<NonNullable<StatusSnapshot["worktrees"]>[number]> = {},
-): NonNullable<StatusSnapshot["worktrees"]>[number] {
-  return {
-    taskId: "task-ui-worktree",
-    runId: "run-ui",
-    workflowId: "builder",
-    owner: "workflow:builder",
-    workspaceDir: "/repo/.worktrees/task-ui-worktree-run-ui",
-    metadataPath: "/repo/.kota/worktrees/task-ui-worktree-run-ui.json",
-    exists: true,
-    branch: "kota/task/task-ui-worktree/run-ui",
-    baseCommit: "1111111111111111111111111111111111111111",
-    headCommit: "2222222222222222222222222222222222222222",
-    state: "conflicted",
-    metadataState: "pending-merge",
-    runState: "finished",
-    dirtyState: "conflicted",
-    dirtyEntries: ["UU README.md"],
-    mergeStatus: "conflicted",
-    cleanupStatus: "blocked",
-    cleanupEligible: false,
-    cleanupBlockers: ["worktree has conflicted paths"],
-    runtimeResources: {
-      profileId: "task-ui-worktree:run-ui",
-      agentRunDir: "/repo/.worktrees/task-ui-worktree-run-ui/.kota/runs/run-ui",
-      tempRoot: "/repo/.worktrees/task-ui-worktree-run-ui/.kota/tmp/run-ui",
-      artifactRoot: "/repo/.kota/runs/run-ui/artifacts",
-      ports: { start: 41_000, end: 41_019 },
+    runProjection: {
+      available: true,
+      databasePath: "/repo/.kota/kota.sqlite",
+      runs: [],
     },
-    nextAction: "resolve merge conflicts before merge or cleanup",
     ...overrides,
   };
 }
 
-describe("Status UI automation worktrees", () => {
-  it("renders worktree lifecycle and cleanup blockers as list items", () => {
-    const surface = buildStatusUiSurface(status({ worktrees: [worktree()] }));
-    const worktrees = surface.nodes.find(isAutomationWorktreesList);
+describe("Status UI run sandboxes", () => {
+  it("renders durable run state and operational evidence as list items", () => {
+    const surface = buildStatusUiSurface(status({
+      runProjection: {
+        available: true,
+        databasePath: "/repo/.kota/kota.sqlite",
+        runs: [
+          {
+            runId: "run-ui",
+            projectId: "project-repo",
+            workflow: "builder",
+            state: "needs_attention",
+            resources: ["repository:write", "port:41000-41019"],
+            processes: [{ processKey: "agent", status: "unknown" }],
+            wait: { kind: "operator" },
+            lastError: "agent process outcome is unknown",
+            sandbox: {
+              runId: "run-ui",
+              repository: "write",
+              rootDir: "/repo/.kota/runtime/run-ui",
+              workspaceDir: "/repo/.worktrees/runs/run-ui/workspace",
+              tempDir: "/repo/.kota/runtime/run-ui/temp",
+              artifactDir: "/repo/.kota/runtime/run-ui/artifacts",
+              branch: "kota/run/run-ui",
+              baseCommit: "1111111111111111111111111111111111111111",
+              workspace: {
+                available: true,
+                headCommit: "2222222222222222222222222222222222222222",
+                dirty: true,
+                dirtySummary: "UU README.md",
+              },
+            },
+          },
+        ],
+      },
+    }));
+    const runs = surface.nodes.find(isRunSandboxList);
 
-    expect(worktrees?.items[0]).toMatchObject({
-      id: "task-ui-worktree:run-ui",
-      title: "conflicted: task-ui-worktree",
+    expect(runs?.items[0]).toMatchObject({
+      id: "run-ui",
+      title: "needs_attention: builder",
       role: "error",
     });
-    expect(worktrees?.items[0]?.detail).toContain("run-state finished");
-    expect(worktrees?.items[0]?.detail).toContain("merge conflicted");
-    expect(worktrees?.items[0]?.detail).toContain("cleanup blocked: worktree has conflicted paths");
-    expect(worktrees?.items[0]?.detail).toContain("resources task-ui-worktree:run-ui ports 41000-41019");
+    expect(runs?.items[0]?.detail).toContain("resources repository:write, port:41000-41019");
+    expect(runs?.items[0]?.detail).toContain('processes {"processKey":"agent","status":"unknown"}');
+    expect(runs?.items[0]?.detail).toContain("branch kota/run/run-ui");
+    expect(runs?.items[0]?.detail).toContain("base 1111111111111111111111111111111111111111");
+    expect(runs?.items[0]?.detail).toContain("head 2222222222222222222222222222222222222222");
+    expect(runs?.items[0]?.detail).toContain("dirty UU README.md");
+    expect(runs?.items[0]?.detail).toContain('wait {"kind":"operator"}');
+    expect(runs?.items[0]?.detail).toContain("error agent process outcome is unknown");
   });
 });

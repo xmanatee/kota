@@ -287,7 +287,7 @@ describe("observability obligation diagnostic", () => {
           "expect(result.dueTargets.diagnostics).toEqual([]);",
         ]),
         diffFor(
-          "src/modules/autonomy/workflows/builder/runtime-resources.test-helpers.ts",
+          "src/modules/autonomy/workflows/builder/workflow.test.ts",
           [
             "export function installRuntimeTestHook() {",
             "  return { permission: \"test-only\" };",

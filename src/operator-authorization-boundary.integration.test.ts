@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import { handleRejectApproval } from "#modules/approval-queue/routes.js";
 import { handleAnswerOwnerQuestion } from "#modules/owner-questions/routes.js";
 import {
@@ -15,7 +15,6 @@ import {
   type DeliveredWorkflow,
   dispatchInboundDelivery,
   expectPromptsPending,
-  inboundWorkflow,
   makePromptQueues,
   mockRequest,
   mockResponse,
@@ -26,12 +25,14 @@ import {
 
 describe("operator authorization boundary", () => {
   let projectDir: string;
+  const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-operator-boundary-"));
   });
 
   afterEach(() => {
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -50,12 +51,13 @@ describe("operator authorization boundary", () => {
       workflowStartedScopes.push(scopedPayload.scopeId);
     });
 
-    let runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus,
       projectDir,
       idleIntervalMs: 60_000,
       workflows: allWorkflows(delivered, text),
     });
+    runStates.push(runState);
     runtime.start();
     await waitUntil(
       () => delivered.some((item) => item.source === "schedule"),
@@ -75,17 +77,20 @@ describe("operator authorization boundary", () => {
       "webhook workflow did not run",
     );
     expectPromptsPending(approvalQueue, ownerQuestionQueue, approval.id, ownerQuestion.id);
-    await runtime.stop();
-
     const routedPayloads: unknown[] = [];
-    await dispatchInboundDelivery({ projectDir, pbus, scopeId, text, routedPayloads });
-    runtime = new WorkflowRuntime({
-      bus,
+    await dispatchInboundDelivery({
       projectDir,
-      idleIntervalMs: 60_000,
-      workflows: [inboundWorkflow(delivered)],
+      pbus,
+      scopeId,
+      text,
+      routedPayloads,
+      triggerWorkflow: async (name, options) => {
+        const result = runtime.enqueuePendingRun(name, options);
+        return result.ok
+          ? { ok: true, path: "daemon", queued: name, ...(result.runId ? { runId: result.runId } : {}) }
+          : { ok: false, reason: result.alreadyQueued ? "already_queued" : "daemon_required" };
+      },
     });
-    runtime.start();
     await waitUntil(
       () => delivered.some((item) => item.source === "inbound-signal"),
       "inbound-signal workflow did not run",
@@ -102,7 +107,7 @@ describe("operator authorization boundary", () => {
     ]);
     expect(delivered.map((item) => item.triggerEvent).sort()).toEqual([
       "authorization.fixture.scheduled",
-      "inbound.signal.routed",
+      "inbound.signal.workflow-targeted",
       "webhook",
     ]);
     expect(workflowStartedScopes).toEqual([scopeId, scopeId, scopeId]);

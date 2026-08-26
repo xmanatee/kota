@@ -3,6 +3,7 @@ import { createInterface } from "node:readline";
 import type {
   AgentEffort,
   AgentHarnessResult,
+  AgentHarnessRunOptions,
   AgentHarnessWriter,
   KotaAgentMessage,
 } from "#core/agent-harness/index.js";
@@ -16,6 +17,7 @@ import {
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
 import type { AgentOutputSchema } from "#core/agent-harness/types.js";
+import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import {
   type CollectedAntigravityOutput,
   collectAntigravityOutput,
@@ -77,6 +79,7 @@ type CollectTextFromAntigravityCliArgs = {
   abortController?: AbortController;
   writer?: AgentHarnessWriter;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
+  onProcessSpawn?: AgentHarnessRunOptions["onProcessSpawn"];
 };
 
 async function runAntigravityCliProcess(
@@ -89,6 +92,12 @@ async function runAntigravityCliProcess(
     ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  try {
+    ProcessSupervisor.notifySpawnedProcessGroup(child.pid, args.onProcessSpawn);
+  } catch (error) {
+    signalNativeCliProcessGroup(child, "SIGKILL");
+    throw error;
+  }
 
   const stderr: string[] = [];
   let spawnError: string | undefined;

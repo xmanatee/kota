@@ -5,16 +5,16 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
+  materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "./autonomy-issue-projection.js";
-import { wireAutonomyIssueSourceFixture } from "./autonomy-issue-sources.test-helpers.js";
+import {
+  applyHealthReviewSignals,
+  wireAutonomyIssueSourceFixture,
+} from "./autonomy-issue-sources.test-helpers.js";
 import { materializeGeneratedWorkProposal } from "./generated-work-proposal.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
-import {
-  applyAutonomyHealthReviewActions,
-  buildAutonomyHealthReviewFromSignals,
-} from "./workflows/autonomy-health-reviewer/health-review.js";
 
 const NOW = "2026-08-13T10:00:00.000Z";
 
@@ -49,14 +49,11 @@ describe("source-owned autonomy issue observations", () => {
       signals[0]?.dedupeKey,
       signals[0]?.dedupeKey,
     ]);
-    const actions = applyAutonomyHealthReviewActions({
+    const actions = applyHealthReviewSignals({
       projectDir,
-      review: buildAutonomyHealthReviewFromSignals({
-        signals,
-        generatedAt: NOW,
-        sourceEventName: "fixture",
-        reason: "fixture",
-      }),
+      signals,
+      generatedAt: NOW,
+      reason: "fixture",
     });
 
     expect(actions.applied).toEqual([
@@ -77,14 +74,11 @@ describe("source-owned autonomy issue observations", () => {
       errorSummary: "Builder needs an owner-selected recovery policy",
       text: "builder failed",
     });
-    applyAutonomyHealthReviewActions({
+    applyHealthReviewSignals({
       projectDir,
-      review: buildAutonomyHealthReviewFromSignals({
-        signals: [signals[0]!],
-        generatedAt: NOW,
-        sourceEventName: "workflow.failure.alert",
-        reason: "fixture-open",
-      }),
+      signals: [signals[0]!],
+      generatedAt: NOW,
+      reason: "fixture-open",
     });
     const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
     const materialized = materializeGeneratedWorkProposal({
@@ -112,8 +106,8 @@ describe("source-owned autonomy issue observations", () => {
         },
       },
     });
-    recordAutonomyIssueDispositions({
-      projectDir,
+    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(projectDir),
       updates: [{
         issueKey: issue.issueKey,
         kind: "owner-question",
@@ -121,7 +115,7 @@ describe("source-owned autonomy issue observations", () => {
         taskIds: [],
         ownerQuestionIds: [materialized.ownerQuestionId!],
       }],
-    });
+    }));
 
     new OwnerQuestionQueue(
       join(projectDir, ".kota", "owner-questions"),
@@ -134,14 +128,11 @@ describe("source-owned autonomy issue observations", () => {
       dedupeKey: issue.rootCauseKey,
       source: issue.source,
     });
-    const answered = applyAutonomyHealthReviewActions({
+    const answered = applyHealthReviewSignals({
       projectDir,
-      review: buildAutonomyHealthReviewFromSignals({
-        signals: [answerSignal],
-        generatedAt: answerSignal.createdAt,
-        sourceEventName: "owner.question.changed",
-        reason: "fixture-answer",
-      }),
+      signals: [answerSignal],
+      generatedAt: answerSignal.createdAt,
+      reason: "fixture-answer",
     });
     expect(answered.applied).toEqual([
       expect.objectContaining({

@@ -16,10 +16,6 @@ export {
 } from "./evaluator-calibration-artifact.js";
 export { resolveCalibrationGateConfig } from "./evaluator-calibration-config.js";
 export {
-  type WriteFailedCalibrationArtifactOptions,
-  writeFailedCalibrationArtifact,
-} from "./evaluator-calibration-failed-artifact.js";
-export {
   type CalibrationDriftKind,
   type CalibrationGateConfig,
   type CalibrationGateDecision,

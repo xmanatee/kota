@@ -1,14 +1,14 @@
 # explorer-agent-call-replay fixture
 
 End-to-end replay of explorer's `explore` agent step through the eval-harness
-replay adapter, plus the three post-agent steps (`record-exploration`,
-`apply-watchlist-updates`, `commit`) that fire after a successful explore.
+replay adapter, plus the post-agent publication and watchlist-update steps that
+fire after a successful explore.
 The fixture regression-gates the explorer workflow-layer paths — the five
 repair checks (`task-queue-valid`, `architecture-ready-coverage`,
-`strategic-ready-coverage`, `no-scratch-artifacts`, `commit-message-exists`,
-`commit-stageable`), the `explorer-state.json` timestamp rewrite, the
-`watchlist-updates.json` reader, the commit step's staging, and the
-terminal commit — against the same subprocess executor path the daemon runs
+`strategic-ready-coverage`, `exploration-rationale`, and
+`watchlist-update-commit-message`), the staged explorer-publication request,
+the `watchlist-updates.json` reader, and runtime-owned integration — against
+the same subprocess executor path the daemon runs
 in production, without invoking a real LLM.
 
 Source run: `2026-04-24T22-26-19-626Z-explorer-tocx88` — the real explorer
@@ -26,20 +26,12 @@ fileOperations are just the one p1 task file and the run-directory
     forwards to KOTA's own `validate-queue.js` via `$KOTA_DIST_DIR`.
   - Stub `dist/cli.js` for any `node dist/cli.js …` call the fixture
     project makes.
-  - A `.gitignore` mirroring the repo-root unignore shape so the fixture's
-    `.kota/explorer-state.json` seed stays tracked while the rest of
-    `.kota/` (e.g. `.kota/runs/<id>/` the workflow creates at run time)
-    stays ignored.
+  - A `.gitignore` mirroring the repo-root `.kota/` ignore shape.
   - `data/watchlist.yaml` with one `seen` entry so `inspect-watchlist`
     has something parseable to expose — the content is immaterial because
     the replay adapter ignores agent inputs; this is about proving the
     parser survives.
-  - `.kota/explorer-state.json` with a `{{NOW_MINUS_HOURS:6}}` templated
-    timestamp old enough for `explorationRefreshDue` to fire on every
-    materialization. The fixture runner's `applyFixtureTemplates` rewrites
-    the placeholder at copy time (the same pattern the improver fixture
-    uses to keep its `actionableRunAt` seed fresh without sliding-date
-    brittleness).
+  - No prior explorer cooldown row, so `explorationRefreshDue` fires.
   - Empty `data/tasks/` tree: no seeded tasks, so
     `queueEmpty && explorationRefreshDue` makes `needsAttention: true`.
     The recorded replay writes the one `data/tasks/ready/task-*.md` the
@@ -61,11 +53,11 @@ fileOperations are just the one p1 task file and the run-directory
 
 Explorer is the fourth load-bearing autonomy workflow to gain replay-backed
 regression coverage. Its workflow layer has the widest post-agent surface
-of any autonomy workflow besides improver: a state-file rewrite
-(`record-exploration` touches `.kota/explorer-state.json`), a JSON-reader
+of any autonomy workflow besides improver: a staged post-integration
+publication request, a JSON-reader
 step that applies operator-authored watchlist mutations
-(`apply-watchlist-updates`), five repair checks, and a terminal commit
-step. Those are all plumbing-shape contracts that replay can catch
+(`apply-watchlist-updates`), five repair checks, and runtime-owned writer
+integration. Those are all plumbing-shape contracts that replay can catch
 cheaply — generator-quality regressions (the real explore-step judgment)
 still land in production runs and in the complementary live fixture
 (`explorer-strategic-ready-trip`).
@@ -100,14 +92,14 @@ path the real run hit after trigger receipt:
   `validate-tasks` script that forwards to KOTA's own validator against
   the fixture project root; `architecture-ready-coverage` and
   `strategic-ready-coverage` inspect the same `data/tasks/ready/` tree;
-  `no-scratch-artifacts`, `commit-message-exists`, `commit-stageable`
-  operate on the replay's staged mutations);
-- `record-exploration` rewrites `.kota/explorer-state.json`;
+  `exploration-rationale` and `watchlist-update-commit-message` validate the
+  replay's declared decision and watchlist-update intent);
+- `record-exploration-publication` stages the state update that becomes
+  durable only after writer integration;
 - `apply-watchlist-updates` reads the run directory's
   `watchlist-updates.json` (absent in this source run — the step records
   an empty-apply success, which is itself a gated plumbing path);
-- the terminal `git add -A` commit succeeds against the replay's exact
-  mutation set.
+- runtime-owned writer integration publishes the replay's exact mutation set.
 
 ## Complementary fixtures
 

@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
+import {
+  isDaemonControlAddressReachable,
+  readLiveDaemonControlAddress,
+} from "#core/server/daemon-control-address.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { normalizeScopeSelector, scopeSelectorQuery, selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -17,6 +22,9 @@ import {
 } from "./ui-setup-route.js";
 
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
+const DAEMON_SPAWN_TIMEOUT_MS = 2_000;
+const DAEMON_START_READY_TIMEOUT_MS = 10_000;
+const DAEMON_START_READY_POLL_MS = 100;
 
 export function buildSharedUiSurfaceBundle(
   ctx: ModuleContext,
@@ -37,7 +45,48 @@ export function buildSharedUiSurfaceBundle(
   );
 }
 
-function requestDetachedDaemonStart(projectDir: string): UiActionExecutionResult {
+function waitForChildSpawn(child: ReturnType<typeof spawn>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`spawn was not confirmed within ${DAEMON_SPAWN_TIMEOUT_MS}ms`));
+    }, DAEMON_SPAWN_TIMEOUT_MS);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.off("error", onError);
+      child.off("spawn", onSpawn);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onSpawn = () => {
+      cleanup();
+      resolve();
+    };
+    child.once("error", onError);
+    child.once("spawn", onSpawn);
+  });
+}
+
+async function waitForDaemonControlPlane(projectDir: string): Promise<boolean> {
+  const deadline = Date.now() + DAEMON_START_READY_TIMEOUT_MS;
+  const stateDir = join(projectDir, ".kota");
+  while (Date.now() < deadline) {
+    const address = readLiveDaemonControlAddress(stateDir);
+    if (address && await isDaemonControlAddressReachable(address)) return true;
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, Math.min(DAEMON_START_READY_POLL_MS, remainingMs));
+    });
+  }
+  return false;
+}
+
+async function requestDetachedDaemonStart(
+  projectDir: string,
+): Promise<UiActionExecutionResult> {
   const current = localDaemonStatus({ projectDir });
   if (current.state === "running") {
     return { ok: true, message: `Daemon already running pid ${current.status.pid}.` };
@@ -58,8 +107,16 @@ function requestDetachedDaemonStart(projectDir: string): UiActionExecutionResult
       [...process.execArgv, cliEntrypoint, "daemon", "start", "--project-dir", projectDir],
       { cwd: projectDir, detached: true, env, stdio: "ignore" },
     );
+    await waitForChildSpawn(child);
     child.unref();
-    return { ok: true, message: "Daemon start requested." };
+    if (!await waitForDaemonControlPlane(projectDir)) {
+      return {
+        ok: false,
+        reason: "unavailable",
+        message: `Unable to start daemon: control plane was not ready within ${DAEMON_START_READY_TIMEOUT_MS}ms.`,
+      };
+    }
+    return { ok: true, message: "Daemon started." };
   } catch (error) {
     return {
       ok: false,

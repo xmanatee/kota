@@ -77,7 +77,7 @@ function readArtifact(
   run: WorkflowHistoryRunLike,
 ): ControlMonitorCoverageArtifact | null {
   const runDir = storedWorkflowRunDirectory(
-    join(ctx.projectDir, ".kota", "runs"),
+    join(ctx.stateDir, "runs"),
     run,
   );
   return readOptionalJsonFile<ControlMonitorCoverageArtifact>(
@@ -103,7 +103,7 @@ function recordProducerMissingCoverageArtifact(
 function recordPolicyPrunedCoverageRefs(ctx: RuntimeHealthAuditContext): void {
   let references: ReturnType<typeof readPrunedWorkflowRunReferences>;
   try {
-    references = readPrunedWorkflowRunReferences(join(ctx.projectDir, ".kota", "runs"));
+    references = readPrunedWorkflowRunReferences(join(ctx.stateDir, "runs"));
   } catch (error) {
     ctx.inspected.producerMissingEvidenceRefs += 1;
     ctx.evidenceGaps.push({

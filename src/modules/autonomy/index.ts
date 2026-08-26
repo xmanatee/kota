@@ -1,23 +1,16 @@
 import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE } from "#core/daemon/scope-drain-inspection.js";
-import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import {
   importModuleExports,
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
-import { WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE } from "#modules/workflow-ops/state-recovery-provider.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
-import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildLoopQualityAuditCommand } from "./loop-quality-audit-cli.js";
 import { buildReportCommand } from "./report/report-cli.js";
-import { autonomyScopeDrainInspection } from "./scope-drain-inspection.js";
-import { createWorkflowStateRecoveryProvider } from "./workflow-state-recovery.js";
-import { autonomyWorkflowConcurrencyGroupFor } from "./workflow-workspace-policy.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
@@ -31,7 +24,6 @@ import {
   scopeImprovementChanged,
   scopeImprovementRequested,
 } from "./workflows/scope-improver/events.js";
-import { subscribeScopeImprovementOnboarding } from "./workflows/scope-improver/semantic-request.js";
 
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
@@ -84,24 +76,11 @@ async function discoverAutonomyWorkflowDefinitions(): Promise<
   RegisteredWorkflowDefinitionInput[]
 > {
   const modules = await discoverAutonomyWorkflowModules();
-  return modules.map(({ name, workflow }) => {
-    const concurrencyGroup = autonomyWorkflowConcurrencyGroupFor(name);
-    if (
-      concurrencyGroup !== undefined &&
-      workflow.concurrencyGroup !== undefined &&
-      workflow.concurrencyGroup !== concurrencyGroup
-    ) {
-      throw new Error(
-        `Autonomy workflow "${name}" concurrencyGroup must match its workspace policy`,
-      );
-    }
-    return {
-      ...workflow,
-      ...(concurrencyGroup !== undefined ? { concurrencyGroup } : {}),
-      definitionPath: `src/modules/autonomy/workflows/${name}/workflow.ts`,
-      moduleRoot: KOTA_INSTALL_ROOT,
-    };
-  });
+  return modules.map(({ name, workflow }) => ({
+    ...workflow,
+    definitionPath: `src/modules/autonomy/workflows/${name}/workflow.ts`,
+    moduleRoot: KOTA_INSTALL_ROOT,
+  }));
 }
 
 async function discoverAutonomyAgents(): Promise<AgentDef[]> {
@@ -109,27 +88,6 @@ async function discoverAutonomyAgents(): Promise<AgentDef[]> {
   return modules
     .map(({ agent }) => agent)
     .filter((agent): agent is AgentDef => agent !== undefined);
-}
-
-function reconcileBuilderWorktreesFromRuntime(
-  ctx: Pick<ModuleRuntimeContext, "cwd" | "log">,
-  source: string,
-): void {
-  try {
-    const result = reconcileAutomationWorktrees(ctx.cwd);
-    if (result.inspected === 0) return;
-    ctx.log.info(
-      `Automation worktree reconciliation after ${source}: inspected=${result.inspected} ` +
-        `active=${result.active} unlocked=${result.unlocked} removed=${result.removed} ` +
-        `preserved=${result.preserved}`,
-    );
-  } catch (error) {
-    ctx.log.warn(
-      `Automation worktree reconciliation after ${source} failed: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
 }
 
 const autonomyModule: KotaModule = {
@@ -146,7 +104,6 @@ const autonomyModule: KotaModule = {
     "git",
     "inbound-signals",
     "repo-ai-checks",
-    "execution",
   ],
   events: [
     progressReviewRequested,
@@ -161,23 +118,6 @@ const autonomyModule: KotaModule = {
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
     subscribeAutonomyIssueSources(ctx);
-    subscribeScopeImprovementOnboarding(ctx);
-    ctx.registerProvider(
-      SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE,
-      autonomyScopeDrainInspection,
-    );
-    ctx.registerProvider(
-      WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
-      createWorkflowStateRecoveryProvider(ctx.events),
-    );
-    ctx.events.subscribe("workflow.interrupted.alert", (payload) => {
-      if (payload.workflow !== "builder") return;
-      const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
-      reconcileBuilderWorktreesFromRuntime(
-        { cwd: runtime.projectDir, log: ctx.log },
-        `workflow.interrupted.alert ${payload.runId}`,
-      );
-    });
   },
   commands: () => [
     buildDigestCommand(),

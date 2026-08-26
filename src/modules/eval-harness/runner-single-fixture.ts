@@ -183,6 +183,7 @@ export async function runSingleWorkflowFixture(
   try {
     executionOutcome = await params.executor.execute({
       workflowName: spec.workflowName,
+      ...(spec.triggerEvent !== undefined && { triggerEvent: spec.triggerEvent }),
       workingDir,
       budgetMs: spec.budgetMs,
       executionProfile: params.executionProfile,

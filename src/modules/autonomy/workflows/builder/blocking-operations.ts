@@ -1,72 +1,33 @@
 import {
   defineWorkflowBlockingOperation,
-  type WorkflowBlockingOperationContext,
   type WorkflowBlockingOperationRunner,
 } from "#core/workflow/blocking-operation.js";
 import { checkAutonomyChangeDecisionForRun } from "#modules/autonomy/autonomy-change-decision.js";
-import type { CommitResult } from "#modules/autonomy/commit-result.js";
 import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
 import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
 import { checkObservabilityObligationsForRun } from "#modules/autonomy/observability-obligation.js";
 import { checkSourceFileSize } from "#modules/autonomy/source-size-check.js";
 import { checkSevereSourceFileSizeForRun } from "#modules/autonomy/source-size-review-artifact.js";
-import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
-import { reconcileAutomationWorktrees } from "#modules/git/worktree-lifecycle.js";
-import {
-  checkBuilderWorkflowChangesStageable,
-  commitBuilderWorkflowChanges,
-  projectAgentRunArtifactsForValidation,
-} from "./agent-run-artifacts.js";
-import {
-  checkMobileTypecheck,
-  checkModuleBoundary,
-} from "./project-repair-checks.js";
+import { checkModuleBoundary } from "./project-repair-checks.js";
 import {
   checkSuccessCriteriaDeclared,
   checkSuccessCriteriaVerified,
 } from "./success-criteria-repair-checks.js";
+import type { BuilderTaskReviewContract } from "./task-contract.js";
 import {
-  checkActionableTaskClaimed,
-  checkActionableTaskResolved,
-  checkClaimedTaskCommitSet,
-  checkClaimedTaskStateStaged,
+  checkTargetTaskResolved,
 } from "./task-state-repair-checks.js";
-
-type BuilderCommitOperationInput = {
-  workspaceDir: string;
-  agentRunDir: string;
-};
-
-type BuilderAgentRunArtifactsOperationInput = BuilderCommitOperationInput;
-
-export type ReconcileBuilderWorktreesResult = ReturnType<
-  typeof reconcileAutomationWorktrees
->;
 
 export type BuilderRepairCheckOperationInput =
   | {
-      kind: "actionable-task-claimed";
+      kind: "target-task-resolved";
       projectDir: string;
-      claimProjectDir: string;
-    }
-  | {
-      kind: "actionable-task-resolved";
-      projectDir: string;
+      taskId: string;
     }
   | {
       kind: "autonomy-change-decision";
       projectDir: string;
       runDirPath: string;
-    }
-  | {
-      kind: "claimed-task-commit-set";
-      projectDir: string;
-      claim?: QueueTaskClaimResult;
-    }
-  | {
-      kind: "claimed-task-state-staged";
-      projectDir: string;
-      claim?: QueueTaskClaimResult;
     }
   | {
       kind: "doc-bloat";
@@ -98,6 +59,7 @@ export type BuilderRepairCheckOperationInput =
       kind: "success-criteria-declared";
       projectDir: string;
       runDirPath: string;
+      taskContract?: BuilderTaskReviewContract;
     }
   | {
       kind: "success-criteria-verified";
@@ -122,13 +84,8 @@ function captureRepairCheck(check: () => string): BuilderRepairCheckOperationRes
 export function runBuilderRepairCheckInWorker(
   input: BuilderRepairCheckOperationInput,
 ): BuilderRepairCheckOperationResult {
-  if (input.kind === "actionable-task-claimed") {
-    return captureRepairCheck(() =>
-      checkActionableTaskClaimed(input.projectDir, input.claimProjectDir)
-    );
-  }
-  if (input.kind === "actionable-task-resolved") {
-    return captureRepairCheck(() => checkActionableTaskResolved(input.projectDir));
+  if (input.kind === "target-task-resolved") {
+    return captureRepairCheck(() => checkTargetTaskResolved(input.projectDir, input.taskId));
   }
   if (input.kind === "autonomy-change-decision") {
     return captureRepairCheck(() =>
@@ -137,16 +94,6 @@ export function runBuilderRepairCheckInWorker(
   }
   if (input.kind === "doc-bloat") {
     return captureRepairCheck(() => checkDocBloat(input.projectDir));
-  }
-  if (input.kind === "claimed-task-commit-set") {
-    return captureRepairCheck(() =>
-      checkClaimedTaskCommitSet(input.projectDir, input.claim)
-    );
-  }
-  if (input.kind === "claimed-task-state-staged") {
-    return captureRepairCheck(() =>
-      checkClaimedTaskStateStaged(input.projectDir, input.claim)
-    );
   }
   if (input.kind === "module-boundary") {
     return captureRepairCheck(() => checkModuleBoundary(input.projectDir));
@@ -169,7 +116,11 @@ export function runBuilderRepairCheckInWorker(
   }
   if (input.kind === "success-criteria-declared") {
     return captureRepairCheck(() =>
-      checkSuccessCriteriaDeclared(input.runDirPath, input.projectDir)
+      checkSuccessCriteriaDeclared(
+        input.runDirPath,
+        input.projectDir,
+        input.taskContract,
+      )
     );
   }
   if (input.kind === "success-criteria-verified") {
@@ -180,74 +131,10 @@ export function runBuilderRepairCheckInWorker(
   throw new Error(`Unsupported builder repair check input: ${input satisfies never}`);
 }
 
-export function checkBuilderCommitInWorker(
-  input: BuilderCommitOperationInput,
-): string {
-  return checkBuilderWorkflowChangesStageable(
-    input.workspaceDir,
-    input.agentRunDir,
-  );
-}
-
-export function projectBuilderAgentRunArtifactsInWorker(
-  input: BuilderAgentRunArtifactsOperationInput,
-): string {
-  return projectAgentRunArtifactsForValidation(
-    input.agentRunDir,
-    input.workspaceDir,
-  );
-}
-
-export function checkBuilderMobileTypecheckInWorker(
-  input: { projectDir: string },
-  context: WorkflowBlockingOperationContext,
-): Promise<string> {
-  return checkMobileTypecheck(input.projectDir, { signal: context.signal });
-}
-
-export function commitBuilderChangesInWorker(
-  input: BuilderCommitOperationInput,
-): CommitResult {
-  return commitBuilderWorkflowChanges(input.workspaceDir, input.agentRunDir);
-}
-
-export function reconcileBuilderWorktreesInWorker(
-  input: { projectDir: string },
-): ReconcileBuilderWorktreesResult {
-  return reconcileAutomationWorktrees(input.projectDir);
-}
-
-export const checkBuilderCommitOperation = defineWorkflowBlockingOperation<
-  BuilderCommitOperationInput,
-  string
->(import.meta.url, "checkBuilderCommitInWorker");
-
-export const projectBuilderAgentRunArtifactsOperation =
-  defineWorkflowBlockingOperation<
-    BuilderAgentRunArtifactsOperationInput,
-    string
-  >(import.meta.url, "projectBuilderAgentRunArtifactsInWorker");
-
-export const builderMobileTypecheckOperation = defineWorkflowBlockingOperation<
-  { projectDir: string },
-  string
->(import.meta.url, "checkBuilderMobileTypecheckInWorker");
-
-export const commitBuilderChangesOperation = defineWorkflowBlockingOperation<
-  BuilderCommitOperationInput,
-  CommitResult
->(import.meta.url, "commitBuilderChangesInWorker");
-
 export const builderRepairCheckOperation = defineWorkflowBlockingOperation<
   BuilderRepairCheckOperationInput,
   BuilderRepairCheckOperationResult
 >(import.meta.url, "runBuilderRepairCheckInWorker");
-
-export const reconcileBuilderWorktreesOperation =
-  defineWorkflowBlockingOperation<
-    { projectDir: string },
-    ReconcileBuilderWorktreesResult
-  >(import.meta.url, "reconcileBuilderWorktreesInWorker");
 
 export async function runBuilderRepairCheck(
   runner: WorkflowBlockingOperationRunner,

@@ -10,14 +10,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   CALIBRATION_REPAIR_TASK_ID,
   type CalibrationRepairContext,
+  proposeCalibrationRepair,
 } from "#modules/autonomy/calibration-repair.js";
 import { seedArtifact } from "#modules/autonomy/calibration-repair-freshness-test-support.js";
 import {
   applyCalibrationRepairOperation,
-  proposeCalibrationRepairOperation,
 } from "#modules/autonomy/workflows/evaluator-calibration-monitor/repair-operations.js";
 import {
   type ProgressReviewActionOperationInput,
@@ -125,7 +126,7 @@ describe("progress and calibration blocking operations", () => {
     }
   });
 
-  it("proposes and applies calibration repair through real workers", async () => {
+  it("uses the command rail for calibration inspection and a worker for mutation", async () => {
     const projectDir = makeProjectDir("kota-calibration-repair-worker-");
     try {
       const donePath = join(
@@ -162,9 +163,9 @@ describe("progress and calibration blocking operations", () => {
         passWithWarningsThresholdRate: 0.4,
         nowIso: "2099-01-01T00:01:00.000Z",
       };
-      const proposal = await runWorkflowBlockingOperation(
-        proposeCalibrationRepairOperation,
+      const proposal = await proposeCalibrationRepair(
         context,
+        createWorkflowCommandRunner({ cwd: projectDir }),
       );
       const applied = await runWorkflowBlockingOperation(
         applyCalibrationRepairOperation,

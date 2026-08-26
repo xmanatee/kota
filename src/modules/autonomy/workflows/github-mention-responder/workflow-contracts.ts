@@ -40,6 +40,12 @@ export type GithubMentionAssessment =
       agentEligible: true;
       commentEligible: true;
       fields: NormalizedMentionFields;
+    }
+  | {
+      decision: "prepared";
+      agentEligible: false;
+      commentEligible: true;
+      comment: PreparedGithubMentionComment;
     };
 
 export type PreparedGithubMentionComment = {
@@ -47,9 +53,12 @@ export type PreparedGithubMentionComment = {
   issueNumber: number;
   isPullRequest: boolean;
   originalCommentId: number;
-  mode: "agent";
+  mode: "agent" | "created" | "existing" | "needs_detail";
   body: string;
 };
+
+export const GITHUB_MENTION_INTAKE_COMMENT_REQUESTED_EVENT =
+  "github-mention-intake.comment.requested";
 
 export type GithubMentionResponseDraft = { body: string };
 
@@ -178,6 +187,13 @@ export function validateAssessment(
     validateNormalizedMentionFields(assessment.fields);
     return assessment;
   }
+  if (obj.decision === "prepared") {
+    if (assessment.agentEligible !== false || assessment.commentEligible !== true) {
+      throw new Error("prepared assessment must disable the agent and enable comments");
+    }
+    validatePreparedComment(assessment.comment);
+    return assessment;
+  }
   throw new Error(`unexpected mention assessment decision: ${obj.decision}`);
 }
 
@@ -196,7 +212,12 @@ export function validatePreparedComment(
   if (typeof obj.issueNumber !== "number") throw new Error("prepared comment missing issue number");
   if (typeof obj.isPullRequest !== "boolean") throw new Error("prepared comment missing issue/PR kind");
   if (typeof obj.originalCommentId !== "number") throw new Error("prepared comment missing original comment id");
-  if (obj.mode !== "agent") throw new Error(`prepared comment mode must be agent, got ${obj.mode}`);
+  if (
+    obj.mode !== "agent" &&
+    obj.mode !== "created" &&
+    obj.mode !== "existing" &&
+    obj.mode !== "needs_detail"
+  ) throw new Error(`prepared comment mode is invalid: ${obj.mode}`);
   if (!isNonEmptyString(obj.body)) throw new Error("prepared comment missing body");
   assertOutboundGitHubCommentBodyIsSafe(obj.body);
   return raw as PreparedGithubMentionComment;

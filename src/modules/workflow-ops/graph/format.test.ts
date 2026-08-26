@@ -7,7 +7,7 @@ import { formatCompact, formatDot, formatTable } from "./format.js";
 
 function makeDef(
   overrides: Partial<RegisteredWorkflowDefinitionInput> &
-    Pick<RegisteredWorkflowDefinitionInput, "name">,
+    Pick<RegisteredWorkflowDefinitionInput, "name" | "repository">,
 ): RegisteredWorkflowDefinitionInput {
   return {
     definitionPath: `src/modules/test/workflows/${overrides.name}/workflow.ts`,
@@ -19,6 +19,7 @@ function makeDef(
 
 const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
   makeDef({
+    repository: "read",
     name: "dispatcher",
     description: "Dispatches events based on repo state",
     triggers: [{ event: "runtime.idle", cooldownMs: 30000 }],
@@ -28,6 +29,7 @@ const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
     ],
   }),
   makeDef({
+    repository: "read",
     name: "builder",
     description: "Builds one task",
     tags: ["monitored"],
@@ -42,10 +44,11 @@ const SAMPLE_DEFS: RegisteredWorkflowDefinitionInput[] = [
         effort: "xhigh",
         when: () => true,
       },
-      { type: "emit", id: "done", event: "workflow.build.committed" },
+      { type: "emit", id: "done", event: "example.completed" },
     ],
   }),
   makeDef({
+    repository: "read",
     name: "explorer",
     triggers: [
       { event: "autonomy.queue.empty" },
@@ -98,6 +101,7 @@ describe("formatTable", () => {
     const graph = assembleWorkflowGraph(
       [
         makeDef({
+          repository: "read",
           name: "tool-workflow",
           steps: [
             {

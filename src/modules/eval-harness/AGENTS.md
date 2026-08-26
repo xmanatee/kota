@@ -1,168 +1,87 @@
 # Eval Harness Module
 
-Owns autonomy eval scoring, regression gates, and fixture execution. CLI,
-HTTP, and cadence share one path.
+Owns autonomy fixture execution, deterministic scoring, regression gates, and
+their CLI, HTTP, and cadence surfaces.
 
-## Infrastructure Noise Rule
+## Measurement Contract
 
-Resource config can outweigh model-ranking gaps, so fixture runs carry:
+- Record host class, CPU allocation and kill threshold, memory, execution
+  backend, requested/observed/enforced profile, timing, and repeat index.
+- Host subprocess runs are non-gating without verified CPU and memory facts.
+- `pass@k` measures whether any repeat passed; `pass^k` requires every repeat
+  and is the regression gate.
+- Gate only when baseline and candidate use comparable resources, active
+  preset, fixture manifest, source identity, resolved harness/model evidence,
+  execution profile, and sufficient equal repeat counts.
+- Noise-band drops, profile drift, config drift, or undersized samples produce
+  typed non-gating evidence. Calibration is per host class; defaults live in
+  code.
 
-- **Resource profile** — host class; CPU allocation/kill threshold; matching memory.
-- **Execution preflight** — backend, requested/observed/enforced profile,
-  diagnostics, and gate eligibility. Host subprocess is non-gating without
-  verified CPU/memory facts.
-- **Repeat index/total** — fixtures run k times; k=1 is non-gating.
-- **Timing** — budget, duration, deadline hits, and clean return.
+## Fixture And Scoring Contract
 
-## Pass@k vs Pass^k
+- Every fixture records either a real failure with its source run id or a
+  justified smoke purpose. Anything else fails at load time.
+- Predicates score final state, never self-report. Initial
+  `preRunExpectations` include at least one expected failure.
+- Git, shell, agent-verifier, and objective-metric execution uses fail-closed
+  offline containers with bounded resources and stripped credentials. Only the
+  candidate tree is writable; scorer overlays remain immutable.
+- Persistent scenarios use ordered multi-round fixtures. Skill ablations run
+  explicit control and treatment variants with prompt/provenance evidence.
+- Objective metrics are deterministic evidence, not a second runner. Metric
+  errors fail passing runs; failed runs retain diagnostic metrics.
+- Verifier calibration runs before the workflow and fails as fixture error.
+  Accepted alternatives exist only for deterministic, genuinely broad answer
+  spaces.
+- Code-health diagnostics are opt-in advisory evidence; predicates own pass or
+  fail.
 
-`pass@k` means any repeat passed (capability); `pass^k` means every repeat
-passed (consistency). Gate on `pass^k`; track capability on `pass@k`.
+## Baselines And Execution
 
-## Regression Gate Threshold
+Cadence stores one accepted aggregate in project-scoped runtime state. The
+first run records without gating; non-gating comparisons advance the baseline,
+while gated regressions hold it until a clear run or manual reset. A config
+fingerprint change starts a fresh baseline rather than becoming quality signal.
 
-A candidate is gated only when:
+Each run materializes a fresh OS tmpdir and fixtures run sequentially. The
+shared `runFixture` plus subprocess executor serves three paths:
 
-1. `pass^k` drops beyond the calibrated noise band.
-2. Both runs used the same `k`, at or above the gating minimum.
-3. The candidate execution preflight is gate-eligible.
-4. Baseline and candidate resource profiles are comparable (same host class,
-   allocation, and kill thresholds).
-5. Baseline and candidate configs are comparable: same active preset, fixture
-   manifest, source identity, resolved harness/model evidence, and execution
-   profile.
+- the standard-test smoke gate runs representative recorded fixtures once,
+  without baseline comparison;
+- cadence runs the calibrated repeat count and requires the complete container
+  backend for gating; and
+- CLI runs are operator-driven and do not persist cadence baselines.
 
-Noise-band drops, repeat-count mismatch, non-gating execution profile,
-resource drift, or config drift resolve to typed non-gating evidence.
+Cadence discovery, materialization, subprocesses, and artifact writes declare
+daemon-owned blocking operations. Baseline publication uses runtime state
+compare-and-set, and events publish only after run success.
 
-Calibrate the band per host class; record it per run. Defaults live in code.
+## Recorded Agent Replay
 
-## Fixture Provenance
+Agent-call fixtures keep one recording per call. The subprocess points the eval
+module at a read-only recording root and replaces only the selected harness
+slot; production selection remains unchanged.
 
-Provenance answers "why does this fixture exist?". The loader accepts two
-shapes:
+The adapter expands run-directory placeholders, applies operations inside the
+fixture workspace, and stages them for repair checks. Recording provenance must
+match the source failure. Workflow prompts route by step identity and judge
+prompts by their leading header. Time-sliding placeholders resolve during
+materialization before runtime clocks are read.
 
-- **Real failure** — encodes a past autonomy failure and its source run id.
-  Use this for every regression-gated fixture.
-- **Smoke fixture** — fails loudly when harness plumbing regresses; a
-  written justification keeps the exception honest.
-
-Anything else fails loudly at load time with a typed error naming the fixture.
-Fix rejected fixtures; do not work around the loader.
-
-## Predicate Contract
-
-Predicates score final state, never self-report. Extend union/evaluator with new
-kinds. Agent verifiers and Git/shell predicates/metrics require fail-closed
-offline containers; hard-limit memory/CPU/PIDs/FDs; strip credentials. Only the
-candidate tree is writable; existing `initial/scripts/` are immutable scorer
-overlays. Launch/cleanup async; cases run sequentially.
-
-Fixtures also declare `preRunExpectations`: initial predicate results. At
-least one must be `expected: "fail"`; mismatches are fixture config errors.
-
-Persistent multi-round fixtures use `mode: "multi-round"` and ordered
-`rounds`; the runner preserves one workspace and records round outcomes.
-Skill-ablation fixtures use `mode: "skill-ablation"` for no-skill control
-and explicit-skill treatments, recording prompt/provenance evidence under
-`skillAblation`. Single-workflow fixtures are default when `mode` is absent.
-
-Objective metrics are deterministic fixture evidence, not a second runner.
-Predicates gate unless a fixture defines a metric threshold; compare only
-compatible profiles. Metric errors fail passing runs; failed runs retain them
-and let the eval set continue.
-
-`verifierCalibration` runs before workflow execution with fixture-owned setup,
-writes `verifier-calibration.json`, and fails as fixture errors. Use
-`acceptedAlternatives` only for real broad-answer-space risk; cases must be
-deterministic valid alternatives.
-
-Code-health diagnostics are opt-in source-tree evidence for
-`codeHealthDiagnostics.sourceGlobs`: baseline/checkpoint metrics and bounded
-growth, duplication, and complexity warnings. They are advisory; predicates own
-pass/fail.
-
-## Baseline Persistence And Regression Surfacing
-
-Cadence alone persists the latest accepted aggregate in KOTA state, keyed by
-project and host class; the first run records without gating. `not-gated`
-advances the baseline even for comparison drift, while `gated` holds it until a
-clear run or manual reset.
-
-On `gated`, cadence emits a typed regression event; a bridge workflow forwards
-it through attention. Consumers subscribe to the typed event, not generic
-completion events. CLI/HTTP callers own comparison; auto-resolution is
-cadence-only.
-
-Accepted baselines include the eval-set run-configuration fingerprint and
-operator summary. Configuration drift starts a fresh baseline without treating
-score movement as quality signal.
-
-## Runner Lifecycle And Execution Paths
-
-Each run materializes a fresh tmpdir, uses a pluggable executor, evaluates
-predicates, and emits an artifact. Run fixtures sequentially; parallel replicas
-corrupt profiles and noise comparisons. `gated`: do not ship; rerun on the same
-host class. `not-gated` from profile drift or a small sample: rerun correctly.
-
-Three paths share the same `runFixture` + subprocess executor:
-
-- **Smoke gate (`pnpm test`)** — `replay-smoke.test.ts` runs one shipped
-  `*-agent-call-replay` fixture at `repeats=1`, no baseline, so workflow-layer
-  regressions fail standard tests, including autonomy repair-loop checks.
-  Cover workflow-step and judge-prompt branches. Live-LLM fixtures stay out.
-- **Cadence (`eval-harness-cadence`)** — weekly `repeats=k`; gating requires
-  the complete container backend, and verifiers never use the evaluator host.
-- **CLI (`pnpm kota eval run`)** — operator-driven; caller owns comparison,
-  no baseline persistence.
-
-## Recorded Agent-Step Replay
-
-Agent-call fixtures ship one recording per call under
-`<fixtureDir>/recordings/<id>.json`. The subprocess executor sets
-`KOTA_EVAL_HARNESS_REPLAY_ROOT`; the module swaps the `claude-agent-sdk` slot
-for a replay adapter. Replay subprocesses force `KOTA_PRESET=claude`; container
-subprocesses bind-mount the recording root read-only at the same absolute path.
-Production selection is unchanged.
-
-The adapter expands `{{runDir}}`, applies operations to the fixture workspace,
-and stages them for repair checks. Recording `sourceRunId` must match
-`real-failure` provenance.
-`pnpm kota eval record-agent-step` is the authoring surface (`--step <id>`
-walks the source commit diff; `--judge <label>` lifts `<runDir>/<label>.json`;
-`--source-commit-sha` handles pre-SHA sources).
-The adapter routes workflow-step prompts by `Step:` and judge prompts by
-leading header (table in `replay-harness.ts`); new judges add an entry there
-and author via `--judge <label>`.
-
-Time-sliding fixtures use the runner templating pass:
-`{{NOW_MINUS_HOURS:N}}` and `{{NOW_MINUS_MINUTES:N}}` rewrite to ISO
-timestamps before `Date.now()` at materialization.
-
-## AGY Model Evaluation
-
-`kota eval agy-models` runs planning, scoped coding, and repair through
-`antigravity-cli`. Candidate, container, and provider-egress flags are required;
-Google egress and KOTA `max`/AGY `high` are fixed, without fallback or replay.
-Probe `agy models` only in the configured candidate container and reject
-unavailable candidates before fixtures. Artifacts record traces, changed paths,
-rubrics, and verdicts; instruction checks cite fixture sources. The native-CLI
-allowlist proxy chains to the container provider proxy, never public addresses.
-
-## Fixture Candidate Mining
-
-`kota eval fixture-candidates` mines bounded advisory JSON/Markdown from local
-runs. It never creates fixtures or affects pass@k/pass^k.
+Replay-only tools are compiled into this trusted module. Local simulated
+effects must write through the workflow runner's explicit `cwd`, never the host
+process directory; they do not use fixture code, credentials, network access,
+or project trust.
 
 ## Boundaries
 
-- Scoring, runner contracts, gates, and cadence baseline live in this module.
-- Cadence discovery, materialization, subprocesses, persistence, and artifact
-  writes use daemon-owned blocking operations; workflows emit their results.
-- No parallel metrics store: use typed completion/regression events, run
-  artifacts, and one baseline row.
-- No cost signals leak into agent-facing context (autonomy rule).
-- Fixture workspaces use the OS tmpdir; auth stays behind the adapter's
-  non-secret locator.
-- Replay uses the standard harness registry/env seam; keep fixture mocks out of
-  `src/core/agent-harness/`.
+- Keep scoring, runner contracts, cadence baseline, and fixture tooling here.
+- Use typed completion/regression events, run artifacts, and one baseline row;
+  do not add parallel metrics stores.
+- Never leak cost signals into agent context.
+- Keep auth behind non-secret adapter locators and replay mocks out of core.
+- Candidate mining is bounded advisory output and never creates fixtures or
+  changes regression scores.
+- Provider/model evaluations require their declared container, egress policy,
+  candidate availability, and artifact evidence; they do not fall back to live
+  or replay execution silently.

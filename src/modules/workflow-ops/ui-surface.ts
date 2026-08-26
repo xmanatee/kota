@@ -16,7 +16,6 @@ import {
   launchWorkflowParameters,
   sessionLaunchParameters,
 } from "#modules/daemon-ops/operator-ui-launch-controls.js";
-import { formatOperatorRecoverySummary } from "#modules/daemon-ops/operator-ui-recovery-summary.js";
 import type {
   WorkflowDefinitionsResult,
   WorkflowRunsListResult,
@@ -45,13 +44,6 @@ function dispatchSummary(
     };
   }
   const pause = workflowStatus.value.pause;
-  if (pause?.kind === "dirty-recovery") {
-    return {
-      label: "Dispatch",
-      value: formatOperatorRecoverySummary(pause.recovery),
-      role: "warn",
-    };
-  }
   if (pause?.kind === "operator") {
     return { label: "Dispatch", value: "paused by operator", role: "warn" };
   }
@@ -173,8 +165,7 @@ export function buildRuntimeUiSurface(args: {
 
   const activeCount = args.workflowStatus.ok ? args.workflowStatus.value.activeRuns.length : 0;
   const queuedCount = args.workflowStatus.ok ? args.workflowStatus.value.pendingRuns.length : 0;
-  const agentLimit = args.workflowStatus.ok ? args.workflowStatus.value.agentConcurrency : 1;
-  const codeLimit = args.workflowStatus.ok ? args.workflowStatus.value.codeConcurrency : 1;
+  const concurrency = args.workflowStatus.ok ? args.workflowStatus.value.concurrency : 1;
 
   return {
     protocolVersion: "ui.surface.v1",
@@ -213,8 +204,7 @@ export function buildRuntimeUiSurface(args: {
           { label: "Sessions", value: readValue(args.sessions, (sessions) => `${sessions.sessions.length}`), role: readRole(args.sessions) },
         ],
       },
-      { kind: "progress", label: "Agent run slots", value: Math.min(activeCount, agentLimit), max: Math.max(1, agentLimit), role: activeCount > 0 ? "warn" : "info" },
-      { kind: "progress", label: "Code run slots", value: Math.min(activeCount, codeLimit), max: Math.max(1, codeLimit), role: activeCount > 0 ? "warn" : "info" },
+      { kind: "progress", label: "Run slots", value: Math.min(activeCount, concurrency), max: Math.max(1, concurrency), role: activeCount > 0 ? "warn" : "info" },
       {
         kind: "metrics",
         title: "Runtime usage",

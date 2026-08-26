@@ -10,11 +10,9 @@
  * - knowledge — `KnowledgeProvider.create({ title, content })` returns
  *               the slug; the title is the first non-empty line of the
  *               note (capped) and the body is the remainder.
- * - tasks    — `createNormalizedTask` writes a normalized task into
- *               `data/tasks/backlog/` and stages the new file. The first
- *               non-empty line is the title.
- * - inbox    — the repo-tasks domain writes and stages the note under
- *               `data/inbox/` through its verified mutation boundary.
+ * - tasks    — the repo-task writer workflow creates a normalized backlog
+ *               task from the first non-empty line.
+ * - inbox    — the same writer workflow creates the verified inbox note.
  *
  * Errors from the underlying writer (filesystem failure, slug collision,
  * empty title) propagate verbatim so the seam can surface them as the
@@ -26,16 +24,12 @@ import type {
   MemoryProvider,
 } from "#core/modules/provider-types.js";
 import {
-  getRepoInboxDir,
-  REPO_INBOX_DIR,
-  REPO_TASKS_DIR,
-  readRepoInboxFile,
-  writeRepoInboxFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
-import {
-  createNormalizedTask,
-  slugifyTaskTitle,
-} from "#modules/repo-tasks/repo-tasks-operations.js";
+	mutateRepoTask,
+	type RepoTaskMutationTarget,
+	type RepoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-boundary.js";
+import { REPO_INBOX_DIR, REPO_TASKS_DIR } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import type {
   CaptureContributor,
   CaptureContributorInput,
@@ -88,20 +82,23 @@ function createKnowledgeRecord(
   return { target: "knowledge" as const, recordId: id };
 }
 
-function createTasksRecord(
-  projectDir: string,
+async function createTasksRecord(
+	target: RepoTaskMutationTarget,
   input: CaptureContributorInput,
 ) {
   const title = firstLine(input.text, 120);
   if (title === "") {
     throw new Error("Task capture requires a non-empty first line.");
   }
-  const result = createNormalizedTask(projectDir, {
-    title,
-    priority: "p3",
-    area: "uncategorized",
-    state: "backlog",
-    summary: title,
+  const result = await mutateRepoTask(target, {
+    kind: "create",
+    options: {
+      title,
+      priority: "p3",
+      area: "uncategorized",
+      state: "backlog",
+      summary: title,
+    },
   });
   if (!result.ok) {
     throw new Error(
@@ -118,7 +115,10 @@ function createTasksRecord(
   };
 }
 
-function createInboxRecord(projectDir: string, input: CaptureContributorInput) {
+async function createInboxRecord(
+	target: RepoTaskMutationTarget,
+  input: CaptureContributorInput,
+) {
   const title = firstLine(input.text, 120);
   if (title === "") {
     throw new Error("Inbox capture requires a non-empty first line.");
@@ -130,13 +130,15 @@ function createInboxRecord(projectDir: string, input: CaptureContributorInput) {
     );
   }
   const id = `note-${slug}`;
-  const inboxDir = getRepoInboxDir(projectDir);
-  const filePath = join(inboxDir, `${id}.md`);
-  if (readRepoInboxFile(projectDir, filePath) !== null) {
+  const body = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
+  const result = await mutateRepoTask(target, {
+    kind: "capture-inbox",
+    id,
+    content: body,
+  });
+  if (!result.ok) {
     throw new Error(`Inbox file "${id}.md" already exists.`);
   }
-  const body = input.text.endsWith("\n") ? input.text : `${input.text}\n`;
-  writeRepoInboxFile(projectDir, filePath, body);
   const repoRelative = join(REPO_INBOX_DIR, `${id}.md`);
   return { target: "inbox" as const, recordId: id, path: repoRelative };
 }
@@ -181,11 +183,13 @@ export function createProjectKnowledgeContributor(): CaptureContributor {
   };
 }
 
-export function createTasksContributor(projectDir: string): CaptureContributor {
+export function createTasksContributor(
+	target: RepoTaskRuntimeSandboxTarget,
+): CaptureContributor {
   return {
     target: "tasks",
     async capture(input: CaptureContributorInput) {
-      return createTasksRecord(projectDir, input);
+		return createTasksRecord(target, input);
     },
   };
 }
@@ -194,16 +198,22 @@ export function createProjectTasksContributor(): CaptureContributor {
   return {
     target: "tasks",
     async capture(input: CaptureContributorInput) {
-      return createTasksRecord(requireProject(input.project).projectDir, input);
+		const { projectId, projectDir } = requireProject(input.project);
+		return createTasksRecord(
+			{ authority: "canonical", projectId, projectDir },
+			input,
+		);
     },
   };
 }
 
-export function createInboxContributor(projectDir: string): CaptureContributor {
+export function createInboxContributor(
+	target: RepoTaskRuntimeSandboxTarget,
+): CaptureContributor {
   return {
     target: "inbox",
     async capture(input: CaptureContributorInput) {
-      return createInboxRecord(projectDir, input);
+		return createInboxRecord(target, input);
     },
   };
 }
@@ -212,7 +222,11 @@ export function createProjectInboxContributor(): CaptureContributor {
   return {
     target: "inbox",
     async capture(input: CaptureContributorInput) {
-      return createInboxRecord(requireProject(input.project).projectDir, input);
+		const { projectId, projectDir } = requireProject(input.project);
+		return createInboxRecord(
+			{ authority: "canonical", projectId, projectDir },
+			input,
+		);
     },
   };
 }

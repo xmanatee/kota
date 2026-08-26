@@ -3,24 +3,6 @@ import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepCommitted,
-} from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
-import {
   applyBacklogPromotionOperation,
   type BacklogInspection,
   inspectBacklogOperation,
@@ -30,7 +12,6 @@ import {
 const inspectBacklog = typedCodeStep<BacklogInspection>({
   id: "inspect-backlog",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<BacklogInspection>(raw, ["dirty", "rationale"]),
   run: ({ projectDir, runBlocking }) =>
@@ -46,7 +27,6 @@ const writeRationale = typedCodeStep<WriteRationaleResult>({
   id: "write-rationale",
   type: "code",
   when: (ctx) => {
-    if (ctx.trigger.event === "runtime.recovered") return false;
     const inspection = inspectBacklog.outputRequired(ctx);
     return !inspection.dirty && inspection.rationale.selected.length > 0;
   },
@@ -107,8 +87,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -117,66 +97,36 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return obj;
   },
   run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
 });
 
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const backlogPromoterWorkflow: WorkflowDefinitionInput = {
   name: "backlog-promoter",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
-    "Shape the ready/ queue when actionable work runs out: deterministically promote the top backlog task(s) and commit a recorded promotion rationale.",
+    "Shape the ready/ queue when actionable work runs out: deterministically promote the top backlog task(s) and record the promotion rationale.",
   tags: ["monitored"],
-  recoveryCapable: true,
   // Code-only workflow — no agent step. defaultAutonomyMode is omitted
   // because the workflow has no agent step to inherit it.
-  triggers: [
-    {
-      event: "autonomy.queue.needs-promotion",
-      cooldownMs: 60_000,
-    },
-    {
-      event: "runtime.recovered",
-    },
-  ],
+  triggers: [{ event: "autonomy.queue.needs-promotion", cooldownMs: 60_000 }],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "backlog-promoter",
-        }),
-    },
     inspectBacklog,
     writeRationale,
     applyPromotion,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
+    validateChanges,
     {
       id: "emit-promoted",
       type: "emit",
       when: (ctx) => {
-        if (!stepCommitted("commit")(ctx)) return false;
+        if (validateChanges.output(ctx)?.ok !== true) return false;
         return (applyPromotion.output(ctx)?.promotions ?? []).length > 0;
       },
       event: "autonomy.backlog.promoted",
@@ -187,13 +137,6 @@ const backlogPromoterWorkflow: WorkflowDefinitionInput = {
           promotedTaskIds: promotions.map((m) => m.id),
         };
       },
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "backlog-promoter committed task promotions",
-      requires: ["commit"],
     },
   ],
 };

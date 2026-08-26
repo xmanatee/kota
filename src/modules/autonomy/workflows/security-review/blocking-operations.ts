@@ -1,5 +1,4 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import { tryListWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
@@ -13,24 +12,11 @@ import {
   securityReviewDueTargetsFromPayload,
 } from "./security-review.js";
 
-export type SecurityReviewMutationBaseline = {
-  preExistingMutatedPaths: string[];
-};
-
 type SecurityReviewScanOperationInput = {
   projectDir: string;
   runDirPath: string;
   trigger: Pick<WorkflowRunTrigger, "event" | "payload">;
 };
-
-export function captureSecurityReviewMutationBaseline(
-  input: { projectDir: string },
-): SecurityReviewMutationBaseline {
-  return {
-    preExistingMutatedPaths:
-      tryListWorkflowMutatedPaths(input.projectDir) ?? [],
-  };
-}
 
 export function scanSecurityReviewCandidatesInWorker(
   input: SecurityReviewScanOperationInput,
@@ -62,12 +48,6 @@ export function createSecurityFindingTasksInWorker(input: {
     findings: input.findings,
   });
 }
-
-export const securityReviewMutationBaselineOperation =
-  defineWorkflowBlockingOperation<
-    { projectDir: string },
-    SecurityReviewMutationBaseline
-  >(import.meta.url, "captureSecurityReviewMutationBaseline");
 
 export const securityReviewCandidateScanOperation =
   defineWorkflowBlockingOperation<

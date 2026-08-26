@@ -5,8 +5,10 @@ import {
 } from "#core/workflow/step-input-code.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssue,
-  listAutonomyIssues,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 
 export type IssueDecisionInput = {
@@ -15,22 +17,24 @@ export type IssueDecisionInput = {
   issue: AutonomyIssue | null;
 };
 
-export function triggerIssue(
-  ctx: Pick<WorkflowStepContext, "trigger" | "projectDir">,
-): IssueDecisionInput {
-  if (ctx.trigger.event !== autonomyIssueDecisionRequested.name) {
+export function selectIssueForProjection(args: {
+  trigger: WorkflowStepContext["trigger"];
+  projection: AutonomyIssueProjection;
+}): IssueDecisionInput {
+  const { trigger, projection } = args;
+  if (trigger.event !== autonomyIssueDecisionRequested.name) {
     return {
       eligible: false,
       reason: "recovery reconciles worktree state without replaying AI review",
       issue: null,
     };
   }
-  const issueKey = ctx.trigger.payload.issueKey;
-  const semanticRevision = ctx.trigger.payload.semanticRevision;
+  const issueKey = trigger.payload.issueKey;
+  const semanticRevision = trigger.payload.semanticRevision;
   if (typeof issueKey !== "string" || typeof semanticRevision !== "number") {
     throw new Error("autonomy issue decision trigger is malformed");
   }
-  const issue = listAutonomyIssues(ctx.projectDir).find(
+  const issue = projection.issues.find(
     (candidate) => candidate.issueKey === issueKey,
   ) ?? null;
   if (!issue) {
@@ -59,6 +63,17 @@ export function triggerIssue(
     reason: "issue revision requires one disposition",
     issue,
   };
+}
+
+export function triggerIssue(
+  ctx: Pick<WorkflowStepContext, "trigger" | "state">,
+): IssueDecisionInput {
+  const projection = decodeAutonomyIssueProjection(
+    ctx.state.read<AutonomyIssueProjection>(
+      AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    ).value,
+  );
+  return selectIssueForProjection({ trigger: ctx.trigger, projection });
 }
 
 export const selectIssue = typedCodeStep<IssueDecisionInput>({

@@ -1,5 +1,5 @@
 import type { KotaClient } from "#core/server/kota-client.js";
-import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { WorkflowRuntimeSnapshot } from "#core/workflow/run-types.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { HistoryClient } from "#modules/history/client.js";
@@ -11,7 +11,7 @@ import type { RetractClient } from "#modules/retract/client.js";
 import type { TelegramProjectSelection } from "./project-selection.js";
 
 export type StatusInfo = {
-  runtimeState: WorkflowRuntimeState;
+  runtimeState: WorkflowRuntimeSnapshot;
   dispatchPaused: boolean;
   runsDir: string;
 };

@@ -98,8 +98,7 @@ describe("createProjectScopedKotaClient", () => {
             workflows: {},
             paused: false,
             pendingAbort: false,
-            agentConcurrency: 1,
-            codeConcurrency: 4,
+            concurrency: 4,
           };
         },
         trial: async (_name: string, options: unknown) => {
@@ -110,6 +109,18 @@ describe("createProjectScopedKotaClient", () => {
             message: "stub",
           };
         },
+		triggerByName: async (name: string, options: unknown) => {
+			calls.push(["workflow.triggerByName", name, options]);
+			return { ok: true as const, path: "daemon" as const, queued: name };
+		},
+		getRun: async (id: string, selector: unknown) => {
+			calls.push(["workflow.getRun", id, selector]);
+			return { found: false as const };
+		},
+		listDefinitions: async (selector: unknown) => {
+			calls.push(["workflow.listDefinitions", selector]);
+			return { source: "daemon" as const, definitions: [] };
+		},
       },
       approvals: {
         list: async (filter: unknown) => {
@@ -167,6 +178,9 @@ describe("createProjectScopedKotaClient", () => {
     const scoped = createProjectScopedKotaClient(base, "project-b");
     await scoped.workflow.status();
     await scoped.workflow.trial("builder", { payload: { x: 1 } });
+	await scoped.workflow.triggerByName("builder", { payload: { x: 1 } });
+	await scoped.workflow.getRun("run-1");
+	await scoped.workflow.listDefinitions();
     await scoped.approvals.list({ status: "all" });
     await scoped.approvals.approve("approval-1", "a".repeat(64), "ok");
     await scoped.approvals.reject("approval-2", "no");
@@ -181,6 +195,9 @@ describe("createProjectScopedKotaClient", () => {
     expect(calls).toEqual([
       ["workflow.status", { projectId: "project-b" }],
       ["workflow.trial", { payload: { x: 1 }, projectId: "project-b" }],
+	  ["workflow.triggerByName", "builder", { payload: { x: 1 }, projectId: "project-b" }],
+	  ["workflow.getRun", "run-1", { projectId: "project-b" }],
+	  ["workflow.listDefinitions", { projectId: "project-b" }],
       ["approvals.list", { status: "all", projectId: "project-b" }],
       ["approvals.approve", "approval-1", "a".repeat(64), "ok", { projectId: "project-b" }],
       ["approvals.reject", "approval-2", "no", { projectId: "project-b" }],
@@ -216,8 +233,7 @@ describe("createScopeScopedKotaClient", () => {
             workflows: {},
             paused: false,
             pendingAbort: false,
-            agentConcurrency: 1,
-            codeConcurrency: 4,
+            concurrency: 4,
           };
         },
       },

@@ -13,7 +13,7 @@ updated_at: 2026-04-24T14:00:00.000Z
 
 Fixture seed task. A prior builder run (seeded as
 `2026-04-24T14-00-00-000Z-builder-agcf01` in this fixture's
-`.kota/runs/`) claimed this task and timed out after three hours.
+`.kota/runs/`) was dispatched for this exact task and timed out after three hours.
 The decomposer workflow is expected to pick this task out of `doing/`
 and split it into two smaller ready-queue tasks.
 
@@ -22,7 +22,7 @@ and split it into two smaller ready-queue tasks.
 Not applicable. The fixture predicates verify the post-decomposer
 state: this file moves to `dropped/` with a `## Decomposed` section,
 two new subtasks appear in `ready/`, and the decomposer workflow
-commits successfully under replay without any real LLM call.
+publishes successfully under replay without any real LLM call.
 
 ## Constraints
 

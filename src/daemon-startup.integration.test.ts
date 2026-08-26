@@ -39,6 +39,7 @@ describe("Daemon startup and channels", () => {
       unloadModules,
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [

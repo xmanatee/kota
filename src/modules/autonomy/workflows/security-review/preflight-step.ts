@@ -1,14 +1,11 @@
+import { checkRunCommitMessage } from "#core/workflow/run-commit-message.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import { workflowCommitCheckOperation } from "#modules/autonomy/workflow-commit-operations.js";
 import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
-import { securityReviewCommitPolicy } from "./candidate-steps.js";
 import { writeCommitMessage } from "./finding-steps.js";
 import { writeJsonArtifact } from "./security-review.js";
 
 type PreflightRail =
   | "task-validation"
-  | "scratch-artifacts"
-  | "commit-stageable"
   | "commit-message";
 
 type PreflightCheck = {
@@ -46,11 +43,11 @@ async function runPreflightRail(
   }
 }
 
-export const validateBeforeCommit = typedCodeStep<{
+export const validateChanges = typedCodeStep<{
   ok: true;
   artifactPath: string;
 }>({
-  id: "validate-before-commit",
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -73,25 +70,8 @@ export const validateBeforeCommit = typedCodeStep<{
         });
         return "OK: task queue valid";
       });
-      await runPreflightRail(checks, "scratch-artifacts", () =>
-        ctx.runBlocking(workflowCommitCheckOperation, {
-          kind: "scratch-artifacts",
-          projectDir: ctx.projectDir,
-        }),
-      );
-      await runPreflightRail(checks, "commit-stageable", () =>
-        ctx.runBlocking(workflowCommitCheckOperation, {
-          kind: "commit-stageable",
-          projectDir: ctx.projectDir,
-          policy: securityReviewCommitPolicy(ctx),
-        }),
-      );
       await runPreflightRail(checks, "commit-message", () =>
-        ctx.runBlocking(workflowCommitCheckOperation, {
-          kind: "commit-message",
-          projectDir: ctx.projectDir,
-          runDirPath: ctx.workflow.runDirPath,
-        }),
+        checkRunCommitMessage(ctx.workflow.runDirPath),
       );
       return {
         ok: true,

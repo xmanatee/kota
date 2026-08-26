@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadConfig } from "#core/config/config.js";
 import { registerConfigSlice } from "#core/config/config-slice.js";
+import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { schedulerConfigSlice } from "./config-slice.js";
 
 describe("scheduler config slice", () => {
@@ -28,46 +29,24 @@ describe("scheduler config slice", () => {
     return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 
-  it("loads agentConcurrency and codeConcurrency", () => {
+  it("resolves a valid configured override", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: 2, codeConcurrency: 8 } }),
+      JSON.stringify({ scheduler: { concurrency: 8 } }),
     );
     const config = loadTrustedConfig();
-    expect(config.scheduler?.agentConcurrency).toBe(2);
-    expect(config.scheduler?.codeConcurrency).toBe(8);
+    expect(resolveWorkflowConcurrency(config.scheduler)).toBe(8);
   });
 
-  it("rejects non-positive or non-integer agentConcurrency", () => {
-    for (const val of [0, -1, 1.5, "two"]) {
-      writeFileSync(
-        join(tmpDir, ".kota", "config.json"),
-        JSON.stringify({ scheduler: { agentConcurrency: val } }),
-      );
-      const config = loadTrustedConfig();
-      expect(config.scheduler?.agentConcurrency).toBeUndefined();
-    }
-  });
-
-  it("rejects invalid codeConcurrency but preserves other slice fields", () => {
+  it("rejects invalid concurrency without discarding valid scheduler behavior", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
       JSON.stringify({
-        scheduler: { codeConcurrency: 0, dispatchWindow: { start: "09:00", end: "18:00" } },
+        scheduler: { concurrency: 0, dispatchWindow: { start: "09:00", end: "18:00" } },
       }),
     );
     const config = loadTrustedConfig();
-    expect(config.scheduler?.codeConcurrency).toBeUndefined();
+    expect(config.scheduler?.concurrency).toBeUndefined();
     expect(config.scheduler?.dispatchWindow).toBeDefined();
-  });
-
-  it("merges scheduler fields from layered configs", () => {
-    writeFileSync(
-      join(tmpDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: 1 } }),
-    );
-    const config = loadTrustedConfig({ scheduler: { codeConcurrency: 4 } });
-    expect(config.scheduler?.agentConcurrency).toBe(1);
-    expect(config.scheduler?.codeConcurrency).toBe(4);
   });
 });

@@ -1,300 +1,146 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import { AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS } from "#modules/autonomy/shared.js";
-import "./workflow-test-support.js";
-import builderWorkflow from "./workflow.js";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  makeEmptySnapshot,
-  makeSnapshot,
-  makeWorkflowProject,
-  resetBuilderWorkflowMocks,
-} from "./workflow-test-support.js";
+  inspectBuilderTaskTarget,
+  listBuilderTaskDispatches,
+} from "./task-contract.js";
+import builderWorkflow from "./workflow.js";
 
-describe("builder workflow queue gating", () => {
-  beforeEach(async () => {
-    await resetBuilderWorkflowMocks();
-  });
+const roots: string[] = [];
 
-  it("only wakes from actionable queue availability and recovery", () => {
-    expect(builderWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
-      "autonomy.queue.available",
-      "autonomy.builder.recovery.requested",
-      "runtime.recovered",
+function project(): string {
+  const root = mkdtempSync(join(tmpdir(), "kota-builder-contract-"));
+  roots.push(root);
+  for (const state of ["ready", "doing", "backlog", "blocked", "done", "dropped"]) {
+    mkdirSync(join(root, "data", "tasks", state), { recursive: true });
+  }
+  return root;
+}
+
+function writeTask(root: string, state: string, marker = "initial"): void {
+  writeFileSync(
+    join(root, "data", "tasks", state, "task-target.md"),
+    [
+      "---",
+      "id: task-target",
+      "title: Target",
+      `status: ${state}`,
+      "priority: p1",
+      "area: runtime",
+      "task_class: Product",
+      "summary: Ship target",
+      "updated_at: 2026-08-25T00:00:00.000Z",
+      "---",
+      "",
+      marker,
+      "",
+    ].join("\n"),
+  );
+}
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
+describe("targeted builder contract", () => {
+  it("binds each run to its task resource and shared write sandbox", () => {
+    const trigger = {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {
+        taskId: "task-target",
+        taskPath: "data/tasks/ready/task-target.md",
+        taskState: "ready",
+        taskUpdatedAt: "2026-08-25T00:00:00.000Z",
+        taskDigest: "a".repeat(64),
+        idempotencyKey: `builder:task-target:${"a".repeat(64)}`,
+      },
+    };
+    expect(builderWorkflow.repository).toBe("write");
+    expect(builderWorkflow.resources?.({
+      projectDir: "/repo",
+      stateDir: "/repo/.kota",
+      workflowName: "builder",
+      trigger,
+    })).toEqual(["task:task-target"]);
+    expect(builderWorkflow.triggers).toEqual([
+      { event: "autonomy.queue.available", queueMode: "all" },
     ]);
   });
 
-  it("governs productive build runtime by trusted idle progress", () => {
-    const build = builderWorkflow.steps.find((step) => step.id === "build");
+  it("rejects a queued target after its task contract changes", () => {
+    const root = project();
+    writeTask(root, "ready");
+    const payload = listBuilderTaskDispatches(root)[0]!;
+    writeTask(root, "ready", "changed");
 
-    expect(build).toMatchObject({
-      type: "agent",
-      timeoutMs: null,
-      idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
+    expect(inspectBuilderTaskTarget({ projectDir: root, payload })).toMatchObject({
+      ready: false,
+      taskId: "task-target",
+      reason: "task contract changed after dispatch",
     });
   });
 
-  it("scales worktree-backed dispatch to the resolved agent capacity", () => {
-    const maxConcurrentRuns = builderWorkflow.maxConcurrentRuns;
-    const dispatchBurst = builderWorkflow.dispatchBurst;
-    if (typeof maxConcurrentRuns !== "function") {
-      throw new Error("builder maxConcurrentRuns must be config-gated");
-    }
-    if (typeof dispatchBurst !== "function") {
-      throw new Error("builder dispatchBurst must be config-gated");
-    }
-
-    const base = {
-      projectDir: "/repo",
+  it("rechecks the admitted source contract after reconciliation", () => {
+    const root = project();
+    writeTask(root, "ready");
+    const payload = listBuilderTaskDispatches(root)[0]!;
+    const invariant = builderWorkflow.integration?.postReconcile;
+    if (!invariant) throw new Error("missing builder post-reconcile invariant");
+    const input = {
+      projectDir: root,
+      scopeDir: root,
+      stateDir: join(root, ".kota"),
       workflowName: "builder",
-      concurrencyLimit: 4,
       trigger: {
         event: "autonomy.queue.available",
         schemaRef: null,
-        payload: { actionableCount: 6 },
+        payload,
       },
+      head: "reconciled-head",
+      canonicalHead: "canonical-head",
+      signal: new AbortController().signal,
     };
 
-    expect(maxConcurrentRuns({ ...base, config: undefined })).toBe(4);
-    expect(dispatchBurst({ ...base, config: undefined })).toBe(4);
-    expect(
-      maxConcurrentRuns({
-        ...base,
-        concurrencyLimit: 7,
-        config: { modules: { builder: { branchPerTask: true } } },
-      }),
-    ).toBe(7);
-    expect(
-      dispatchBurst({
-        ...base,
-        concurrencyLimit: 7,
-        config: { modules: { builder: { branchPerTask: true } } },
-      }),
-    ).toBe(6);
-    expect(
-      maxConcurrentRuns({
-        ...base,
-        config: { modules: { builder: { branchPerTask: false } } },
-      }),
-    ).toBe(1);
-    expect(
-      dispatchBurst({
-        ...base,
-        config: { modules: { builder: { branchPerTask: false } } },
-      }),
-    ).toBe(1);
+    expect(invariant(input)).toEqual({ satisfied: true });
+    writeTask(root, "ready", "changed after admission");
+    expect(invariant(input)).toMatchObject({
+      satisfied: false,
+      reason: expect.stringMatching(/no longer matches its admitted source contract/i),
+    });
   });
 
-  it("skips build when worktree is dirty", async () => {
-    const snapshot = makeSnapshot(2, 1);
-    const projectDir = makeWorkflowProject(snapshot, {
-      available: true,
-      dirty: true,
-      trackedDirty: true,
-      entries: ["M src/foo.ts"],
-      fingerprint: "M src/foo.ts",
-      summary: "src/foo.ts",
-      headSha: "abc1234",
-    });
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir,
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: { pullableCount: 7, actionableCount: 3, counts: snapshot.counts },
-      },
-      stepMocks: { build: { turns: [], totalCostUsd: 0 } },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-ready-queue"].output).toMatchObject({ dirty: true });
-    expect(result.steps["claim-task"].status).toBe("skipped");
-    expect(result.steps.build.status).toBe("skipped");
-  });
-
-  it("resets worktree and skips build on runtime.recovered trigger", async () => {
-    const projectDir = makeWorkflowProject(makeSnapshot(2, 1));
-
-    const { resetWorktreeForRecovery } = await import("#modules/autonomy/recovery.js");
-    vi.mocked(resetWorktreeForRecovery).mockReturnValue({
-      stashed: true,
-      stashSummary: "1 file stashed",
-      branchRestored: true,
-      previousBranch: "kota/task/task-foo",
-      currentBranch: "main",
-    });
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir,
-      trigger: {
-        event: "runtime.recovered",
-        payload: { reason: "dirty-worktree-after-crash" },
-      },
-      stepMocks: { build: { turns: [], totalCostUsd: 0 } },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["reset-for-recovery"].status).toBe("success");
-    expect(result.steps["reset-for-recovery"].output).toMatchObject({
-      stashed: true,
-      branchRestored: true,
-      previousBranch: "kota/task/task-foo",
-      currentBranch: "main",
-    });
-    expect(vi.mocked(resetWorktreeForRecovery)).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowName: "builder", restoreBaseBranch: true }),
-      expect.objectContaining({
-        reportProgress: expect.any(Function),
-        signal: expect.any(AbortSignal),
-      }),
-    );
-    expect(result.steps["claim-task"].status).toBe("skipped");
-    expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-    expect(result.steps["write-run-summary"].status).toBe("skipped");
-    expect(result.steps["emit-build-committed"].status).toBe("skipped");
-    expect(result.steps["request-restart"].status).toBe("skipped");
-  });
-
-  it("skips build and commit when no actionable queue work exists", async () => {
-    const snapshot = makeEmptySnapshot();
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir: makeWorkflowProject(snapshot),
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: { pullableCount: 0, actionableCount: 0, counts: snapshot.counts },
-      },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-ready-queue"].status).toBe("success");
-    expect(result.steps["claim-task"].status).toBe("skipped");
-    expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-    expect(result.steps["write-run-summary"].status).toBe("skipped");
-    expect(result.steps["emit-build-committed"].status).toBe("skipped");
-    expect(result.steps["request-restart"].status).toBe("skipped");
-  });
-
-  it("skips build when only backlog tasks remain", async () => {
-    const snapshot = makeSnapshot(0, 0, 2);
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir: makeWorkflowProject(snapshot),
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: {
-          pullableCount: 2,
-          actionableCount: 0,
-          counts: snapshot.counts,
-        },
-      },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0.03 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["claim-task"].status).toBe("skipped");
-    expect(result.steps.build.status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-  });
-
-  it("skips build when every ready task is waiting on hard dependencies", async () => {
-    const snapshot = {
-      ...makeSnapshot(1, 0, 0),
-      pullableCount: 0,
-      actionableCount: 0,
-      promotableBacklogCount: 0,
-      dispatchableCount: 0,
-      hasDispatchableWork: false,
-      dependencyBlockedTasks: [
-        {
-          id: "task-dependent",
-          title: "Dependent",
-          state: "ready" as const,
-          dependsOn: ["task-enabler"],
-          waitingOn: ["task-enabler"],
-        },
-      ],
+  it("runs build only after target and harness preflights succeed", () => {
+    const build = builderWorkflow.steps.find((step) => step.id === "build");
+    if (!build || build.type !== "agent" || !build.when) throw new Error("missing build step");
+    const target = {
+      ready: true,
+      taskId: "task-target",
+      taskPath: "data/tasks/ready/task-target.md",
+      taskState: "ready",
+      taskDigest: "a".repeat(64),
+      reason: null,
     };
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir: makeWorkflowProject(snapshot),
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: {
-          pullableCount: 0,
-          actionableCount: 0,
-          counts: makeSnapshot(1, 0, 0).counts,
+    const context = {
+      stepOutputs: { "inspect-target-task": target },
+      stepResults: {
+        "inspect-target-task": { id: "inspect-target-task", status: "success" },
+        "preflight-builder-harness": {
+          id: "preflight-builder-harness",
+          status: "success",
         },
       },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0.03 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["claim-task"].status).toBe("skipped");
-    expect(result.steps.build.status).toBe("skipped");
-  });
-
-  it("skips build when every actionable candidate is already claimed", async () => {
-    const snapshot = makeSnapshot(1, 0);
-
-    const { claimNextQueueTask } = await import("#modules/autonomy/task-claims.js");
-    vi.mocked(claimNextQueueTask).mockReturnValueOnce({
-      claimed: false,
-      taskId: null,
-      claim: null,
-      recoveryStatus: null,
-      safeToRetry: true,
-      recoveryPath: "no-actionable-task",
-      reason: "all candidate tasks are claimed",
-      candidateCount: 1,
-      skipped: [
-        {
-          claimed: false,
-          taskId: "task-owned",
-          claim: null,
-          recoveryStatus: "agent-running",
-          safeToRetry: false,
-          recoveryPath: "skipped-active-claim",
-          reason: "task is already claimed",
+    };
+    expect(build.when(context as never)).toBe(true);
+    expect(
+      build.when({
+        ...context,
+        stepOutputs: {
+          "inspect-target-task": { ...target, ready: false, reason: "stale" },
         },
-      ],
-      activeClaims: [],
-    });
-
-    const harness = new WorkflowTestHarness(builderWorkflow, {
-      projectDir: makeWorkflowProject(snapshot),
-      trigger: {
-        event: "autonomy.queue.available",
-        payload: { pullableCount: 1, actionableCount: 1, counts: snapshot.counts },
-      },
-      stepMocks: {
-        build: { turns: [], totalCostUsd: 0.03 },
-      },
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps["claim-task"].status).toBe("success");
-    expect(result.steps["claim-task"].output).toMatchObject({
-      claimed: false,
-      reason: "all candidate tasks are claimed",
-    });
-    expect(result.steps.build.status).toBe("skipped");
+      } as never),
+    ).toBe(false);
   });
 });

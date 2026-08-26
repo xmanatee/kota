@@ -7,6 +7,7 @@ import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import type { WorkflowLiveStatus, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   handleWorkflowAbort,
   handleWorkflowCancel,
@@ -197,8 +198,7 @@ function mockTransport(spec: MockTransportSpec = {}): DaemonTransport & {
           completedRuns: 0,
           workflows: {},
           paused: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         };
         return v as T | null;
       }
@@ -331,8 +331,7 @@ describe("workflow-routes", () => {
         completedRuns: 3,
         workflows: {},
         paused: false,
-        agentConcurrency: 1,
-        codeConcurrency: 4,
+        concurrency: 4,
       };
       const client = mockTransport({ status: liveStatus });
       const { res, result } = mockResponse();
@@ -353,8 +352,7 @@ describe("workflow-routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: true,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         },
       });
       const { res, result } = mockResponse();
@@ -1325,32 +1323,26 @@ describe("workflow-routes", () => {
       handleWorkflowRunArtifacts(res, "run-artifacts-001", store);
       expect(result.status).toBe(200);
       const body = result.body as Record<string, unknown>;
-      expect(body.runSummary).toBeNull();
+      expect(body.writerIntegration).toBeNull();
       expect(body.commitMessage).toBeNull();
       expect(body.textFiles).toEqual([]);
     });
 
-    it("returns parsed run-summary.json when present", () => {
+    it("returns projected writer integration evidence when present", () => {
       writeRunMetadata(runsDir, "run-artifacts-002", "builder", "success");
-      const summary = {
+      writeWriterIntegrationFixture(runsDir, {
         runId: "run-artifacts-002",
         workflow: "builder",
-        taskId: "task-foo",
-        taskTitle: "Foo task",
-        outcome: "success",
-        commitSha: "abc123def456",
+        publishedHead: "abc123def456",
+        commitSubject: "Fix foo",
         commitMessage: "Fix foo",
-        filesChanged: ["src/foo.ts"],
-        costUsd: 0.05,
-        durationMs: 1000,
-        completedAt: new Date().toISOString(),
-      };
-      writeFileSync(join(runsDir, "run-artifacts-002", "run-summary.json"), JSON.stringify(summary));
+        changedPaths: ["src/foo.ts"],
+      });
       const { res, result } = mockResponse();
       handleWorkflowRunArtifacts(res, "run-artifacts-002", store);
       expect(result.status).toBe(200);
       const body = result.body as Record<string, unknown>;
-      expect(body.runSummary).toMatchObject({ taskId: "task-foo", commitSha: "abc123def456" });
+      expect(body.writerIntegration).toMatchObject({ publishedHead: "abc123def456" });
     });
 
     it("returns commit-message.txt content when present", () => {

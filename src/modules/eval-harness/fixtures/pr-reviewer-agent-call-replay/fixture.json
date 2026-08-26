@@ -1,8 +1,9 @@
 {
   "id": "pr-reviewer-agent-call-replay",
-  "description": "End-to-end replay of pr-reviewer's read-only review agent plus deterministic github_comment output step. Forwards a github.pull_request webhook payload (opened, kota/task/* head branch, non-fork) through `kota workflow exec --payload`, replays the review agent from a synthesized recording, uses eval-owned local replay tools without project trust, host credentials, or network access, and asserts the prepared comment, tool write, and workflow.pr.review.posted emission.",
+  "description": "End-to-end replay of pr-reviewer's read-only review agent plus deterministic github_comment output step. Forwards a trusted same-repository github.pull_request webhook payload through `kota workflow exec --payload`, replays the review agent from a synthesized recording, uses eval-owned local replay tools without project trust, host credentials, or network access, and asserts the prepared comment, tool write, and workflow.pr.review.posted emission.",
   "role": "pr-reviewer",
   "workflowName": "pr-reviewer",
+  "triggerEvent": "github.pull_request",
   "budgetMs": 60000,
   "triggerPayload": {
     "_runId": "fixture-pr-reviewer-agent-call-replay-2026-04-25",
@@ -12,7 +13,7 @@
     "title": "Add cache-warming task to inbox-sorter",
     "state": "open",
     "merged": false,
-    "headBranch": "kota/task/task-add-cache-warming",
+    "headBranch": "feature/cache-warming",
     "baseBranch": "main",
     "headRepo": "kota-test/example",
     "isFork": false,
@@ -59,16 +60,6 @@
         "repo": "kota-test/example",
         "recommendation": "approve"
       }
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/external-calls/github_comment.jsonl",
-      "needle": "\"tool\":\"github_comment\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/external-calls/github_comment.jsonl",
-      "needle": "\"repo\":\"kota-test/example\",\"number\":42"
     }
   ],
   "tags": [
@@ -83,8 +74,14 @@
   "preRunExpectations": [
     {
       "predicate": {
-        "kind": "file-exists",
-        "path": ".kota/external-calls/github_comment.jsonl"
+        "kind": "run-emits-event",
+        "event": "workflow.pr.review.posted",
+        "workflow": "pr-reviewer",
+        "payloadMatch": {
+          "prNumber": 42,
+          "repo": "kota-test/example",
+          "recommendation": "approve"
+        }
       },
       "expected": "fail"
     },

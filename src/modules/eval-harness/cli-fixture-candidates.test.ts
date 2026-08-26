@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import { buildEvalCommand } from "./cli.js";
 import { makeFakeCtx } from "./cli-test-support.js";
 
@@ -44,24 +45,14 @@ describe("kota eval fixture-candidates CLI", () => {
         2,
       ),
     );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify(
-        {
-          runId,
-          workflow: "builder",
-          taskId: "task-cli-candidate",
-          taskTitle: "CLI candidate",
-          outcome: "success",
-          commitSha: "abc123",
-          commitMessage: "Candidate",
-          filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
-          completedAt: "2026-06-01T00:01:00.000Z",
-        },
-        null,
-        2,
-      ),
-    );
+    writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+      runId,
+      changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
+      publishedHead: "abc123",
+      commitSubject: "Candidate",
+      commitMessage: "Candidate",
+      completedAt: "2026-06-01T00:01:00.000Z",
+    });
     writeFileSync(
       join(runDir, "verification.json"),
       JSON.stringify({ ok: true, score: 1 }, null, 2),
@@ -131,20 +122,10 @@ describe("kota eval fixture-candidates CLI", () => {
         2,
       ),
     );
-    writeFileSync(
-      join(runDir, "run-summary.json"),
-      JSON.stringify(
-        {
-          runId,
-          workflow: "builder",
-          taskId: "task-cli-accepted-candidate",
-          taskTitle: "CLI accepted candidate",
-          filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
-        },
-        null,
-        2,
-      ),
-    );
+    writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+      runId,
+      changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
+    });
     writeFileSync(
       join(runDir, "verification.json"),
       JSON.stringify({ ok: true }, null, 2),

@@ -770,7 +770,7 @@ describe("inbound signal routing", () => {
     const emitted: InboundSignalRoutedPayload[] = [];
     const triggerWorkflow = vi.fn(async () => ({
       ok: true as const,
-      path: "queue" as const,
+      path: "daemon" as const,
       queued: "capture-inbound-signal",
       runId: "run-archived",
     }));

@@ -10,8 +10,9 @@ deduped health patterns into bounded follow-up actions.
   improver owns the single AI disposition and the shared generated-work
   materializer owns any resulting task or owner question.
 - An explicit source clear resolves the stable generated-work proposal without
-  another AI decision. Any linked task move is exact-path committed in the
-  canonical mutation group before resolution attention is emitted.
+  another AI decision. Any linked task move is staged in the run repository;
+  the staged `autonomy-health-review-publication` `repository: none` follow-up
+  owns canonical issue and owner-question finalization plus attention.
 - Batch by typed health labels and scope; avoid hardcoded workflow-name
   allowlists.
 - Treat health signals as explicit `present` / `changed` / `cleared`

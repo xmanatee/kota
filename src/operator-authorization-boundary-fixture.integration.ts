@@ -5,13 +5,17 @@ import { expect } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { formatRunId } from "#core/workflow/run-io.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
-import { inboundSignalRouted } from "#modules/inbound-signals/events.js";
+import {
+  inboundSignalRouted,
+  inboundSignalWorkflowTargeted,
+} from "#modules/inbound-signals/events.js";
 import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
+import type {
+  WorkflowTriggerOptions,
+  WorkflowTriggerResult,
+} from "#modules/workflow-ops/client.js";
 
 export const APPROVAL_WORDS = "approve yes allow";
 const INBOUND_WORKFLOW = "inbound-operator-boundary";
@@ -112,31 +116,6 @@ export function expectPromptsPending(
   expect(ownerQuestionQueue.get(questionId)?.status).toBe("pending");
 }
 
-function enqueueExternalWorkflowDelivery(
-  projectDir: string,
-  workflowName: string,
-  options: { event?: string; payload?: Record<string, unknown> },
-): { runId: string } {
-  const store = new WorkflowRunStore(projectDir);
-  const state = store.readState();
-  const now = Date.now();
-  const runId = formatRunId(workflowName);
-  const trigger: WorkflowRunTrigger = {
-    event: options.event ?? "manual",
-    schemaRef: null,
-    payload: {
-      ...(options.payload ?? {}),
-      triggeredAt: new Date().toISOString(),
-      _runId: runId,
-    },
-  };
-  store.setPendingRuns([
-    ...state.pendingRuns,
-    { runId, workflowName, trigger, enqueuedAtMs: now, notBeforeMs: now },
-  ]);
-  return { runId };
-}
-
 function recordStep(source: DeliverySource, delivered: DeliveredWorkflow[]) {
   return {
     id: "record",
@@ -161,6 +140,7 @@ function boundaryWorkflow(
 ) {
   return registerWorkflowDefinition(`test/${name}.ts`, {
     name,
+    repository: "none",
     triggers,
     steps: [recordStep(source, delivered)],
   });
@@ -169,7 +149,7 @@ function boundaryWorkflow(
 export function inboundWorkflow(delivered: DeliveredWorkflow[]) {
   return boundaryWorkflow(
     INBOUND_WORKFLOW,
-    [{ event: inboundSignalRouted.name, cooldownMs: 0 }],
+    [{ event: inboundSignalWorkflowTargeted, cooldownMs: 0 }],
     "inbound-signal",
     delivered,
   );
@@ -205,6 +185,10 @@ export async function dispatchInboundDelivery(args: {
   scopeId: string;
   text: string;
   routedPayloads: unknown[];
+  triggerWorkflow(
+    name: string,
+    options: WorkflowTriggerOptions,
+  ): Promise<WorkflowTriggerResult>;
 }): Promise<void> {
   await dispatchInboundSignalRoute({
     config: {
@@ -240,13 +224,7 @@ export async function dispatchInboundDelivery(args: {
     },
     context: { workflowNames: new Set([INBOUND_WORKFLOW]), agentNames: new Set() },
     deps: {
-      async triggerWorkflow(name, options) {
-        const { runId } = enqueueExternalWorkflowDelivery(args.projectDir, name, {
-          event: options.event,
-          payload: options.payload,
-        });
-        return { ok: true, path: "queue", queued: name, runId };
-      },
+      triggerWorkflow: args.triggerWorkflow,
       emitRouted(payload) {
         args.routedPayloads.push(payload);
         args.pbus.emit(inboundSignalRouted, payload);

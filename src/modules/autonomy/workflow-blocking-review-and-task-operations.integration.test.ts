@@ -18,7 +18,6 @@ import { shadowSemanticReviewTargetOperation } from "#modules/autonomy/shadow-se
 import { promoteSatisfiedBlockedTasksOperation } from "#modules/autonomy/workflows/blocked-promoter/blocking-operations.js";
 import {
   builderRepairCheckOperation,
-  projectBuilderAgentRunArtifactsOperation,
 } from "#modules/autonomy/workflows/builder/blocking-operations.js";
 import {
   applyScopeImprovementRecommendationsOperation,
@@ -26,7 +25,7 @@ import {
 } from "#modules/autonomy/workflows/scope-improver/scope-improvement.js";
 
 describe("autonomy workflow blocking review and task operations", () => {
-  it("loads migrated review, projection, and task mutations through real workers", async () => {
+  it("loads review and task operations through real workers", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-blocking-mutations-"));
     try {
       execFileSync("git", ["init", "-q", "-b", "main"], {
@@ -65,11 +64,7 @@ describe("autonomy workflow blocking review and task operations", () => {
       }, 10);
       const criticInspection = await runWorkflowBlockingOperation(
         criticReviewInspectionOperation,
-        {
-          reviewDir: projectDir,
-          runDir: reviewRunDir,
-          durableEvidenceDir: reviewRunDir,
-        },
+        { reviewDir: projectDir, taskMutationStatus: "" },
       );
       const semanticInspection = await runWorkflowBlockingOperation(
         improverSemanticInspectionOperation,
@@ -97,10 +92,6 @@ describe("autonomy workflow blocking review and task operations", () => {
       writeFileSync(
         join(agentRunDir, "evidence-manifest.json"),
         `${JSON.stringify({ schemaVersion: 1, artifacts: [] })}\n`,
-      );
-      const projection = await runWorkflowBlockingOperation(
-        projectBuilderAgentRunArtifactsOperation,
-        { workspaceDir: projectDir, agentRunDir },
       );
       const criteriaInspection = await runWorkflowBlockingOperation(
         builderRepairCheckOperation,
@@ -189,14 +180,14 @@ describe("autonomy workflow blocking review and task operations", () => {
         status: "ready",
         target: { path: "data/tasks/doing/task-review-boundary.md" },
       });
-      expect(semanticInspection).toEqual({ status: "no-changes" });
+      expect(semanticInspection).toMatchObject({
+        status: "ready",
+        changedFiles: "data/tasks/doing/task-review-boundary.md",
+      });
       expect(shadowTargets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ path: "git:workflow-mutation-files" }),
         ]),
-      );
-      expect(projection).toBe(
-        "OK: 4 screened builder evidence file(s) projected and staged",
       );
       expect(criteriaInspection).toMatchObject({ status: "passed" });
       expect(blockedPromotions).toEqual({ promotions: [] });

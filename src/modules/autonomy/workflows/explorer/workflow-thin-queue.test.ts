@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import { writeLastExplorationAt } from "./explorer-state.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { EXPLORER_STATE_KEY } from "./explorer-state.js";
 import explorerWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -38,10 +39,6 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskStateDir: vi.fn((projectDir: string, state: string) =>
     `${projectDir}/data/tasks/${state}`,
   ),
-}));
-
-vi.mock("#modules/autonomy/commit.js", () => ({
-  commitWorkflowChanges: vi.fn(),
 }));
 
 vi.mock("#modules/repo-tasks/task-queue-validation.js", () => ({
@@ -95,13 +92,6 @@ describe("explorer workflow thin queue gating", () => {
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 1, doing: 0 }),
     );
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
-
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.thin", payload: {} },
       stepMocks: {
@@ -130,13 +120,6 @@ describe("explorer workflow thin queue gating", () => {
       makeSnapshot({ inboxCount: 0, ready: 1, backlog: 0, doing: 0 }),
     );
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
-
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.thin", payload: {} },
       stepMocks: {
@@ -161,12 +144,6 @@ describe("explorer workflow thin queue gating", () => {
     const { getRepoTaskQueueSnapshot } = await import(
       "#modules/repo-tasks/repo-tasks-domain.js"
     );
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(
       makeSnapshot({ inboxCount: 0, ready: 0, backlog: 0, doing: 1 }),
     );
@@ -194,12 +171,16 @@ describe("explorer workflow thin queue gating", () => {
       "#modules/repo-tasks/repo-tasks-domain.js"
     );
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-    writeLastExplorationAt(tempDir);
+    const state = createTestTransactionalRunState();
+    state.compareAndSet(EXPLORER_STATE_KEY, 0, {
+      lastExplorationAt: new Date().toISOString(),
+    });
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
       projectDir: tempDir,
+      contextOverrides: { state },
     });
 
     const result = await harness.run();

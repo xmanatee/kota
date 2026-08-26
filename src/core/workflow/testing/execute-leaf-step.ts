@@ -1,7 +1,5 @@
-import { runtimeResourcesFromStepOutput } from "#core/workflow/runtime-resources.js";
 import type { WorkflowCodeStepInput } from "#core/workflow/step-input-code.js";
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
-import { workspaceDirFromStepOutput } from "#core/workflow/workspace-update.js";
 import type { HarnessExecutionState } from "./execution-state.js";
 import type {
   HarnessObjectValue,
@@ -72,7 +70,10 @@ export async function executeLeafStep(
         typeof step.payload === "function"
           ? await step.payload(context)
           : (step.payload ?? {});
-      context.emit(step.event, payload as HarnessObjectValue);
+      context.emit(step.event, payload as HarnessObjectValue, {
+        delivery: "on-run-success",
+        stepId: step.id,
+      });
       output = { event: step.event, payload };
     } else if (step.type === "restart") {
       const reason =
@@ -161,21 +162,4 @@ export async function executeLeafStep(
     internal.model = resolvedModel;
   }
   state.recordResult(harness, internal, output);
-  if (
-    status === "success" &&
-    step.type === "code" &&
-    step.updatesWorkspaceDir === true
-  ) {
-    state.workspaceDir = workspaceDirFromStepOutput(step.id, internal.output);
-  }
-  if (
-    status === "success" &&
-    step.type === "code" &&
-    step.updatesRuntimeResources === true
-  ) {
-    state.runtimeResources = runtimeResourcesFromStepOutput(
-      step.id,
-      internal.output,
-    );
-  }
 }

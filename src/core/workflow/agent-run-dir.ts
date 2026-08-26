@@ -29,12 +29,12 @@ export function resolveAgentRunDir(input: {
 export function resolveAgentRunDirFromContext(
   context: Pick<
     WorkflowStepContext,
-    "projectDir" | "runtimeResources" | "workflow"
+    "scopeDir" | "runtimeResources" | "workflow"
   >,
 ): string {
   return resolveAgentRunDir({
     metadata: context.workflow,
-    projectDir: context.projectDir,
+    projectDir: context.scopeDir,
     ...(context.runtimeResources === undefined
       ? {}
       : { runtimeResources: context.runtimeResources }),

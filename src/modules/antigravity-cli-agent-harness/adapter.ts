@@ -283,6 +283,7 @@ export const antigravityCliAgentHarness: AgentHarness = {
       abortController: options.abortController,
       writer,
       onMessage: options.onMessage,
+      onProcessSpawn: options.onProcessSpawn,
     });
     options.abortQuarantine?.register(async () => {
       const result = await execution;

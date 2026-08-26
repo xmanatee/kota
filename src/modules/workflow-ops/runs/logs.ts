@@ -46,7 +46,12 @@ export function registerLogsCommand(wfCmd: Command): void {
       }
 
       if (opts.follow) {
-        await followRunLogs(store.runsDir, store.statePath, resolvedId, opts.step);
+        await followRunLogs(
+          store.runsDir,
+          { stateDir: store.rootDir, projectDir: process.cwd() },
+          resolvedId,
+          opts.step,
+        );
         return;
       }
 

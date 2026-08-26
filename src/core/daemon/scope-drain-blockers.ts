@@ -12,12 +12,27 @@ export function collectScopeDrainBlockers(
   runtime: ProjectRuntime,
 ): ScopeDrainBlocker[] {
   const runtimeState = runtime.workflowRuntime.getState();
-  const activeRuns = runtimeState.activeRuns ?? [];
+  const durableRuns = runtime.runState.listRuns(runtime.project.projectId, [
+    "queued",
+    "running",
+    "integrating",
+    "waiting",
+    "needs_attention",
+  ]);
+  const activeRuns = durableRuns.filter(
+    (run) => run.state === "running" || run.state === "integrating",
+  );
   const sessionIds = [...options.listSessionIds(runtime.project.projectId)];
   const approvals = runtime.approvalQueue.list("pending").map((item) => item.id);
   const approvalExecutions = listActiveApprovalExecutionIds(runtime.approvalQueue);
-  const pendingRuns = runtimeState.pendingRuns.map((run, index) =>
-    run.runId ?? `queued:${run.workflowName}:${run.enqueuedAtMs}:${index + 1}`
+  const pendingRuns = durableRuns
+    .filter((run) => run.state === "queued")
+    .map((run) => run.id);
+  const suspendedRuns = durableRuns
+    .filter((run) => run.state === "waiting" || run.state === "needs_attention")
+    .map((run) => run.id);
+  const resourceLeases = durableRuns.flatMap((run) =>
+    run.resources.map((resource) => `${run.id}:${resource}`)
   );
   const pendingBatchBuffers = Object.values(runtimeState.batchBuffers ?? {}).map(
     (buffer) =>
@@ -34,7 +49,7 @@ export function collectScopeDrainBlockers(
     .filter((suspension) => suspension.deadlineAtMs === undefined)
     .map(awaitSuspensionId);
   const blockers: ScopeDrainBlocker[] = [];
-  appendBlocker(blockers, "active_run", "workflow-runtime", activeRuns.map((run) => run.runId), "wait-or-abort");
+  appendBlocker(blockers, "active_run", "workflow-runtime", activeRuns.map((run) => run.id), "wait-or-abort");
   appendBlocker(blockers, "session", "daemon-sessions", sessionIds, "close");
   appendBlocker(blockers, "pending_approval", "approval-queue", approvals, "resolve-or-reject");
   appendBlocker(
@@ -45,6 +60,20 @@ export function collectScopeDrainBlockers(
     "wait-or-abort",
   );
   appendBlocker(blockers, "pending_work", "workflow-runtime", pendingRuns, "cancel-or-complete");
+  appendBlocker(
+    blockers,
+    "pending_work",
+    "workflow-runtime-suspended",
+    suspendedRuns,
+    "cancel-or-complete",
+  );
+  appendBlocker(
+    blockers,
+    "resource_lease",
+    "workflow-runtime",
+    resourceLeases,
+    "cancel-or-complete",
+  );
   appendBlocker(
     blockers,
     "pending_work",

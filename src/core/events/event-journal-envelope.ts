@@ -69,6 +69,9 @@ export function buildEventEnvelope(
     },
     trace: readTraceContext(envelope.payload),
     idempotency: {
+      ...(envelope.delivery === "outbox" && envelope.eventId !== undefined
+        ? { eventId: envelope.eventId }
+        : {}),
       ...(readString(envelope.payload, "idempotencyKey") !== undefined
         ? { idempotencyKey: readString(envelope.payload, "idempotencyKey") }
         : {}),

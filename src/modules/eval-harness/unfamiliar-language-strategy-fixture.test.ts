@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import {
   isSingleWorkflowFixtureSpec,
   loadFixture,
@@ -46,30 +46,12 @@ function expectGitOk(workingDir: string, args: string[]): void {
   ).toBe(0);
 }
 
-async function loadIsolatedFixtureConfig(workingDir: string) {
-  const previousHome = process.env.HOME;
-  process.env.HOME = workingDir;
-  vi.resetModules();
-  try {
-    const { loadConfig } = await import("#core/config/config.js");
-    return loadConfig(workingDir);
-  } finally {
-    if (previousHome === undefined) delete process.env.HOME;
-    else process.env.HOME = previousHome;
-    vi.resetModules();
-  }
-}
-
 describe("unfamiliar-language strategy fixture", () => {
   it("keeps the serial builder evidence stageable without widening solution scope", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     const workingDir = mkdtempSync(join(tmpdir(), "kota-spool-fixture-"));
     try {
       cpSync(fixture.initialStateDir, workingDir, { recursive: true });
-      expect(
-        (await loadIsolatedFixtureConfig(workingDir)).modules?.builder
-          ?.branchPerTask,
-      ).toBe(false);
       expectGitOk(workingDir, ["init", "-q"]);
       expectGitOk(workingDir, [
         "config",
@@ -79,11 +61,6 @@ describe("unfamiliar-language strategy fixture", () => {
       expectGitOk(workingDir, ["config", "user.name", "KOTA"]);
       expectGitOk(workingDir, ["add", "-A"]);
       expectGitOk(workingDir, ["commit", "-qm", "initial"]);
-      expectGitOk(workingDir, [
-        "ls-files",
-        "--error-unmatch",
-        ".kota/config.json",
-      ]);
 
       const runDir = join(workingDir, ".kota", "runs", RUN_ID);
       mkdirSync(runDir, { recursive: true });

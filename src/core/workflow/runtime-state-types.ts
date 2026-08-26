@@ -8,18 +8,15 @@ import type {
 export type WorkflowRunStatus =
   | "success"
   | "failed"
-  | "yielded"
   | "interrupted"
   | "completed-with-warnings";
 
-export type WorkflowStepStatus = "success" | "failed" | "yielded" | "skipped";
+export type WorkflowStepStatus = "success" | "failed" | "skipped";
 
 export type WorkflowStepTimeoutErrorKind = "idle-timeout" | "step-timeout";
 export type WorkflowRepairErrorKind =
   | "repair-no-progress"
-  | "repair-attempts-exhausted"
-  | "repair-decompose"
-  | "repair-needs-owner";
+  | "repair-attempts-exhausted";
 export type WorkflowStepErrorKind =
   | WorkflowStepTimeoutErrorKind
   | WorkflowRepairErrorKind
@@ -34,12 +31,7 @@ export function isWorkflowStepTimeoutErrorKind(
 export function isWorkflowRepairErrorKind(
   kind: WorkflowStepErrorKind | undefined,
 ): kind is WorkflowRepairErrorKind {
-  return (
-    kind === "repair-no-progress" ||
-    kind === "repair-attempts-exhausted" ||
-    kind === "repair-decompose" ||
-    kind === "repair-needs-owner"
-  );
+  return kind === "repair-no-progress" || kind === "repair-attempts-exhausted";
 }
 
 export type WorkflowStepSkipReasonKind =
@@ -67,25 +59,6 @@ export type WorkflowQueuedRun = {
   notBeforeMs: number;
 };
 
-export type WorkflowRecoveryRetryAttempt = {
-  workflow: string;
-  runId: string;
-  attemptedAt: string;
-};
-
-export type WorkflowRecoveryDirtyCheckout = "canonical" | "workspace";
-
-export type WorkflowRecoveryState = {
-  sourceRunId: string;
-  sourceWorkflow: string;
-  dirtyCheckout?: WorkflowRecoveryDirtyCheckout;
-  worktreeFingerprint: string;
-  worktreeSummary: string;
-  attempts: number;
-  retryAttemptedBy: WorkflowRecoveryRetryAttempt[];
-  updatedAt: string;
-};
-
 export type WorkflowRunRef = {
   runId: string;
   startedAt: string;
@@ -106,15 +79,20 @@ export type WorkflowStateEntry = {
 };
 
 export type WorkflowRuntimeState = {
-  activeRuns?: WorkflowActiveRun[];
   completedRuns: number;
   totalCostUsd?: number;
   totalInputTokens?: number;
   totalOutputTokens?: number;
   definitionsLoadedAt?: string;
   agentBackoff?: WorkflowAgentBackoffState;
-  recovery?: WorkflowRecoveryState;
   batchBuffers?: WorkflowBatchBuffers;
-  pendingRuns: WorkflowQueuedRun[];
   workflows: Record<string, WorkflowStateEntry>;
 };
+
+export type WorkflowRuntimeOperationalState = {
+  activeRuns: WorkflowActiveRun[];
+  pendingRuns: WorkflowQueuedRun[];
+};
+
+export type WorkflowRuntimeSnapshot = WorkflowRuntimeState &
+  WorkflowRuntimeOperationalState;

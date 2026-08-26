@@ -107,7 +107,6 @@ function parseCalibrationArtifact(
     !isNonNegativeInteger(value.criticFailureCount) ||
     (value.terminalRunStatus !== "success" &&
       value.terminalRunStatus !== "failed" &&
-      value.terminalRunStatus !== "yielded" &&
       value.terminalRunStatus !== "interrupted" &&
       value.terminalRunStatus !== "completed-with-warnings" &&
       value.terminalRunStatus !== "running") ||

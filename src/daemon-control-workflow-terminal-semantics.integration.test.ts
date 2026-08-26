@@ -15,7 +15,6 @@ import {
   recoveringOperation,
   timedControlRequest,
   triggerControlWorkflow,
-  waitForControlCondition,
   waitForRunStatus,
 } from "#core/workflow/testing/daemon-control-responsiveness.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
@@ -40,12 +39,6 @@ describe("blocking workflow operation terminal semantics", () => {
     resetEventBus();
     resetScheduler();
 
-    let markTerminalFinalizerStarted: (() => void) | undefined;
-    const terminalFinalizerStarted = new Promise<void>((resolve) => {
-      markTerminalFinalizerStarted = resolve;
-    });
-    let terminalFinalizerCompleted = false;
-
     const daemon = new Daemon({
       projectDir,
       stateDir,
@@ -53,6 +46,7 @@ describe("blocking workflow operation terminal semantics", () => {
       pollIntervalMs: 60_000,
       workflows: [
         registerWorkflowDefinition("fixtures/control-failure.ts", {
+          repository: "read",
           name: "control-failure",
           triggers: [{ event: "manual" }],
           steps: [{
@@ -62,6 +56,7 @@ describe("blocking workflow operation terminal semantics", () => {
           }],
         }),
         registerWorkflowDefinition("fixtures/control-abort.ts", {
+          repository: "read",
           name: "control-abort",
           triggers: [{ event: "manual" }],
           steps: [{
@@ -75,6 +70,7 @@ describe("blocking workflow operation terminal semantics", () => {
           }],
         }),
         registerWorkflowDefinition("fixtures/control-recovery.ts", {
+          repository: "read",
           name: "control-recovery",
           triggers: [{ event: "manual" }],
           steps: [{
@@ -85,23 +81,6 @@ describe("blocking workflow operation terminal semantics", () => {
                 markerPath: join(stateDir, "blocking-recovery-marker.txt"),
               }),
           }],
-        }),
-        registerWorkflowDefinition("fixtures/control-terminal-finalizer.ts", {
-          name: "control-terminal-finalizer",
-          triggers: [{ event: "manual" }],
-          steps: [{
-            id: "complete-before-finalizer",
-            type: "code",
-            run: () => ({ ready: true }),
-          }],
-          terminalFinalizer: async (input) => {
-            markTerminalFinalizerStarted?.();
-            await input.runBlocking(cpuBlockingOperation, {
-              durationMs: 1_200,
-              value: "terminal-finalizer-complete",
-            });
-            terminalFinalizerCompleted = true;
-          },
         }),
       ],
       config: { defaultAgentHarness: "claude-agent-sdk" },
@@ -167,44 +146,6 @@ describe("blocking workflow operation terminal semantics", () => {
       expect(recoveredMetadata.steps[0]?.output).toEqual({
         recovered: true,
         attempts: 2,
-      });
-
-      const finalizerRunId =
-        "2026-08-13T12-00-01-900Z-control-terminal-finalizer-fixture";
-      await triggerControlWorkflow(
-        address,
-        "control-terminal-finalizer",
-        finalizerRunId,
-      );
-      await terminalFinalizerStarted;
-      const finalizerControlRequests = await Promise.all([
-        timedControlRequest<object>(address, "/health"),
-        timedControlRequest<object>(address, "/status"),
-        timedControlRequest<object>(address, "/workflow/pause", {
-          method: "POST",
-        }),
-      ]);
-      const resumeDuringFinalizer = await timedControlRequest<object>(
-        address,
-        "/workflow/resume",
-        { method: "POST" },
-      );
-      for (const response of [
-        ...finalizerControlRequests,
-        resumeDuringFinalizer,
-      ]) {
-        expect(response.status).toBe(200);
-        expect(response.durationMs).toBeLessThan(
-          CONTROL_REQUEST_LATENCY_BOUND_MS,
-        );
-      }
-      await waitForControlCondition(() => terminalFinalizerCompleted);
-      const finalized = await waitForRunStatus(address, finalizerRunId, [
-        "success",
-      ]);
-      expect(finalized.steps[0]).toMatchObject({
-        id: "complete-before-finalizer",
-        status: "success",
       });
 
       const abortRunId = "2026-08-13T12-00-02-000Z-control-abort-fixture";

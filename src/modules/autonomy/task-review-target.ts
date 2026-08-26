@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 
 export type TaskReviewState = "doing" | "blocked" | "done";
 
@@ -11,16 +11,91 @@ export type TaskReviewTarget = {
   content: string;
 };
 
-const REVIEW_STATES: TaskReviewState[] = ["done", "blocked"];
+export type TaskReviewContract = Readonly<{
+  taskId: string;
+  taskPath: string;
+}>;
 
-export function findTaskReviewTarget(projectDir: string): TaskReviewTarget | null {
+const REVIEW_STATES: TaskReviewState[] = ["done", "blocked"];
+const EXACT_REVIEW_STATES: TaskReviewState[] = ["doing", "done", "blocked"];
+const BUILDER_TASK_PATH_PATTERN =
+  /^data\/tasks\/(?:ready|doing)\/(task-[a-z0-9][a-z0-9-]*)\.md$/;
+
+export async function readTaskReviewMutationStatus(
+  projectDir: string,
+  runCommand: WorkflowCommandRunner,
+): Promise<string> {
+  const result = await runCommand({
+    command: "git",
+    args: [
+      "diff",
+      "HEAD",
+      "--name-status",
+      "--",
+      "data/tasks/done/",
+      "data/tasks/blocked/",
+    ],
+    cwd: projectDir,
+  });
+  return result.stdout.text;
+}
+
+export function findTaskReviewTarget(
+  projectDir: string,
+  mutationStatus: string,
+): TaskReviewTarget | null {
   const doing = findTaskInState(projectDir, "doing");
   if (doing) return doing;
 
-  const staged = findStagedTask(projectDir);
-  if (staged) return staged;
+  const mutated = findMutatedTask(projectDir, mutationStatus);
+  if (mutated) return mutated;
 
   return null;
+}
+
+export function findExpectedTaskReviewTarget(
+  projectDir: string,
+  expected: TaskReviewContract,
+): TaskReviewTarget {
+  const pathTaskId = expected.taskPath.match(BUILDER_TASK_PATH_PATTERN)?.[1];
+  if (pathTaskId !== expected.taskId) {
+    throw new Error(
+      `Expected task ${expected.taskId} has mismatched contract path ${expected.taskPath}.`,
+    );
+  }
+
+  const filename = `${expected.taskId}.md`;
+  const candidates = EXACT_REVIEW_STATES.flatMap((state) => {
+    const path = `data/tasks/${state}/${filename}`;
+    const absolutePath = join(projectDir, path);
+    return existsSync(absolutePath)
+      ? [{ path, state, content: readFileSync(absolutePath, "utf8") }]
+      : [];
+  });
+
+  if (candidates.length === 0) {
+    throw new Error(`Expected task ${expected.taskId} was not found in the workspace.`);
+  }
+  if (candidates.length > 1) {
+    throw new Error(
+      `Expected task ${expected.taskId} is ambiguous: found ${candidates.map((candidate) => candidate.path).join(", ")}.`,
+    );
+  }
+
+  const candidate = candidates[0];
+  const contentTaskId = parseFlatFrontMatter(candidate.content).attrs.id;
+  if (contentTaskId !== expected.taskId) {
+    const actual = typeof contentTaskId === "string"
+      ? contentTaskId
+      : contentTaskId === undefined
+        ? "no task id"
+        : JSON.stringify(contentTaskId);
+    throw new Error(
+      `Expected task ${expected.taskId}, but ${candidate.path} contains ${actual}.`,
+    );
+  }
+
+  return candidate;
 }
 
 function findTaskInState(projectDir: string, state: TaskReviewState): TaskReviewTarget | null {
@@ -41,18 +116,10 @@ function findTaskInState(projectDir: string, state: TaskReviewState): TaskReview
   };
 }
 
-function findStagedTask(projectDir: string): TaskReviewTarget | null {
-  const status = execFileSync(
-    "git",
-    ["diff", "--cached", "--name-status", "--", "data/tasks/done/", "data/tasks/blocked/"],
-    {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
+function findMutatedTask(
+  projectDir: string,
+  status: string,
+): TaskReviewTarget | null {
   const candidates: TaskReviewTarget[] = [];
   for (const line of status.split("\n")) {
     const relPath = line.split("\t").at(-1);

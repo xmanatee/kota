@@ -63,14 +63,6 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     /** True when the window had nothing to report; channels still deliver. */
     quiet: boolean;
   };
-  "workflow.build.committed": {
-    projectId: ProjectId;
-    runId: string;
-    taskId: string | null;
-    commitMessage: string;
-    costUsd: number | null;
-    durationMs: number | null;
-  };
   "approval.expired": {
     projectId: ProjectId;
     id: string;

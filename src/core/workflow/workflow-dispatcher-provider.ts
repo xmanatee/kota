@@ -43,6 +43,17 @@ export type EnqueueWebhookRunResult = {
   error?: string;
 };
 
+export type ExecuteWorkflowRequest = Readonly<{
+  workflow: string;
+  projectId: string;
+  event: string;
+  payload: Readonly<Record<string, unknown>>;
+}>;
+
+export type ExecuteWorkflowResult =
+  | Readonly<{ ok: true; runId: string; output: unknown }>
+  | Readonly<{ ok: false; error: string }>;
+
 /** Provider-registry token used to look up the active workflow dispatcher. */
 export const WORKFLOW_DISPATCHER_PROVIDER_TYPE: ProviderToken<WorkflowDispatcher> =
   defineProviderToken<WorkflowDispatcher>("workflow-dispatcher");
@@ -65,6 +76,8 @@ export type WorkflowDispatcher = {
     name: string,
     payload: WebhookRunPayload,
   ): EnqueueWebhookRunResult;
+  /** Admit one explicit run and resolve only after its durable disposition. */
+  execute(request: ExecuteWorkflowRequest): Promise<ExecuteWorkflowResult>;
 };
 
 /**

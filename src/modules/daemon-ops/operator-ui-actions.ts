@@ -91,7 +91,13 @@ async function triggerRunFollowUp(args: {
       });
   const result = await args.client.workflow.triggerByName(run.workflow, options);
   if (!result.ok) {
-    return { ok: false, reason: result.reason, message: `Workflow ${run.workflow} is already queued.` };
+    return {
+      ok: false,
+      reason: result.reason,
+      message: result.reason === "daemon_required"
+        ? `The daemon must be running to queue ${run.workflow}.`
+        : `Workflow ${run.workflow} is already queued.`,
+    };
   }
   return {
     ok: true,

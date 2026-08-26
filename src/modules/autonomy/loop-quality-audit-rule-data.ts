@@ -16,7 +16,6 @@ export const COMPLETION_CHECK_IDS = [
   "actionable-task",
   "task-resolved",
   "task-queue",
-  "commit-stageable",
   "critic",
   "semantic",
   "validate",
@@ -45,12 +44,9 @@ export const CONTEXT_CHECK_IDS = [
 ];
 
 export const MUTATION_SAFETY_IDS = [
-  "commit-stageable",
   "task-queue",
   "no-scratch",
-  "claimed-task",
   "artifact",
-  "validate-before-commit",
   "mark-attempt",
   "record-evidence",
   "dedupe",

@@ -54,8 +54,7 @@ function makeHandle(): DaemonControlHandle {
       completedRuns: 0,
       workflows: {},
       paused: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
     })),
     listChannelStatuses: vi.fn(() => []),
     pauseWorkflowDispatch: vi.fn(() => ({ already: false })),
@@ -178,8 +177,7 @@ describe("tracing module daemon-control routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         }),
       });
 
@@ -231,8 +229,7 @@ describe("tracing module daemon-control routes", () => {
           completedRuns: 17,
           workflows: {},
           paused: true,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         }),
       });
       getApprovalQueue().enqueue("Bash", {}, "moderate", "test");
@@ -272,8 +269,7 @@ describe("tracing module daemon-control routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         }),
       });
 
@@ -317,8 +313,7 @@ describe("tracing module daemon-control routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         }),
       });
 
@@ -358,8 +353,7 @@ describe("tracing module daemon-control routes", () => {
           completedRuns: 0,
           workflows: {},
           paused: false,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         }),
       });
 

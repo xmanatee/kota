@@ -23,10 +23,54 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = projectDir,
+): RunContext {
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir: projectDir,
+      workspaceDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 vi.mock("#core/workflow/steps/agent-write-scope.js", async (importOriginal) => {
   const actual = await importOriginal<
@@ -78,7 +122,7 @@ describe("workflow scope policy execution", () => {
       const definition: WorkflowDefinition = {
         name: "scope-policy-test",
         enabled: true,
-        recoveryCapable: false,
+        repository: "none",
         definitionPath: "src/modules/test/workflows/scope-policy/workflow.ts",
         moduleRoot: projectDir,
         triggers: [],
@@ -92,7 +136,7 @@ describe("workflow scope policy execution", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
+        runContext: makeRunContext(projectDir, TRIGGER),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),
@@ -226,7 +270,7 @@ describe("workflow scope policy execution", () => {
       const definition: WorkflowDefinition = {
         name: "live-scope-policy-test",
         enabled: true,
-        recoveryCapable: false,
+        repository: "none",
         definitionPath: "src/modules/test/workflows/live-scope-policy/workflow.ts",
         moduleRoot: projectDir,
         triggers: [],
@@ -245,7 +289,7 @@ describe("workflow scope policy execution", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
+        runContext: makeRunContext(projectDir, TRIGGER),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),
@@ -340,7 +384,7 @@ describe("workflow scope policy execution", () => {
       const definition: WorkflowDefinition = {
         name: "opaque-timeout-policy-test",
         enabled: true,
-        recoveryCapable: false,
+        repository: "none",
         definitionPath: "src/modules/test/workflows/opaque-timeout/workflow.ts",
         moduleRoot: projectDir,
         triggers: [],
@@ -359,7 +403,7 @@ describe("workflow scope policy execution", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
+        runContext: makeRunContext(projectDir, TRIGGER),
         bus: new EventBus(),
         store: new WorkflowRunStore(projectDir),
         log: vi.fn(),

@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
   ABORT_SIGNAL_FILE,
@@ -76,25 +78,43 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
   });
 
   it("abort with active runs writes the signal and lists them", async () => {
-    const store = new WorkflowRunStore(projectDir);
-    const state = store.readState();
-    state.activeRuns = [
-      { runId: "run-1", workflow: "builder", startedAt: "2026-04-25T00:00:00Z" },
-      { runId: "run-2", workflow: "improver", startedAt: "2026-04-25T00:00:01Z" },
-    ];
-    writeFileSync(
-      join(projectDir, ".kota", "workflow-state.json"),
-      JSON.stringify(state),
-    );
-    const handler = buildHandler(projectDir);
-    const result = await handler.abort();
-    expect(result.status).toBe("signaled");
-    if (result.status !== "signaled") throw new Error("unreachable");
-    expect(result.runs).toEqual([
-      { runId: "run-1", workflow: "builder" },
-      { runId: "run-2", workflow: "improver" },
-    ]);
-    expect(existsSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE))).toBe(true);
+    const runState = new RunStateDatabase(join(projectDir, ".kota"));
+    try {
+      const projectId = deriveDirectoryScopeId(projectDir);
+      runState.registerProject({
+        id: projectId,
+        rootPath: projectDir,
+        createdAt: "2026-04-25T00:00:00.000Z",
+      });
+      const { epoch } = runState.beginDaemonSession("2026-04-25T00:00:00.000Z");
+      for (const [id, workflow, startedAt] of [
+        ["run-1", "builder", "2026-04-25T00:00:00.000Z"],
+        ["run-2", "improver", "2026-04-25T00:00:01.000Z"],
+      ] as const) {
+        runState.admitRun({
+          id,
+          projectId,
+          workflow,
+          repository: "read",
+          trigger: { event: "manual", schemaRef: null, payload: {} },
+          resources: [],
+          admittedAt: startedAt,
+        });
+        runState.startRun(id, epoch, startedAt);
+      }
+
+      const handler = buildHandler(projectDir);
+      const result = await handler.abort();
+      expect(result.status).toBe("signaled");
+      if (result.status !== "signaled") throw new Error("unreachable");
+      expect(result.runs).toEqual([
+        { runId: "run-1", workflow: "builder" },
+        { runId: "run-2", workflow: "improver" },
+      ]);
+      expect(existsSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE))).toBe(true);
+    } finally {
+      runState.close();
+    }
   });
 
   it("reload writes the signal file", async () => {
@@ -112,8 +132,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(snapshot.activeRuns).toEqual([]);
     expect(snapshot.pendingRuns).toEqual([]);
     expect(snapshot.queueLength).toBe(0);
-    expect(snapshot.agentConcurrency).toBe(1);
-    expect(snapshot.codeConcurrency).toBe(4);
+    expect(snapshot.concurrency).toBe(4);
 
     writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
     writeFileSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE), "");

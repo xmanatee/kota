@@ -1,10 +1,6 @@
-import type {
-	WorkflowDispatchPauseStatus,
-	WorkflowRecoveryStatus,
-} from "#core/workflow/recovery-status-types.js";
+import type { WorkflowDispatchPauseStatus } from "#core/workflow/dispatch-pause-types.js";
 import type {
 	WorkflowQueuedRun,
-	WorkflowRecoveryState,
 	WorkflowRunStatus,
 } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
@@ -25,17 +21,7 @@ export type DashboardTaskQueue = {
 	promotableBacklogCount: number;
 	dispatchableCount: number;
 	hasDispatchableWork: boolean;
-	claimBlockedTasks?: Array<{
-		id: string;
-		claimStatus: string;
-		recoveryCommand: string;
-		resolveCommand: string;
-	}>;
 };
-
-export type DashboardRecovery =
-	| WorkflowRecoveryState
-	| Exclude<WorkflowRecoveryStatus, { status: "none" }>;
 
 export type DashboardSnapshot = {
 	pid: number;
@@ -56,7 +42,6 @@ export type DashboardSnapshot = {
 	dispatchWindowBlocked?: boolean;
 	dispatchWindowOpensAt?: string;
 	agentBackoff?: WorkflowAgentBackoffState;
-	recovery?: DashboardRecovery;
 	definitionCount: number;
 	sessionCount: number;
 	taskQueue?: DashboardTaskQueue;

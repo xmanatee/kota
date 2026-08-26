@@ -228,7 +228,7 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ state: "doing" });
   });
 
-  it("move decodes 404 → not_found and 409 → already_in_state", async () => {
+  it("move decodes not-found, same-state, and active resource ownership", async () => {
     const { transport: t404 } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(404, {}),
     });
@@ -249,6 +249,7 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(
       await repoTasksModule.daemonClient!(t409Empty).tasks!.move("t1", "blocked"),
     ).toEqual({ ok: false, reason: "already_in_state", state: "blocked" });
+
   });
 
   it("create POSTs /api/tasks/normalized and decodes 200/409/400", async () => {
@@ -334,17 +335,17 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
 
   it("gc POSTs /api/tasks/gc with options and returns the body verbatim", async () => {
     const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { archived: ["a"], deleted: ["d"] }),
+      fetchRaw: () => jsonResponse(200, { removed: ["a", "d"] }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     const result = await contributed.tasks!.gc({ days: 30, dryRun: true });
-    expect(result).toEqual({ archived: ["a"], deleted: ["d"] });
+    expect(result).toEqual({ removed: ["a", "d"] });
     expect(calls[0]!.path).toBe("/api/tasks/gc");
     expect(calls[0]!.init?.method).toBe("POST");
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ days: 30, dryRun: true });
 
     const { transport: tNoOpts } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { archived: [], deleted: [] }),
+      fetchRaw: () => jsonResponse(200, { removed: [] }),
     });
     await repoTasksModule.daemonClient!(tNoOpts).tasks!.gc();
   });

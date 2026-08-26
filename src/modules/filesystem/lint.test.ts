@@ -11,15 +11,17 @@ vi.mock("node:fs", async () => {
 vi.mock("node:child_process", async () => {
   const actual =
     await vi.importActual<typeof import("node:child_process")>("node:child_process");
-  return { ...actual, execSync: vi.fn() };
+  return { ...actual, execFileSync: vi.fn(), execSync: vi.fn() };
 });
 
 const mockReadFile = fs.readFileSync as ReturnType<typeof vi.fn>;
-const mockExec = cp.execSync as ReturnType<typeof vi.fn>;
+const mockExec = cp.execFileSync as ReturnType<typeof vi.fn>;
+const mockShellExec = cp.execSync as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mockReadFile.mockReset();
   mockExec.mockReset();
+  mockShellExec.mockReset();
 });
 
 afterEach(() => {
@@ -49,7 +51,8 @@ describe("lintFile routing", () => {
     const result = lintFile("/tmp/test.js");
     expect(result.ok).toBe(true);
     expect(mockExec).toHaveBeenCalledWith(
-      'node --check "/tmp/test.js"',
+      process.execPath,
+      ["--check", "/tmp/test.js"],
       expect.objectContaining({ timeout: 10_000 }),
     );
   });
@@ -60,11 +63,13 @@ describe("lintFile routing", () => {
     lintFile("/tmp/test.mjs");
     expect(mockExec).toHaveBeenCalledTimes(2);
     expect(mockExec).toHaveBeenCalledWith(
-      'node --check "/tmp/test.cjs"',
+      process.execPath,
+      ["--check", "/tmp/test.cjs"],
       expect.anything(),
     );
     expect(mockExec).toHaveBeenCalledWith(
-      'node --check "/tmp/test.mjs"',
+      process.execPath,
+      ["--check", "/tmp/test.mjs"],
       expect.anything(),
     );
   });
@@ -81,7 +86,8 @@ describe("lintFile routing", () => {
     mockExec.mockReturnValue("");
     lintFile("/tmp/test.py");
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("python3"),
+      "python3",
+      ["-c", expect.any(String), "/tmp/test.py"],
       expect.anything(),
     );
   });
@@ -162,7 +168,8 @@ describe("lintWithEsbuild", () => {
     mockExec.mockReturnValue("");
     lintFile("/tmp/comp.tsx");
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("loader:'tsx'"),
+      process.execPath,
+      ["-e", expect.any(String), "/tmp/comp.tsx", "tsx"],
       expect.anything(),
     );
   });
@@ -171,7 +178,8 @@ describe("lintWithEsbuild", () => {
     mockExec.mockReturnValue("");
     lintFile("/tmp/comp.jsx");
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("loader:'tsx'"),
+      process.execPath,
+      ["-e", expect.any(String), "/tmp/comp.jsx", "tsx"],
       expect.anything(),
     );
   });
@@ -180,7 +188,8 @@ describe("lintWithEsbuild", () => {
     mockExec.mockReturnValue("");
     lintFile("/tmp/mod.ts");
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("loader:'ts'"),
+      process.execPath,
+      ["-e", expect.any(String), "/tmp/mod.ts", "ts"],
       expect.anything(),
     );
   });
@@ -189,7 +198,8 @@ describe("lintWithEsbuild", () => {
     mockExec.mockReturnValue("");
     lintFile("/tmp/mod.mts");
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("loader:'ts'"),
+      process.execPath,
+      ["-e", expect.any(String), "/tmp/mod.mts", "ts"],
       expect.anything(),
     );
   });
@@ -224,11 +234,13 @@ describe("lintWithEsbuild", () => {
     expect(lintFile("/tmp/no-esbuild2.ts")).toEqual({ ok: true });
   });
 
-  it("handles paths with single quotes", () => {
+  it("passes agent-controlled paths as a single argv value", () => {
     mockExec.mockReturnValue("");
-    lintFile("/tmp/it's.ts");
+    const path = "/tmp/it's; touch nope.ts";
+    lintFile(path);
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("it'\\''s"),
+      process.execPath,
+      ["-e", expect.any(String), path, "ts"],
       expect.anything(),
     );
   });
@@ -267,11 +279,13 @@ describe("lintPython", () => {
     expect(lintFile("/tmp/no-python2.py")).toEqual({ ok: true });
   });
 
-  it("handles paths with single quotes", () => {
+  it("passes agent-controlled paths as a single argv value", () => {
     mockExec.mockReturnValue("");
-    lintFile("/tmp/it's.py");
+    const path = "/tmp/it's; touch nope.py";
+    lintFile(path);
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("it'\\''s"),
+      "python3",
+      ["-c", expect.any(String), path],
       expect.anything(),
     );
   });
@@ -285,7 +299,8 @@ describe("lintShell", () => {
     const result = lintFile("/tmp/deploy.sh");
     expect(result.ok).toBe(true);
     expect(mockExec).toHaveBeenCalledWith(
-      "bash -n '/tmp/deploy.sh'",
+      "bash",
+      ["-n", "/tmp/deploy.sh"],
       expect.objectContaining({ timeout: 10_000 }),
     );
   });
@@ -295,7 +310,8 @@ describe("lintShell", () => {
     const result = lintFile("/tmp/setup.bash");
     expect(result.ok).toBe(true);
     expect(mockExec).toHaveBeenCalledWith(
-      "bash -n '/tmp/setup.bash'",
+      "bash",
+      ["-n", "/tmp/setup.bash"],
       expect.anything(),
     );
   });
@@ -318,11 +334,13 @@ describe("lintShell", () => {
     expect(lintFile("/tmp/no-bash.sh")).toEqual({ ok: true });
   });
 
-  it("handles paths with single quotes", () => {
+  it("passes agent-controlled paths as a single argv value", () => {
     mockExec.mockReturnValue("");
-    lintFile("/tmp/it's.sh");
+    const path = "/tmp/it's; touch nope.sh";
+    lintFile(path);
     expect(mockExec).toHaveBeenCalledWith(
-      expect.stringContaining("it'\\''s"),
+      "bash",
+      ["-n", path],
       expect.anything(),
     );
   });

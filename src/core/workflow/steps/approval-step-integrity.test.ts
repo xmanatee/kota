@@ -47,7 +47,7 @@ function makeContext() {
 		emit: vi.fn(),
 		requestRestart: () => {},
 		readPrompt: () => "",
-		readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+		readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
 		triggerWorkflow: () => Promise.reject(new Error("not used")),
 	};
 }

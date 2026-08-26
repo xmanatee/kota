@@ -1,13 +1,8 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
+import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
   createShadowSemanticReviewStep,
   type ExecutableShadowSemanticReviewerDeclaration,
@@ -17,13 +12,8 @@ import type { ShadowSemanticReviewTargetResolution } from "#modules/autonomy/sha
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  workflowCommitCheckOperation,
-  workflowCommitOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
 import {
   type InboxSorterAssessment,
   inspectInboxSorterStateOperation,
@@ -40,7 +30,6 @@ export const agent: AgentDef = {
 const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   id: "inspect-inbox",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<InboxSorterAssessment>(raw, ["inboxCount", "needsAttention"]),
   run: ({ projectDir, runBlocking }) =>
@@ -69,7 +58,7 @@ async function resolveInboxSorterShadowTarget(
     shadowSemanticReviewTargetOperation,
     {
       kind: "workflow-mutations",
-      projectDir: ctx.workspaceDir ?? ctx.projectDir,
+      projectDir: ctx.projectDir,
     },
   );
   return {
@@ -92,7 +81,6 @@ async function resolveInboxSorterShadowTarget(
 
 const inboxSorterShadowReview = createShadowSemanticReviewStep({
   id: "shadow-semantic-review",
-  when: onNormalTrigger,
   declaration: {
     id: "inbox-sorter-queue-triage",
     mode: "advisory",
@@ -113,31 +101,14 @@ const inboxSorterShadowReview = createShadowSemanticReviewStep({
 
 const inboxSorterWorkflow: WorkflowDefinitionInput = {
   name: "inbox-sorter",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Process quick inbox captures into normalized tasks, docs, or other durable project artifacts.",
   tags: ["monitored"],
-  recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
-  triggers: [
-    {
-      event: "autonomy.inbox.available",
-      cooldownMs: 30_000,
-    },
-    {
-      event: "runtime.recovered",
-    },
-  ],
+  triggers: [{ event: "autonomy.inbox.available", cooldownMs: 30_000 }],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "inbox-sorter",
-        }),
-    },
     inspectInbox,
     {
       id: "sort-inbox",
@@ -147,66 +118,25 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => {
-        if (ctx.trigger.event === "runtime.recovered") return false;
-        return inspectInbox.outputRequired(ctx).needsAttention;
-      },
+      when: (ctx) => inspectInbox.outputRequired(ctx).needsAttention,
       repairLoop: {
         checks: [
           {
             id: "task-queue-valid",
             type: "code" as const,
-            run: (ctx) => runCheck(
-              "pnpm run validate-tasks -- --min-ready 0",
-              ctx.projectDir,
-              { signal: ctx.signal },
-            ),
-          },
-          {
-            id: "no-scratch-artifacts",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "scratch-artifacts", projectDir: ctx.projectDir },
-              ),
-          },
-          {
-            id: "commit-message-exists",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                {
-                  kind: "commit-message",
-                  projectDir: ctx.projectDir,
-                  runDirPath: resolveAgentRunDirFromContext(ctx),
-                },
-              ),
-          },
-          {
-            id: "commit-stageable",
-            type: "code" as const,
-            run: (ctx) =>
-              withWorkflowBlockingOperation(ctx).runBlocking(
-                workflowCommitCheckOperation,
-                { kind: "commit-stageable", projectDir: ctx.projectDir },
+            run: async (ctx) =>
+              workflowCommandOutput(
+                await ctx.runCommand({
+                  command: "pnpm",
+                  args: ["run", "validate-tasks", "--", "--min-ready", "0"],
+                  cwd: ctx.projectDir,
+                }),
               ),
           },
         ],
       },
     },
     inboxSorterShadowReview,
-    {
-      id: "commit",
-      type: "code",
-      when: stepSucceeded("sort-inbox"),
-      run: (ctx) =>
-        ctx.runBlocking(workflowCommitOperation, {
-          projectDir: ctx.projectDir,
-          runDirPath: resolveAgentRunDirFromContext(ctx),
-        }),
-    },
   ],
 };
 

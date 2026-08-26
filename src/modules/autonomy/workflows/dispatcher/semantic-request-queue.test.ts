@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -9,28 +9,35 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import type { DurableEffectValue } from "#core/workflow/run-context.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
 } from "#core/workflow/types.js";
 import {
+  createTestWorkflowRuntime,
+  type TestWorkflowRuntime,
+} from "../../autonomy-runtime.test-helpers.js";
+import {
   automaticProgressReviewRequested,
   progressReviewRequested,
 } from "../progress-reviewer/events.js";
 import {
-  inspectProgressReviewSemanticInput,
+  PROGRESS_REVIEW_STATE_KEY,
+  type ProgressReviewConsumptionState,
   progressReviewDispatchKey,
-  recordProgressReviewInputQueued,
-  recordProgressReviewSemanticInput,
 } from "../progress-reviewer/semantic-input.js";
 import progressReviewerWorkflow from "../progress-reviewer/workflow.js";
 import {
   scopeImprovementChanged,
   scopeImprovementRequested,
 } from "../scope-improver/events.js";
-import { writePendingScopeFingerprint } from "../scope-improver/scope-improvement-state.js";
-import { SCOPE_IMPROVEMENT_STATE_PATH } from "../scope-improver/scope-improvement-types.js";
+import {
+  emptyScopeImprovementState,
+  reserveScopeImprovementInput,
+  SCOPE_IMPROVEMENT_STATE_KEY,
+} from "../scope-improver/scope-improvement-state.js";
+import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import { scopeImprovementDispatchKey } from "../scope-improver/semantic-request.js";
 import scopeImproverWorkflow from "../scope-improver/workflow.js";
 
@@ -38,23 +45,24 @@ function queueOnlyWorkflow(
   workflow: WorkflowDefinitionInput,
 ): RegisteredWorkflowDefinitionInput {
   return {
+    repository: "read",
     name: workflow.name,
     description: workflow.description,
     triggerAdmission: workflow.triggerAdmission,
     definitionPath: `semantic-request-queue:${workflow.name}`,
     moduleRoot: process.cwd(),
-    triggers: workflow.triggers.filter(
-      (trigger) => trigger.event !== "runtime.recovered",
-    ),
+    triggers: workflow.triggers,
     steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
   };
 }
 
 describe("semantic review request queue isolation", () => {
   const projectDirs: string[] = [];
+  const runtimeFixtures: TestWorkflowRuntime[] = [];
 
   afterEach(() => {
     resetModuleEventRegistry();
+    for (const fixture of runtimeFixtures.splice(0)) fixture.runState.close();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
@@ -65,19 +73,59 @@ describe("semantic review request queue isolation", () => {
     projectDirs.push(projectDir);
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     const bus = new EventBus();
-    const runtime = new WorkflowRuntime({
+    const scopeId = deriveDirectoryScopeId(projectDir);
+    const pbus = new ProjectScopedEventBus(bus, scopeId);
+    const fixture = createTestWorkflowRuntime({
       bus,
+      pbus,
       projectDir,
+      projectId: scopeId,
       idleIntervalMs: 60_000,
       workflows: [queueOnlyWorkflow(workflow)],
     });
-    const pbus = new ProjectScopedEventBus(
-      bus,
-      deriveDirectoryScopeId(projectDir),
-    );
+    runtimeFixtures.push(fixture);
+    const { runtime } = fixture;
     runtime.start();
     runtime.setDispatchPaused(true);
-    return { runtime, pbus, projectDir };
+    return { runtime, pbus, projectDir, runState: fixture.runState, scopeId };
+  }
+
+  function persistProjectState(
+    runtime: ReturnType<typeof runtimeFor>,
+    key: string,
+    state: DurableEffectValue,
+  ): void {
+    const now = new Date().toISOString();
+    const current = runtime.runState.readProjectStateValue(
+      runtime.scopeId,
+      key,
+    );
+    const runId = `seed-scope-state-${current.revision}`;
+    runtime.runState.admitRun({
+      id: runId,
+      projectId: runtime.scopeId,
+      workflow: "test-state-seed",
+      repository: "none",
+      trigger: { event: "test.seed", schemaRef: null, payload: {} },
+      resources: [],
+      admittedAt: now,
+    });
+    runtime.runState.startRun(runId, 1, now);
+    runtime.runState.stageProjectStateMutation({
+      runId,
+      key,
+      expectedRevision: current.revision,
+      value: state,
+      stagedAt: now,
+    });
+    runtime.runState.finishRun(runId, 1, "succeeded", now);
+  }
+
+  function persistScopeState(
+    runtime: ReturnType<typeof runtimeFor>,
+    state: ScopeImprovementState,
+  ): void {
+    persistProjectState(runtime, SCOPE_IMPROVEMENT_STATE_KEY, state);
   }
 
   it("preserves every explicit progress request beside one latest automatic revision", async () => {
@@ -96,7 +144,6 @@ describe("semantic review request queue isolation", () => {
       deliveryAttempt: 0,
       idempotencyKey: progressReviewDispatchKey(scopeId, 1, 0),
     };
-    recordProgressReviewInputQueued({ projectDir, payload: revisionOne });
     pbus.emit(automaticProgressReviewRequested, revisionOne);
     const revisionTwo = {
       automatic: true,
@@ -105,7 +152,6 @@ describe("semantic review request queue isolation", () => {
       deliveryAttempt: 0,
       idempotencyKey: progressReviewDispatchKey(scopeId, 2, 0),
     };
-    recordProgressReviewInputQueued({ projectDir, payload: revisionTwo });
     pbus.emit(automaticProgressReviewRequested, revisionTwo);
     pbus.emit(automaticProgressReviewRequested, revisionOne);
     await runtime.stop();
@@ -127,20 +173,22 @@ describe("semantic review request queue isolation", () => {
     const events = initModuleEventRegistry();
     events.register("autonomy", scopeImprovementRequested);
     events.register("autonomy", scopeImprovementChanged);
-    const { runtime, pbus, projectDir } = runtimeFor(scopeImproverWorkflow);
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scope = runtimeFor(scopeImproverWorkflow);
+    const { runtime, pbus, scopeId } = scope;
 
     pbus.emit(scopeImprovementRequested, { reason: "owner request one" });
     pbus.emit(scopeImprovementRequested, { reason: "owner request two" });
     const firstFingerprint = "scope-content:first";
-    writePendingScopeFingerprint({
-      projectDir,
-      scopeId,
-      fingerprint: firstFingerprint,
-      boundary: "content-policy-changed",
-      delivery: "queued",
-      deliveryAttempt: 0,
-    });
+    let scopeState = reserveScopeImprovementInput(
+      emptyScopeImprovementState(scopeId),
+      {
+        fingerprint: firstFingerprint,
+        boundary: "content-policy-changed",
+        delivery: "queued",
+        deliveryAttempt: 0,
+      },
+    );
+    persistScopeState(scope, scopeState);
     const firstChange = {
       automatic: true,
       boundary: "content-policy-changed" as const,
@@ -150,14 +198,13 @@ describe("semantic review request queue isolation", () => {
     };
     pbus.emit(scopeImprovementChanged, firstChange);
     const secondFingerprint = "scope-content:second";
-    writePendingScopeFingerprint({
-      projectDir,
-      scopeId,
+    scopeState = reserveScopeImprovementInput(scopeState, {
       fingerprint: secondFingerprint,
       boundary: "content-policy-changed",
       delivery: "queued",
       deliveryAttempt: 0,
     });
+    persistScopeState(scope, scopeState);
     const secondChange = {
       automatic: true,
       boundary: "content-policy-changed" as const,
@@ -170,15 +217,20 @@ describe("semantic review request queue isolation", () => {
     await runtime.stop();
 
     const pending = runtime.getState().pendingRuns;
-    expect(pending.map((run) => run.trigger.payload.reason)).toEqual([
-      "owner request one",
-      "owner request two",
-      undefined,
-    ]);
-    expect(pending[2]?.trigger.payload).toMatchObject({
-      automatic: true,
-      fingerprint: "scope-content:second",
-    });
+    expect(pending).toHaveLength(3);
+    expect(pending.map((run) => run.trigger.payload.reason)).toEqual(
+      expect.arrayContaining(["owner request one", "owner request two"]),
+    );
+    expect(pending).toContainEqual(
+      expect.objectContaining({
+        trigger: expect.objectContaining({
+          payload: expect.objectContaining({
+            automatic: true,
+            fingerprint: "scope-content:second",
+          }),
+        }),
+      }),
+    );
   });
 
   it("rejects consumed progress revisions and scope fingerprints before queue insertion", async () => {
@@ -195,19 +247,16 @@ describe("semantic review request queue isolation", () => {
       deliveryAttempt: 0,
       idempotencyKey: progressReviewDispatchKey(progressScopeId, 1, 0),
     };
-    const progressInput = inspectProgressReviewSemanticInput({
-      projectDir: progress.projectDir,
-      trigger: {
-        event: automaticProgressReviewRequested.name,
-        schemaRef: null,
-        payload: progressPayload,
-      },
-    });
-    recordProgressReviewSemanticInput({
-      projectDir: progress.projectDir,
-      input: progressInput,
-      consumedAt: "2026-08-15T12:00:00.000Z",
-    });
+    persistProjectState(
+      progress,
+      PROGRESS_REVIEW_STATE_KEY,
+      {
+        schemaVersion: 1,
+        scopeId: progressScopeId,
+        lastConsumedRevision: 1,
+        consumedAt: "2026-08-15T12:00:00.000Z",
+      } satisfies ProgressReviewConsumptionState,
+    );
     progress.pbus.emit(automaticProgressReviewRequested, progressPayload);
     await progress.runtime.stop();
     expect(progress.runtime.getState().pendingRuns).toEqual([]);
@@ -215,9 +264,7 @@ describe("semantic review request queue isolation", () => {
     const scope = runtimeFor(scopeImproverWorkflow);
     const scopeId = deriveDirectoryScopeId(scope.projectDir);
     const fingerprint = "scope-content:consumed";
-    const statePath = join(scope.projectDir, SCOPE_IMPROVEMENT_STATE_PATH);
-    mkdirSync(dirname(statePath), { recursive: true });
-    writeFileSync(statePath, JSON.stringify({
+    persistScopeState(scope, {
       scopeId,
       lastRunAt: "2026-08-15T12:00:00.000Z",
       consumedFingerprint: fingerprint,
@@ -226,7 +273,7 @@ describe("semantic review request queue isolation", () => {
       pendingDelivery: null,
       pendingDeliveryAttempt: 0,
       recentSignatures: [],
-    }));
+    });
     scope.pbus.emit(scopeImprovementChanged, {
       automatic: true,
       boundary: "content-policy-changed",

@@ -131,10 +131,9 @@ export type RetractResult =
  * `retract(request)` removes one named record from one named target,
  * routing through the same in-process retract provider every other
  * surface (CLI, agent tool, daemon route) consumes. The seam delegates
- * to each store's existing removal helper (`MemoryProvider.delete`,
- * `KnowledgeProvider.delete`, `moveTaskById(... "dropped")`, an inbox
- * `unlinkSync`) — it never opens a parallel persistence path and never
- * tries to be clever across targets.
+ * to each store's existing removal helper. Task removal additionally enters
+ * the repo-task mutation boundary so an operator cannot race a workflow that
+ * owns the same `task:<id>` resource.
  */
 export interface RetractClient {
   retract(request: RetractRequest): Promise<RetractResult>;

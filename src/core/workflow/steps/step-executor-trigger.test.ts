@@ -3,6 +3,8 @@ import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowTriggerStep } from "../step-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
+import { unexpectedWorkflowCommandRun } from "../testing/command-runner.js";
+import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
 
 function makeContext(
@@ -10,6 +12,8 @@ function makeContext(
 ): WorkflowStepContext {
   return {
     projectDir: "/project",
+    scopeDir: "/project",
+    stateDir: "/project/.kota",
     workflow: {
       name: "parent",
       definitionPath: "src/modules/test/workflows/parent/workflow.ts",
@@ -23,21 +27,21 @@ function makeContext(
     stepResults: {},
     stepOutputList: [],
     runTool: () => Promise.reject(new Error("not used")),
+    runCommand: unexpectedWorkflowCommandRun,
     emit: () => {},
     requestRestart: () => {},
     readPrompt: () => "",
     readRuntimeState: () => ({
       completedRuns: 0,
-      pendingRuns: [],
       workflows: {},
     }),
+    state: createTestTransactionalRunState(),
     reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
     agentRuntime: overrides.agentRuntime ?? resolveAgentRuntime(undefined),
     runAgentHarness:
       overrides.runAgentHarness ?? unexpectedWorkflowAgentHarnessRun,
-    workspaceDir: overrides.workspaceDir ?? overrides.projectDir ?? "/project",
   };
 }
 
@@ -65,6 +69,7 @@ describe("executeTriggerStep", () => {
       {},
       "queued",
       undefined,
+      "trigger-child",
     );
     expect(result).toEqual({ runId: "child-run-1", status: "queued" });
   });
@@ -81,6 +86,7 @@ describe("executeTriggerStep", () => {
       {},
       "completed",
       undefined,
+      "trigger-child",
     );
     expect(result).toEqual({ runId: "child-run-2", status: "completed" });
   });
@@ -120,6 +126,7 @@ describe("executeTriggerStep", () => {
       { source: "parent", count: 3 },
       "queued",
       undefined,
+      "trigger-child",
     );
   });
 
@@ -138,6 +145,7 @@ describe("executeTriggerStep", () => {
       { source: "builder", taskId: "task-abc" },
       "queued",
       undefined,
+      "trigger-child",
     );
   });
 
@@ -154,6 +162,7 @@ describe("executeTriggerStep", () => {
       { id: "{{trigger.payload.missing}}" },
       "queued",
       undefined,
+      "trigger-child",
     );
   });
 
@@ -169,6 +178,7 @@ describe("executeTriggerStep", () => {
       {},
       "completed",
       controller.signal,
+      "trigger-child",
     );
   });
 
@@ -187,6 +197,7 @@ describe("executeTriggerStep", () => {
       { count: 7 },
       "queued",
       undefined,
+      "trigger-child",
     );
   });
 

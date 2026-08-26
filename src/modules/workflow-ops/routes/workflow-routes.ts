@@ -6,6 +6,7 @@ import type {
 } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { DEFAULT_WORKFLOW_CONCURRENCY } from "#core/workflow/concurrency.js";
 import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -21,8 +22,7 @@ const EMPTY_WORKFLOW_STATUS: WorkflowLiveStatus = {
   completedRuns: 0,
   workflows: {},
   paused: false,
-  agentConcurrency: 1,
-  codeConcurrency: 4,
+  concurrency: DEFAULT_WORKFLOW_CONCURRENCY,
 };
 
 export async function handleWorkflowStatus(

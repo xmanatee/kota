@@ -10,6 +10,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { createStepContext } from "#core/workflow/steps/step-context.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
 
@@ -46,10 +47,12 @@ describe("workflow machine-authority isolation", () => {
       [],
       {
         projectDir,
+        scopeDir: projectDir,
         authorityConfigPath,
         bus,
         pbus: new ProjectScopedEventBus(bus, "scope-a"),
         store: new WorkflowRunStore(projectDir),
+        runContext: createTestRunContext(projectDir, trigger),
         runAgentHarness: unexpectedWorkflowAgentHarnessRun,
         currentStepId: "mutate",
       },

@@ -9,7 +9,7 @@ const minimalWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "test",
   enabled: true,
-  recoveryCapable: false,
+  repository: "read",
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   moduleRoot: "/test-module-root",

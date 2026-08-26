@@ -100,7 +100,6 @@ export function describeSecurityReviewFindingRunTests(
       expect(result.steps["record-investigation-findings"].status).toBe("success");
       expect(result.steps["record-revalidation"].status).toBe("success");
       expect(result.steps["create-follow-up-tasks"].status).toBe("success");
-      expect(result.steps["validate-before-commit"].status).toBe("success");
       const created = result.steps["create-follow-up-tasks"].output as { createdTaskIds: string[] };
       expect(created.createdTaskIds).toHaveLength(1);
       const createdTaskId = created.createdTaskIds[0];
@@ -123,8 +122,6 @@ export function describeSecurityReviewFindingRunTests(
       expect(preflight.ok).toBe(true);
       expect(preflight.checks.map((check) => check.rail)).toEqual([
         "task-validation",
-        "scratch-artifacts",
-        "commit-stageable",
         "commit-message",
       ]);
       expect(preflight.checks.every((check) => check.status === "passed")).toBe(true);
@@ -205,8 +202,6 @@ export function describeSecurityReviewFindingRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("failed");
-      expect(result.steps["validate-before-commit"].status).toBe("failed");
-      expect(result.steps.commit).toBeUndefined();
       const preflight = JSON.parse(
         readFileSync(
           join(fixture.projectDir, ".kota/runs/harness/security-review-preflight.json"),

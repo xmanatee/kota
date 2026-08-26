@@ -5,40 +5,14 @@ import { join } from "node:path";
 import { vi } from "vitest";
 import { Daemon } from "#core/daemon/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
 import blockedPromoterWorkflow from "./workflow.js";
 
 // The cycle's components remain real. These mocks cover only adjacent
-// validation, commit, task-store initialization, and Telegram HTTP transport.
+// validation, task-store initialization, and Telegram HTTP transport.
 vi.mock("#modules/telegram/client.js", () => ({
   callTelegramApi: vi.fn().mockResolvedValue(undefined),
 }));
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-    "#modules/autonomy/shared.js",
-  );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-    "#modules/autonomy/commit.js",
-  );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-pick-variant.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
 
 vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("#core/daemon/task-store.js")>();
@@ -121,6 +95,10 @@ function blockedTaskBody(): string {
 export function setupProjectDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "owner-decision-cycle-"));
   writeFileSync(join(dir, ".gitignore"), ".kota/\n");
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify({ scripts: { "validate-tasks": "true" } }),
+  );
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
@@ -151,6 +129,13 @@ export function makeDaemon(projectDir: string): Daemon {
         "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
         {
           ...blockedPromoterWorkflow,
+          moduleRoot: projectDir,
+        },
+      ),
+      registerWorkflowDefinition(
+        "src/modules/autonomy/workflows/blocked-promoter-owner-decision/workflow.ts",
+        {
+          ...blockedPromoterOwnerDecisionWorkflow,
           moduleRoot: projectDir,
         },
       ),

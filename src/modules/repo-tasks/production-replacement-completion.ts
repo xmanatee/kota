@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
@@ -41,33 +40,6 @@ function resolveRepoFile(projectDir: string, path: string): string | null {
   }
 }
 
-function isIndexedRepoFile(projectDir: string, absolutePath: string): boolean {
-  const repoRelative = relative(projectDir, absolutePath);
-  try {
-    execFileSync(
-      "git",
-      ["ls-files", "--error-unmatch", "--", repoRelative],
-      {
-        cwd: projectDir,
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    execFileSync(
-      "git",
-      ["diff", "--quiet", "--", repoRelative],
-      {
-        cwd: projectDir,
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function resolveProductionReplacementCompletion(args: {
   raw: string;
   taskId: string;
@@ -95,12 +67,6 @@ function resolveProductionReplacementCompletion(args: {
   const artifactPath = resolveRepoFile(args.projectDir, parsed.declaration.evidenceArtifact);
   if (artifactPath === null) {
     return { ok: false, error: `evidence artifact is missing, empty, unsafe, or symlinked: ${parsed.declaration.evidenceArtifact}` };
-  }
-  if (!isIndexedRepoFile(args.projectDir, artifactPath)) {
-    return {
-      ok: false,
-      error: `evidence artifact must be tracked or staged with indexed content matching the durable clean-checkout proof: ${parsed.declaration.evidenceArtifact}`,
-    };
   }
   let artifact: ProductionReplacementArtifact | null;
   try {

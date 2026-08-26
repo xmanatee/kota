@@ -2,27 +2,22 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { repoWorktreeStatusOperation } from "#core/util/repo-worktree-operation.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
-import { onNormalTrigger } from "#modules/autonomy/recovery.js";
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
-  runCheck,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
 import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
+import { collectProgressReviewGitEvidence } from "./progress-review/git-evidence.js";
 import {
   collectProgressReviewEvidenceOperation,
   compactProgressReviewEvidenceForAgent,
@@ -41,10 +36,8 @@ import {
   writeProgressReviewArtifact,
 } from "./progress-review.js";
 import {
-  deferProgressReviewSemanticInput,
   inspectProgressReviewSemanticInput,
   type ProgressReviewSemanticInput,
-  recordProgressReviewSemanticInput,
 } from "./semantic-input.js";
 
 export const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -54,10 +47,6 @@ export const agent: AgentDef = {
   promptPath: "src/modules/autonomy/workflows/progress-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   writeScope: "deny-all",
-};
-
-type WorktreeInspection = {
-  dirty: boolean;
 };
 
 function writeProgressReviewEvidencePacket(
@@ -85,7 +74,6 @@ function readProgressReviewEvidencePacket(
 export const inspectSemanticInput = typedCodeStep<ProgressReviewSemanticInput>({
   id: "inspect-semantic-input",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<ProgressReviewSemanticInput>(raw, [
       "automatic",
@@ -96,66 +84,40 @@ export const inspectSemanticInput = typedCodeStep<ProgressReviewSemanticInput>({
       "reason",
       "deliveryAttempt",
     ]),
-  run: ({ projectDir, trigger }) =>
-    inspectProgressReviewSemanticInput({ projectDir, trigger }),
-});
-
-export const inspectWorktree = typedCodeStep<WorktreeInspection>({
-  id: "inspect-worktree",
-  type: "code",
-  when: (ctx) =>
-    onNormalTrigger(ctx) &&
-    inspectSemanticInput.output(ctx)?.shouldReview === true,
-  validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
-  run: async ({ projectDir, runBlocking }) => {
-    const worktree = await runBlocking(repoWorktreeStatusOperation, {
-      projectDir,
-    });
-    return { dirty: worktree.available && worktree.dirty };
-  },
-});
-
-export const deferSemanticInput = typedCodeStep<{ deferred: true }>({
-  id: "defer-semantic-input",
-  type: "code",
-  when: (ctx) => {
-    const input = inspectSemanticInput.output(ctx);
-    return onNormalTrigger(ctx) &&
-      input?.automatic === true &&
-      input.shouldReview &&
-      inspectWorktree.output(ctx)?.dirty === true;
-  },
-  validate: (raw) => {
-    const output = expectStructuredOutput<{ deferred: true }>(raw, ["deferred"]);
-    if (output.deferred !== true) {
-      throw new Error("expected deferred progress semantic input");
-    }
-    return output;
-  },
-  run: (ctx) => {
-    deferProgressReviewSemanticInput({
-      projectDir: ctx.projectDir,
-      input: inspectSemanticInput.outputRequired(ctx),
-    });
-    return { deferred: true } as const;
-  },
+  run: ({ scopeDir, state, trigger }) =>
+    inspectProgressReviewSemanticInput({ scopeDir, state, trigger }),
 });
 
 export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
   id: "collect-evidence",
   type: "code",
   when: (ctx) =>
-    onNormalTrigger(ctx) &&
     inspectSemanticInput.output(ctx)?.shouldReview === true,
   validate: validateProgressReviewEvidenceHandle,
   run: async (ctx) => {
-    const { projectDir, stateDir, trigger, workflow } = ctx;
-    const packet = await ctx.runBlocking(collectProgressReviewEvidenceOperation, {
+    const { projectDir, scopeDir, stateDir, trigger, workflow } = ctx;
+    const now = new Date();
+    const gitEvidenceByScope = await collectProgressReviewGitEvidence({
       projectDir,
+      scopeDir,
       stateDir,
       trigger,
-      nowIso: new Date().toISOString(),
+      now,
+      runCommand: ctx.runCommand,
+    });
+    const packet = await ctx.runBlocking(collectProgressReviewEvidenceOperation, {
+      projectDir,
+      scopeDir,
+      stateDir,
+      trigger,
+      nowIso: now.toISOString(),
       semanticInput: inspectSemanticInput.outputRequired(ctx),
+      gitEvidenceByScope,
+      autonomyIssueProjection: decodeAutonomyIssueProjection(
+        ctx.state.read<AutonomyIssueProjection>(
+          AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+        ).value,
+      ),
     });
     return writeProgressReviewEvidencePacket(workflow.runDirPath, packet);
   },
@@ -174,10 +136,7 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
 export const applyActions = typedCodeStep<ProgressReviewActionResult>({
   id: "apply-actions",
   type: "code",
-  when: (ctx) => {
-    if (!stepSucceeded("review-evidence")(ctx)) return false;
-    return inspectWorktree.output(ctx)?.dirty === false;
-  },
+  when: stepSucceeded("review-evidence"),
   validate: (raw) =>
     expectStructuredOutput<ProgressReviewActionResult>(raw, [
       "createdTaskIds",
@@ -233,11 +192,6 @@ export const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       runId: ctx.workflow.runId,
       workflow: ctx.workflow.name,
     });
-    recordProgressReviewSemanticInput({
-      projectDir: ctx.projectDir,
-      input: inspectSemanticInput.outputRequired(ctx),
-      consumedAt: artifact.generatedAt,
-    });
     return { written: true, path: artifactPath };
   },
 });
@@ -260,8 +214,8 @@ export const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-export const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+export const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -274,25 +228,13 @@ export const validateBeforeCommit = typedCodeStep<{ ok: true }>({
       projectDir: ctx.projectDir,
       options: { minReady: 0 },
     });
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
-});
-
-export const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
 });
 
 export function needsAttention(actions: ProgressReviewActionResult): boolean {
@@ -300,6 +242,7 @@ export function needsAttention(actions: ProgressReviewActionResult): boolean {
     action.kind === "created-task" ||
     action.kind === "updated-task" ||
     action.kind === "owner-question" ||
-    action.kind === "updated-owner-question"
+    action.kind === "updated-owner-question" ||
+    action.kind === "owner-question-pending"
   );
 }

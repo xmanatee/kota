@@ -1,6 +1,7 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CriticVerdict } from "./critic.js";
 import {
@@ -48,18 +49,34 @@ function getPromptArg(call: unknown[]): string {
   return options.prompt;
 }
 
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual("node:child_process");
-  return {
-    ...actual,
-    execFileSync: vi.fn(() => ""),
-  };
-});
-
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-gate-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
+  writeFileSync(join(dir, "seed.txt"), "seed\n");
+  execFileSync("git", ["init", "--quiet"], { cwd: dir });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
+  execFileSync("git", ["add", ".gitignore", "seed.txt"], { cwd: dir });
+  execFileSync("git", ["commit", "--quiet", "-m", "seed"], { cwd: dir });
   return dir;
+}
+
+function commitFile(projectDir: string, path: string, content: string): void {
+  const absolutePath = join(projectDir, path);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, content);
+  execFileSync("git", ["add", "--", path], { cwd: projectDir });
+  execFileSync("git", ["commit", "--quiet", "-m", `seed ${path}`], {
+    cwd: projectDir,
+  });
+}
+
+function stageFile(projectDir: string, path: string, content: string): void {
+  const absolutePath = join(projectDir, path);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, content);
+  execFileSync("git", ["add", "--", path], { cwd: projectDir });
 }
 
 function makeContext(projectDir: string, runDirPath?: string) {
@@ -71,7 +88,7 @@ function makeContext(projectDir: string, runDirPath?: string) {
       runDirPath: runDirPath ?? join(projectDir, ".kota/runs/test-run"),
       definitionPath: "src/modules/autonomy/workflows/improver/workflow.ts",
     },
-    trigger: { event: "workflow.build.committed", payload: {} },
+    trigger: { event: "autonomy.issue.decision-requested", payload: {} },
     stepOutputs: {},
     stepResults: {},
     runBlocking: mockRunBlocking,
@@ -105,7 +122,7 @@ describe("createImproverSemanticCheck", () => {
     vi.clearAllMocks();
   });
 
-  it("skips when there are no staged changes", async () => {
+  it("skips when there are no workspace changes", async () => {
     const dir = makeTmpDir();
     const check = createImproverSemanticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
@@ -114,22 +131,12 @@ describe("createImproverSemanticCheck", () => {
   });
 
   it("passes a valid autonomy improvement diff", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Increase critic retry count to reduce transient failures");
-
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) {
-        return "src/modules/autonomy/critic.ts\n";
-      }
-      if (argStr.includes("--stat")) {
-        return " src/modules/autonomy/critic.ts | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)\n";
-      }
-      return "diff --git a/src/modules/autonomy/critic.ts b/src/modules/autonomy/critic.ts\n--- a/src/modules/autonomy/critic.ts\n+++ b/src/modules/autonomy/critic.ts\n@@ -1,1 +1,1 @@\n-const MAX_RETRIES = 2;\n+const MAX_RETRIES = 3;\n";
-    });
+    commitFile(dir, "src/modules/autonomy/critic.ts", "const MAX_RETRIES = 2;\n");
+    stageFile(dir, "src/modules/autonomy/critic.ts", "const MAX_RETRIES = 3;\n");
 
     setGateResponse({
       verdict: "pass",
@@ -153,22 +160,11 @@ describe("createImproverSemanticCheck", () => {
   });
 
   it("fails an artifact-only commit", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Fix repair loop abort check");
-
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) {
-        return ".claude/worktrees/repair-loop-abort-check\n";
-      }
-      if (argStr.includes("--stat")) {
-        return " .claude/worktrees/repair-loop-abort-check | 1 +\n 1 file changed, 1 insertion(+)\n";
-      }
-      return "diff --git a/.claude/worktrees/repair-loop-abort-check b/.claude/worktrees/repair-loop-abort-check\nnew file mode 100644\n";
-    });
+    stageFile(dir, ".claude/worktrees/repair-loop-abort-check", "scratch\n");
 
     setGateResponse({
       verdict: "fail",
@@ -184,18 +180,12 @@ describe("createImproverSemanticCheck", () => {
   });
 
   it("writes semantic-gate-review.json on fail", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Improve prompts");
 
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "some-file.ts\n";
-      if (argStr.includes("--stat")) return " some-file.ts | 1 +\n";
-      return "diff\n";
-    });
+    stageFile(dir, "some-file.ts", "export const changed = true;\n");
 
     setGateResponse({
       verdict: "fail",
@@ -213,18 +203,16 @@ describe("createImproverSemanticCheck", () => {
   });
 
   it("passes with warnings and records them", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Adjust timeout values");
 
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "src/modules/autonomy/workflows/builder/workflow.ts\n";
-      if (argStr.includes("--stat")) return " src/modules/autonomy/workflows/builder/workflow.ts | 2 +-\n";
-      return "diff content\n";
-    });
+    stageFile(
+      dir,
+      "src/modules/autonomy/workflows/builder/workflow.ts",
+      "export const timeoutMs = 1_000;\n",
+    );
 
     setGateResponse({
       verdict: "pass_with_warnings",
@@ -257,18 +245,12 @@ describe("createImproverSemanticCheck", () => {
   });
 
   it("includes commit message and run artifacts in the prompt", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Unique commit message for test");
 
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "file.ts\n";
-      if (argStr.includes("--stat")) return " file.ts | 1 +\n";
-      return "diff\n";
-    });
+    stageFile(dir, "file.ts", "export const changed = true;\n");
 
     setGateResponse({
       verdict: "pass",

@@ -95,11 +95,9 @@ export function renderStatRows(
 	const pausedCell: StatCell = snapshot.dispatchPaused
 		? {
 				label: "Paused",
-				value: snapshot.dispatchPause?.kind === "dirty-recovery"
-					? "recovery"
-					: snapshot.dispatchPause?.kind === "operator"
-						? "operator"
-						: "yes",
+					value: snapshot.dispatchPause?.kind === "operator"
+							? "operator"
+							: "yes",
 				valueRole: "warn",
 			}
 		: { label: "Paused", value: "no" };

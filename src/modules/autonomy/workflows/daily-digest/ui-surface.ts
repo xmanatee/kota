@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { UiSurface } from "#core/daemon/ui-surface.js";
 import type { UiSurfaceSource } from "#core/modules/module-ui-surfaces.js";
 import { renderOnDemandDigest } from "./on-demand.js";
@@ -27,7 +28,10 @@ function buildDailyDigestUiSurface(scopeId: string, body: string): UiSurface {
 export const dailyDigestUiSurfaceSource: UiSurfaceSource = {
   sourceId: "daily-digest",
   project: (context) => {
-    const digest = renderOnDemandDigest({ projectDir: context.cwd });
+    const digest = renderOnDemandDigest({
+      projectDir: context.cwd,
+      stateDir: join(context.cwd, ".kota"),
+    });
     return [buildDailyDigestUiSurface(context.scopeId, digest.text)];
   },
 };

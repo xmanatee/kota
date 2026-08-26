@@ -29,7 +29,7 @@ export function listPrunedRuns(
   windowStartMs: number,
   excluded: string[],
 ): ScopedRunEvidence[] {
-  const runsDir = join(source.projectDir, ".kota", "runs");
+  const runsDir = join(source.stateDir, "runs");
   if (!existsSync(runsDir)) return [];
 
   let references: ReturnType<typeof readPrunedWorkflowRunReferences>;

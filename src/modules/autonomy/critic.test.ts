@@ -1,12 +1,13 @@
 import "./critic-test-fixture.integration.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
   getMockRunBlocking,
+  getOptionsArg,
   getPromptArg,
   makeContext,
   makeRunDir,
@@ -16,9 +17,28 @@ import {
   TEST_PARENT_STEP,
   writeDoingTask,
 } from "./critic-test-fixture.integration.js";
+import { builderRepairChecks } from "./workflows/builder/repair-checks.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
 const mockRunBlocking = getMockRunBlocking();
+
+function builderTaskPayload(taskId: string): Record<string, unknown> {
+  const taskDigest = taskId === "task-alpha" ? "a".repeat(64) : "b".repeat(64);
+  return {
+    taskId,
+    taskPath: `data/tasks/doing/${taskId}.md`,
+    taskState: "doing",
+    taskUpdatedAt: "2026-08-25T00:00:00.000Z",
+    taskDigest,
+    idempotencyKey: `builder:${taskId}:${taskDigest}`,
+  };
+}
+
+function builderCriticCheck(): CodeCheck {
+  const check = builderRepairChecks().find((candidate) => candidate.id === "critic-review");
+  if (!check || check.type !== "code") throw new Error("missing builder critic check");
+  return check as CodeCheck;
+}
 
 describe("createCriticCheck", () => {
   beforeEach(resetCriticTestMocks);
@@ -75,6 +95,94 @@ describe("createCriticCheck", () => {
     });
   });
 
+  it("keeps simultaneous builder critics bound to their own task identities", async () => {
+    const alphaWorkspace = makeTmpDir();
+    const betaWorkspace = makeTmpDir();
+    for (const workspace of [alphaWorkspace, betaWorkspace]) {
+      writeDoingTask(
+        workspace,
+        "task-alpha.md",
+        "---\nid: task-alpha\ntitle: Alpha\n---\nAlpha task only.",
+      );
+      writeDoingTask(
+        workspace,
+        "task-beta.md",
+        "---\nid: task-beta\ntitle: Beta\n---\nBeta task only.",
+      );
+    }
+    const alphaProject = makeTmpDir();
+    const betaProject = makeTmpDir();
+    const alphaRunDir = makeRunDir(alphaProject);
+    const betaRunDir = makeRunDir(betaProject);
+    setApiResponse({
+      verdict: "pass",
+      critical_issues: [],
+      warnings: [],
+      summary: "Expected task reviewed.",
+    });
+
+    const check = builderCriticCheck();
+    await Promise.all([
+      check.run(
+        makeContext(
+          alphaProject,
+          alphaRunDir,
+          alphaWorkspace,
+          undefined,
+          builderTaskPayload("task-alpha"),
+        ),
+        TEST_PARENT_STEP,
+      ),
+      check.run(
+        makeContext(
+          betaProject,
+          betaRunDir,
+          betaWorkspace,
+          undefined,
+          builderTaskPayload("task-beta"),
+        ),
+        TEST_PARENT_STEP,
+      ),
+    ]);
+
+    const promptsByWorkspace = new Map(
+      mockRunAgentHarness.mock.calls.map((call) => [
+        String(getOptionsArg(call).cwd),
+        getPromptArg(call).split("## Changed files", 1)[0],
+      ]),
+    );
+    expect(promptsByWorkspace.get(alphaWorkspace)).toContain("Alpha task only.");
+    expect(promptsByWorkspace.get(alphaWorkspace)).not.toContain("Beta task only.");
+    expect(promptsByWorkspace.get(betaWorkspace)).toContain("Beta task only.");
+    expect(promptsByWorkspace.get(betaWorkspace)).not.toContain("Alpha task only.");
+  });
+
+  it("fails closed when the builder critic cannot find its expected task", async () => {
+    const projectDir = makeTmpDir();
+    const workspaceDir = makeTmpDir();
+    writeDoingTask(
+      workspaceDir,
+      "task-alpha.md",
+      "---\nid: task-alpha\ntitle: Alpha\n---\nUnrelated task.",
+    );
+    const runDir = makeRunDir(projectDir);
+    const check = builderCriticCheck();
+
+    await expect(
+      check.run(
+        makeContext(
+          projectDir,
+          runDir,
+          workspaceDir,
+          undefined,
+          builderTaskPayload("task-beta"),
+        ),
+        TEST_PARENT_STEP,
+      ),
+    ).rejects.toThrow(/expected task task-beta.*not found/i);
+    expect(mockRunAgentHarness).not.toHaveBeenCalled();
+  });
+
   it("skips when no task in doing/ and no staged done/ task", async () => {
     const dir = makeTmpDir();
     const check = createCriticCheck();
@@ -83,20 +191,14 @@ describe("createCriticCheck", () => {
   });
 
   it("finds task in done/ via staged git diff when doing/ is empty", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const doneDir = join(dir, "data/tasks/done");
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(join(doneDir, "task-moved.md"), "---\ntitle: Moved task\n---\nTask content.");
     const runDir = makeRunDir(dir);
 
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("data/tasks/done/")) {
-        return `R100\tdata/tasks/backlog/task-moved.md\tdata/tasks/done/task-moved.md\n`;
-      }
-      return "";
-    });
+    const taskMutationStatus =
+      "R100\tdata/tasks/backlog/task-moved.md\tdata/tasks/done/task-moved.md\n";
     setApiResponse({
       verdict: "pass",
       critical_issues: [],
@@ -105,7 +207,10 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    const result = await (check as CodeCheck).run(
+      makeContext(dir, runDir, undefined, undefined, {}, taskMutationStatus),
+      TEST_PARENT_STEP,
+    );
 
     expect(result).toMatch(/pass/);
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
@@ -113,7 +218,6 @@ describe("createCriticCheck", () => {
   });
 
   it("reviews a staged done task before collateral blocked task edits", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     const blockedDir = join(dir, "data/tasks/blocked");
     const doneDir = join(dir, "data/tasks/done");
@@ -129,17 +233,11 @@ describe("createCriticCheck", () => {
     );
     const runDir = makeRunDir(dir);
 
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("data/tasks/done/")) {
-        return [
-          "M\tdata/tasks/blocked/task-collateral-blocker.md",
-          "A\tdata/tasks/done/task-implemented-work.md",
-          "",
-        ].join("\n");
-      }
-      return "";
-    });
+    const taskMutationStatus = [
+      "M\tdata/tasks/blocked/task-collateral-blocker.md",
+      "A\tdata/tasks/done/task-implemented-work.md",
+      "",
+    ].join("\n");
     setApiResponse({
       verdict: "pass",
       critical_issues: [],
@@ -148,11 +246,15 @@ describe("createCriticCheck", () => {
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    await (check as CodeCheck).run(
+      makeContext(dir, runDir, undefined, undefined, {}, taskMutationStatus),
+      TEST_PARENT_STEP,
+    );
 
     const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
-    expect(userMessage).toContain("Implemented work");
-    expect(userMessage).not.toContain("Collateral blocker");
+    const taskSection = userMessage.split("## Changed files", 1)[0];
+    expect(taskSection).toContain("Implemented work");
+    expect(taskSection).not.toContain("Collateral blocker");
   });
 
   it("calls the critic agent and passes on pass verdict", async () => {

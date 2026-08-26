@@ -8,13 +8,13 @@ import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
 } from "#core/agent-harness/types.js";
-import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep } from "./step-types.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -22,7 +22,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   return {
     name: "test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -77,8 +77,50 @@ function registerWorkflowTestHarness(
   });
 }
 
-function makeScopedBus(projectDir: string, bus: EventBus): ProjectScopedEventBus {
-  return new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
+function makeRunContext(projectDir: string): RunContext {
+  const runId = "test-run";
+  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const workspaceDir = join(rootDir, "workspace");
+  const tempDir = join(rootDir, "tmp");
+  const artifactDir = join(rootDir, "artifacts");
+  const agentDir = join(rootDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const path of [workspaceDir, tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger: TRIGGER,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir,
+      workspaceDir,
+      tempDir,
+      artifactDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: rootDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 41_000, end: 41_003, size: 4, values: [41_000, 41_001, 41_002, 41_003] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
 }
 
 function makeAgentStep(
@@ -100,27 +142,29 @@ function makeAgentStep(
   };
 }
 
+let projectDir: string;
+let store: WorkflowRunStore;
+let bus: EventBus;
+let runContext: RunContext;
+const log = vi.fn();
+
+beforeEach(() => {
+  projectDir = join(
+    tmpdir(),
+    `kota-run-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(projectDir, { recursive: true });
+  store = new WorkflowRunStore(projectDir);
+  bus = new EventBus();
+  runContext = makeRunContext(projectDir);
+  log.mockReset();
+});
+
+afterEach(() => {
+  rmSync(projectDir, { recursive: true, force: true });
+});
+
 describe("continueOnFailure", () => {
-  let projectDir: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-run-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
   it("subsequent steps run when a continueOnFailure step fails", async () => {
     const executed: string[] = [];
     const definition = makeDefinition({
@@ -146,7 +190,7 @@ describe("continueOnFailure", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
@@ -174,15 +218,15 @@ describe("continueOnFailure", () => {
     bus.on("workflow.completed", (payload) => completed.push(payload));
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
-    expect(completed).toHaveLength(1);
-    expect((completed[0] as { status: string }).status).toBe("completed-with-warnings");
+    expect(result.metadata.status).toBe("completed-with-warnings");
+    expect(completed).toEqual([]);
   });
 
   it("failed continueOnFailure step result has continueOnFailure flag set in stored metadata", async () => {
@@ -200,7 +244,7 @@ describe("continueOnFailure", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
@@ -244,15 +288,16 @@ describe("continueOnFailure", () => {
     bus.on("workflow.completed", (payload) => completed.push(payload));
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
     expect(executed).toEqual(["critical-step"]);
-    expect((completed[0] as { status: string }).status).toBe("failed");
+    expect(result.metadata.status).toBe("failed");
+    expect(completed).toEqual([]);
   });
 
   it("run finishes with success when no steps fail", async () => {
@@ -271,14 +316,15 @@ describe("continueOnFailure", () => {
     bus.on("workflow.completed", (payload) => completed.push(payload));
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
-    expect((completed[0] as { status: string }).status).toBe("success");
+    expect(result.metadata.status).toBe("success");
+    expect(completed).toEqual([]);
   });
 
   it("next step can inspect failed continueOnFailure step result via stepResults", async () => {
@@ -305,7 +351,7 @@ describe("continueOnFailure", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
@@ -318,26 +364,6 @@ describe("continueOnFailure", () => {
 });
 
 describe("step timeout", () => {
-  let projectDir: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-step-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
   it("DEFAULT_STEP_TIMEOUT_MS is a hang rail, not a task-size limit", () => {
     expect(DEFAULT_STEP_TIMEOUT_MS).toBe(3 * 60 * 60 * 1000);
   });
@@ -354,7 +380,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -376,7 +402,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -400,17 +426,13 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     await promise;
 
     expect(executed).toEqual([]);
   }, 10_000);
 
-  it("emits workflow.failure.alert on step timeout", async () => {
-    const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
-    const pbus = makeScopedBus(projectDir, bus);
-    subscribeWorkflowFailureAlert(pbus, projectDir);
-
+  it("defers workflow failure publication on step timeout to the terminal rail", async () => {
     const alerts: unknown[] = [];
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
 
@@ -425,12 +447,11 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, pbus, store, log });
-    await promise;
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
+    const result = await promise;
 
-    expect(alerts).toHaveLength(1);
-    expect((alerts[0] as { status: string }).status).toBe("failed");
-    expect((alerts[0] as { scopeId: string }).scopeId).toBe(deriveDirectoryScopeId(projectDir));
+    expect(result.metadata.status).toBe("failed");
+    expect(alerts).toEqual([]);
   }, 10_000);
 
   it("lets code steps exceed idleTimeoutMs when they report typed progress", async () => {
@@ -452,7 +473,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -474,7 +495,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -508,7 +529,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -537,7 +558,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -578,7 +599,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
     const step = result.metadata.steps[0];
     const runDirPath = join(projectDir, result.metadata.runDir);
@@ -624,7 +645,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -664,7 +685,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -699,17 +720,14 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
     expect(attempts).toBe(2);
   }, 10_000);
 
-  it("records structured idle-timeout failure details and emits the failure path", async () => {
-    const { subscribeWorkflowFailureAlert } = await import("./failure-alert.js");
-    const pbus = makeScopedBus(projectDir, bus);
-    subscribeWorkflowFailureAlert(pbus, projectDir);
+  it("records structured idle-timeout failure details before terminal publication", async () => {
     const alerts: unknown[] = [];
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
 
@@ -730,7 +748,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, pbus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -739,7 +757,7 @@ describe("step timeout", () => {
       errorKind: "idle-timeout",
       idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
     });
-    expect(alerts).toHaveLength(1);
+    expect(alerts).toEqual([]);
   }, 10_000);
 
   it("records structured idle-timeout failure details from repair agents", async () => {
@@ -775,7 +793,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -813,7 +831,7 @@ describe("step timeout", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext,
       bus,
       store,
       log,
@@ -846,7 +864,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     const child = result.metadata.steps.find((step) => step.id === "inner-code");
@@ -879,7 +897,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     const child = result.metadata.steps.find((step) => step.id === "inner-code");
@@ -916,7 +934,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     const child = result.metadata.steps.find((step) => step.id === "inner-agent");
@@ -956,7 +974,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     const child = result.metadata.steps.find((step) => step.id === "inner-agent");
@@ -987,7 +1005,7 @@ describe("step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -997,26 +1015,6 @@ describe("step timeout", () => {
 });
 
 describe("foreach step timeout", () => {
-  let projectDir: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-foreach-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
   it("fails the run when a foreach step exceeds its timeoutMs", async () => {
     const definition = makeDefinition({
       steps: [
@@ -1037,7 +1035,7 @@ describe("foreach step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -1066,7 +1064,7 @@ describe("foreach step timeout", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -1074,26 +1072,6 @@ describe("foreach step timeout", () => {
 });
 
 describe("outputSchema validation", () => {
-  let projectDir: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-output-schema-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
   it("run succeeds when last step output matches outputSchema", async () => {
     const definition = makeDefinition({
       outputSchema: { type: "object", properties: { value: { type: "number" } }, required: ["value"] },
@@ -1106,7 +1084,7 @@ describe("outputSchema validation", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -1125,7 +1103,7 @@ describe("outputSchema validation", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("completed-with-warnings");
@@ -1145,7 +1123,7 @@ describe("outputSchema validation", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -1164,7 +1142,7 @@ describe("outputSchema validation", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     await promise;
 
     const runDirs = readdirSync(join(projectDir, ".kota", "runs"));
@@ -1189,7 +1167,7 @@ describe("outputSchema validation", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext, bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");

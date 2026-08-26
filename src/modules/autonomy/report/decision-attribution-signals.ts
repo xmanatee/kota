@@ -7,7 +7,7 @@ import type {
 } from "#core/workflow/run-types.js";
 import { isOperatorEvidencePath } from "#modules/autonomy/product-evidence.js";
 import type { ReviewScrutinyRecord } from "#modules/autonomy/review-scrutiny.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import type { AutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   DecisionHardSuccessSignal,
@@ -21,14 +21,14 @@ const VALIDATION_STEP_RE =
 export function hardSuccessSignalsForRun(args: {
   run: WorkflowRunMetadata;
   task: RepoTaskFullRecord | null;
-  runSummary: WorkflowRunSummary | null;
+  delivery: AutonomyRunDeliveryEvidence | null;
   reviewRecords: readonly ReviewScrutinyRecord[];
   ownerRecords: OwnerInterventionReport["records"];
   productEvidenceRefs: readonly string[];
 }): DecisionHardSuccessSignal[] {
   const signals = new Set<DecisionHardSuccessSignal>();
   if (
-    args.runSummary?.taskId &&
+    args.delivery?.taskId &&
     (args.run.status === "success" || args.run.status === "completed-with-warnings") &&
     (args.task === null || args.task.state === "done")
   ) {
@@ -113,11 +113,11 @@ export function troubleSignalsForRun(args: {
 export function operatorEvidenceRefs(
   runsDir: string,
   runId: string,
-  runSummary: WorkflowRunSummary | null,
+  delivery: AutonomyRunDeliveryEvidence | null,
 ): string[] {
   const refs = [
     ...runArtifactEvidenceRefs(join(runsDir, runId)).map((ref) => `run:${ref}`),
-    ...(runSummary?.filesChanged ?? [])
+    ...(delivery?.changedPaths ?? [])
       .filter(isOperatorEvidencePath)
       .map((ref) => `changed:${ref}`),
   ];
@@ -127,12 +127,12 @@ export function operatorEvidenceRefs(
 export function refsForRun(
   run: WorkflowRunMetadata,
   task: RepoTaskFullRecord | null,
-  runSummary: WorkflowRunSummary | null,
+  delivery: AutonomyRunDeliveryEvidence | null,
   productEvidenceRefs: readonly string[],
 ): string[] {
   const refs = [`run:${run.id}`];
   if (task) refs.push(`task:${task.id}`);
-  if (runSummary?.commitSha) refs.push(`commit:${runSummary.commitSha}`);
+  if (delivery?.publishedHead) refs.push(`commit:${delivery.publishedHead}`);
   refs.push(...productEvidenceRefs);
   return refs;
 }

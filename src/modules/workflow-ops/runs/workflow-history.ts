@@ -18,7 +18,6 @@ export type HistoryStats = {
   total: number;
   successes: number;
   failures: number;
-  yielded: number;
   interrupted: number;
   successRate: number;
   totalCostUsd: number;
@@ -39,7 +38,6 @@ const VALID_RUN_STATUSES = new Set([
   "running",
   "success",
   "failed",
-  "yielded",
   "interrupted",
   "completed-with-warnings",
 ]);
@@ -131,7 +129,6 @@ export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
   const total = finished.length;
   const successes = finished.filter((r) => r.status === "success").length;
   const failures = finished.filter((r) => r.status === "failed").length;
-  const yielded = finished.filter((r) => r.status === "yielded").length;
   const interrupted = finished.filter((r) => r.status === "interrupted").length;
   const successRate = total > 0 ? (successes / total) * 100 : 0;
   const totalCostUsd = finished.reduce((sum, r) => sum + (r.totalCostUsd ?? 0), 0);
@@ -152,7 +149,6 @@ export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
     total,
     successes,
     failures,
-    yielded,
     interrupted,
     successRate,
     totalCostUsd,

@@ -12,7 +12,6 @@ const validTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 const validState = {
   completedRuns: 0,
-  pendingRuns: [],
   workflows: {},
 };
 
@@ -94,94 +93,6 @@ describe("assertWorkflowRuntimeState", () => {
     expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
   });
 
-  it("accepts recovery state", () => {
-    const state = {
-      ...validState,
-      recovery: {
-        sourceRunId: "run-1",
-        sourceWorkflow: "improver",
-        worktreeFingerprint: "M README.md",
-        worktreeSummary: "M README.md",
-        attempts: 1,
-        retryAttemptedBy: [],
-        updatedAt: "2026-01-01T01:30:00.000Z",
-      },
-    };
-    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
-  });
-
-  it("accepts pending runs with valid queued run entries", () => {
-    const state = {
-      ...validState,
-      pendingRuns: [
-        {
-          workflowName: "builder",
-          trigger: validTrigger,
-          enqueuedAtMs: 1000,
-          notBeforeMs: 1000,
-        },
-      ],
-    };
-    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
-  });
-
-  it("accepts pending workflow completion runs with typed completion payloads", () => {
-    const state = {
-      ...validState,
-      pendingRuns: [
-        {
-          workflowName: "attention-digest",
-          trigger: {
-            event: "workflow.completed",
-            schemaRef: { name: "workflow.completed", version: 2 },
-            payload: {
-              workflow: "explorer",
-              runId: "run-1",
-              status: "interrupted",
-              triggerEvent: "autonomy.queue.thin",
-              durationMs: 1000,
-              definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
-              runDir: ".kota/runs/run-1",
-              tags: ["monitored"],
-              autonomyMode: "autonomous",
-            },
-          },
-          enqueuedAtMs: 1000,
-          notBeforeMs: 1000,
-        },
-      ],
-    };
-    expect(() => assertWorkflowRuntimeState(path, state)).not.toThrow();
-  });
-
-  it("throws when pending workflow completion tags are not an array", () => {
-    const state = {
-      ...validState,
-      pendingRuns: [
-        {
-          workflowName: "attention-digest",
-          trigger: {
-            event: "workflow.completed",
-            schemaRef: null,
-            payload: {
-              workflow: "explorer",
-              runId: "run-1",
-              status: "interrupted",
-              triggerEvent: "autonomy.queue.thin",
-              durationMs: 1000,
-              definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
-              runDir: ".kota/runs/run-1",
-              tags: "[Circular]",
-            },
-          },
-          enqueuedAtMs: 1000,
-          notBeforeMs: 1000,
-        },
-      ],
-    };
-    expect(() => assertWorkflowRuntimeState(path, state)).toThrow(JsonFileError);
-  });
-
   it("throws when value is not a plain object", () => {
     expect(() => assertWorkflowRuntimeState(path, null)).toThrow(JsonFileError);
     expect(() => assertWorkflowRuntimeState(path, [])).toThrow(JsonFileError);
@@ -202,21 +113,6 @@ describe("assertWorkflowRuntimeState", () => {
   it("throws when completedRuns is negative", () => {
     expect(() =>
       assertWorkflowRuntimeState(path, { ...validState, completedRuns: -1 }),
-    ).toThrow(JsonFileError);
-  });
-
-  it("throws when pendingRuns is not an array", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, { ...validState, pendingRuns: "bad" }),
-    ).toThrow(JsonFileError);
-  });
-
-  it("throws when pendingRuns contains invalid entry", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, {
-        ...validState,
-        pendingRuns: [{ workflowName: "x" }],
-      }),
     ).toThrow(JsonFileError);
   });
 
@@ -299,22 +195,6 @@ describe("assertWorkflowRuntimeState", () => {
           until: "2026-01-01T02:00:00.000Z",
           updatedAt: "2026-01-01T01:30:00.000Z",
           reason: "",
-        },
-      }),
-    ).toThrow(JsonFileError);
-  });
-
-  it("throws when recovery is malformed", () => {
-    expect(() =>
-      assertWorkflowRuntimeState(path, {
-        ...validState,
-        recovery: {
-          sourceRunId: "run-1",
-          sourceWorkflow: "improver",
-          worktreeFingerprint: "M README.md",
-          worktreeSummary: "M README.md",
-          attempts: -1,
-          updatedAt: "2026-01-01T01:30:00.000Z",
         },
       }),
     ).toThrow(JsonFileError);

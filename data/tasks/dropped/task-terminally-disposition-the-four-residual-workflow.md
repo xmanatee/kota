@@ -5,15 +5,14 @@ status: dropped
 priority: p1
 area: platform
 task_class: Platform
-depends_on: [task-recover-the-two-stale-builder-claims-blocking-high]
-summary: Historical six-record DLQ cleanup whose exact records were already dismissed through the canonical runtime and no longer represent open work.
+summary: Verify and terminally disposition the six currently open workflow-dispatch dead letters through the canonical daemon-owned DLQ mechanism.
 created_at: 2026-08-13T17:38:05.815Z
-updated_at: 2026-08-24T03:03:45.906Z
+updated_at: 2026-08-26T01:39:00.257Z
 ---
 
 ## Problem
 
-The prior task counted four residual records and delegated two claim-linked
+The prior task counted four residual records and delegated two recovery-linked
 records to a stale recovery task. Live state now contains six open records, and
 the last trusted-host replay correctly refused to mutate anything because its
 packet mapped `dlq-ee8ffaa1-ea74-4d68-816d-768c8101b0b7` to the wrong workflow
@@ -38,7 +37,7 @@ The canonical source mappings are:
 - `dlq-ee8ffaa1-ea74-4d68-816d-768c8101b0b7`: builder run
   `2026-08-13T10-23-52-461Z-builder-pmbg6e`, transient Codex 503.
 
-The two older claim-linked records `dlq-ae1303b0-...` and
+The two older recovery-linked records `dlq-ae1303b0-...` and
 `dlq-b8c26da0-...` are already `redriven`, not open, and must not be counted or
 dismissed by this task.
 
@@ -54,15 +53,13 @@ filesystem mutation.
 ## Constraints
 
 - Validate record id, workflow, source run, failure class, current status, and
-  related claim/worktree state immediately before mutation. A mismatch fails
-  closed and remains visible.
+  related task, resource, sandbox, and integration state immediately before
+  mutation. A mismatch fails closed and remains visible.
 - Do not redrive obsolete progress-review triggers, a transient provider
   failure whose source task already succeeded, or an old unsupported resume
   request after its work was recovered through a newer lineage.
-- Do not dismiss `dlq-263574f1-...` until
-  `task-recover-the-two-stale-builder-claims-blocking-high` proves that the
-  preserved daemon-control implementation is integrated or explicitly
-  superseded without loss.
+- Do not dismiss `dlq-263574f1-...` until the daemon-control implementation is
+  integrated or explicitly superseded without loss in canonical run state.
 - Reuse the canonical DLQ client/action and recovery projection. Do not add a
   second ledger, one-off six-id scrubber, migration, or compatibility path.
 - Keep every decision and source guard durable and operator-visible.
@@ -70,7 +67,7 @@ filesystem mutation.
 ## Done When
 
 - One artifact maps all six exact ids to verified source metadata, related
-  task/claim evidence, superseding evidence, and a redrive-or-dismiss decision.
+  task/run evidence, superseding evidence, and a redrive-or-dismiss decision.
 - The canonical daemon applies all accepted decisions atomically per record and
   records terminal rationale without direct file writes or a hand-corrected
   packet.
@@ -78,7 +75,7 @@ filesystem mutation.
   already redriven records retain their history.
 - A negative fixture reproduces the prior wrong source-run mapping and proves
   that no record is mutated.
-- State-recovery, DLQ, and task projections agree after restart.
+- Run-state, DLQ, and task projections agree after restart.
 
 ## Source / Intent
 
@@ -96,12 +93,3 @@ Canonical workflow failure disposition.
 - Before/after canonical DLQ projections and the six-record decision artifact.
 - Focused source-guard, terminal mutation, restart, and recovery-projection
   fixtures through the production daemon client.
-
-## Disposition
-
-Dropped on 2026-08-24 after canonical DLQ inspection confirmed that all six
-named records are already terminally dismissed. The currently open DLQ records
-have different identities and dedicated owners, so reusing this task would
-silently mutate its evidence contract and duplicate live recovery work. The
-historical mappings remain here for audit; no compatibility scrubber or
-replacement six-record task is retained.

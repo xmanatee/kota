@@ -1,8 +1,8 @@
 import { existsSync, rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
   CONTROL_COVERAGE_NOW,
+  collectControlCoverageAudit,
   expectNoObservableGateDiagnostics,
   makeControlCoverageProjectDir,
   reviewAndApplyControlCoverage,
@@ -30,7 +30,7 @@ describe("runtime health audit control coverage gaps", () => {
     writeRunWithCoverage(projectDir, "control-gap-a", "2026-06-19T10:00:00.000Z");
     writeRunWithCoverage(projectDir, "control-gap-b", "2026-06-19T11:00:00.000Z");
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -78,7 +78,7 @@ describe("runtime health audit control coverage gaps", () => {
       "2026-06-19T11:00:00.000Z",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -110,7 +110,7 @@ describe("runtime health audit control coverage gaps", () => {
       "2026-06-19T11:00:00.000Z",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -140,7 +140,7 @@ describe("runtime health audit control coverage gaps", () => {
       "2026-06-19T11:00:00.000Z",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });

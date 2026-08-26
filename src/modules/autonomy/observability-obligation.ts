@@ -13,7 +13,7 @@ import {
   type ObservabilityObligationCandidate,
   type ObservabilityObligationReview,
 } from "./observability-obligation-types.js";
-import { parseAddedLinesByFile, readStagedDiff } from "./staged-diff.js";
+import { parseAddedLinesByFile, readWorkflowDiff } from "./workflow-diff.js";
 
 export {
   OBSERVABILITY_OBLIGATION_RATIONALE_ARTIFACT,
@@ -139,7 +139,7 @@ export function evaluateObservabilityObligationReview(
   projectDir: string,
   runDirPath: string,
 ): ObservabilityObligationReview {
-  const diff = readStagedDiff(projectDir, ["."]);
+  const diff = readWorkflowDiff(projectDir, ["."]);
   return detectObservabilityObligationReview(diff, readRationaleByFile(runDirPath));
 }
 

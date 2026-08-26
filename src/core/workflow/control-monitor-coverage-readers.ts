@@ -1,6 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import type {
   EventEnvelope,
   EventJournal,
@@ -8,9 +7,11 @@ import type {
   EventJsonValue,
 } from "#core/events/event-journal.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import {
+  readWriterIntegrationEvidence,
+} from "./writer-integration-evidence.js";
 
 export type SnapshotStep = {
   id: string;
@@ -262,21 +263,13 @@ function collectSnapshotStep(
   ];
 }
 
-export function currentHeadSha(
-  projectDir: string,
-  override: string | null | undefined,
+export function runEvidenceHeadSha(
+  runDirPath: string,
+  capturedHead: string | null,
 ): string | null {
-  if (override !== undefined) return override;
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return null;
-  }
+  const runId = basename(runDirPath);
+  return readWriterIntegrationEvidence(dirname(runDirPath), runId)?.publishedHead ??
+    capturedHead;
 }
 
 export function telemetryCalls(path: string): TelemetryCall[] {

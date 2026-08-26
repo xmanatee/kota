@@ -28,6 +28,8 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
+import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -76,6 +78,7 @@ export type ProjectRuntime = {
   readonly authorityConfigPath?: string;
   readonly pbus: ProjectScopedEventBus;
   readonly runStore: WorkflowRunStore;
+  readonly runState: RunStateDatabase;
   readonly taskStore: TaskStore;
   readonly scheduler: Scheduler;
   readonly moduleLogStore: ModuleLogStore;
@@ -116,6 +119,9 @@ export type ProjectRuntimeFactoryOptions = {
   /** Quiet-hours config; only honored on the default bundle. */
   quietHours?: QuietHoursConfig;
   scopePolicyAuthority?: ScopePolicyAuthority;
+  runState: RunStateDatabase;
+  runCoordinator: RunCoordinator;
+  daemonEpoch: number;
 };
 
 function installProjectRuntimeSingletons(runtime: ProjectRuntime): void {
@@ -186,6 +192,10 @@ export function createProjectRuntime(
     bus: opts.bus,
     pbus,
     projectDir,
+    projectId: opts.project.projectId,
+    runState: opts.runState,
+    runCoordinator: opts.runCoordinator,
+    daemonEpoch: opts.daemonEpoch,
     authorityConfigPath: opts.authorityConfigPath,
     runStore,
     config: opts.config,
@@ -199,8 +209,6 @@ export function createProjectRuntime(
     onLog: opts.onLog,
     resolveAgentDef: opts.resolveAgentDef,
     resolveSkillsPrompt: opts.resolveSkillsPrompt,
-    agentConcurrency: opts.config?.scheduler?.agentConcurrency,
-    codeConcurrency: opts.config?.scheduler?.codeConcurrency,
     isDefaultScopeRuntime: () => isDefaultScopeRuntime,
     scopePolicyAuthority: opts.scopePolicyAuthority,
   });
@@ -217,6 +225,7 @@ export function createProjectRuntime(
       : {}),
     pbus,
     runStore,
+    runState: opts.runState,
     taskStore,
     scheduler,
     moduleLogStore,

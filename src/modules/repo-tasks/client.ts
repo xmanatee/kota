@@ -103,16 +103,14 @@ export type RepoTaskCaptureResult =
       message?: string;
     };
 
-/** Options accepted by `tasks.gc`. Defaults match the CLI: 30 days, archive. */
+/** Options accepted by `tasks.gc`. Defaults retain removed tasks in Git history. */
 export type RepoTaskGcOptions = ScopeSelector & {
   days?: number;
-  delete?: boolean;
   dryRun?: boolean;
 };
 
 export type RepoTaskGcResult = {
-  archived: string[];
-  deleted: string[];
+  removed: string[];
 };
 
 /** Filter for `RepoTasksClient.search`. */
@@ -151,7 +149,7 @@ export type RepoTaskReindexResult = ReindexResult;
  * the autonomy-owned `doing` and terminal `done`/`dropped`); web-UI restricted
  * moves stay on `/api/tasks/:id/state`. `create` writes a normalized task with
  * the full template; `capture` writes a quick `# title` inbox note. `gc`
- * archives or deletes terminal tasks older than the threshold.
+ * removes terminal tasks older than the threshold, retaining normal Git history.
  */
 export interface RepoTasksClient {
   /**

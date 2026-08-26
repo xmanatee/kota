@@ -38,7 +38,7 @@ function makeProgram(): Command {
           return { ok: false as const, reason: "invalid_slug" as const };
         },
         async gc(_options?: RepoTaskGcOptions) {
-          return { archived: [], deleted: [] };
+          return { removed: [] };
         },
         async search(_query: string, _filter?: RepoTaskSearchFilter) {
           return { ok: true as const, tasks: [] };

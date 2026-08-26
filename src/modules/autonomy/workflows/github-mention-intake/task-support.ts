@@ -28,6 +28,7 @@ export type CreatedTaskReference = {
 export type PreparedIntakeComment = {
   repo: string;
   issueNumber: number;
+  isPullRequest: boolean;
   originalCommentId: number;
   mode: "created" | "existing" | "needs_detail";
   body: string;
@@ -118,6 +119,7 @@ export function validatePreparedComment(
   const object = expectStructuredOutput<PreparedIntakeComment>(raw, [
     "repo",
     "issueNumber",
+    "isPullRequest",
     "originalCommentId",
     "mode",
     "body",
@@ -125,6 +127,7 @@ export function validatePreparedComment(
   if (
     !isNonEmptyString(object.repo) ||
     typeof object.issueNumber !== "number" ||
+    typeof object.isPullRequest !== "boolean" ||
     typeof object.originalCommentId !== "number" ||
     !isNonEmptyString(object.body)
   ) throw new Error("prepared comment is incomplete");

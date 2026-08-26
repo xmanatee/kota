@@ -1,4 +1,4 @@
-import { parseAddedLinesByFile, readStagedDiff } from "./staged-diff.js";
+import { parseAddedLinesByFile, readWorkflowDiff } from "./workflow-diff.js";
 
 export type RepoHygieneFinding = {
   file: string;
@@ -106,7 +106,7 @@ export function formatRepoHygieneFindings(findings: readonly RepoHygieneFinding[
 }
 
 export function checkRepoHygiene(projectDir: string): string {
-  const diff = readStagedDiff(projectDir, ["."]);
+  const diff = readWorkflowDiff(projectDir, ["."]);
   if (!diff.trim()) return "OK: no staged changes";
   const findings = detectRepoHygieneInDiff(diff);
   const errors = findings.filter((finding) => finding.severity === "error");

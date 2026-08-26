@@ -32,7 +32,6 @@
  *   wire shape and writes nothing.
  */
 
-import { execSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -90,6 +89,10 @@ import {
   type RecallProvider,
 } from "#modules/recall/recall-types.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 
 /**
@@ -212,13 +215,11 @@ function startServer(
 }
 
 function makeProjectRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-capture-recall-"));
-  // git init so the tasks contributor's `git add` does not throw against a
-  // non-repo (it swallows the failure either way, but keeping the env clean
-  // matches the production flow).
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-recall-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "capture-recall",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -282,8 +283,9 @@ describe("capture↔recall pipeline (HTTP)", () => {
     const capture = new CaptureProviderImpl({ classifier });
     capture.register(createMemoryCaptureContributor(memoryStore));
     capture.register(createKnowledgeCaptureContributor(knowledgeStore));
-    capture.register(createTasksCaptureContributor(projectRoot));
-    capture.register(createInboxContributor(projectRoot));
+    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    capture.register(createTasksCaptureContributor(mutationTarget));
+    capture.register(createInboxContributor(mutationTarget));
     captureProvider = capture;
 
     // Register recall contributors in `RECALL_SOURCE_ORDER` so the

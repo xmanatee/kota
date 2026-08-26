@@ -19,31 +19,6 @@ vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
 
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
-
 const roots: string[] = [];
 
 function makeProjectDir(): { projectDir: string; outsidePath: string } {

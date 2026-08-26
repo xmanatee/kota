@@ -44,6 +44,7 @@ describe("validateAgentStep registered agent resolution", () => {
     const [definition] = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition(definitionPath, {
+          repository: "read",
           name: "review-workflow",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -79,6 +80,7 @@ describe("validateAgentStep registered agent resolution", () => {
     const [definition] = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition(definitionPath, {
+          repository: "read",
           name: "review-workflow",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -111,6 +113,7 @@ describe("validateAgentStep registered agent resolution", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition(definitionPath, {
+            repository: "read",
             name: "review-workflow",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -138,6 +141,7 @@ describe("validateAgentStep registered agent resolution", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition(definitionPath, {
+            repository: "read",
             name: "review-workflow",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -162,6 +166,7 @@ describe("validateAgentStep registered agent resolution", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition(definitionPath, {
+            repository: "read",
             name: "review-workflow",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -232,6 +237,7 @@ describe("validateAgentStep registered agent resolution", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition(definitionPath, {
+              repository: "read",
               name: "native-review-workflow",
               triggers: [{ event: "runtime.idle" }],
               steps: [

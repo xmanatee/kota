@@ -15,6 +15,7 @@ import type { ModelProviderSelection } from "#core/model/model-client.js";
 import { resolveAgentRunDir } from "../agent-run-dir.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowAgentStep } from "../step-types.js";
+import { createWriterAgentEffectGuard } from "../transaction-effect-policy.js";
 import type { AgentStepConfig } from "./step-executor-agent.js";
 import { resolveWorkflowAgentRunContract } from "./step-executor-agent-run-contract.js";
 
@@ -79,7 +80,12 @@ export function buildAgentHarnessRunOptions(input: {
     ? undefined
     : () => scopePolicyAuthority.getSnapshot(scopeId);
   const trialCanUseTool = agentConfig.createCanUseTool?.(step.id);
-  const workflowGuards = createWorkflowAgentGuards(agentConfig.authorityConfigPath);
+  const workflowGuards = agentConfig.repository === "write"
+    ? composeCanUseTools(
+        createWriterAgentEffectGuard(),
+        createWorkflowAgentGuards(agentConfig.authorityConfigPath),
+      )
+    : createWorkflowAgentGuards(agentConfig.authorityConfigPath);
   const canUseTool = trialCanUseTool
     ? composeCanUseTools(trialCanUseTool, workflowGuards)
     : workflowGuards;
@@ -142,6 +148,9 @@ export function buildAgentHarnessRunOptions(input: {
         projectId,
       },
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+      ...(agentConfig.onProcessSpawn !== undefined
+        ? { onProcessSpawn: agentConfig.onProcessSpawn }
+        : {}),
     },
     canUseTool,
     askOwner,

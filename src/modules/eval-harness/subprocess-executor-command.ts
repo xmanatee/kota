@@ -28,6 +28,9 @@ export function workflowExecArgs(
   request: WorkflowExecutionRequest,
 ): string[] {
   const args = [kotaBinaryPath, "workflow", "exec", request.workflowName];
+  if (request.triggerEvent !== undefined) {
+    args.push("--event", request.triggerEvent);
+  }
   if (request.agentExecutionOverride !== undefined) {
     args.push(
       "--agent-harness",

@@ -55,6 +55,7 @@ const evalHarnessRegressionNotify: WorkflowDefinitionInput = {
   name: "eval-harness-regression-notify",
   description:
     "Surface eval-harness regressions through the normal attention channel so operators see a drop without opening run artifacts.",
+  repository: "none",
   triggers: [{ event: "eval-harness.regression.detected" }],
   steps: [
     {

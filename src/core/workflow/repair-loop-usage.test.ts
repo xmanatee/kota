@@ -11,6 +11,8 @@ import type { WorkflowAgentStep } from "./step-types.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
 import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
+import { createWorkflowCommandRunner } from "./workflow-command.js";
 
 const roots: string[] = [];
 
@@ -82,6 +84,9 @@ describe("repair-loop usage", () => {
     };
     const context = {
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "fixture",
@@ -96,11 +101,12 @@ describe("repair-loop usage", () => {
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
+      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
       runTool: async () => ({ content: "unused" }),
       emit: vi.fn(),
       requestRestart: vi.fn(),
       readPrompt: () => "Repair.\n",
-      readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
       reportProgress: vi.fn(),
       triggerWorkflow: async () => ({ runId: "unused", status: "queued" as const }),
     } satisfies WorkflowStepContext;
@@ -225,6 +231,9 @@ describe("repair-loop usage", () => {
     };
     const context = {
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "fixture",
@@ -239,11 +248,12 @@ describe("repair-loop usage", () => {
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
+      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
       runTool: async () => ({ content: "unused" }),
       emit: vi.fn(),
       requestRestart: vi.fn(),
       readPrompt: () => "Repair.\n",
-      readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
       reportProgress: vi.fn(),
       triggerWorkflow: async () => ({ runId: "unused", status: "queued" as const }),
     } satisfies WorkflowStepContext;

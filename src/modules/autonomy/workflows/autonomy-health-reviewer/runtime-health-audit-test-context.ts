@@ -3,11 +3,17 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
-  applyAutonomyHealthReviewActions,
+  materializeAutonomyIssueProjection,
+  readAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import {
   buildAutonomyHealthReviewFromSignals,
+  finalizeAutonomyHealthReviewActions,
+  stageAutonomyHealthReviewActions,
 } from "./health-review.js";
-import type { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
+import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 export const RUNTIME_HEALTH_AUDIT_NOW = "2026-06-19T12:00:00.000Z";
 
@@ -21,6 +27,18 @@ export function makeRuntimeHealthAuditProjectDir(): string {
   return projectDir;
 }
 
+export function collectRuntimeHealthAuditForProject(args: {
+  projectDir: string;
+  options?: Parameters<typeof collectRuntimeHealthAudit>[0]["options"];
+}) {
+  return collectRuntimeHealthAudit({
+    projectDir: args.projectDir,
+    scopeDir: args.projectDir,
+    stateDir: join(args.projectDir, ".kota"),
+    ...(args.options !== undefined ? { options: args.options } : {}),
+  });
+}
+
 export function reviewAndApplyRuntimeHealthAudit(
   projectDir: string,
   audit: ReturnType<typeof collectRuntimeHealthAudit>,
@@ -31,7 +49,24 @@ export function reviewAndApplyRuntimeHealthAudit(
     sourceEventName: "autonomy.runtime-health.audit",
     reason: "test",
   });
-  return applyAutonomyHealthReviewActions({ projectDir, review });
+  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const repositoryActions = stageAutonomyHealthReviewActions({
+    projectDir,
+    currentProjection,
+    scopeDir: projectDir,
+    review,
+  });
+  const finalized = finalizeAutonomyHealthReviewActions({
+    currentProjection,
+    scopeDir: projectDir,
+    ownerQuestionQueue: new OwnerQuestionQueue(
+      join(projectDir, ".kota", "owner-questions"),
+    ),
+    review,
+    repositoryActions,
+  });
+  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  return finalized;
 }
 
 export function writeRuntimeHealthModuleLog(

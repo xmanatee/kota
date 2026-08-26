@@ -1,37 +1,19 @@
-// biome-ignore-all lint/correctness/noUnusedImports: split integration suites share one runtime fixture
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type AgentHarness,
-  registerAgentHarness,
-} from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
-import { RepairAgentRuntimeError } from "#core/workflow/repair-loop.js";
 import type {
-  WorkflowRunMetadata,
   WorkflowStepContext,
 } from "#core/workflow/run-types.js";
-import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
-import type { WorkflowAgentStep, WorkflowEmitStep, WorkflowToolStep } from "#core/workflow/step-types.js";
 import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
 import {
-  buildAgentPrompt,
-  buildRepairPrompt,
-  executeAgentStep,
-  executeEmitStep,
   executeStep,
-  executeToolStep,
-  withRetry,
 } from "#core/workflow/steps/step-executor.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
-import {
-  KOTA_OWNER_QUESTIONS_MCP_SERVER,
-  KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#modules/claude-agent-harness/kota-tools-mcp.js";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { createTestTransactionalRunState } from "./core/workflow/testing/run-context-fixture.js";
 import {
   makeDefinition,
   makeMetadata,
@@ -62,6 +44,9 @@ describe("executeStep repair loop", () => {
   function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
     return {
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "test",
@@ -75,9 +60,8 @@ describe("executeStep repair loop", () => {
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
-      runAgentHarness: createWorkflowAgentHarnessRunner(
-        agentConfig.agentRunLimiter,
-      ),
+      runAgentHarness: createWorkflowAgentHarnessRunner(),
+      runCommand: unexpectedWorkflowCommandRun,
       runTool,
       emit: () => {},
       requestRestart: () => {},

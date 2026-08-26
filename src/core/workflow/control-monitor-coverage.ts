@@ -21,11 +21,11 @@ import {
 } from "./control-monitor-coverage-inspectors.js";
 import {
   artifactRef,
-  currentHeadSha,
   journalEventsForRun,
   readJsonlEvents,
   readJsonObject,
   runArtifactRef,
+  runEvidenceHeadSha,
   snapshotStepsFrom,
   telemetryCalls,
 } from "./control-monitor-coverage-readers.js";
@@ -59,7 +59,7 @@ export type BuildControlMonitorCoverageOptions = {
   metadata: WorkflowRunMetadata;
   eventJournal?: EventJournal;
   nowIso?: string;
-  headSha?: string | null;
+  headSha: string | null;
 };
 
 export type WriteControlMonitorCoverageBestEffortOptions =
@@ -222,7 +222,7 @@ export function buildControlMonitorCoverageArtifact(
       status: metadata.status,
       startedAt: metadata.startedAt,
       completedAt: metadata.completedAt ?? null,
-      headSha: currentHeadSha(projectDir, options.headSha),
+      headSha: runEvidenceHeadSha(runDirPath, options.headSha),
     },
     monitoredSurfaceCounts: {
       agentSteps: agentStepIds.length,
@@ -273,7 +273,7 @@ export function writeControlMonitorCoverageArtifactBestEffort(
       metadata: options.metadata,
       ...(eventJournal !== undefined ? { eventJournal } : {}),
       ...(options.nowIso !== undefined ? { nowIso: options.nowIso } : {}),
-      ...(options.headSha !== undefined ? { headSha: options.headSha } : {}),
+      headSha: options.headSha,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

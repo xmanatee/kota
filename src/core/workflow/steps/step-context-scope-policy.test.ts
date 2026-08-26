@@ -33,6 +33,7 @@ import type {
   WorkflowRunMetadata,
 } from "../run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
+import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { executeToolStep } from "./step-executor.js";
@@ -128,6 +129,7 @@ describe("workflow step context scope policy", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store: new WorkflowRunStore(projectDir),
@@ -209,6 +211,7 @@ describe("workflow step context scope policy", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store: new WorkflowRunStore(projectDir),
@@ -306,6 +309,7 @@ describe("workflow step context scope policy", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store: new WorkflowRunStore(projectDir),
@@ -315,6 +319,7 @@ describe("workflow step context scope policy", () => {
             { scopeId: "scope-a" },
           ),
           runTool: executeTool,
+          runContext: createTestRunContext(projectDir, trigger),
           scopePolicyAuthority: authority,
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "delegate",
@@ -431,6 +436,7 @@ describe("workflow step context scope policy", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store: new WorkflowRunStore(projectDir),

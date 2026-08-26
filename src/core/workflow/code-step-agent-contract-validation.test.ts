@@ -37,6 +37,7 @@ describe("code-step agent run-contract validation", () => {
     const definition = registerWorkflowDefinition(
       "src/core/workflow/code-step-agent-contract-validation.test.ts",
       {
+        repository: "read",
         name: "nested-code-step-contract-fixture",
         moduleRoot: process.cwd(),
         triggers: [{ event: "manual" }],
@@ -97,6 +98,7 @@ describe("code-step agent run-contract validation", () => {
     const definition = registerWorkflowDefinition(
       "src/core/workflow/code-step-agent-contract-validation.test.ts",
       {
+        repository: "read",
         name: "branch-code-step-contract-fixture",
         moduleRoot: process.cwd(),
         triggers: [{ event: "manual" }],

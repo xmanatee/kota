@@ -10,7 +10,8 @@ import {
 import { defineProjectScopedModuleEvent, ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowStepContext } from "./run-types.js";
-import { WorkflowRuntime } from "./runtime.js";
+import type { WorkflowRuntime } from "./runtime.js";
+import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -45,12 +46,14 @@ function readRunPayloads(projectDir: string): WorkflowBatchFlushPayload[] {
 
 describe("WorkflowEventBatchManager", () => {
   const runtimes: WorkflowRuntime[] = [];
+  const runStates: Array<{ close(): void }> = [];
   const projectDirs: string[] = [];
 
   afterEach(async () => {
     for (const runtime of runtimes.splice(0).reverse()) {
       await runtime.stop(0);
     }
+    for (const runState of runStates.splice(0)) runState.close();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
@@ -68,7 +71,7 @@ describe("WorkflowEventBatchManager", () => {
     workflows: Parameters<typeof registerWorkflowDefinition>[1][],
     pbus?: ProjectScopedEventBus,
   ): WorkflowRuntime {
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus,
       pbus,
       projectDir,
@@ -77,6 +80,7 @@ describe("WorkflowEventBatchManager", () => {
         registerWorkflowDefinition(`test/batch-${index}.ts`, workflow),
       ),
     });
+    runStates.push(runState);
     runtimes.push(runtime);
     runtime.start();
     return runtime;
@@ -101,6 +105,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "telegram-batch",
         triggers: [
           {
@@ -172,6 +177,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "nested-group-batch",
         triggers: [
           {
@@ -216,6 +222,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "strict-batch",
         inputSchema: {
           type: "object",
@@ -282,6 +289,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "age-batch",
         triggers: [
           {
@@ -305,6 +313,7 @@ describe("WorkflowEventBatchManager", () => {
         ],
       },
       {
+        repository: "none",
         name: "idle-batch",
         triggers: [
           {
@@ -346,6 +355,7 @@ describe("WorkflowEventBatchManager", () => {
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
     const workflow = {
+      repository: "none" as const,
       name: "restart-batch",
       triggers: [
         {
@@ -406,6 +416,7 @@ describe("WorkflowEventBatchManager", () => {
     });
     initModuleEventRegistry().register("route", routeEvent);
     const workflow = {
+      repository: "none" as const,
       name: "route-owned-batch",
       triggers: [{ event: "manual.route-owned-batch" }],
       steps: [
@@ -501,6 +512,7 @@ describe("WorkflowEventBatchManager", () => {
     const processedA: WorkflowBatchFlushPayload[] = [];
     const processedB: WorkflowBatchFlushPayload[] = [];
     const workflowA = {
+      repository: "none" as const,
       name: "scoped-batch",
       triggers: [
         {
@@ -568,6 +580,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "overflow-batch",
         triggers: [
           {
@@ -616,6 +629,7 @@ describe("WorkflowEventBatchManager", () => {
 
     startRuntime(projectDir, bus, [
       {
+        repository: "none",
         name: "flush-oldest-overflow-batch",
         triggers: [
           {
@@ -675,6 +689,7 @@ describe("WorkflowEventBatchManager", () => {
     expect(() =>
       validateWorkflowDefinitions([
         registerWorkflowDefinition("test/invalid-batch.ts", {
+          repository: "none",
           name: "invalid-batch",
           triggers: [
             {
@@ -696,6 +711,7 @@ describe("WorkflowEventBatchManager", () => {
     expect(() =>
       validateWorkflowDefinitions([
         registerWorkflowDefinition("test/invalid-batch-filter.ts", {
+          repository: "none",
           name: "invalid-batch-filter",
           triggers: [
             {
@@ -741,6 +757,7 @@ describe("WorkflowEventBatchManager", () => {
       bus,
       [
         {
+          repository: "none",
           name: "schema-ref-batch",
           triggers: [
             {

@@ -1,6 +1,5 @@
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { normalizePriority } from "./aggregate-queue.js";
 import type {
@@ -23,22 +22,20 @@ export function buildBuilderBreakdown(
     if (run.status !== "success" && run.status !== "completed-with-warnings") {
       continue;
     }
-    const summary = readOptionalJsonFile<WorkflowRunSummary>(
-      `${runsDir}/${run.id}/run-summary.json`,
-    );
-    if (!summary || !summary.taskId) {
+    const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
+    if (!delivery?.taskId) {
       unresolvedClosures += 1;
       continue;
     }
-    const task = taskById.get(summary.taskId);
+    const task = taskById.get(delivery.taskId);
     if (!task) {
       unresolvedClosures += 1;
       continue;
     }
     closures.push({
       runId: run.id,
-      taskId: summary.taskId,
-      taskTitle: summary.taskTitle ?? task.title,
+      taskId: delivery.taskId,
+      taskTitle: delivery.taskTitle ?? task.title,
       area: task.area || "(unset)",
       priority: normalizePriority(task.priority),
       classification: classifyTaskShape({

@@ -26,11 +26,6 @@ const NOTIFICATION_EVENTS = [
   "module.crash.alert",
 ] as const satisfies readonly (keyof BusEvents)[];
 
-/** Events that are off by default; subscribed only when explicitly listed in config `events`. */
-const OPT_IN_EVENTS = [
-  "workflow.build.committed",
-] as const satisfies readonly (keyof BusEvents)[];
-
 type SlackConfig = {
   /** Slack Incoming Webhook URL. Required. */
   webhookUrl: string;
@@ -111,24 +106,6 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
       const quiet = payload.quiet === true;
       const title = quiet ? "Daily Digest (quiet)" : "Daily Digest";
       return [header(title), divider, section(text ?? "Daily digest available.")];
-    }
-    case "workflow.build.committed": {
-      const commitMessage = payload.commitMessage as string | undefined;
-      const taskId = payload.taskId as string | null | undefined;
-      const costUsd = payload.costUsd as number | undefined | null;
-      const durationMs = payload.durationMs as number | undefined | null;
-      const meta = [
-        taskId ? `*Task:* ${taskId}` : null,
-        costUsd != null ? `*Cost:* $${costUsd.toFixed(2)}` : null,
-        durationMs != null ? `*Duration:* ${Math.round(durationMs / 60000)}m` : null,
-      ]
-        .filter(Boolean)
-        .join("  ·  ");
-      return [
-        header(`Builder committed: ${commitMessage ?? "—"}`),
-        divider,
-        ...(meta ? [section(meta)] : []),
-      ];
     }
     case "workflow.approval.expired": {
       const workflowName = payload.workflowName as string | undefined;
@@ -307,10 +284,6 @@ const slackModule: KotaModule = {
     subscribe("approval.requested");
     subscribe("owner.question.asked");
 
-    // opt-in events — only subscribed when explicitly listed in config.events
-    for (const event of OPT_IN_EVENTS) {
-      if (enabledEvents.has(event)) subscribe(event);
-    }
   },
 
   onUnload: () => {

@@ -5,11 +5,6 @@ import {
   writeAnchoredRepoMarkdownFile,
 } from "./repo-mutation-path-safety.js";
 
-type StageControl = {
-  stage: () => void;
-  shouldDeferStaging: (error: Error) => boolean;
-};
-
 export function writeVerifiedRepoMarkdownFile(args: {
   projectDir: string;
   rootDir: string;
@@ -37,7 +32,7 @@ export function moveVerifiedRepoMarkdownFile(
     destinationPath: string;
     sourceContent: string;
     destinationContent: string;
-  } & StageControl,
+  },
 ): void {
   const source = readVerifiedRepoMarkdownFileWithIdentity({
     projectDir: args.projectDir,
@@ -85,52 +80,6 @@ export function moveVerifiedRepoMarkdownFile(
     throw removeError;
   }
 
-  try {
-    args.stage();
-  } catch (stageError) {
-    if (stageError instanceof Error && args.shouldDeferStaging(stageError)) {
-      return;
-    }
-    const rollbackErrors: Error[] = [
-      stageError instanceof Error ? stageError : new Error(String(stageError)),
-    ];
-    try {
-      writeAnchoredRepoMarkdownFile({
-        projectDir: args.projectDir,
-        rootDir: args.sourceRootDir,
-        filePath: args.sourcePath,
-        content: args.sourceContent,
-        expectation: "missing",
-      });
-    } catch (restoreError) {
-      rollbackErrors.push(
-        restoreError instanceof Error
-          ? restoreError
-          : new Error(String(restoreError)),
-      );
-    }
-    try {
-      rollbackInstalledDestination({
-        projectDir: args.projectDir,
-        rootDir: args.destinationRootDir,
-        filePath: args.destinationPath,
-        expectedSnapshot: destinationSnapshot,
-      });
-    } catch (rollbackError) {
-      rollbackErrors.push(
-        rollbackError instanceof Error
-          ? rollbackError
-          : new Error(String(rollbackError)),
-      );
-    }
-    if (rollbackErrors.length > 1) {
-      throw new AggregateError(
-        rollbackErrors,
-        "Task staging failed and the move could not be safely rolled back",
-      );
-    }
-    throw stageError;
-  }
 }
 
 export function removeVerifiedRepoMarkdownFile(
@@ -138,7 +87,7 @@ export function removeVerifiedRepoMarkdownFile(
     projectDir: string;
     rootDir: string;
     filePath: string;
-  } & StageControl,
+  },
 ): void {
   const source = readVerifiedRepoMarkdownFileWithIdentity(args);
   if (source === null) {
@@ -148,26 +97,4 @@ export function removeVerifiedRepoMarkdownFile(
     ...args,
     expectedSnapshot: source.snapshot,
   });
-  try {
-    args.stage();
-  } catch (stageError) {
-    if (stageError instanceof Error && args.shouldDeferStaging(stageError)) {
-      return;
-    }
-    try {
-      writeAnchoredRepoMarkdownFile({
-        projectDir: args.projectDir,
-        rootDir: args.rootDir,
-        filePath: args.filePath,
-        content: source.content,
-        expectation: "missing",
-      });
-    } catch (restoreError) {
-      throw new AggregateError(
-        [stageError, restoreError],
-        "Repo mutation staging failed and the removed file could not be safely restored",
-      );
-    }
-    throw stageError;
-  }
 }

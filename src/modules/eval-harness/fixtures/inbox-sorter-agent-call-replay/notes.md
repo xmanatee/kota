@@ -2,12 +2,11 @@
 
 End-to-end replay of inbox-sorter's `sort-inbox` agent step through the
 eval-harness replay adapter, plus the surrounding `inspect-inbox` and
-`commit` steps. The fixture regression-gates the inbox-sorter workflow-
-layer paths — the four repair checks (`task-queue-valid` with
-`--min-ready 0`, `no-scratch-artifacts`, `commit-message-exists`,
-`commit-stageable`), the `inspect-inbox` `needsAttention` gating, the
-`autonomy.inbox.available` trigger receipt path, and the terminal
-commit step — against the same subprocess executor path the daemon runs
+semantic-review behavior. The fixture regression-gates the inbox-sorter
+workflow-layer paths — the `task-queue-valid` repair check with
+`--min-ready 0`, the `inspect-inbox` `needsAttention` gating, the
+`autonomy.inbox.available` trigger receipt path, and runtime-owned writer
+integration — against the same subprocess executor path the daemon runs
 in production, without invoking a real LLM.
 
 Source run: `2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9` — the real
@@ -77,19 +76,16 @@ workflow-layer path the real run hit after trigger receipt:
 - the agent step's writeScope (`data/`) absorbs the replay's file
   operations the same way it absorbs a real agent's Write/Edit/Bash
   calls;
-- every repair check runs (`task-queue-valid` via the stubbed
+- the repair check runs (`task-queue-valid` via the stubbed
   `validate-tasks` script that forwards to KOTA's own validator against
   the fixture project root with `--min-ready 0` so the post-sort empty
-  ready-queue baseline is acceptable; `no-scratch-artifacts`,
-  `commit-message-exists`, `commit-stageable` operate on the replay's
-  staged mutations);
-- the terminal `git add -A` commit succeeds against the replay's exact
-  mutation set.
+  ready-queue baseline is acceptable);
+- runtime-owned writer integration publishes the replay's exact mutation set.
 
 ## Smoke-gate inclusion
 
-This fixture is wired into `replay-smoke.test.ts`'s `SMOKE_FIXTURE_IDS`
-alongside the decomposer/improver/explorer replays. It exercises a
+This fixture is wired into `replay-smoke.test.ts` alongside the other
+representative agent-call replays. It exercises a
 workflow-runtime branch the existing three smoke fixtures do not — the
 `autonomy.inbox.available` trigger receipt path, the `inspect-inbox`
 `needsAttention` gating shape (which runs a `getRepoTaskQueueSnapshot`

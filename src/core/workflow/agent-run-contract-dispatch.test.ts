@@ -17,11 +17,12 @@ import {
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { WorkflowRuntime } from "./runtime.js";
+import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 import { registerWorkflowDefinition } from "./validation.js";
 
 describe("resolved agent contract pre-dispatch validation", () => {
   let projectDir: string;
+  const runStates: Array<{ close(): void }> = [];
   const run = vi.fn(async (_options: AgentHarnessRunOptions) => ({
     text: "unused",
     streamedText: "",
@@ -59,6 +60,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -72,6 +74,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
     const definition = registerWorkflowDefinition(
       "src/core/workflow/agent-run-contract-dispatch.test.ts",
       {
+      repository: "read",
       name: "pre-dispatch-contract-fixture",
       moduleRoot: projectDir,
       triggers: [{ event: "manual" }],
@@ -84,7 +87,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
       }],
       },
     );
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus: new EventBus(),
       projectDir,
       workflows: [definition],
@@ -92,6 +95,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
       deadLetterQueue,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
     });
+    runStates.push(runState);
 
     expect(() => runtime.start()).toThrow(/Passive execution is statically impossible/);
     expect(runtime.getState().pendingRuns).toEqual([]);
@@ -110,6 +114,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
     const definition = registerWorkflowDefinition(
       "src/core/workflow/agent-run-contract-dispatch.test.ts",
       {
+        repository: "read",
         name: "unregistered-repair-judge-fixture",
         moduleRoot: projectDir,
         triggers: [{ event: "manual" }],
@@ -136,7 +141,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
         }],
       },
     );
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus: new EventBus(),
       projectDir,
       workflows: [definition],
@@ -144,6 +149,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
       deadLetterQueue,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
     });
+    runStates.push(runState);
 
     expect(() => runtime.start()).toThrow(
       /unregistered-repair-judge-fixture.*steps\[0\]\.repairLoop\.checks\[0\].*missing-repair-judge-harness/,
@@ -161,6 +167,7 @@ describe("resolved agent contract pre-dispatch validation", () => {
     const definition = registerWorkflowDefinition(
       "src/core/workflow/agent-run-contract-dispatch.test.ts",
       {
+        repository: "read",
         name: "unregistered-code-step-agent-fixture",
         moduleRoot: projectDir,
         triggers: [{ event: "manual" }],
@@ -178,13 +185,14 @@ describe("resolved agent contract pre-dispatch validation", () => {
         }],
       },
     );
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus: new EventBus(),
       projectDir,
       workflows: [definition],
       config: { defaultAgentHarness: harness.name },
       deadLetterQueue,
     });
+    runStates.push(runState);
 
     expect(() => runtime.start()).toThrow(
       /unregistered-code-step-agent-fixture.*steps\[0\].*missing-code-step-agent-harness/,

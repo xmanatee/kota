@@ -7,6 +7,8 @@ import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { RunCoordinator } from "./run-coordinator.js";
+import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
@@ -21,12 +23,10 @@ export type WorkflowRuntimeConfig = {
    */
   pbus?: ProjectScopedEventBus;
   projectDir?: string;
-  /**
-   * Mutable checkout used by workflow steps that execute against repository
-   * files. Defaults to `projectDir`, which preserves the existing single-
-   * checkout runtime shape.
-   */
-  workspaceDir?: string;
+  projectId: string;
+  runState: RunStateDatabase;
+  runCoordinator: RunCoordinator;
+  daemonEpoch: number;
   /** Machine-owned authority document excluded from agent execution. */
   authorityConfigPath?: string;
   /**
@@ -43,17 +43,6 @@ export type WorkflowRuntimeConfig = {
   model?: string;
   config?: KotaConfig;
   idleIntervalMs?: number;
-  /**
-   * Maximum number of agent-step workflows that may run simultaneously.
-   * Defaults to 1 so the default experience is serialized agent runs.
-   */
-  agentConcurrency?: number;
-  /**
-   * Maximum number of code-only (no agent step) workflows that may run
-   * simultaneously. Code-only workflows run independently of agent-step
-   * workflows and each other up to this cap. Defaults to 4.
-   */
-  codeConcurrency?: number;
   /**
    * True for the daemon's default directory-scope runtime. Standalone tests and
    * single-scope callers omit this and behave as the default runtime.

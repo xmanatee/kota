@@ -3,7 +3,13 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { inspectSecurityReviewDue } from "./due-check.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
+import {
+  collectSecurityReviewGitEvidence,
+  type InspectSecurityReviewDueOptions,
+  inspectSecurityReviewDue,
+} from "./due-check.js";
 
 describe("security-review due check", () => {
   let projectDir: string;
@@ -70,14 +76,28 @@ describe("security-review due check", () => {
           workflow: "security-review",
           status: "success",
           completedAt: args.completedAt,
-          steps: [
-            {
-              id: "commit",
-              output: {
-                sha: args.commitSha,
-              },
-            },
-          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      join(runDir, WRITER_INTEGRATION_EVIDENCE),
+      `${JSON.stringify(
+        {
+          version: 1,
+          runId: args.runId,
+          workflow: "security-review",
+          projectId: "security-review-test",
+          targetBranch: "main",
+          baseHead: args.commitSha,
+          integratedFromHead: args.commitSha,
+          publishedHead: args.commitSha,
+          commitSubject: "security review",
+          commitMessage: "security review",
+          changedPaths: [],
+          completedAt: args.completedAt,
         },
         null,
         2,
@@ -117,7 +137,18 @@ describe("security-review due check", () => {
     );
   }
 
-  it("reports due when security-sensitive source changes after the last review", () => {
+  async function inspectDue(
+    options: InspectSecurityReviewDueOptions,
+  ) {
+    const gitEvidence = await collectSecurityReviewGitEvidence({
+      projectDir,
+      stateDir: options.stateDir,
+      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+    });
+    return inspectSecurityReviewDue(projectDir, options, gitEvidence);
+  }
+
+  it("reports due when security-sensitive source changes after the last review", async () => {
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeReviewEvidence({
@@ -128,8 +159,9 @@ describe("security-review due check", () => {
     writeProjectFile("src/modules/secrets/index.ts", "const apiKey = process.env.SECRET_TOKEN;\n");
     commitAll("touch secrets");
 
-    const decision = inspectSecurityReviewDue(projectDir, {
+    const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(decision.due).toBe(true);
@@ -146,7 +178,7 @@ describe("security-review due check", () => {
     });
   });
 
-  it("reports due for scanner-matched security-sensitive changes outside preferred prefixes", () => {
+  it("reports due for scanner-matched security-sensitive changes outside preferred prefixes", async () => {
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeReviewEvidence({
@@ -167,8 +199,9 @@ describe("security-review due check", () => {
     );
     commitAll("touch registry installer execution");
 
-    const decision = inspectSecurityReviewDue(projectDir, {
+    const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(decision.due).toBe(true);
@@ -188,7 +221,7 @@ describe("security-review due check", () => {
     ]);
   });
 
-  it("reports not due when the current head has already been reviewed", () => {
+  it("reports not due when the current head has already been reviewed", async () => {
     writeProjectFile("src/modules/web-access/web-fetch.ts", "await fetch(url);\n");
     const reviewedSha = commitAll("reviewed security surface");
     writeReviewEvidence({
@@ -197,8 +230,9 @@ describe("security-review due check", () => {
       commitSha: reviewedSha,
     });
 
-    const decision = inspectSecurityReviewDue(projectDir, {
+    const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(decision.due).toBe(false);
@@ -206,7 +240,7 @@ describe("security-review due check", () => {
     expect(decision.changedSurfaces).toEqual([]);
   });
 
-  it("defers routine review when open security follow-up tasks already exist", () => {
+  it("defers routine review when open security follow-up tasks already exist", async () => {
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeReviewEvidence({
@@ -221,8 +255,9 @@ describe("security-review due check", () => {
     );
     commitAll("touch security review prompt");
 
-    const decision = inspectSecurityReviewDue(projectDir, {
+    const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(decision.due).toBe(false);
@@ -233,7 +268,7 @@ describe("security-review due check", () => {
     expect(decision.highRiskChangedPaths).toEqual([]);
   });
 
-  it("does not repeat after review evidence records the changed head", () => {
+  it("does not repeat after review evidence records the changed head", async () => {
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeReviewEvidence({
@@ -244,8 +279,9 @@ describe("security-review due check", () => {
     writeProjectFile("src/core/mcp/client.ts", "const transport = new McpClient();\n");
     const changedSha = commitAll("touch mcp transport");
 
-    const dueDecision = inspectSecurityReviewDue(projectDir, {
+    const dueDecision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(dueDecision.due).toBe(true);
@@ -259,8 +295,9 @@ describe("security-review due check", () => {
       commitSha: changedSha,
     });
 
-    const afterReview = inspectSecurityReviewDue(projectDir, {
+    const afterReview = await inspectDue({
       now: new Date("2026-05-25T01:20:00.000Z"),
+      stateDir: join(projectDir, ".kota"),
     });
 
     expect(afterReview.due).toBe(false);

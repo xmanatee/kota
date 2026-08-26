@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChannelStartContext } from "#core/channels/channel.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
@@ -23,10 +24,19 @@ import {
 
 const MockedSlackBot = vi.mocked(SlackBot);
 
+const CHANNEL_START_CTX: ChannelStartContext = {
+  ...STUB_CHANNEL_START_CTX,
+  getWorkflowStatus: () => ({
+    runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
+    dispatchPaused: false,
+    runsDir: "/tmp/.kota/runs",
+  }),
+};
+
 async function resolveStartResult(ctx: ModuleRuntimeContext) {
   const channels = await resolveModuleChannels(slackChannelModule, ctx);
   const def = channels[0];
-  return def.create(STUB_CHANNEL_START_CTX);
+  return def.create(CHANNEL_START_CTX);
 }
 
 async function resolveAdapter(ctx: ModuleRuntimeContext) {
@@ -44,7 +54,7 @@ describe("slackChannelModule channel adapter", () => {
     const ctx = makeStubCtx(undefined, undefined);
     const channels = await resolveModuleChannels(slackChannelModule, ctx);
     const result = channels[0].create({
-      ...STUB_CHANNEL_START_CTX,
+      ...CHANNEL_START_CTX,
       log: logFn,
     });
     expect(result.status).toBe("disabled");

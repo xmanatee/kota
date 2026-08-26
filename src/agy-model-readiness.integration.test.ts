@@ -16,6 +16,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
   antigravityCliAgentHarness,
@@ -81,7 +82,7 @@ describe("AGY autonomy model/effort readiness", () => {
     const definition: WorkflowDefinition = {
       name: "agy-readiness-preflight",
       enabled: true,
-      recoveryCapable: false,
+      repository: "read",
       definitionPath: "src/agy-model-readiness.integration.test.ts",
       moduleRoot: projectDir,
       triggers: [],
@@ -93,7 +94,11 @@ describe("AGY autonomy model/effort readiness", () => {
       definition,
       { event: "manual", schemaRef: null, payload: {} },
       {
-        projectDir,
+        runContext: createTestRunContext(projectDir, {
+          event: "manual",
+          schemaRef: null,
+          payload: {},
+        }),
         bus: new EventBus(),
         store,
         log: () => {},

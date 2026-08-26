@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { HistoryClient } from "#modules/history/client.js";
@@ -46,31 +47,17 @@ function writeRunMetadata(
   );
 }
 
-function writeBuilderRunSummary(
+function writeBuilderIntegration(
   runsDir: string,
   id: string,
-  summary: Record<string, unknown>,
 ): void {
-  const dir = join(runsDir, id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "run-summary.json"),
-    JSON.stringify({
-      runId: id,
-      workflow: "builder",
-      taskId: null,
-      taskTitle: null,
-      outcome: "success",
-      commitSha: "abc",
-      commitMessage: "x",
-      filesChanged: [],
-      costUsd: null,
-      durationMs: null,
-      completedAt: new Date().toISOString(),
-      ...summary,
-    }),
-    "utf-8",
-  );
+  writeWriterIntegrationFixture(runsDir, {
+    runId: id,
+    workflow: "builder",
+    publishedHead: "abc",
+    commitSubject: "Add foo",
+    commitMessage: "Add foo\n\nBody",
+  });
 }
 
 function makeProject(active: boolean): string {
@@ -84,20 +71,28 @@ function makeProject(active: boolean): string {
 
   const now = Date.now();
   const runId = "2026-06-18T14-00-00-000Z-builder-digest";
+  const taskDigest = "0".repeat(64);
   writeRunMetadata(runsDir, runId, {
     workflow: "builder",
     status: "success",
     startedAt: new Date(now - 60_000).toISOString(),
     completedAt: new Date(now - 30_000).toISOString(),
     durationMs: 30_000,
+    trigger: {
+      event: "autonomy.queue.available",
+      payload: {
+        taskId: "task-foo",
+        taskPath: "data/tasks/ready/task-foo.md",
+        taskState: "ready",
+        taskUpdatedAt: new Date(now - 60_000).toISOString(),
+        taskDigest,
+        idempotencyKey: `builder:task-foo:${taskDigest}`,
+        title: "Add foo",
+      },
+    },
     steps: [],
   });
-  writeBuilderRunSummary(runsDir, runId, {
-    taskId: "task-foo",
-    taskTitle: "Add foo",
-    commitMessage: "Add foo\n\nBody",
-    durationMs: 30_000,
-  });
+  writeBuilderIntegration(runsDir, runId);
   writeFileSync(
     join(projectDir, "data", "tasks", "ready", "task-ready.md"),
     "---\nid: task-ready\nstatus: ready\n---\n",

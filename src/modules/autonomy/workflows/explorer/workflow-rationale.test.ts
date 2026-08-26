@@ -77,6 +77,7 @@ describe("explorer exploration-rationale repair check", () => {
   ): WorkflowStepContext {
     return {
       projectDir,
+      scopeDir: projectDir,
       workflow: {
         name: "explorer",
         definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
@@ -200,20 +201,4 @@ describe("explorer exploration-rationale repair check", () => {
     expect(result).toContain("decision=watchlist-only");
   });
 
-  it("does not pass --min-ready 1 to validate-tasks anymore", () => {
-    const exploreStep = explorerWorkflow.steps.find(
-      (step): step is WorkflowAgentStepInput =>
-        "id" in step && step.id === "explore" && step.type === "agent",
-    );
-    if (!exploreStep || !exploreStep.repairLoop) throw new Error("explore step missing");
-    const queueValid = exploreStep.repairLoop.checks.find(
-      (check) => check.id === "task-queue-valid",
-    );
-    if (!queueValid || queueValid.type !== "code") {
-      throw new Error("task-queue-valid missing");
-    }
-    const source = queueValid.run.toString();
-    expect(source).not.toMatch(/--min-ready/);
-    expect(source).toMatch(/validate-tasks/);
-  });
 });

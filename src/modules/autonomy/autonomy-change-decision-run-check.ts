@@ -5,14 +5,14 @@ import {
   AUTONOMY_CHANGE_DECISION_ARTIFACT,
   AUTONOMY_CHANGE_DECISION_CHECK_ID,
 } from "./autonomy-change-decision-types.js";
-import { readStagedDiff } from "./staged-diff.js";
+import { readWorkflowDiff } from "./workflow-diff.js";
 
 export function checkAutonomyChangeDecisionForRun(
   projectDir: string,
   runDirPath: string,
 ): string {
   const requirement = detectMaterialAutonomyChangeRequirement(
-    readStagedDiff(projectDir, ["."]),
+    readWorkflowDiff(projectDir, ["."]),
   );
   if (!requirement.required) {
     return "OK: no staged material autonomy behavior changes require an autonomy-change decision";

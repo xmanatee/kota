@@ -1,10 +1,9 @@
 import type { KotaConfig } from "#core/config/config.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ToolEffect } from "#core/tools/effect.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
-import type { WorkflowDefinition } from "#core/workflow/types.js";
+import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type {
   WorkflowTrialAttemptReport,
   WorkflowTrialOptions,
@@ -16,8 +15,7 @@ export type FileSnapshot = Map<string, string>;
 export type WorkflowTrialRuntime = {
   config: KotaConfig;
   eventBus?: EventBus;
-  projectRuntime?: ProjectRuntime;
-  definitions: WorkflowDefinition[];
+  workflows: RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: ModuleContext["resolveAgentDef"];
   resolveSkillsPrompt?: ModuleContext["resolveSkillsPrompt"];
   unload?: () => Promise<void>;

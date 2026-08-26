@@ -6,6 +6,7 @@ import { validateWorkflowDefinitions } from "../validation.js";
 
 function makeWorkflow(steps: WorkflowDefinitionInput["steps"]): WorkflowDefinitionInput {
   return {
+    repository: "read",
     name: "test",
     triggers: [{ event: "runtime.idle" }],
     steps,
@@ -178,6 +179,7 @@ describe("branch step – validation", () => {
   it("accepts valid branch step", () => {
     const defs = validateWorkflowDefinitions([
       {
+        repository: "read",
         definitionPath: "test.ts",
         name: "test",
         triggers: [{ event: "runtime.idle" }],
@@ -198,6 +200,7 @@ describe("branch step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -218,6 +221,7 @@ describe("branch step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -238,6 +242,7 @@ describe("branch step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -259,6 +264,7 @@ describe("branch step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],

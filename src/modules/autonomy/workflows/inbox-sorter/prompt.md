@@ -25,5 +25,5 @@ and the destination state's local contract.
 
 ## Finish
 
-- Follow the workflow finish protocol.
+- Leave every processed capture and resulting task aligned with the outcome.
 - Lightweight validations run after you finish.

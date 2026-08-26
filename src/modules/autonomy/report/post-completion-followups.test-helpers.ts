@@ -1,6 +1,7 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const NOW = Date.parse("2026-04-29T12:00:00.000Z");
@@ -76,28 +77,44 @@ export function writeRun(
   );
 }
 
-export function writeRunSummary(
+export function writeWriterIntegration(
   runsDir: string,
   id: string,
   taskId: string,
   commitSha: string,
 ): void {
+  const metadataPath = join(runsDir, id, "metadata.json");
+  const metadata = JSON.parse(readFileSync(metadataPath, "utf-8")) as Record<
+    string,
+    unknown
+  >;
+  const taskDigest = "0".repeat(64);
   writeFileSync(
-    join(runsDir, id, "run-summary.json"),
+    metadataPath,
     JSON.stringify({
-      runId: id,
-      workflow: "builder",
-      taskId,
-      taskTitle: taskId,
-      outcome: "success",
-      commitSha,
-      commitMessage: "complete fixture task",
-      filesChanged: [],
-      costUsd: null,
-      durationMs: null,
-      completedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      ...metadata,
+      trigger: {
+        event: "autonomy.queue.available",
+        payload: {
+          taskId,
+          taskPath: `data/tasks/ready/${taskId}.md`,
+          taskState: "ready",
+          taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+          taskDigest,
+          idempotencyKey: `builder:${taskId}:${taskDigest}`,
+          title: taskId,
+        },
+      },
     }),
   );
+  writeWriterIntegrationFixture(runsDir, {
+    runId: id,
+    workflow: "builder",
+    publishedHead: commitSha,
+    commitSubject: "complete fixture task",
+    commitMessage: "complete fixture task",
+    completedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+  });
 }
 
 export function taskWithText(text: string): RepoTaskFullRecord {

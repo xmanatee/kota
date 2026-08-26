@@ -2258,7 +2258,7 @@ final class DaemonClientTests: XCTestCase {
                   "enabled": false,
                   "runtimeEnabled": false,
                   "stepCount": 3,
-                  "triggers": [{"type": "event", "event": "runtime.recovered"}]
+                  "triggers": [{"type": "event", "event": "workflow.completed"}]
                 }
               ]
             }

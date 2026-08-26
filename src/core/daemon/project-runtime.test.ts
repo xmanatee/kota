@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import {
   getModuleLogStore,
   resetModuleLogStore,
 } from "#core/modules/module-log.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
   getIdempotencyStore,
@@ -18,11 +20,13 @@ import {
 } from "./owner-question-queue.js";
 import {
   createProjectRuntime,
+  type ProjectRuntime,
   ProjectRuntimeRegistry,
 } from "./project-runtime.js";
 import { getScheduler, resetScheduler } from "./scheduler.js";
 import {
   buildConfiguredProject,
+  type ConfiguredProject,
   ScopeRegistry,
 } from "./scope-registry.js";
 import { getTaskStore, resetTaskStore } from "./task-store.js";
@@ -32,6 +36,45 @@ function makeProjectDir(name: string): string {
   mkdirSync(join(root, ".kota"), { recursive: true });
   return root;
 }
+
+const openRunStates: RunStateDatabase[] = [];
+
+function makeRunInfrastructure(projects: readonly ConfiguredProject[]) {
+  const stateDir = mkdtempSync(join(tmpdir(), "kota-project-runtime-run-state-"));
+  const runState = new RunStateDatabase(stateDir);
+  openRunStates.push(runState);
+  const startedAt = new Date().toISOString();
+  for (const project of projects) {
+    runState.registerProject({
+      id: project.projectId,
+      rootPath: project.projectDir,
+      displayName: project.displayName,
+      createdAt: startedAt,
+    });
+  }
+  const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
+  const runtimes = new Map<string, ProjectRuntime>();
+  const runCoordinator = new RunCoordinator({
+    store: runState,
+    daemonEpoch,
+    concurrency: 4,
+    execute: (run, signal) => {
+      const runtime = runtimes.get(run.projectId);
+      if (!runtime) throw new Error(`Missing runtime fixture for ${run.projectId}`);
+      return runtime.workflowRuntime.executeAdmittedRun(run, signal);
+    },
+  });
+  return {
+    options: { runState, runCoordinator, daemonEpoch },
+    attach(runtime: ProjectRuntime): void {
+      runtimes.set(runtime.project.projectId, runtime);
+    },
+  };
+}
+
+afterEach(() => {
+  for (const runState of openRunStates.splice(0)) runState.close();
+});
 
 function resetSingletons(): void {
   resetTaskStore();
@@ -50,19 +93,22 @@ describe("createProjectRuntime", () => {
     const projectDir = makeProjectDir("solo");
     const project = buildConfiguredProject({ projectDir });
     const bus = new EventBus();
+    const runInfrastructure = makeRunInfrastructure([project]);
 
     const bundle = createProjectRuntime({
       project,
       bus,
       onLog: () => {},
       installSingletons: false,
+      ...runInfrastructure.options,
     });
+    runInfrastructure.attach(bundle);
 
     expect(bundle.project.projectId).toBe(project.projectId);
-    expect(bundle.runStore.rootDir).toBe(join(projectDir, ".kota"));
-    expect(bundle.runStore.runsDir).toBe(join(projectDir, ".kota", "runs"));
+    expect(bundle.runStore.rootDir).toBe(join(project.projectDir, ".kota"));
+    expect(bundle.runStore.runsDir).toBe(join(project.projectDir, ".kota", "runs"));
     expect(bundle.pushTokenStorePath).toBe(
-      join(projectDir, ".kota", "push-tokens.json"),
+      join(project.projectDir, ".kota", "push-tokens.json"),
     );
 
     bundle.taskStore.add("first task");
@@ -132,19 +178,24 @@ describe("createProjectRuntime", () => {
     const projectA = buildConfiguredProject({ projectDir: makeProjectDir("a") });
     const projectB = buildConfiguredProject({ projectDir: makeProjectDir("b") });
     const bus = new EventBus();
+    const runInfrastructure = makeRunInfrastructure([projectA, projectB]);
 
     const bundleA = createProjectRuntime({
       project: projectA,
       bus,
       onLog: () => {},
       installSingletons: true,
+      ...runInfrastructure.options,
     });
+    runInfrastructure.attach(bundleA);
     const bundleB = createProjectRuntime({
       project: projectB,
       bus,
       onLog: () => {},
       installSingletons: false,
+      ...runInfrastructure.options,
     });
+    runInfrastructure.attach(bundleB);
 
     expect(getTaskStore()).toBe(bundleA.taskStore);
     expect(getScheduler()).toBe(bundleA.scheduler);
@@ -179,18 +230,21 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
       projects: [{ projectDir: dirA }, { projectDir: dirB }],
     });
     const bus = new EventBus();
+    const runInfrastructure = makeRunInfrastructure(registry.list());
 
     const runtimes = ProjectRuntimeRegistry.create({
       registry,
       bus,
       onLog: () => {},
+      ...runInfrastructure.options,
     });
+    for (const runtime of runtimes.list()) runInfrastructure.attach(runtime);
 
     const a = runtimes.get(registry.list()[0]!.projectId);
     const b = runtimes.get(registry.list()[1]!.projectId);
 
-    expect(a.project.projectDir).toBe(resolve(dirA));
-    expect(b.project.projectDir).toBe(resolve(dirB));
+    expect(a.project.projectDir).toBe(registry.list()[0]!.projectDir);
+    expect(b.project.projectDir).toBe(registry.list()[1]!.projectDir);
     expect(a.runStore).not.toBe(b.runStore);
     expect(a.taskStore).not.toBe(b.taskStore);
     expect(a.scheduler).not.toBe(b.scheduler);
@@ -318,11 +372,14 @@ describe("ProjectRuntimeRegistry — independence across projects", () => {
       projects: [{ projectDir: dir }],
     });
     const bus = new EventBus();
+    const runInfrastructure = makeRunInfrastructure(registry.list());
     const runtimes = ProjectRuntimeRegistry.create({
       registry,
       bus,
       onLog: () => {},
+      ...runInfrastructure.options,
     });
+    for (const runtime of runtimes.list()) runInfrastructure.attach(runtime);
     expect(() => runtimes.get("not-a-real-id")).toThrow(/no runtime/i);
     runtimes.getDefault().scheduler.stopTimer();
     runtimes.getDefault().scheduler.disconnectBus();

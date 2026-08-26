@@ -46,8 +46,7 @@ export function runtimeHealthAuditStepOutput(
 function isRuntimeAuditTrigger(event: string): boolean {
   return (
     event === "schedule" ||
-    event === AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT ||
-    event === "runtime.recovered"
+    event === AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT
   );
 }
 
@@ -62,11 +61,13 @@ export const buildRuntimeAudit = typedCodeStep<RuntimeAuditStepOutput>({
       "patternCount",
       "evidenceGapCount",
     ]),
-  run: async ({ projectDir, workflow, runBlocking }) => {
+  run: async ({ projectDir, stateDir, scopeDir, workflow, runBlocking }) => {
     const { audit, artifactPath } = await runBlocking(
       collectRuntimeHealthAuditOperation,
       {
         projectDir,
+        stateDir,
+        scopeDir,
         runDirPath: workflow.runDirPath,
         nowIso: new Date().toISOString(),
       },

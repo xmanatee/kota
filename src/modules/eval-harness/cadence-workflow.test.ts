@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import {
+  EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+  type PersistedBaseline,
+} from "./baseline-state.js";
 import { evalHarnessCadenceOperation } from "./cadence-operation.js";
 import {
   EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV,
@@ -130,17 +135,38 @@ describe("eval-harness cadence isolation backend selection", () => {
       startedAt: "2026-08-14T00:00:00.000Z",
       completedAt: "2026-08-14T01:00:00.000Z",
     };
+    const priorBaseline = {
+      aggregate: { fixtureCount: 1, repeatCount: 3, passAtK: 1, passHatK: 1 },
+      resourceProfile: { hostClass: "autonomy-cadence" },
+      runConfiguration: { fingerprint: "prior-fingerprint" },
+      recordedAt: "2026-08-07T01:00:00.000Z",
+      runArtifactBaseDir: "/run/prior-eval-runs",
+    } as PersistedBaseline;
+    const baselineToRecord = {
+      ...priorBaseline,
+      runConfiguration: { fingerprint: "fingerprint" },
+      recordedAt: completedEvent.completedAt,
+      runArtifactBaseDir: result.runArtifactBaseDir,
+    } as PersistedBaseline;
     const runBlocking = vi.fn().mockResolvedValue({
       result,
       completedEvent,
       regressionEvent,
+      baselineToRecord,
     });
     const emit = vi.fn();
+    const state = createTestTransactionalRunState();
+    state.compareAndSet(
+      EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+      0,
+      priorBaseline,
+    );
     const context = {
       projectDir: "/project",
       workflow: { runDirPath: "/run" },
       runBlocking,
       emit,
+      state,
     } as unknown as WorkflowCodeStepContext;
 
     await expect(runHarness.run(context)).resolves.toEqual(result);
@@ -153,16 +179,22 @@ describe("eval-harness cadence isolation backend selection", () => {
         image: "node:22-bookworm",
         kotaBinaryPath: "/opt/kota/bin/kota.mjs",
       },
+      priorBaseline,
     });
+    expect(state.read<PersistedBaseline>(
+      EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
+    )).toEqual({ revision: 2, value: baselineToRecord });
     expect(emit).toHaveBeenNthCalledWith(
       1,
       "eval-harness.regression.detected",
       regressionEvent,
+      { delivery: "on-run-success", stepId: "run-harness:regression" },
     );
     expect(emit).toHaveBeenNthCalledWith(
       2,
       "eval-harness.set.completed",
       completedEvent,
+      { delivery: "on-run-success", stepId: "run-harness:completed" },
     );
   });
 });

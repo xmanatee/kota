@@ -190,7 +190,7 @@ export function aggregateAutonomyReport(
     supervisionLoad,
     openQueue,
     doneInWindow,
-    explorer: buildExplorerBalance(runs, taskById, input.addedFilesBySha),
+    explorer: buildExplorerBalance(runs, taskById, input.runsDir),
     builder: buildBuilderBreakdown(runs, taskById, input.runsDir),
     decisionAttribution: buildDecisionAttributionReport({
       runs,

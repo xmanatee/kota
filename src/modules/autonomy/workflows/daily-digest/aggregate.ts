@@ -1,7 +1,7 @@
 /**
  * Pure aggregation for the operator-facing daily digest. Reads only what is
  * already on disk: per-run metadata under `.kota/runs/`, optional builder
- * `run-summary.json` artifacts for commit-message enrichment, the blocked
+ * runtime-owned writer integration evidence for commit enrichment, the blocked
  * task tree (with typed unblock preconditions), and the in-process owner
  * question queue.
  *
@@ -16,9 +16,8 @@ import type {
   OwnerQuestionQueue,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   listRepoTasksInState,
@@ -137,11 +136,11 @@ export function aggregateDailyDigest(input: DailyDigestInput): DailyDigestData {
     0,
     PER_CATEGORY_LIMIT,
   );
-  const explorerAdditions = collectExplorerAdditions(allRuns).slice(
+  const explorerAdditions = collectExplorerAdditions(allRuns, input.runsDir).slice(
     0,
     PER_CATEGORY_LIMIT,
   );
-  const decomposerSplits = collectDecomposerSplits(allRuns).slice(
+  const decomposerSplits = collectDecomposerSplits(allRuns, input.runsDir).slice(
     0,
     PER_CATEGORY_LIMIT,
   );
@@ -201,16 +200,14 @@ function collectBuilderCommits(
     if (run.status !== "success" && run.status !== "completed-with-warnings") {
       continue;
     }
-    const summary = readOptionalJsonFile<WorkflowRunSummary>(
-      join(runsDir, run.id, "run-summary.json"),
-    );
-    if (!summary) continue;
+    const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
+    if (!delivery) continue;
     items.push({
       runId: run.id,
-      taskId: summary.taskId,
-      taskTitle: summary.taskTitle,
-      commitSubject: summary.commitMessage.split("\n")[0]?.trim() ?? "",
-      durationMs: summary.durationMs,
+      taskId: delivery.taskId,
+      taskTitle: delivery.taskTitle,
+      commitSubject: delivery.commitSubject ?? "",
+      durationMs: delivery.durationMs,
     });
   }
   return items;
@@ -218,6 +215,7 @@ function collectBuilderCommits(
 
 function collectExplorerAdditions(
   runs: WorkflowRunMetadata[],
+  runsDir: string,
 ): ExplorerAdditionItem[] {
   const items: ExplorerAdditionItem[] = [];
   for (const run of runs) {
@@ -225,7 +223,7 @@ function collectExplorerAdditions(
     if (run.status !== "success") continue;
     const apply = run.steps.find((s) => s.id === "apply-watchlist-updates");
     const watchlistAdds = readWatchlistAddCount(apply?.output);
-    const taskCount = countCommittedTaskAdditions(run);
+    const taskCount = countCommittedTaskAdditions(run, runsDir);
     if (taskCount === 0 && watchlistAdds === 0) continue;
     items.push({ runId: run.id, taskCount, watchlistAdds });
   }
@@ -239,25 +237,18 @@ function readWatchlistAddCount(output: unknown): number {
   return apply.applied.filter((entry) => entry.kind === "added").length;
 }
 
-function countCommittedTaskAdditions(run: WorkflowRunMetadata): number {
-  // Explorer's commit step output records the new files staged. The summary
-  // is stored as ToolCallSummary entries on the commit step; rather than
-  // re-deriving from git, we record one addition per explorer run as the
-  // canonical signal — explorer is one cohesive batch per run.
-  const commit = run.steps.find((s) => s.id === "commit");
-  if (!commit || commit.status !== "success") return 0;
-  const output = commit.output as
-    | { committed?: boolean; addedTaskFiles?: string[] }
-    | undefined;
-  if (Array.isArray(output?.addedTaskFiles)) {
-    return output.addedTaskFiles.length;
-  }
-  // No precise count available — explorer commits as a batch, so report 1.
-  return output?.committed ? 1 : 0;
+function countCommittedTaskAdditions(
+  run: WorkflowRunMetadata,
+  runsDir: string,
+): number {
+  return readAutonomyRunDeliveryEvidence(runsDir, run)?.changedPaths.filter(
+    (path) => /^data\/tasks\/(?:backlog|ready)\/task-.*\.md$/.test(path),
+  ).length ?? 0;
 }
 
 function collectDecomposerSplits(
   runs: WorkflowRunMetadata[],
+  runsDir: string,
 ): DecomposerSplitItem[] {
   const items: DecomposerSplitItem[] = [];
   for (const run of runs) {
@@ -270,16 +261,19 @@ function collectDecomposerSplits(
       | { taskId?: string; shouldDecompose?: boolean }
       | undefined;
     const parentTaskId = assessOutput?.taskId ?? null;
-    const childTaskCount = countDecomposerChildren(run);
+    const childTaskCount = countDecomposerChildren(run, runsDir);
     items.push({ runId: run.id, parentTaskId, childTaskCount });
   }
   return items;
 }
 
-function countDecomposerChildren(run: WorkflowRunMetadata): number {
-  const commit = run.steps.find((s) => s.id === "commit");
-  const output = commit?.output as { addedTaskFiles?: string[] } | undefined;
-  return Array.isArray(output?.addedTaskFiles) ? output.addedTaskFiles.length : 0;
+function countDecomposerChildren(
+  run: WorkflowRunMetadata,
+  runsDir: string,
+): number {
+  return readAutonomyRunDeliveryEvidence(runsDir, run)?.changedPaths.filter(
+    (path) => /^data\/tasks\/(?:backlog|ready)\/task-.*\.md$/.test(path),
+  ).length ?? 0;
 }
 
 function collectBlockedPromoterMoves(
@@ -381,21 +375,17 @@ function computeQueueDelta(
   return { current, previous, delta };
 }
 
-export type DigestStateFile = {
+export type DigestState = {
   /** ISO timestamp the snapshot was captured. */
   capturedAt: string;
   /** Queue counts at the time of capture. */
   counts: QueueCounts;
 };
 
-export function readDigestState(path: string): DigestStateFile | null {
-  return readOptionalJsonFile<DigestStateFile>(path);
-}
-
 export function digestStateFromCounts(
   counts: QueueCounts,
   nowMs: number,
-): DigestStateFile {
+): DigestState {
   return {
     capturedAt: new Date(nowMs).toISOString(),
     counts: {

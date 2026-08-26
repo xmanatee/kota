@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { readRepairIterations } from "#core/workflow/repair-iteration-output.js";
 import {
   isWorkflowStepTimeoutErrorKind,
@@ -7,25 +5,91 @@ import {
 } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
-import type {
-  AgentStepTimeout,
-  DurationOutlier,
-  RepairCheckTally,
-  RunOutcomeAggregation,
-  WorkflowFailureRate,
-} from "./run-outcome-aggregation-types.js";
-import type { WorkflowRunSummary } from "./run-summary.js";
+import { readAutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 import { type RunSummary, summarizeRun } from "./shared.js";
 
-export type { RunOutcomeAggregation } from "./run-outcome-aggregation-types.js";
+type WorkflowFailureRate = {
+  workflow: string;
+  total: number;
+  failures: number;
+  rate: number;
+};
+
+type RepairCheckTally = {
+  workflow: string;
+  checkId: string;
+  count: number;
+  recovered: number;
+  terminal: number;
+};
+
+type DurationOutlier = {
+  runId: string;
+  workflow: string;
+  durationMs: number;
+  medianMs: number;
+  commitSubject?: string;
+};
+
+type AgentStepTimeout = {
+  runId: string;
+  workflow: string;
+  stepId: string;
+  completedAt: string;
+  error: string;
+};
+
+export type RunOutcomeAggregation = {
+  failureRates24h: WorkflowFailureRate[];
+  failureRates7d: WorkflowFailureRate[];
+  topRepairFailures24h: RepairCheckTally[];
+  topRepairFailures7d: RepairCheckTally[];
+  durationOutliers: DurationOutlier[];
+  // Runs whose terminal failure was an agent step hitting its active-runtime
+  // `timeoutMs` rail. These are infrastructure signals (SDK transport stalls,
+  // upstream provider hangs), not autonomy-quality signals: editing prompts,
+  // validators, or queue shaping cannot fix a stuck SDK stream. They are
+  // surfaced here so improver can still see the pattern when it fires for a
+  // genuine reason, but they are excluded from `latestActionableRunAt` below
+  // so they do not by themselves trigger another improver pass.
+  agentStepTimeouts7d: AgentStepTimeout[];
+  // Max completedAt across actionable non-improver runs (terminal failures
+  // only). Used by the improver evidence gate to distinguish "new actionable
+  // evidence arrived" from "old evidence aged out of the window" — the latter
+  // must not force another improver pass.
+  //
+  // Recovered repair trips are intentionally excluded: the self-healing
+  // already worked and the aggregate (topRepairFailures) still surfaces the
+  // pattern when improver next wakes on a genuine failure. Using repair-trip
+  // completion to advance the gate produced a ~52% no-op rate on agent runs
+  // — see improver AGENTS.md evidence entry.
+  //
+  // Duration outliers in successful runs are likewise excluded: 24h evidence
+  // shows outliers consistently track substantive long-running work (75-min
+  // route migrations producing 525-line commits with full test coverage),
+  // not waste. Five of six successful improver runs in the 24h preceding the
+  // 2026-04-25T10:38:20Z metrics-route outlier were driven by terminal
+  // failures; the only outlier-only trigger (run 7fhk26) spent $2.14
+  // confirming an SDK api_retry stall was a one-off transport blip and
+  // no-oped. The outlier list still ships to the agent in `durationOutliers`
+  // so it can be inspected when improver does fire on a real failure.
+  //
+  // Agent-step active-runtime timeouts and classified provider/auth/rate-limit
+  // agent failures are likewise excluded: these are infrastructure signals,
+  // not the autonomy prompt/process surface improver tunes. Firing on them
+  // burns agent slots while the same upstream outage or operator credential
+  // issue persists.
+  latestActionableRunAt: string | null;
+};
 
 function computeFailureRates(runs: RunSummary[]): WorkflowFailureRate[] {
   const byWf = new Map<string, { total: number; failures: number }>();
   for (const r of runs) {
-    // Interrupted and yielded runs carry no terminal workflow-quality signal.
-    // A yield preserves unfinished work for continuation; counting it as a
-    // non-failure would make real failure rates look lower than they are.
-    if (r.status === "interrupted" || r.status === "yielded") continue;
+    // Interrupted runs (user abort, daemon termination mid-run) carry no
+    // workflow-quality signal — the outcome is indeterminate, not failed.
+    // Including them in the denominator makes real failure rates look lower
+    // than they are and warps improver prioritization, so drop them entirely.
+    if (r.status === "interrupted") continue;
     const entry = byWf.get(r.workflow) ?? { total: 0, failures: 0 };
     entry.total++;
     if (r.status === "failed") entry.failures++;
@@ -54,10 +118,6 @@ export function tallyRepairFailures(runs: WorkflowRunMetadata[]): RepairCheckTal
   >();
   for (const run of runs) {
     for (const step of run.steps) {
-      // The same preserved repair lineage is tallied when it eventually
-      // reaches a terminal outcome. Counting its yield would both duplicate
-      // the repair and misclassify the outstanding checks as terminal.
-      if (step.status === "yielded") continue;
       const iterations = readRepairIterations(step.output);
       if (iterations.length === 0) continue;
       const stepSucceeded = step.status === "success";
@@ -130,20 +190,22 @@ export function findDurationOutliers(runs: WorkflowRunMetadata[]): DurationOutli
   return outliers.sort((a, b) => b.durationMs - a.durationMs);
 }
 
-function readCommitSubject(runsDir: string, runId: string): string | undefined {
-  const summary = readOptionalJsonFile<WorkflowRunSummary>(
-    join(runsDir, runId, "run-summary.json"),
-  );
-  const message = summary?.commitMessage?.split("\n")[0].trim();
-  return message ? message : undefined;
+function readCommitSubject(
+  runsDir: string,
+  run: WorkflowRunMetadata,
+): string | undefined {
+  return readAutonomyRunDeliveryEvidence(runsDir, run)?.commitSubject ?? undefined;
 }
 
 function enrichOutliersWithSubjects(
   outliers: DurationOutlier[],
   runsDir: string,
+  runs: readonly WorkflowRunMetadata[],
 ): DurationOutlier[] {
+  const runById = new Map(runs.map((run) => [run.id, run]));
   return outliers.map((outlier) => {
-    const commitSubject = readCommitSubject(runsDir, outlier.runId);
+    const run = runById.get(outlier.runId);
+    const commitSubject = run ? readCommitSubject(runsDir, run) : undefined;
     return commitSubject ? { ...outlier, commitSubject } : outlier;
   });
 }
@@ -238,6 +300,7 @@ export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
   const durationOutliers = enrichOutliersWithSubjects(
     findDurationOutliers(all7d).slice(0, 10),
     runsDir,
+    all7d,
   );
 
   return {

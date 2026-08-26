@@ -1,6 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { findTaskReviewTarget } from "#modules/autonomy/task-review-target.js";
+import {
+  findExpectedTaskReviewTarget,
+  findTaskReviewTarget,
+  type TaskReviewContract,
+} from "#modules/autonomy/task-review-target.js";
 
 function countDoneWhenItems(taskContent: string): number {
   const lines = taskContent.split(/\r?\n/);
@@ -30,7 +34,11 @@ function countNonEmptyLines(text: string): number {
   return text.split("\n").filter((line) => line.trim().length > 0).length;
 }
 
-export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: string): string {
+export function checkSuccessCriteriaDeclared(
+  runDirPath: string,
+  projectDir?: string,
+  taskContract?: TaskReviewContract,
+): string {
   const filePath = join(runDirPath, "success-criteria.txt");
   if (!existsSync(filePath)) {
     throw new Error(
@@ -44,7 +52,9 @@ export function checkSuccessCriteriaDeclared(runDirPath: string, projectDir?: st
 
   let minCriteria = 2;
   if (projectDir) {
-    const task = findTaskReviewTarget(projectDir);
+    const task = taskContract
+      ? findExpectedTaskReviewTarget(projectDir, taskContract)
+      : findTaskReviewTarget(projectDir, "");
     if (task) {
       const doneWhenCount = countDoneWhenItems(task.content);
       if (doneWhenCount > 0) minCriteria = doneWhenCount;

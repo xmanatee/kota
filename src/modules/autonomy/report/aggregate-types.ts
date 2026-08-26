@@ -245,5 +245,4 @@ export type AutonomyReportInput = {
    * commit. The aggregator consults this map for explorer runs whose commit
    * step output records a `sha` but no inline `addedTaskFiles` array.
    */
-  addedFilesBySha?: Map<string, readonly string[]>;
 };

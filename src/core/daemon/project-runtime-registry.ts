@@ -2,6 +2,8 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
+import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { QuietHoursConfig } from "./notification-gate.js";
 import {
@@ -31,6 +33,9 @@ export type ProjectRuntimeRegistryOptions = {
   onLog: (message: string) => void;
   quietHours?: QuietHoursConfig;
   scopePolicyAuthority?: ScopePolicyAuthority;
+  runState: RunStateDatabase;
+  runCoordinator: RunCoordinator;
+  daemonEpoch: number;
 };
 
 /** Typed lookup and mutable ownership map for every live scope runtime. */
@@ -71,6 +76,9 @@ export class ProjectRuntimeRegistry {
         installSingletons: project.projectId === defaultId,
         quietHours: project.projectId === defaultId ? opts.quietHours : undefined,
         scopePolicyAuthority: opts.scopePolicyAuthority,
+        runState: opts.runState,
+        runCoordinator: opts.runCoordinator,
+        daemonEpoch: opts.daemonEpoch,
       });
       byId.set(project.projectId, runtime);
     }
@@ -87,6 +95,9 @@ export class ProjectRuntimeRegistry {
       onLog: opts.onLog,
       quietHours: opts.quietHours,
       scopePolicyAuthority: opts.scopePolicyAuthority,
+      runState: opts.runState,
+      runCoordinator: opts.runCoordinator,
+      daemonEpoch: opts.daemonEpoch,
     });
   }
 

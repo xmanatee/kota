@@ -143,6 +143,7 @@ describe("Telegram daemon scheduling", () => {
       stateDir,
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [{

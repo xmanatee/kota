@@ -3,8 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import {
+  createWorkflowCommandRunner,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import { CALIBRATION_REPAIR_TASK_ID } from "#modules/autonomy/calibration-repair.js";
 import { seedArtifact as seedBoundCalibrationArtifact } from "#modules/autonomy/calibration-repair-freshness-test-support.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
@@ -23,33 +28,6 @@ vi.mock("#core/util/repo-worktree.js", async () => {
   return {
     ...actual,
     getRepoWorktreeStatus: vi.fn(),
-  };
-});
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-    "#modules/autonomy/commit.js",
-  );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-calibration.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual = await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-    "#modules/autonomy/shared.js",
-  );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
   };
 });
 
@@ -161,14 +139,27 @@ function commitSourceChange(dir: string, name: string): string {
   return headRevision(dir);
 }
 
-const buildTrigger = {
-  event: "workflow.build.committed",
+function calibrationWorkflowCommandRunner(
+  projectDir: string,
+): WorkflowCommandRunner {
+  const runCommand = createWorkflowCommandRunner({ cwd: projectDir });
+  return (input) =>
+    input.command === "git"
+      ? runCommand(input)
+      : successfulWorkflowCommandRun(input);
+}
+
+const builderCompletionTrigger = {
+  event: "workflow.completed",
   payload: {
+    workflow: "builder",
     runId: "run-newer",
-    taskId: null,
-    commitMessage: "",
-    costUsd: null,
-    durationMs: null,
+    status: "success",
+    triggerEvent: "autonomy.queue.available",
+    durationMs: 1_000,
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    runDir: ".kota/runs/run-newer",
+    tags: ["monitored"],
   },
 } as const;
 
@@ -203,16 +194,14 @@ describe("evaluator-calibration-monitor workflow", () => {
     restore("KOTA_EVALUATOR_CALIBRATION_PWW_MIN_SAMPLE", originalPwwMinSample);
   });
 
-  it("registers with the build-committed and recovery triggers", () => {
+  it("registers for completed builder runs", () => {
     const registered = registerWorkflowDefinition(
       "src/modules/autonomy/workflows/evaluator-calibration-monitor/workflow.ts",
       evaluatorCalibrationMonitor,
     );
     expect(registered.name).toBe("evaluator-calibration-monitor");
-    expect(registered.recoveryCapable).toBe(true);
     const events = registered.triggers.map((t) => t.event);
-    expect(events).toContain("workflow.build.committed");
-    expect(events).toContain("runtime.recovered");
+    expect(events).toEqual(["workflow.completed"]);
   });
 
   it("emits the regression event AND opens a calibration repair task when the gate fires for the first time", async () => {
@@ -230,7 +219,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -275,7 +267,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(artifact).toMatchObject({
       runId: "harness-run-id",
       workflow: "evaluator-calibration-monitor",
-      triggerEvent: "workflow.build.committed",
+      triggerEvent: "workflow.completed",
       sourceRunId: "run-newer",
       criticPromptHash: getCriticPromptHash(),
       driftKinds: ["pass-contradiction"],
@@ -301,7 +293,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -378,7 +373,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     }
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -397,7 +395,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(artifact).toMatchObject({
       runId: "harness-run-id",
       workflow: "evaluator-calibration-monitor",
-      triggerEvent: "workflow.build.committed",
+      triggerEvent: "workflow.completed",
       sourceRunId: "run-newer",
       criticPromptHash: getCriticPromptHash(),
       gateStatus: "insufficient-sample",
@@ -450,7 +448,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -507,7 +508,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -568,7 +572,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -605,7 +612,10 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
@@ -633,13 +643,15 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
       projectDir,
-      trigger: buildTrigger,
+      trigger: builderCompletionTrigger,
+      contextOverrides: {
+        runCommand: calibrationWorkflowCommandRunner(projectDir),
+      },
     });
     const result = await harness.run();
     expect(result.status).toBe("success");
     expect(result.steps["propose-repair"].status).toBe("skipped");
     expect(result.steps["apply-repair"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
     const regression = result.emitted.filter(
       (e) => e.event === "evaluator-calibration.regression.detected",
     );
@@ -647,15 +659,4 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(regression[0].payload.repairAction).toBe("skipped");
   });
 
-  it("skips all work on runtime.recovered triggers", async () => {
-    const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
-      trigger: { event: "runtime.recovered", payload: {} },
-    });
-    const result = await harness.run();
-    expect(result.steps["evaluate-calibration"].status).toBe("skipped");
-    expect(result.steps["propose-repair"].status).toBe("skipped");
-    expect(result.steps["apply-repair"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-  });
 });

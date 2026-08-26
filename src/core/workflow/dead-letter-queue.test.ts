@@ -15,8 +15,11 @@ import {
 } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
-import { WorkflowRuntime } from "./runtime.js";
+import type { WorkflowRuntime } from "./runtime.js";
+import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
+
+const runStates: Array<{ close(): void }> = [];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -69,7 +72,7 @@ function startRuntime(input: {
   eventJournal?: EventJournal;
   workflows: RegisteredWorkflowDefinitionInput[];
 }): WorkflowRuntime {
-  const runtime = new WorkflowRuntime({
+  const { runtime, runState } = createTestWorkflowRuntime({
     bus: input.bus,
     pbus: input.pbus,
     projectDir: input.projectDir,
@@ -78,6 +81,7 @@ function startRuntime(input: {
     idleIntervalMs: 60_000,
     workflows: input.workflows,
   });
+  runStates.push(runState);
   runtime.start();
   return runtime;
 }
@@ -96,6 +100,7 @@ describe("workflow dead-letter queue integration", () => {
   });
 
   afterEach(() => {
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -111,6 +116,7 @@ describe("workflow dead-letter queue integration", () => {
       deadLetterQueue: store,
       workflows: [
         {
+          repository: "read",
           name: "telegram-validation",
           definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
           moduleRoot: process.cwd(),
@@ -155,6 +161,7 @@ describe("workflow dead-letter queue integration", () => {
     const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
     installEventJournal(bus, eventJournal);
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
+      repository: "read",
       name: "telegram-redrive-fixture",
       definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
       moduleRoot: process.cwd(),
@@ -278,6 +285,7 @@ describe("workflow dead-letter queue integration", () => {
     const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
     installEventJournal(bus, eventJournal);
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
+      repository: "read",
       name: "telegram-batch-redrive-fixture",
       definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
       moduleRoot: process.cwd(),
@@ -444,6 +452,7 @@ describe("workflow dead-letter queue integration", () => {
   it("redrives confirmed-action dispatch items as workflow resume runs", async () => {
     const executed: string[] = [];
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
+      repository: "read",
       name: "confirmed-action-redrive-fixture",
       definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
       moduleRoot: process.cwd(),
@@ -541,6 +550,7 @@ describe("workflow dead-letter queue integration", () => {
         deadLetterQueue: store,
         workflows: [
           {
+            repository: "read",
             name: "retry-exhaustion-fixture",
             definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
             moduleRoot: process.cwd(),
@@ -603,6 +613,7 @@ describe("workflow dead-letter queue integration", () => {
       deadLetterQueue: store,
       workflows: [
         {
+          repository: "read",
           name: "builder-recovery-timeout-fixture",
           definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
           moduleRoot: process.cwd(),

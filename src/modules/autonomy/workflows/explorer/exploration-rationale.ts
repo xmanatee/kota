@@ -271,7 +271,7 @@ export function validateExplorationRationale(
 
   if (options.strategicReadyCoverageGap && (decision === "noop" || decision === "watchlist-only")) {
     throw new Error(
-      `${EXPLORATION_RATIONALE_FILENAME}: decision "${decision}" is invalid while inspect-queue.strategicReadyCoverageGap is true. Treat the gap as actionable queue work: promote, decompose, or create a p0/p1/p2 ready task, or fail before commit if no honest action exists.`,
+      `${EXPLORATION_RATIONALE_FILENAME}: decision "${decision}" is invalid while inspect-queue.strategicReadyCoverageGap is true. Treat the gap as actionable queue work: promote, decompose, or create a p0/p1/p2 ready task, or fail before publication if no honest action exists.`,
     );
   }
 
@@ -345,7 +345,7 @@ export type ExplorationRationaleQueueContext = {
  * workflow's typed inspect-queue step so the validator can apply the
  * noop+movable gate without re-reading repo state from a second source, and
  * `strategicReadyCoverageGap` so the same inspect result blocks
- * queue-unchanged decisions before commit.
+ * queue-unchanged decisions before publication.
  */
 export function checkExplorationRationale(
   projectDir: string,

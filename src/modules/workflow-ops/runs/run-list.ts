@@ -36,12 +36,12 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
     .description("List recent workflow runs")
     .option("-n, --limit <n>", "Number of runs to show", "20")
     .option("-w, --workflow <name>", "Filter by workflow name")
-    .option("-s, --status <status>", "Filter by run status (success, failed, yielded, interrupted, completed-with-warnings, running)")
+    .option("-s, --status <status>", "Filter by run status (success, failed, interrupted, completed-with-warnings, running)")
     .option("-t, --tag <tag>", "Filter by tag")
     .option("--caused-by <run-id>", "Filter by upstream run ID (show runs triggered by this run)")
     .option("--json", "Output as JSON")
     .action(async (opts) => {
-      const validStatuses = ["success", "failed", "yielded", "interrupted", "completed-with-warnings", "running"];
+      const validStatuses = ["success", "failed", "interrupted", "completed-with-warnings", "running"];
       if (opts.status && !validStatuses.includes(opts.status)) {
         printToStderr(line(span(`Unknown status "${opts.status}". Valid values: ${validStatuses.join(", ")}`, "error")));
         process.exit(1);
@@ -124,8 +124,6 @@ function runStatusRole(status: string): SemanticRole {
       return "success";
     case "failed":
       return "error";
-    case "yielded":
-      return "warn";
     case "interrupted":
       return "warn";
     case "completed-with-warnings":
@@ -176,7 +174,6 @@ export type HistoryTotals = {
   total: number;
   successes: number;
   failures: number;
-  yielded: number;
   interrupted: number;
   totalCostUsd: number;
   successRate: number;
@@ -194,11 +191,10 @@ export function computeHistoryTotals(
       total: a.total + s.total,
       successes: a.successes + s.successes,
       failures: a.failures + s.failures,
-      yielded: a.yielded + s.yielded,
       interrupted: a.interrupted + s.interrupted,
       totalCostUsd: a.totalCostUsd + s.totalCostUsd,
     }),
-    { total: 0, successes: 0, failures: 0, yielded: 0, interrupted: 0, totalCostUsd: 0 },
+    { total: 0, successes: 0, failures: 0, interrupted: 0, totalCostUsd: 0 },
   );
   const successRate = acc.total > 0 ? (acc.successes / acc.total) * 100 : 0;
   const avgCostUsd = acc.total > 0 ? acc.totalCostUsd / acc.total : 0;
@@ -226,7 +222,6 @@ export function buildHistoryNode(
     { header: "Runs", align: "right" as const, minWidth: 4 },
     { header: "OK", align: "right" as const, minWidth: 3 },
     { header: "Fail", align: "right" as const, minWidth: 4 },
-    { header: "Yld", align: "right" as const, minWidth: 3 },
     { header: "Int", align: "right" as const, minWidth: 3 },
     { header: "Rate", align: "right" as const, minWidth: 5 },
     { header: "TotalCost", align: "right" as const, minWidth: 8 },
@@ -248,7 +243,6 @@ export function buildHistoryNode(
             { text: String(s.failures), role: (s.failures > 0 ? "error" : "muted") as SemanticRole },
           ],
         },
-        { spans: [{ text: String(s.yielded), role: "warn" as SemanticRole }] },
         { spans: [{ text: String(s.interrupted), role: "warn" as SemanticRole }] },
         { spans: [{ text: `${s.successRate.toFixed(1)}%` }] },
         { spans: [{ text: `$${s.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },
@@ -276,7 +270,6 @@ export function buildHistoryNode(
             },
           ],
         },
-        { spans: [{ text: String(totals.yielded), role: "warn" as SemanticRole }] },
         { spans: [{ text: String(totals.interrupted), role: "warn" as SemanticRole }] },
         { spans: [{ text: `${totals.successRate.toFixed(1)}%` }] },
         { spans: [{ text: `$${totals.totalCostUsd.toFixed(3)}`, role: "muted" as SemanticRole }] },

@@ -104,7 +104,6 @@ export function registerDefinitionsCommand(
             printWorkflowText(`  (no properties defined)`);
           }
         }
-        if (def.concurrencyGroup) printWorkflowText(`Concurrency: ${def.concurrencyGroup}`);
         printWorkflowText(`\nTriggers (${def.triggers.length}):`);
         for (const t of def.triggers) {
           const cooldown = t.cooldownMs ? ` cooldown=${formatDuration(t.cooldownMs)}` : "";

@@ -118,6 +118,7 @@ describe("direct workflow native harness scope policy", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store: new WorkflowRunStore(projectDir),

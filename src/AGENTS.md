@@ -52,8 +52,6 @@ modules therefore belongs at the root integration tier, not under `src/core/`.
 
 ## Strict Types Policy
 
-`src/strict-types-policy.integration.test.ts` ratchets `unknown` /
-`Record<string, unknown>` / `as unknown` usage in production `.ts` files
-against `src/strict-types-policy-baseline.json`. New offenders or count
-regressions fail the test. See `src/core/AGENTS.md` for the underlying rules
-and the regenerate-on-improvement flow.
+Production TypeScript stays strict. Decode untrusted boundary values into
+precise domain types before use; test decoder rejection and propagation rather
+than source syntax or per-file type-token counts. See `src/core/AGENTS.md`.

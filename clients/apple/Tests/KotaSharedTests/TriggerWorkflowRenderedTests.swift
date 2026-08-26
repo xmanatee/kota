@@ -43,7 +43,7 @@ final class TriggerWorkflowRenderedTests: XCTestCase {
             enabled: false,
             runtimeEnabled: false,
             stepCount: 3,
-            triggers: [.event(event: "runtime.recovered")],
+            triggers: [.event(event: "workflow.completed")],
             inputSchema: nil
         ),
         WorkflowDefinitionSummary(

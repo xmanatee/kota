@@ -16,8 +16,9 @@ dispatcher for external platform signals that should wake bounded workflows.
 - Blocked, archived, or ignored sources still produce routed audit events, but
   the dispatcher does not start processing workflows unless the route explicitly
   opts into dispatching those statuses.
-- `inbound.signal.received` and `inbound.signal.routed` are not ordinary
-  workflow event triggers. The dispatcher invokes configured route targets
-  directly so audit events cannot become a parallel processing path.
+- `inbound.signal.received` and `inbound.signal.routed` are audit events, not
+  workflow dispatch paths. The dispatcher admits each configured workflow once
+  with the non-emitted `inbound.signal.workflow-targeted` trigger label, so the
+  routed audit fact can never dispatch the same work a second time.
 - Keep this contract provider-neutral. Provider-specific fields belong inside
   the normalized action payload or in the consuming workflow's parser.

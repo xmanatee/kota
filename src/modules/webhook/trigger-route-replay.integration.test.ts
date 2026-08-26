@@ -3,10 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import type { WorkflowRuntime } from "#core/workflow/runtime.js";
+import {
+  createTestWorkflowRuntime,
+  type TestWorkflowRuntime,
+} from "#core/workflow/testing/runtime-fixture.js";
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
   startWebhookRouteTestServer,
@@ -31,22 +34,18 @@ function makeProjectDir(): string {
 describe("webhook route replay protection", () => {
   let projectDir: string;
   let runtime: WorkflowRuntime;
+  let runtimeFixture: TestWorkflowRuntime;
   let server: WebhookRouteTestServer;
-  let idempotencyStore: IdempotencyStore;
 
   beforeEach(async () => {
     projectDir = makeProjectDir();
-    idempotencyStore = new IdempotencyStore(
-      join(projectDir, ".kota", "idempotency"),
-      "scope-a",
-    );
-    runtime = new WorkflowRuntime({
+    runtimeFixture = createTestWorkflowRuntime({
       bus: new EventBus(),
       projectDir,
-      idempotencyStore,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "deploy",
           definitionPath:
             "src/modules/webhook/trigger-route-replay.integration.test.ts",
@@ -62,6 +61,7 @@ describe("webhook route replay protection", () => {
         },
       ],
     });
+    runtime = runtimeFixture.runtime;
     runtime.start();
     runtime.setDispatchPaused(true);
     server = await startWebhookRouteTestServer();
@@ -73,6 +73,7 @@ describe("webhook route replay protection", () => {
   afterEach(async () => {
     await server.stop();
     await runtime.stop();
+    runtimeFixture.runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
@@ -102,11 +103,5 @@ describe("webhook route replay protection", () => {
     const results = await Promise.all(responses.map((response) => response.json()));
     expect(results[1]).toEqual(results[0]);
     expect(runtime.getState().pendingRuns).toHaveLength(1);
-    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toMatchObject([
-      {
-        status: "replayed",
-        duplicateCount: 1,
-      },
-    ]);
   });
 });

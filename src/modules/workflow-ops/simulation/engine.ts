@@ -11,10 +11,6 @@ import {
   type SimulationEvent,
 } from "./events.js";
 import {
-  idempotencyDuplicatePresent,
-  idempotencyPreviews,
-} from "./idempotency-preview.js";
-import {
   blockers,
   effectPreviews,
   OUTCOMES,
@@ -82,11 +78,7 @@ async function simulateEvent(
     },
   });
   const effects = effectPreviews(explain);
-  const idempotency = idempotencyPreviews(args.projectDir, event, explain);
-  const matchBlockers = [
-    ...blockers(explain),
-    ...idempotency.flatMap((preview) => preview.blocker ? [preview.blocker] : []),
-  ];
+  const matchBlockers = blockers(explain);
   const dryRuns = await dryRunsForMatches(
     args.definitions,
     event,
@@ -97,13 +89,8 @@ async function simulateEvent(
     source: event.source,
     event: event.event,
     ...(event.eventId ? { eventId: event.eventId } : {}),
-    outcome: idempotencyDuplicatePresent(idempotency)
-      ? "would-noop"
-      : outcomeForExplain(explain, effects, matchBlockers),
-    reasons: [
-      ...explain.reasons,
-      ...idempotency.flatMap((preview) => preview.reason ? [preview.reason] : []),
-    ],
+    outcome: outcomeForExplain(explain, effects, matchBlockers),
+    reasons: explain.reasons,
     matches: explain.matches.map((match) => ({
       workflow: match.workflow,
       triggerIndex: match.triggerIndex,

@@ -21,6 +21,7 @@ function workflow(name: string): WorkflowDefinition {
   return validateWorkflowDefinitions(
     [
       registerWorkflowDefinition(`test/${name}.ts`, {
+        repository: "read",
         name,
         triggers: [
           {
@@ -45,6 +46,7 @@ function eventWorkflow(name: string, event: string): WorkflowDefinition {
   return validateWorkflowDefinitions(
     [
       registerWorkflowDefinition(`test/${name}.ts`, {
+        repository: "read",
         name,
         triggers: [{ event }],
         steps: [
@@ -248,7 +250,7 @@ describe("workflowUsesAgent", () => {
     return {
       name: "test",
       enabled: true,
-      recoveryCapable: false,
+      repository: "none",
       definitionPath: "test.ts",
       moduleRoot: process.cwd(),
       triggers: [],

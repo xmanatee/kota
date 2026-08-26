@@ -1,11 +1,6 @@
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import type { WorkflowCommitPathPolicy } from "#modules/autonomy/commit.js";
-import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import {
-  type SecurityReviewMutationBaseline,
   securityReviewCandidateScanOperation,
-  securityReviewMutationBaselineOperation,
 } from "./blocking-operations.js";
 import {
   type SecurityReviewCandidate,
@@ -19,32 +14,9 @@ type AgentCandidatePacket = Pick<
   "artifactPath" | "candidateCount" | "truncated"
 > & { candidates: AgentCandidate[] };
 
-export const captureMutationBaseline = typedCodeStep<SecurityReviewMutationBaseline>({
-  id: "capture-mutation-baseline",
-  type: "code",
-  when: onNormalTrigger,
-  validate: (raw) =>
-    expectStructuredOutput<SecurityReviewMutationBaseline>(raw, [
-      "preExistingMutatedPaths",
-    ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(securityReviewMutationBaselineOperation, { projectDir }),
-});
-
-export function securityReviewCommitPolicy(
-  ctx: WorkflowStepContext,
-): WorkflowCommitPathPolicy {
-  return {
-    kind: "paths-mutated-since-baseline",
-    baselineMutatedPaths:
-      captureMutationBaseline.outputRequired(ctx).preExistingMutatedPaths,
-  };
-}
-
 export const scanCandidates = typedCodeStep<AgentCandidatePacket>({
   id: "scan-candidates",
   type: "code",
-  when: onNormalTrigger,
   exposeOutputToAgent: true,
   validate: (raw) =>
     expectStructuredOutput<AgentCandidatePacket>(raw, [

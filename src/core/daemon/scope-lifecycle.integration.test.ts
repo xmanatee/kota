@@ -1,15 +1,15 @@
 import {
-  appendFileSync,
   existsSync,
   lstatSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ChannelStartContext } from "#core/channels/channel.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
@@ -99,23 +99,26 @@ describe("live directory scope lifecycle", () => {
     const scopeBId = deriveDirectoryScopeId(scopeB);
     let releaseHold: (() => void) | null = null;
     let holdStarted = false;
+    let fastExecution: { projectDir: string; scopeDir: string } | null = null;
     let channelContext: ChannelStartContext | null = null;
     let channelSessionScopeId: string | null = null;
 
     const workflows = [
       registerWorkflowDefinition("test/live-scope-fast.ts", {
+        repository: "none",
         name: "live-scope-fast",
         triggers: [{ event: "test.live-scope.fast" }],
         steps: [{
           id: "write",
           type: "code",
           run: (ctx) => {
-            appendFileSync(join(ctx.projectDir, "live-scope-ran.txt"), `${ctx.projectDir}\n`);
-            return { projectDir: ctx.projectDir };
+            fastExecution = { projectDir: ctx.projectDir, scopeDir: ctx.scopeDir };
+            return fastExecution;
           },
         }],
       }),
       registerWorkflowDefinition("test/live-scope-hold.ts", {
+        repository: "none",
         name: "live-scope-hold",
         triggers: [{ event: "test.live-scope.hold" }],
         steps: [{
@@ -166,7 +169,9 @@ describe("live directory scope lifecycle", () => {
     expect(await first.setDefaultScope(scopeBId))
       .toMatchObject({ ok: true, status: "default_changed" });
     expect(channelContext!.getDefaultProjectRuntime().project.projectId).toBe(scopeBId);
-    expect(channelContext!.getWorkflowStatus().runsDir).toBe(join(scopeB, ".kota", "runs"));
+    expect(channelContext!.getWorkflowStatus().runsDir).toBe(
+      join(realpathSync(scopeB), ".kota", "runs"),
+    );
     expect(await first.setDefaultScope(scopeAId))
       .toMatchObject({ ok: true, status: "default_changed" });
 
@@ -198,9 +203,13 @@ describe("live directory scope lifecycle", () => {
       method: "POST",
       body: JSON.stringify({ name: "live-scope-fast" }),
     });
-    await waitFor(() => existsSync(join(scopeB, "live-scope-ran.txt")));
-    expect(readFileSync(join(scopeB, "live-scope-ran.txt"), "utf8").trim().split("\n"))
-      .toEqual([scopeB]);
+    await waitFor(() => fastExecution !== null);
+    const executedIn = fastExecution as { projectDir: string; scopeDir: string } | null;
+    const canonicalScopeB = realpathSync(scopeB);
+    expect(executedIn?.scopeDir).toBe(canonicalScopeB);
+    expect(relative(canonicalScopeB, executedIn!.projectDir).startsWith(
+      `${join(".kota", "runtime")}${sep}`,
+    )).toBe(true);
     await first.stop(0);
     await firstRun.startPromise;
 

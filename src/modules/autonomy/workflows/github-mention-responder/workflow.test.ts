@@ -11,7 +11,7 @@ import type {
   GitHubWebhookActorIntegrity,
 } from "#modules/github-webhook/events.js";
 import { githubIssueCommentMentionToInboundSignal } from "#modules/github-webhook/inbound-signal.js";
-import { inboundSignalRouted } from "#modules/inbound-signals/events.js";
+import { inboundSignalWorkflowTargeted } from "#modules/inbound-signals/events.js";
 import githubMentionResponderWorkflow from "./workflow.js";
 
 type MentionPayload = Partial<
@@ -72,7 +72,7 @@ function makeTrigger(overrides: MentionPayload = {}) {
     },
   };
   return {
-    event: inboundSignalRouted.name,
+    event: inboundSignalWorkflowTargeted,
     schemaRef: null,
     payload: {
       scopeId: signal.scopeId,
@@ -119,8 +119,8 @@ function buildDraftPrompt(trigger: WorkflowRunTrigger): string {
   const definition: WorkflowDefinition = {
     ...githubMentionResponderWorkflow,
     enabled: githubMentionResponderWorkflow.enabled ?? true,
+    repository: githubMentionResponderWorkflow.repository ?? "none",
     moduleRoot,
-    recoveryCapable: githubMentionResponderWorkflow.recoveryCapable ?? false,
     definitionPath: "src/modules/autonomy/workflows/github-mention-responder/workflow.ts",
     tags: githubMentionResponderWorkflow.tags ?? [],
     triggers: [{ event: "github-mention-responder.requested", cooldownMs: 0 }],
@@ -165,10 +165,43 @@ function toolSpy(): {
 }
 
 describe("github-mention-responder workflow", () => {
-  it("declares only the routed responder request trigger", () => {
+  it("declares routed response and post-integration intake triggers", () => {
     expect(githubMentionResponderWorkflow.triggers).toEqual([
+      { event: inboundSignalWorkflowTargeted },
       { event: "github-mention-responder.requested" },
+      { event: "github-mention-intake.comment.requested" },
     ]);
+  });
+
+  it("posts a prepared intake comment without running the response agent", async () => {
+    const tools = toolSpy();
+    const result = await new WorkflowTestHarness(githubMentionResponderWorkflow, {
+      trigger: {
+        event: "github-mention-intake.comment.requested",
+        payload: {
+          repo: "owner/repo",
+          issueNumber: 17,
+          isPullRequest: false,
+          originalCommentId: 1234,
+          mode: "created",
+          body: "Created KOTA task `task-github-ownerrepo17`.",
+          idempotencyKey: "github-mention-intake:owner/repo:1234:created",
+        },
+      },
+      contextOverrides: { runTool: tools.runTool },
+    }).run();
+
+    expect(result.status).toBe("success");
+    expect(result.steps["draft-response"].status).toBe("skipped");
+    expect(result.steps["post-comment"].status).toBe("success");
+    expect(tools.calls).toEqual([{
+      name: "github_comment",
+      input: {
+        repo: "owner/repo",
+        number: 17,
+        body: "Created KOTA task `task-github-ownerrepo17`.",
+      },
+    }]);
   });
 
   it("runs an allowed mention through draft, approval, and exactly one github_comment write", async () => {

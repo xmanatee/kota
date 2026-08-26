@@ -22,18 +22,19 @@ type QueueDependencyBlockedTask = {
   waitingOn: string[];
 };
 
-type QueueClaimBlockedTask = {
-  id: string;
+export type AutonomyQueueAvailableEvent = Readonly<{
+  projectId: ProjectId;
+  taskId: string;
+  taskPath: string;
+  taskState: "ready" | "doing";
+  taskUpdatedAt: string;
+  taskDigest: string;
   title: string;
-  state: "ready" | "doing";
-  claimStatus: string;
-  recoveryStatus: string;
-  recoveryPath: string;
-  owner: string;
-  runId: string;
-  workflowId: string;
-  evidence: string | null;
-};
+  priority: string;
+  taskClass: "Product" | "Safety" | "Platform" | "Meta" | "Unclassified";
+  dependsOn: readonly string[];
+  idempotencyKey: string;
+}>;
 
 /**
  * Known event payloads. Extend this map to add new typed events.
@@ -63,24 +64,7 @@ export type RuntimeBusEvents = {
   };
   "daemon.config.reload": DaemonConfigReloadEvent;
   "scope.lifecycle.changed": ScopeLifecycleEvent;
-  "autonomy.queue.available": {
-    projectId: ProjectId;
-    pullableCount: number;
-    actionableCount: number;
-    dispatchableCount?: number;
-    counts: QueueCounts;
-    dependencyBlockedTasks: QueueDependencyBlockedTask[];
-    claimBlockedTasks?: QueueClaimBlockedTask[];
-  };
-  "autonomy.builder.recovery.requested": {
-    projectId: ProjectId;
-    taskId: string;
-    sourceRunId: string;
-    worktreeRunId: string;
-    workspaceDir: string;
-    idempotencyKey: string;
-    reason: string;
-  };
+  "autonomy.queue.available": AutonomyQueueAvailableEvent;
   "autonomy.inbox.available": {
     projectId: ProjectId;
     inboxCount: number;
@@ -92,13 +76,11 @@ export type RuntimeBusEvents = {
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
-    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "autonomy.queue.empty": {
     projectId: ProjectId;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
-    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "autonomy.blocked-research.attemptable": {
     projectId: ProjectId;
@@ -113,7 +95,6 @@ export type RuntimeBusEvents = {
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
-    claimBlockedTasks?: QueueClaimBlockedTask[];
   };
   "workflow.started": {
     projectId: ProjectId;
@@ -135,12 +116,7 @@ export type RuntimeBusEvents = {
     projectId: ProjectId;
     workflow: string;
     runId: string;
-    status:
-      | "success"
-      | "failed"
-      | "yielded"
-      | "interrupted"
-      | "completed-with-warnings";
+    status: "success" | "failed" | "interrupted" | "completed-with-warnings";
     triggerEvent: string;
     durationMs: number;
     definitionPath: string;
@@ -155,6 +131,8 @@ export type RuntimeBusEvents = {
     failureKind?: "rate_limit" | "auth" | "provider" | "runtime";
     /** Workflow-level autonomy posture. See {@link workflow.started}. */
     autonomyMode?: AutonomyMode;
+    /** Stable durable identity when completion follows repository publication. */
+    publicationId?: string;
   };
   "workflow.step.started": {
     projectId: ProjectId;
@@ -179,7 +157,7 @@ export type RuntimeBusEvents = {
     runId: string;
     stepId: string;
     stepType: "tool" | "agent" | "emit" | "restart" | "code" | "parallel" | "trigger" | "branch" | "foreach" | "approval" | "await-event";
-    status: "success" | "failed" | "yielded" | "skipped";
+    status: "success" | "failed" | "skipped";
     durationMs: number;
     activeDurationMs?: number;
     hostSuspendedMs?: number;

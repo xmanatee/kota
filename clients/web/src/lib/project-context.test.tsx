@@ -71,8 +71,7 @@ function emptyWorkflowStatus(): unknown {
     queueLength: 0,
     completedRuns: 0,
     paused: false,
-    agentConcurrency: 1,
-    codeConcurrency: 4,
+    concurrency: 4,
     workflows: {},
   };
 }

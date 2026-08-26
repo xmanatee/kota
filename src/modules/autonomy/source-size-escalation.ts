@@ -5,7 +5,7 @@ import {
   SOURCE_FILE_GROWTH_THRESHOLD,
   type SourceFileSizeChangedFile,
   type SourceFileSizeWarning,
-  scanStagedSourceFileSizes,
+  scanWorkspaceSourceFileSizes,
 } from "./source-size-check.js";
 import { findOpenCleanupOverlap } from "./source-size-cleanup-overlap.js";
 
@@ -197,7 +197,7 @@ function applyCleanupException(
 }
 
 export function evaluateSourceFileSize(projectDir: string): SourceFileSizeReview {
-  const scan = scanStagedSourceFileSizes(projectDir);
+  const scan = scanWorkspaceSourceFileSizes(projectDir);
   if (scan.warnings.length === 0) {
     return {
       outcome: "ok",

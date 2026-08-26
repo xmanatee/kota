@@ -23,9 +23,10 @@ the daemon control server.
 
 A command invocation resolves to one of two actions:
 
-- `workflow`: queues the workflow through the daemon's existing
-  `enqueuePendingRun` path. Autonomy-mode, approval-queue, and workflow
-  concurrency policies apply exactly as they do for `/api/workflow/trigger`.
+- `workflow`: submits through the daemon's `workflow-dispatcher` provider.
+  Definition validation, idempotent admission, logical resource ownership,
+  project pause, and shared coordinator capacity apply exactly as they do for
+  `/api/workflow/trigger`.
 - `skill`: returns the skill's raw prompt body. The client pastes it into the
   chat composer; the user reviews and sends via the normal chat path. Skill
   commands do not bypass the session loop — they are preset messages.

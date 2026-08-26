@@ -23,7 +23,7 @@ One of the following, chosen honestly from what you actually read:
 
 1. **Sources now readable, task progresses.** Record each source's
    finding against the task's `## Desired Outcome`. If the task is complete,
-   move it to `done` with `pnpm kota task move <id> done` and commit. If only
+   move it to `done` with `pnpm kota task move <id> done`. If only
    part of the work is now unblocked, split the remaining block into a
    fresh task and either promote the current task forward or leave it in
    `blocked` with updated status notes covering exactly which sources remain
@@ -55,5 +55,5 @@ One of the following, chosen honestly from what you actually read:
 ## Finish
 
 - Use `pnpm kota task move <id> <state>` for every task state transition.
-- Follow the workflow finish protocol.
+- Leave the task state and source-access notes aligned with the observed result.
 - Lightweight validations run after you finish.

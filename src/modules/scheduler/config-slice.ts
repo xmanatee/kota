@@ -2,21 +2,20 @@
  * Scheduler module config slice.
  *
  * Owns the top-level `scheduler` field — autonomous workflow dispatch
- * window and concurrency caps. The `dispatchWindow` validator lives in
+ * window and daemon-wide run concurrency. The `dispatchWindow` validator lives in
  * core because the runtime invokes it at scheduling time, but the slice
  * shape and sanitize/merge live here.
  */
 
 import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import { isWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { type DispatchWindow, validateDispatchWindow } from "#core/workflow/dispatch-window.js";
 
 export type SchedulerConfig = {
   /** Restrict autonomous dispatch to a time-of-day window. */
   dispatchWindow?: DispatchWindow;
-  /** Max simultaneous agent-step workflows. Must be a positive integer. Default: 1. */
-  agentConcurrency?: number;
-  /** Max simultaneous code-only workflows. Must be a positive integer. Default: 4. */
-  codeConcurrency?: number;
+  /** Max simultaneous top-level automation runs. Default: 4. */
+  concurrency?: number;
 };
 
 declare module "#core/config/config-slice.js" {
@@ -38,11 +37,8 @@ function sanitizeScheduler(raw: unknown): SchedulerConfig | undefined {
       s.dispatchWindow = window;
     }
   }
-  if (typeof src.agentConcurrency === "number" && src.agentConcurrency > 0 && Number.isInteger(src.agentConcurrency)) {
-    s.agentConcurrency = src.agentConcurrency;
-  }
-  if (typeof src.codeConcurrency === "number" && src.codeConcurrency > 0 && Number.isInteger(src.codeConcurrency)) {
-    s.codeConcurrency = src.codeConcurrency;
+  if (isWorkflowConcurrency(src.concurrency)) {
+    s.concurrency = src.concurrency;
   }
   return Object.keys(s).length > 0 ? s : undefined;
 }

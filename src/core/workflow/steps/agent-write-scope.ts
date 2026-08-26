@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { readWorkspaceChanges } from "#core/workflow/workspace-change-evidence.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 
 const WORKFLOW_SCRATCH_ARTIFACT_PREFIXES = [".playwright-mcp/"] as const;
@@ -54,6 +55,11 @@ function gitOutput(projectDir: string, args: readonly string[]): string {
   });
 }
 
+function gitNulPaths(projectDir: string, args: readonly string[]): string[] {
+  const output = gitOutput(projectDir, args);
+  return output.length === 0 ? [] : output.slice(0, -1).split("\0");
+}
+
 function hasHead(projectDir: string): boolean {
   const result = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
     cwd: projectDir,
@@ -75,22 +81,24 @@ function hasHead(projectDir: string): boolean {
  */
 export function listWorkflowMutatedPaths(projectDir: string): string[] {
   gitOutput(projectDir, ["rev-parse", "--is-inside-work-tree"]);
-  const tracked = hasHead(projectDir)
-    ? [gitOutput(projectDir, ["diff", "--name-only", "--no-renames", "HEAD"])]
-    : [
-        gitOutput(projectDir, ["diff", "--cached", "--name-only", "--no-renames"]),
-        gitOutput(projectDir, ["diff", "--name-only", "--no-renames"]),
-      ];
-  const untracked = gitOutput(projectDir, [
+  if (hasHead(projectDir)) {
+    return readWorkspaceChanges(projectDir).map((change) => change.path);
+  }
+  const tracked = gitNulPaths(projectDir, [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--no-renames",
+    "-z",
+  ]);
+  const untracked = gitNulPaths(projectDir, [
     "ls-files",
     "--others",
     "--exclude-standard",
+    "-z",
   ]);
   const paths = new Set<string>();
-  for (const line of [...tracked.flatMap((out) => out.split("\n")), ...untracked.split("\n")]) {
-    const trimmed = line.trim();
-    if (trimmed.length > 0) paths.add(trimmed);
-  }
+  for (const path of [...tracked, ...untracked]) paths.add(path);
   return [...paths].sort();
 }
 

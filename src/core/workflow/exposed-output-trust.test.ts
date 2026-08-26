@@ -7,6 +7,7 @@ import {
 
 function definition(exposeOutputToAgent?: boolean) {
   return registerWorkflowDefinition("test/explorer.ts", {
+    repository: "read",
     name: "explorer",
     triggers: [{ event: "runtime.idle" }],
     steps: [

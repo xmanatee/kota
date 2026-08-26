@@ -1224,7 +1224,7 @@ describe("TelegramBot", () => {
     const routePromises: Promise<InboundSignalRoutedPayload>[] = [];
     const triggerWorkflow = vi.fn(async () => ({
       ok: true as const,
-      path: "queue" as const,
+      path: "daemon" as const,
       queued: "telegram-signal-probe",
       runId: "run-telegram-signal-probe",
     }));

@@ -79,7 +79,12 @@ describe("webhookChannelModule channel adapter", () => {
       log: () => {},
       reportFailure: () => {},
       getWorkflowStatus: () => ({
-        runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+        runtimeState: {
+          completedRuns: 0,
+          pendingRuns: [],
+          activeRuns: [],
+          workflows: {},
+        },
         dispatchPaused: false,
         runsDir: "/tmp/.kota/runs",
       }),

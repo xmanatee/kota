@@ -15,6 +15,10 @@ This directory contains the explorer workflow definition and prompt.
   the inspect step before finishing instead of relying on the repair loop to
   re-run the agent.
 - Other task-queue warnings stay advisory.
+- Record exploration completion in the run artifact. The canonical cooldown is
+  advanced only by the staged `explorer-publication` `repository: none`
+  follow-up through the runtime state compare-and-set contract; do not add a
+  cooldown JSON file.
 - The `External Pattern Decisions` catalog in `src/modules/autonomy/AGENTS.md`
   is out of scope for explorer. When a watchlist entry yields a clear
   reject/read/adopt verdict against KOTA's primitives, record it in the

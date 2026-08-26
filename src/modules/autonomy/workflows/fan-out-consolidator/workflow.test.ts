@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { consolidationTaskIdForCapability } from "#modules/autonomy/fan-out-consolidation.js";
 import fanOutConsolidatorWorkflow from "./workflow.js";
@@ -10,35 +11,6 @@ import fanOutConsolidatorWorkflow from "./workflow.js";
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-consolidate.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
 
 async function mockCleanWorktree() {
   const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
@@ -139,8 +111,9 @@ describe("fan-out-consolidator workflow", () => {
     commitInitial(projectDir);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
-      trigger: { event: "workflow.build.committed", payload: {} },
+      trigger: { event: "workflow.completed", payload: {} },
       projectDir,
+      contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -173,7 +146,7 @@ describe("fan-out-consolidator workflow", () => {
     commitInitial(projectDir);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
-      trigger: { event: "workflow.build.committed", payload: {} },
+      trigger: { event: "workflow.completed", payload: {} },
       projectDir,
     });
     const result = await harness.run();
@@ -187,21 +160,6 @@ describe("fan-out-consolidator workflow", () => {
       `${consolidationTaskIdForCapability("retract")}.md`,
     );
     expect(existsSync(consolidationPath)).toBe(false);
-  });
-
-  it("skips agent-step build when triggered by recovery", async () => {
-    await mockCleanWorktree();
-    const projectDir = makeProjectDir();
-    commitInitial(projectDir);
-
-    const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
-      trigger: { event: "runtime.recovered", payload: {} },
-      projectDir,
-    });
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
-    expect(result.steps["detect-and-seed"]?.status).not.toBe("success");
   });
 
   it("does not seed when no fan-out batch is detected (single-surface only)", async () => {
@@ -219,7 +177,7 @@ describe("fan-out-consolidator workflow", () => {
     commitInitial(projectDir);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
-      trigger: { event: "workflow.build.committed", payload: {} },
+      trigger: { event: "workflow.completed", payload: {} },
       projectDir,
     });
     const result = await harness.run();
@@ -229,6 +187,6 @@ describe("fan-out-consolidator workflow", () => {
     expect(detectStep.status).toBe("success");
     const detection = detectStep.output as { touchedDisk: boolean };
     expect(detection.touchedDisk).toBe(false);
-    expect(result.steps.commit?.status).not.toBe("success");
+    expect(result.steps["validate-changes"].status).toBe("skipped");
   });
 });

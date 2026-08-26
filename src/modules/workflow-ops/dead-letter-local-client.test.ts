@@ -69,4 +69,32 @@ describe("workflow-ops local dead-letter client", () => {
       dismissalReason: "operator closed",
     });
   });
+
+  it("requires the daemon for original redrive admission", async () => {
+    const dlq = deadLetterStoreForProject(projectDir);
+    const item = createWorkflowDispatchDeadLetter({
+      store: dlq,
+      scopeId: "scope-a",
+      workflowName: "telegram-ingest",
+      trigger: {
+        event: "telegram.message",
+        schemaRef: null,
+        eventId: "evtj-000000000002",
+        payload: { chatId: "chat-1" },
+      },
+      reason: "runtime unavailable",
+      errorClass: "runtime",
+    });
+    const handlers = workflowOpsModule.localClient!({ cwd: projectDir } as ModuleContext);
+    const handler = handlers.workflow;
+    if (!handler) throw new Error("workflow handler missing");
+
+    await expect(
+      handler.redriveDeadLetter(item.id, {
+        reason: "retry through durable admission",
+        target: "original",
+      }),
+    ).resolves.toEqual({ ok: false, reason: "daemon_required" });
+    expect(deadLetterStoreForProject(projectDir).get(item.id)?.status).toBe("open");
+  });
 });

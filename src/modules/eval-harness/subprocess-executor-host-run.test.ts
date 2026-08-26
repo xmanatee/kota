@@ -74,6 +74,7 @@ describe("createSubprocessExecutor host execution", () => {
     const executor = createSubprocessExecutor({ kotaBinaryPath: fakeKota });
     const outcome = await executor.execute({
       workflowName: "noop",
+      triggerEvent: "fixture.ready",
       workingDir: dirs.workingDir,
       budgetMs: 5_000,
     });
@@ -103,6 +104,7 @@ describe("createSubprocessExecutor host execution", () => {
       workflowName: "noop",
       workingDir: dirs.workingDir,
       budgetMs: 5_000,
+      triggerEvent: "fixture.ready",
       agentExecutionOverride: {
         harness: "openai-tools",
         model: "openrouter/z-ai/glm-5.2",
@@ -118,6 +120,8 @@ describe("createSubprocessExecutor host execution", () => {
       "workflow",
       "exec",
       "noop",
+      "--event",
+      "fixture.ready",
       "--agent-harness",
       "openai-tools",
       "--agent-model",

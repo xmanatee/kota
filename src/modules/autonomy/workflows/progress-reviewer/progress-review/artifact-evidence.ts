@@ -99,7 +99,7 @@ export function listArtifactEvidence(
 ): ProgressReviewArtifactEvidence[] {
   const artifacts: ProgressReviewArtifactEvidence[] = [];
   for (const run of runs) {
-    const runsRoot = resolve(run.source.projectDir, ".kota", "runs");
+    const runsRoot = resolve(run.source.stateDir, "runs");
     const runDir = resolve(runsRoot, run.runId);
     assertPathInside(runsRoot, runDir, "progress-review run directory");
     if (!existsSync(runDir)) continue;

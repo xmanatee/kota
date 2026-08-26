@@ -21,7 +21,7 @@ import type {
   RunEvidence,
   RunMetadata,
   RunStepArtifact,
-  RunSummaryArtifact,
+  WriterIntegrationArtifact,
 } from "./fixture-candidates-types.js";
 import { stableUnique } from "./fixture-candidates-types.js";
 
@@ -74,14 +74,12 @@ function parseMetadata(path: string): RunMetadata {
   };
 }
 
-function parseRunSummary(path: string): RunSummaryArtifact | null {
+function parseWriterIntegration(path: string): WriterIntegrationArtifact | null {
   if (!existsSync(path)) return null;
   const raw = readJsonValue(path);
-  if (!isJsonObject(raw)) throw new Error("run-summary root is not an object");
+  if (!isJsonObject(raw)) throw new Error("writer-integration root is not an object");
   return {
-    taskId: parseNullableString(raw.taskId),
-    taskTitle: parseNullableString(raw.taskTitle),
-    filesChanged: parseStringArray(raw.filesChanged),
+    changedPaths: parseStringArray(raw.changedPaths),
   };
 }
 
@@ -208,7 +206,7 @@ function collectTaskMoves(
 
 export function readRunEvidence(runDir: string): RunEvidence {
   const metadata = parseMetadata(join(runDir, "metadata.json"));
-  const summary = parseRunSummary(join(runDir, "run-summary.json"));
+  const integration = parseWriterIntegration(join(runDir, "writer-integration.json"));
   const calibration = parseCalibration(join(runDir, "evaluator-calibration.json"));
   const commands: FixtureCandidateCommand[] = [];
   const seenCommands = new Set<string>();
@@ -237,7 +235,7 @@ export function readRunEvidence(runDir: string): RunEvidence {
   const textEvidence = collectRunTextEvidence(runDir, metadata);
   collectCommandsFromText(textEvidence, "run-text", commands, seenCommands);
   const changedPaths = stableUnique([
-    ...(summary?.filesChanged ?? []),
+    ...(integration?.changedPaths ?? []),
     ...(calibration?.sourceFilesChanged ?? []),
   ]);
   const structuredArtifacts = collectStructuredArtifacts(runDir);
@@ -248,7 +246,7 @@ export function readRunEvidence(runDir: string): RunEvidence {
   return {
     runDir,
     metadata,
-    summary,
+    integration,
     calibration,
     commands: commands.slice(0, MAX_COMMANDS_PER_RUN),
     changedPaths,

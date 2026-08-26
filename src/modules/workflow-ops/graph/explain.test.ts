@@ -124,7 +124,7 @@ function workflow(
     name: overrides.name,
     enabled: overrides.enabled ?? true,
     moduleRoot: "/tmp/kota-tests",
-    recoveryCapable: false,
+    repository: "none",
     tags: [],
     definitionPath: `/tmp/kota-tests/${overrides.name}/workflow.ts`,
     triggers: [...(overrides.triggers ?? [trigger({ event: "runtime.idle" })])],

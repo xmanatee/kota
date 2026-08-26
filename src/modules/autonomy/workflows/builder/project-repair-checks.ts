@@ -1,14 +1,12 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ROOT_CROSS_CUTTING_FIXTURES,
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
-import {
-  type RunCheckOptions,
-  runCheck,
-} from "#modules/autonomy/shared.js";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
+import { readWorkspaceChanges } from "#core/workflow/workspace-change-evidence.js";
 
 const MOBILE_TYPECHECK_DEPENDENCY_MARKERS = [
   "node_modules/.bin/tsc",
@@ -25,7 +23,6 @@ const MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS = new Set([
 ]);
 
 type ImportViolation = { file: string; specifier: string };
-type RepairCheckOptions = Pick<RunCheckOptions, "signal">;
 
 export function checkModuleBoundary(projectDir: string): string {
   const srcDir = join(projectDir, "src");
@@ -97,8 +94,8 @@ function findDisallowedRootImports(
 }
 
 export async function checkMobileTypecheck(
+  context: Pick<WorkflowStepContext, "runCommand">,
   projectDir: string,
-  options: RepairCheckOptions = {},
 ): Promise<string> {
   const mobileDir = join(projectDir, "clients/mobile");
   if (!existsSync(join(mobileDir, "package.json"))) {
@@ -106,44 +103,29 @@ export async function checkMobileTypecheck(
   }
   const missingDependencyMarkers = missingMobileTypecheckDependencyMarkers(mobileDir);
   if (missingDependencyMarkers.length > 0) {
-    const stagedAppChanges = listStagedPathChanges(projectDir, "clients/mobile")
+    const appChanges = readWorkspaceChanges(projectDir, ["clients/mobile"])
+      .map((change) => change.path)
       .filter((path) => !MOBILE_TYPECHECK_VALIDATION_ONLY_PATHS.has(path));
-    if (stagedAppChanges.length > 0) {
+    if (appChanges.length > 0) {
       throw new Error(
         [
-          "Mobile client dependencies are not installed; cannot run mobile typecheck for staged mobile changes.",
+          "Mobile client dependencies are not installed; cannot run mobile typecheck for mobile changes.",
           `Missing: ${missingDependencyMarkers.join(", ")}.`,
-          `Changed: ${stagedAppChanges.join(", ")}.`,
+          `Changed: ${appChanges.join(", ")}.`,
           "Run `pnpm install` in clients/mobile before finishing mobile edits.",
         ].join(" "),
       );
     }
-    return "OK: mobile client dependencies not installed; no staged mobile changes";
+    return "OK: mobile client dependencies not installed; no mobile changes";
   }
-  return runCheck("pnpm run typecheck", mobileDir, {
+  return workflowCommandOutput(await context.runCommand({
+    command: "pnpm",
+    args: ["run", "typecheck"],
+    cwd: mobileDir,
     timeoutMs: 60_000,
-    signal: options.signal,
-  });
+  }));
 }
 
 function missingMobileTypecheckDependencyMarkers(mobileDir: string): string[] {
   return MOBILE_TYPECHECK_DEPENDENCY_MARKERS.filter((marker) => !existsSync(join(mobileDir, marker)));
-}
-
-function listStagedPathChanges(projectDir: string, pathspec: string): string[] {
-  const result = spawnSync(
-    "git",
-    ["diff", "--cached", "--name-only", "--", pathspec],
-    {
-      cwd: projectDir,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0) {
-    const reason = result.stderr.trim() || result.stdout.trim() || `git exited ${result.status}`;
-    throw new Error(`Cannot inspect staged ${pathspec} changes: ${reason}`);
-  }
-  return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
 }

@@ -26,6 +26,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { createProjectRuntime, type ProjectRuntime } from "./project-runtime.js";
 import {
   buildConfiguredProject,
@@ -60,26 +62,59 @@ function makeTwoProjects(): TwoProjects {
   bus.on("*", (envelope) => {
     envelopes.push(envelope);
   });
+  const runState = new RunStateDatabase(join(stateDir, "run-state"));
+  const startedAt = new Date().toISOString();
+  for (const project of [configuredA, configuredB]) {
+    runState.registerProject({
+      id: project.projectId,
+      rootPath: project.projectDir,
+      displayName: project.displayName,
+      createdAt: startedAt,
+    });
+  }
+  const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
+  const runtimeByProjectId = new Map<string, ProjectRuntime>();
+  const runCoordinator = new RunCoordinator({
+    store: runState,
+    daemonEpoch,
+    concurrency: 4,
+    execute: (run, signal) => {
+      const runtime = runtimeByProjectId.get(run.projectId);
+      if (!runtime) throw new Error(`Missing runtime fixture for ${run.projectId}`);
+      return runtime.workflowRuntime.executeAdmittedRun(run, signal);
+    },
+  });
 
   const runtimeA = createProjectRuntime({
     project: configuredA,
     bus,
     onLog: () => {},
     installSingletons: false,
+    runState,
+    runCoordinator,
+    daemonEpoch,
   });
+  runtimeByProjectId.set(configuredA.projectId, runtimeA);
   const runtimeB = createProjectRuntime({
     project: configuredB,
     bus,
     onLog: () => {},
     installSingletons: false,
+    runState,
+    runCoordinator,
+    daemonEpoch,
   });
+  runtimeByProjectId.set(configuredB.projectId, runtimeB);
 
   return {
     bus,
     envelopes,
     projectA: { configured: configuredA, runtime: runtimeA },
     projectB: { configured: configuredB, runtime: runtimeB },
-    cleanup: () => rmSync(stateDir, { recursive: true, force: true }),
+    cleanup: () => {
+      runState.close();
+      rmSync(stateDir, { recursive: true, force: true });
+    },
   };
 }
 

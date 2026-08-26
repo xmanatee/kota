@@ -105,12 +105,16 @@ describe("telegram project-scope integration", () => {
       }
       return { message_id: 100 };
     });
+    const statusInfo = makeStatusInfo();
 
     const stopStatus = startTelegramStatusPoll(
       "token",
       "99",
       PROJECT_A.projectDir,
-      makeStatusInfo,
+      () => ({
+        ...statusInfo,
+        runtimeState: { ...statusInfo.runtimeState, activeRuns: [] },
+      }),
       {} as never,
       {} as never,
       {} as never,

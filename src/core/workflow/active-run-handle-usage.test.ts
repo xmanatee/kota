@@ -39,7 +39,6 @@ describe("active run usage accounting", () => {
     };
     let state: WorkflowRuntimeState = {
       completedRuns: 0,
-      pendingRuns: [],
       workflows: {},
     };
     const handle = createActiveRunHandle({
@@ -47,6 +46,7 @@ describe("active run usage accounting", () => {
       projectDir: root,
       runDirPath,
       metadata,
+      headSha: null,
       workflowName: metadata.workflow,
       readState: () => state,
       writeState: (next) => {

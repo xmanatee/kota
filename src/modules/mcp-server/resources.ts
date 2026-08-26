@@ -21,6 +21,7 @@ import {
 import type { ModuleSummary } from "#core/modules/module-types.js";
 import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-registry.js";
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
+import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
@@ -595,6 +596,10 @@ function readReadyTasks(projectDir: string): unknown {
 function readWorkflowStatus(projectDir: string): unknown {
 	const store = new WorkflowRunStore(projectDir);
 	const state = store.readState();
+	const operational = readWorkflowOperationalState({
+		stateDir: store.rootDir,
+		projectDir,
+	});
 	const perWorkflow: Record<string, unknown> = {};
 	for (const [name, ws] of Object.entries(state.workflows)) {
 		perWorkflow[name] = {
@@ -604,7 +609,7 @@ function readWorkflowStatus(projectDir: string): unknown {
 		};
 	}
 	return {
-		activeRunCount: (state.activeRuns ?? []).length,
+		activeRunCount: operational.activeRuns.length,
 		paused: !!state.agentBackoff,
 		workflows: perWorkflow,
 	};

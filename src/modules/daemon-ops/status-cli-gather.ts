@@ -9,20 +9,19 @@ import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
 import { detectStrandedDaemonProcess } from "#core/daemon/stranded-daemon.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
-import {
-  reconcileWorkflowRecovery,
-  resolveWorkflowDispatchPause,
-} from "#core/workflow/recovery-status.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { listAutomationWorktreeStatuses } from "#modules/git/worktree-lifecycle.js";
+import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { resolveWorkflowDispatchPause } from "#core/workflow/dispatch-pause.js";
+import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
+import type { RunSandbox } from "#core/workflow/run-sandbox.js";
 import { resolveDashboardForStatus } from "./status-cli-render.js";
 import type {
   DaemonControlIdentity,
   StatusGatherOptions,
+  StatusRunProjection,
+  StatusRunSandbox,
   StatusSnapshot,
+  StatusWorkspaceEvidence,
 } from "./status-cli-types.js";
-
-type WorktreeStatus = ReturnType<typeof listAutomationWorktreeStatuses>[number];
 
 export function classifyDaemonControlFile(
   projectDir: string,
@@ -57,11 +56,6 @@ export async function gatherStatus(
   const link = getDaemonTransport(stateDir);
   const controlFile = classifyDaemonControlFile(projectDir);
   const projectName = basename(projectDir) || projectDir;
-  const allWorktrees = sortWorktreeStatuses(listAutomationWorktreeStatuses(projectDir));
-  const worktreeSummary = summarizeWorktrees(allWorktrees, options.includeRemovedWorktrees === true);
-  const worktrees = allWorktrees.filter(
-    (worktree) => options.includeRemovedWorktrees === true || worktree.state !== "removed",
-  );
 
   if (link) {
     const statusPath = options.projectId
@@ -82,6 +76,11 @@ export async function gatherStatus(
         defaultProjectId: string;
         activeProjectId: string | null;
       }>("GET", "/projects");
+      const projectionProjectDir = resolveProjectionProjectDir(
+        projectsView,
+        options.projectId,
+        projectDir,
+      );
       return liveStatusSnapshot({
         projectDir,
         projectName,
@@ -94,53 +93,85 @@ export async function gatherStatus(
         identity,
         projectsView,
         explicitProjectId: options.projectId,
-        worktrees,
-        worktreeSummary,
+        runProjection: readStatusRunProjection(stateDir, projectionProjectDir),
       });
     }
   }
 
-  return offlineStatusSnapshot(projectDir, projectName, controlFile, worktrees, worktreeSummary);
+  return offlineStatusSnapshot(
+    projectDir,
+    projectName,
+    controlFile,
+    readStatusRunProjection(stateDir, projectDir),
+  );
 }
 
-function sortWorktreeStatuses(worktrees: WorktreeStatus[]): WorktreeStatus[] {
-  return [...worktrees].sort((a, b) => {
-    const byPriority = worktreePriority(a) - worktreePriority(b);
-    return byPriority !== 0 ? byPriority : b.runId.localeCompare(a.runId);
-  });
-}
-
-function worktreePriority(worktree: WorktreeStatus): number {
-  if (worktree.state === "active") return 0;
-  if (worktree.state === "stale" && worktree.dirtyState !== "clean") return 1;
-  if (worktree.state === "stale") return 2;
-  if (
-    worktree.cleanupStatus === "blocked" ||
-    worktree.state === "pending-merge" ||
-    worktree.state === "conflicted"
-  ) return 3;
-  if (worktree.cleanupEligible || worktree.state === "merged") return 4;
-  return 5;
-}
-
-function summarizeWorktrees(
-  worktrees: WorktreeStatus[],
-  includeRemoved: boolean,
-): NonNullable<StatusSnapshot["worktreeSummary"]> | undefined {
-  if (worktrees.length === 0) return undefined;
+function readWorkspaceEvidence(workspaceDir: string): StatusWorkspaceEvidence {
+  const workspace = getRepoWorktreeStatus(workspaceDir);
+  if (!workspace.available) {
+    return {
+      available: false,
+      headCommit: null,
+      dirty: null,
+      dirtySummary: workspace.summary,
+    };
+  }
   return {
-    active: worktrees.filter((worktree) => worktree.state === "active").length,
-    staleDirty: worktrees.filter(
-      (worktree) => worktree.state === "stale" && worktree.dirtyState !== "clean",
-    ).length,
-    staleClean: worktrees.filter(
-      (worktree) => worktree.state === "stale" && worktree.dirtyState === "clean",
-    ).length,
-    blocked: worktrees.filter(
-      (worktree) => worktree.cleanupStatus === "blocked" && worktree.state !== "removed",
-    ).length,
-    cleanupEligible: worktrees.filter((worktree) => worktree.cleanupEligible).length,
-    removedHidden: includeRemoved ? 0 : worktrees.filter((worktree) => worktree.state === "removed").length,
+    available: true,
+    headCommit: workspace.headSha,
+    dirty: workspace.dirty,
+    dirtySummary: workspace.summary,
+  };
+}
+
+function statusRunSandbox(sandbox: RunSandbox | null): StatusRunSandbox | null {
+  if (sandbox === null) return null;
+  const paths = {
+    runId: sandbox.runId,
+    rootDir: sandbox.rootDir,
+    workspaceDir: sandbox.workspaceDir,
+    tempDir: sandbox.tempDir,
+    artifactDir: sandbox.artifactDir,
+  };
+  switch (sandbox.repository) {
+    case "none":
+      return {
+        ...paths,
+        repository: "none",
+        branch: null,
+        baseCommit: null,
+        workspace: null,
+      };
+    case "read":
+      return {
+        ...paths,
+        repository: "read",
+        branch: null,
+        baseCommit: sandbox.baseCommit,
+        workspace: readWorkspaceEvidence(sandbox.workspaceDir),
+      };
+    case "write":
+      return {
+        ...paths,
+        repository: "write",
+        branch: sandbox.branch,
+        baseCommit: sandbox.baseCommit,
+        workspace: readWorkspaceEvidence(sandbox.workspaceDir),
+      };
+  }
+}
+
+export function readStatusRunProjection(
+  stateDir: string,
+  projectDir: string,
+): StatusRunProjection {
+  const projection = readRunOperationalProjection({ stateDir, projectDir });
+  return {
+    ...projection,
+    runs: projection.runs.map((run) => ({
+      ...run,
+      sandbox: statusRunSandbox(run.sandbox),
+    })),
   };
 }
 
@@ -158,8 +189,7 @@ function liveStatusSnapshot(args: {
     activeProjectId: string | null;
   } | null;
   explicitProjectId: string | undefined;
-  worktrees: WorktreeStatus[];
-  worktreeSummary: NonNullable<StatusSnapshot["worktreeSummary"]> | undefined;
+  runProjection: StatusRunProjection;
 }): StatusSnapshot {
   const daemonProjectDir = args.identity?.projectDir;
   const wrongProject = daemonProjectDir != null && daemonProjectDir !== args.projectDir;
@@ -191,12 +221,7 @@ function liveStatusSnapshot(args: {
     ...(scopedProject != null && { scopedProject }),
     ...(wrongProject && { wrongProject }),
     ...(dashboard != null && { dashboard }),
-    ...(args.status.workflow.recovery &&
-      args.status.workflow.recovery.status !== "none" && {
-        pendingRecovery: args.status.workflow.recovery,
-      }),
-    ...(args.worktrees.length > 0 && { worktrees: args.worktrees }),
-    ...(args.worktreeSummary !== undefined && { worktreeSummary: args.worktreeSummary }),
+    runProjection: args.runProjection,
   };
 }
 
@@ -204,46 +229,57 @@ function offlineStatusSnapshot(
   projectDir: string,
   projectName: string,
   controlFile: DaemonControlIdentity,
-  worktrees: WorktreeStatus[],
-  worktreeSummary: NonNullable<StatusSnapshot["worktreeSummary"]> | undefined,
+  runProjection: StatusRunProjection,
 ): StatusSnapshot {
   const stateDir = join(projectDir, ".kota");
-  const store = new WorkflowRunStore(projectDir);
-  const state = store.readState();
   const queue = getApprovalQueue(join(stateDir, "approvals"));
   const strandedDaemon = detectStrandedDaemonProcess(projectDir);
-  const recovery = reconcileWorkflowRecovery({
-    projectDir,
-    store,
-  });
   const pause = resolveWorkflowDispatchPause({
     projectDir,
     runtimePaused: false,
-    recovery,
   });
+  const activeRuns = runProjection.runs.filter(
+    (run) => run.state === "running" || run.state === "integrating",
+  ).length;
+  const queuedRuns = runProjection.runs.filter(
+    (run) => run.state === "queued",
+  ).length;
   return {
     daemonRunning: false,
-    activeRuns: 0,
-    queuedRuns: 0,
-    workflowPaused: false,
+    activeRuns,
+    queuedRuns,
+    workflowPaused: pause.paused,
     sessions: 0,
     pendingApprovals: queue.count("pending"),
     projectDir,
     projectName,
     controlFile,
-    historicalWorkflow: {
-      activeRuns: (state.activeRuns ?? []).length,
-      queuedRuns: (state.pendingRuns ?? []).length,
-      workflowPaused: pause.paused,
-    },
     ...(pause.paused && { workflowPause: pause }),
-    ...(recovery.status !== "none" && { pendingRecovery: recovery }),
     ...(strandedDaemon.kind === "stranded" && {
       strandedDaemon: { pid: strandedDaemon.pid, command: strandedDaemon.command },
     }),
-    ...(worktrees.length > 0 && { worktrees }),
-    ...(worktreeSummary !== undefined && { worktreeSummary }),
+    runProjection,
   };
+}
+
+function resolveProjectionProjectDir(
+  view:
+    | {
+        projects: ConfiguredProject[];
+        defaultProjectId: string;
+        activeProjectId: string | null;
+      }
+    | null,
+  explicitProjectId: string | undefined,
+  fallbackProjectDir: string,
+): string {
+  if (view === null) return fallbackProjectDir;
+  const target = explicitProjectId ?? view.activeProjectId ?? view.defaultProjectId;
+  const match = view.projects.find((project) => project.projectId === target);
+  if (match === undefined) {
+    throw new Error(`Configured project "${target}" is missing from the project registry`);
+  }
+  return match.projectDir;
 }
 
 function resolveScopedProject(

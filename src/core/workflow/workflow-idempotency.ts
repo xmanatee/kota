@@ -2,7 +2,6 @@ import {
   fingerprintIdempotencyParams,
   hashIdempotencyMaterial,
   type IdempotencyJsonObject,
-  type IdempotencyStore,
 } from "#core/daemon/idempotency-store.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
@@ -52,9 +51,10 @@ function batchEventIds(payload: WorkflowRunTrigger["payload"]): string[] {
 }
 
 function durableEventId(trigger: WorkflowRunTrigger): string | undefined {
-  return trigger.eventId !== undefined && trigger.eventId.trim().length > 0
-    ? trigger.eventId
-    : undefined;
+  if (trigger.eventId !== undefined && trigger.eventId.trim().length > 0) {
+    return trigger.eventId;
+  }
+  return payloadString(trigger.payload, "publicationId");
 }
 
 function isIdempotencyJsonObject(
@@ -64,7 +64,7 @@ function isIdempotencyJsonObject(
 }
 
 export function workflowDispatchIdempotency(
-  store: IdempotencyStore,
+  defaultScopeId: string,
   workflowName: string,
   trigger: WorkflowRunTrigger,
 ):
@@ -74,7 +74,7 @@ export function workflowDispatchIdempotency(
       parameterFingerprint: string;
     }
   | null {
-  const scopeId = explicitScope(trigger.payload, store.getDefaultScopeId());
+  const scopeId = explicitScope(trigger.payload, defaultScopeId);
   const explicitKey = payloadString(trigger.payload, "idempotencyKey");
   const batchIds = batchEventIds(trigger.payload);
   const eventId = durableEventId(trigger);

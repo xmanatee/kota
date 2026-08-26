@@ -9,6 +9,7 @@
  * options through the step-executor or the judge wrapper.
  */
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,20 +19,8 @@ import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-
-// Silence git shell-outs inside the critic: the temp project directories used
-// here are not git repos, but the critic unconditionally shells out to
-// `git diff --cached`. Mocking at the module level (hoisted) lets vi swap the
-// execFileSync binding before any import in the critic module resolves it.
-const execFileSyncMock = vi.hoisted(() => vi.fn(() => ""));
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual<typeof import("node:child_process")>(
-    "node:child_process",
-  );
-  return { ...actual, execFileSync: execFileSyncMock };
-});
-
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import {
   type CriticReviewInspectionInput,
@@ -46,7 +35,7 @@ function makeDefinition(): WorkflowDefinition {
   return {
     name: "builder",
     enabled: true,
-    recoveryCapable: false,
+    repository: "read",
     tags: [],
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
@@ -179,6 +168,17 @@ describe("autonomy agent steps and judges on openai-tools", () => {
       tmpdir(),
       `kota-openai-harness-critic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
+    mkdirSync(projectDir, { recursive: true });
+    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["config", "user.name", "Test User"], {
+      cwd: projectDir,
+    });
+    execFileSync("git", ["commit", "--allow-empty", "-m", "initial", "--quiet"], {
+      cwd: projectDir,
+    });
     const doingDir = join(projectDir, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
     writeFileSync(
@@ -233,6 +233,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
           _operation: { exportName: string },
           input: CriticReviewInspectionInput,
         ) => inspectCriticReviewInWorker(input),
+        runCommand: successfulWorkflowCommandRun,
         runTool: vi.fn(),
         runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
         emit: vi.fn(),

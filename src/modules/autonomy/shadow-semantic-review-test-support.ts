@@ -6,6 +6,8 @@ import { resolveAgentRuntime } from "#core/model/preset.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import type { ExecutableShadowSemanticReviewerDeclaration } from "./shadow-semantic-review.js";
 
 export function makeShadowReviewContext(
@@ -14,8 +16,10 @@ export function makeShadowReviewContext(
 ): WorkflowStepContext {
   return {
     projectDir,
+    scopeDir: projectDir,
+    stateDir: join(projectDir, ".kota"),
+    state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
-    workspaceDir: projectDir,
     workflow: {
       name: "fixture-workflow",
       definitionPath: "src/modules/autonomy/workflows/fixture/workflow.ts",
@@ -29,11 +33,12 @@ export function makeShadowReviewContext(
     stepResults: {},
     stepOutputList: [],
     runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+    runCommand: unexpectedWorkflowCommandRun,
     runTool: async () => ({ content: "" }),
     emit: () => {},
     requestRestart: () => {},
     readPrompt: () => "",
-    readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+    readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
     reportProgress: () => {},
     triggerWorkflow: async () => ({ runId: "queued", status: "queued" }),
   };

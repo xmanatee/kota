@@ -4,10 +4,4 @@
 !.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/
 .kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/*
 !.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/metadata.json
-!.kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01/task-claim.json
-!.kota/task-claims/
-.kota/task-claims/*
-!.kota/task-claims/active/
-.kota/task-claims/active/*
-!.kota/task-claims/active/task-fixture-agent-call-replay-target.json
 node_modules/

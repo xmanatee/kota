@@ -3,13 +3,19 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import {
+  materializeAutonomyIssueProjection,
+  readAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   type AutonomyHealthSignalInput,
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
-  applyAutonomyHealthReviewActions,
   buildAutonomyHealthReviewFromSignals,
+  finalizeAutonomyHealthReviewActions,
+  stageAutonomyHealthReviewActions,
 } from "./health-review.js";
 
 const NOW = "2026-06-17T12:30:00.000Z";
@@ -63,6 +69,27 @@ describe("autonomy health repair task deduplication", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
+  function applyReview(review: ReturnType<typeof buildAutonomyHealthReviewFromSignals>) {
+    const currentProjection = readAutonomyIssueProjection(projectDir);
+    const repositoryActions = stageAutonomyHealthReviewActions({
+      projectDir,
+      currentProjection,
+      scopeDir: projectDir,
+      review,
+    });
+    const finalized = finalizeAutonomyHealthReviewActions({
+      currentProjection,
+      scopeDir: projectDir,
+      ownerQuestionQueue: new OwnerQuestionQueue(
+        join(projectDir, ".kota", "owner-questions"),
+      ),
+      review,
+      repositoryActions,
+    });
+    materializeAutonomyIssueProjection(projectDir, finalized.projection);
+    return finalized;
+  }
+
   it("tracks distinct shared-evidence groups without replay churn", () => {
     const review = buildAutonomyHealthReviewFromSignals({
       signals: [
@@ -82,14 +109,8 @@ describe("autonomy health repair task deduplication", () => {
       reason: "test",
     });
 
-    const first = applyAutonomyHealthReviewActions({
-      projectDir,
-      review,
-    });
-    const replay = applyAutonomyHealthReviewActions({
-      projectDir,
-      review,
-    });
+    const first = applyReview(review);
+    const replay = applyReview(review);
 
     expect(first.applied).toEqual([
       expect.objectContaining({

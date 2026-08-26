@@ -3,41 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-promoted.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
 
 async function mockCleanWorktree() {
   const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
@@ -161,6 +133,7 @@ describe("backlog-promoter workflow", () => {
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       projectDir,
+      contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -225,6 +198,7 @@ describe("backlog-promoter workflow", () => {
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       projectDir,
+      contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -266,6 +240,7 @@ describe("backlog-promoter workflow", () => {
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
       projectDir,
+      contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -306,7 +281,6 @@ describe("backlog-promoter workflow", () => {
 
     expect(result.steps["write-rationale"].status).toBe("skipped");
     expect(result.steps["apply-promotion"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
     expect(
       result.emitted.some((e) => e.event === "autonomy.backlog.promoted"),
     ).toBe(false);
@@ -329,20 +303,5 @@ describe("backlog-promoter workflow", () => {
 
     expect(result.steps["write-rationale"].status).toBe("skipped");
     expect(result.steps["apply-promotion"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
-  });
-
-  it("skips all work on runtime.recovered triggers", async () => {
-    await mockCleanWorktree();
-    const projectDir = makeProjectDir();
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
-      trigger: { event: "runtime.recovered", payload: {} },
-      projectDir,
-    });
-    const result = await harness.run();
-    expect(result.steps["inspect-backlog"].status).toBe("skipped");
-    expect(result.steps["write-rationale"].status).toBe("skipped");
-    expect(result.steps["apply-promotion"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
   });
 });

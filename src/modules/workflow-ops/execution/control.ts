@@ -77,10 +77,6 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
       const result = await ctx.client.workflow.resume(
         options.retryAgent ? { retryAgent: true } : undefined,
       );
-      if (result.blocked === "dirty-recovery") {
-        printWorkflowError(`Dispatch remains paused for dirty recovery. ${result.message ?? "Clean the checkout before resuming."}`);
-        process.exit(1);
-      }
       if (result.already) {
         printWorkflowText(
           result.agentBackoffCleared
@@ -152,12 +148,7 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
 }
 
 function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
-  if (status.pause?.kind === "dirty-recovery") {
-    printWorkflowText(
-      `Dispatch: PAUSED for dirty recovery (${status.pause.recovery.sourceWorkflow} ${status.pause.recovery.sourceRunId})`,
-    );
-    printWorkflowText(`Next action: ${status.pause.nextAction}`);
-  } else if (status.pause?.kind === "operator") {
+  if (status.pause?.kind === "operator") {
     printWorkflowText("Dispatch: PAUSED by operator (run `kota workflow resume` to re-enable)");
   } else if (status.paused) {
     printWorkflowText("Dispatch: PAUSED at runtime (inspect daemon before resuming)");
@@ -182,22 +173,6 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
   }
 
   printWorkflowText();
-  if (status.recovery && status.recovery.status !== "none") {
-    const dirtyCheckout = status.recovery.dirtyCheckout === "workspace"
-      ? "workspace checkout"
-      : "canonical checkout";
-    const prefix = status.recovery.status === "unavailable"
-      ? "Pending recovery (git status unavailable)"
-      : "Pending recovery";
-    printWorkflowText(
-      `${prefix}: dirty ${dirtyCheckout} from ${status.recovery.sourceWorkflow} ` +
-        `(${status.recovery.sourceRunId}, attempts ${status.recovery.attempts})`,
-    );
-    printWorkflowText(`Worktree: ${status.recovery.worktreeSummary}`);
-    printWorkflowText(`Next action: ${status.recovery.nextAction}`);
-    printWorkflowText();
-  }
-
   if (status.pendingRuns.length === 0) {
     printWorkflowText("Queue: empty");
   } else {
@@ -258,11 +233,7 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
       `Agent backoff:        ${status.agentBackoff.kind} until ${formatDate(status.agentBackoff.until)} (attempt ${status.agentBackoff.failureCount})`,
     );
   }
-  if (status.agentConcurrency != null || status.codeConcurrency != null) {
-    const agentLimit = status.agentConcurrency ?? 1;
-    const codeLimit = status.codeConcurrency ?? 4;
-    printWorkflowText(`Concurrency:          agent=${agentLimit}, code=${codeLimit}`);
-  }
+  printWorkflowText(`Concurrency:          ${status.concurrency}`);
   if (status.definitionsLoadedAt) {
     printWorkflowText(`Definitions loaded:   ${formatDate(status.definitionsLoadedAt)}`);
   }

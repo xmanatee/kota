@@ -20,7 +20,7 @@ function dlqWorkflowKey(item: DeadLetterItem): string {
 }
 
 export function scanDeadLetters(ctx: RuntimeHealthAuditContext): void {
-  const path = join(ctx.projectDir, ".kota", "dead-letter-queue", "items.json");
+  const path = join(ctx.stateDir, "dead-letter-queue", "items.json");
   const snapshot = readOptionalJsonFile<DeadLetterSnapshot>(path);
   if (!snapshot) return;
   ctx.inspected.deadLetterItems = snapshot.items.length;

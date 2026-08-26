@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
   type AutonomyHealthJsonValue,
   isAutonomyHealthJsonObject,
@@ -101,7 +101,10 @@ function isDaemonStopAttemptRecord(
 }
 
 function scanDaemonStopAttempts(ctx: RuntimeHealthAuditContext): void {
-  const path = join(ctx.projectDir, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
+  const path = join(
+    ctx.stateDir,
+    relative(".kota", DAEMON_STOP_ATTEMPTS_RELATIVE_PATH),
+  );
   if (!existsSync(path)) return;
   ctx.inspected.daemonEvidenceFiles += 1;
 
@@ -155,7 +158,7 @@ export function scanDaemonEvidence(ctx: RuntimeHealthAuditContext): void {
   for (const name of ["daemon.log", "daemon.err"]) {
     scanTextEvidenceFile({
       ctx,
-      path: join(ctx.projectDir, ".kota", name),
+      path: join(ctx.stateDir, name),
       repoPath: join(".kota", name),
       sourceId: name,
       sourceKind: "daemon",

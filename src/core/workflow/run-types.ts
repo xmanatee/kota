@@ -11,7 +11,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
-import type { WorkflowRepairContinuationController } from "./repair-loop-continuation.js";
+import type { TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
   WorkflowRuntimeState,
@@ -26,8 +26,8 @@ import type {
   WorkflowStep,
 } from "./step-types.js";
 import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowCommandRunner } from "./workflow-command.js";
 
-export type * from "./repair-loop-continuation.js";
 export * from "./runtime-state-types.js";
 
 export type WorkflowContextInfo = {
@@ -102,11 +102,14 @@ export type WorkflowStepContext = {
   /** The current step's cancellation and timeout signal during runtime execution. */
   signal?: AbortSignal;
   approvalQueue?: ApprovalQueue;
+  /** Isolated repository view owned by this run. */
   projectDir: string;
+  /** Canonical configured scope root; use only for runtime state that is not repository data. */
+  scopeDir: string;
   agentRuntime: AgentRuntimeSelection;
-  workspaceDir?: string;
   runtimeResources?: WorkflowRuntimeResources;
-  stateDir?: string;
+  /** Canonical durable runtime-state directory for this scope. */
+  stateDir: string;
   eventJournal?: EventJournal;
   /**
    * The authoritative resolved scope policy captured when this step starts.
@@ -123,9 +126,20 @@ export type WorkflowStepContext = {
   stepOutputList: unknown[];
   /** Present when this step is executing inside a foreach loop. Maps the foreach `as` name to the current item. */
   foreach?: Record<string, unknown>;
+  /** Run a subprocess through the workflow runtime's supervised process rail. */
+  runCommand: WorkflowCommandRunner;
+  /** Read and stage project-scoped JSON state committed only with run success. */
+  state: TransactionalRunState;
   runTool: WorkflowRunToolRunner;
   runAgentHarness: WorkflowAgentHarnessRunner;
-  emit: (event: string, payload: Record<string, unknown>) => void;
+  emit: (
+    event: string,
+    payload: Record<string, unknown>,
+    options?: Readonly<{
+      delivery?: "on-run-success";
+      stepId: string;
+    }>,
+  ) => void;
   requestRestart: (reason: string) => void;
   readPrompt: (promptPath: string) => string;
   readRuntimeState: () => WorkflowRuntimeState;
@@ -146,11 +160,17 @@ export type WorkflowStepContext = {
     payload: Record<string, unknown>,
     waitFor: "queued" | "completed",
     signal?: AbortSignal,
+    triggerId?: string,
   ) => Promise<{ runId: string; status: "queued" | "completed" | "failed" }>;
 };
 
 export type WorkflowRunToolCallContext = ToolRunnerContext & {
   stepId: string;
+  /**
+   * Optional stable identity for a tool invocation. Declarative executors set
+   * it explicitly; code steps receive a deterministic step-local identity.
+   */
+  effectId?: string;
 };
 
 export type WorkflowRunToolRunner = (
@@ -236,8 +256,6 @@ export type WorkflowRepairLoopConfig = {
   checks: WorkflowRepairCheck[];
   /** Optional operational stop. Omit for quality-first repair until checks pass or the step aborts. */
   maxRepairAttempts?: number;
-  /** Evidence-bound authority for long or expanding repair trajectories. */
-  continuation?: WorkflowRepairContinuationController;
 };
 
 export type WorkflowRunExecutionResult = {

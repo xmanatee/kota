@@ -19,103 +19,107 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
     daemonProjectName: "kota",
     dashboard: { available: true, url: "http://127.0.0.1:8765/" },
-    ...overrides,
-  };
-}
-
-function makeWorktree(
-  overrides: Partial<NonNullable<StatusSnapshot["worktrees"]>[number]> = {},
-): NonNullable<StatusSnapshot["worktrees"]>[number] {
-  const taskId = overrides.taskId ?? "task-worktree-fixture";
-  const runId = overrides.runId ?? "run-active";
-  return {
-    taskId,
-    runId,
-    workflowId: "builder",
-    owner: "workflow:builder",
-    workspaceDir: `/repo/.worktrees/${taskId}-${runId}`,
-    metadataPath: `/repo/.kota/worktrees/${taskId}-${runId}.json`,
-    exists: true,
-    branch: `kota/task/${taskId}/${runId}`,
-    baseCommit: "1111111111111111111111111111111111111111",
-    headCommit: "2222222222222222222222222222222222222222",
-    state: "active",
-    metadataState: "active",
-    runState: "active",
-    dirtyState: "clean",
-    dirtyEntries: [],
-    mergeStatus: "not merged",
-    cleanupStatus: "blocked",
-    cleanupEligible: false,
-    cleanupBlockers: ["worktree is locked: builder agent running"],
-    nextAction: "wait for lock owner or unlock after verifying: builder agent running",
-    ...overrides,
-  };
-}
-
-function worktreeSnapshot(): StatusSnapshot {
-  return makeSnap({
-    worktreeSummary: {
-      active: 1,
-      staleDirty: 0,
-      staleClean: 0,
-      blocked: 3,
-      cleanupEligible: 1,
-      removedHidden: 66,
+    runProjection: {
+      available: true,
+      databasePath: "/Users/op/Desktop/mono/apps/kota/.kota/kota.sqlite",
+      runs: [],
     },
-    worktrees: [
-      makeWorktree({
-        taskId: "task-active-worktree",
-        runId: "run-active",
-        runtimeResources: {
-          profileId: "task-active-worktree:run-active",
-          agentRunDir:
-            "/repo/.worktrees/task-active-worktree-run-active/.kota/runs/run-active",
-          tempRoot: "/repo/.worktrees/task-active-worktree-run-active/.kota/tmp/run-active",
-          artifactRoot: "/repo/.kota/runs/run-active/artifacts",
-          ports: { start: 41_000, end: 41_019 },
-        },
-      }),
-      makeWorktree({
-        taskId: "task-pending-worktree",
-        runId: "run-pending",
-        state: "pending-merge",
-        metadataState: "pending-merge",
-        mergeStatus: "pending-merge: text conflicts require review",
-        cleanupBlockers: ["worktree is pending merge"],
-        nextAction: "review pending merge: text conflicts require review",
-      }),
-      makeWorktree({
-        taskId: "task-conflicted-worktree",
-        runId: "run-conflicted",
-        state: "conflicted",
-        dirtyState: "conflicted",
-        dirtyEntries: ["UU README.md"],
-        mergeStatus: "conflicted",
-        cleanupBlockers: ["worktree has conflicted paths"],
-        nextAction: "resolve merge conflicts before merge or cleanup",
-      }),
-      makeWorktree({
-        taskId: "task-merged-worktree",
-        runId: "run-merged",
-        state: "merged",
-        metadataState: "merged",
-        mergeStatus: "merged: 3333333333333333333333333333333333333333",
-        cleanupStatus: "eligible",
-        cleanupEligible: true,
-        cleanupBlockers: [],
-        nextAction: "cleanup eligible for task-merged-worktree/run-merged",
-      }),
-      makeWorktree({
-        taskId: "task-cleanup-blocked-worktree",
-        runId: "run-cleanup-blocked",
-        state: "merged",
-        metadataState: "merged",
-        dirtyState: "dirty",
-        cleanupBlockers: ["worktree has untracked files"],
-        nextAction: "inspect workspace changes before cleanup",
-      }),
-    ],
+    ...overrides,
+  };
+}
+
+function writeSandboxRun(
+  overrides: Partial<StatusSnapshot["runProjection"]["runs"][number]> = {},
+): StatusSnapshot["runProjection"]["runs"][number] {
+  return {
+    runId: "run-active",
+    projectId: "project-kota",
+    workflow: "builder",
+    state: "running",
+    resources: ["repository:write", "port:41000-41019"],
+    processes: [{ processKey: "agent", pid: 4217 }],
+    wait: null,
+    lastError: null,
+    sandbox: {
+      runId: "run-active",
+      repository: "write",
+      rootDir: "/repo/.kota/runtime/run-active",
+      workspaceDir: "/repo/.worktrees/runs/run-active/workspace",
+      tempDir: "/repo/.kota/runtime/run-active/temp",
+      artifactDir: "/repo/.kota/runtime/run-active/artifacts",
+      branch: "kota/run/run-active",
+      baseCommit: "1111111111111111111111111111111111111111",
+      workspace: {
+        available: true,
+        headCommit: "2222222222222222222222222222222222222222",
+        dirty: true,
+        dirtySummary: "M src/core/workflow/runtime.ts",
+      },
+    },
+    ...overrides,
+  };
+}
+
+function runSnapshot(): StatusSnapshot {
+  return makeSnap({
+    runProjection: {
+      available: true,
+      databasePath: "/repo/.kota/kota.sqlite",
+      runs: [
+        writeSandboxRun(),
+        writeSandboxRun({
+          runId: "run-queued",
+          state: "queued",
+          resources: ["repository:write"],
+          processes: [],
+          sandbox: null,
+        }),
+        writeSandboxRun({
+          runId: "run-waiting",
+          workflow: "owner-gated",
+          state: "waiting",
+          resources: ["repository:read"],
+          processes: [],
+          wait: { kind: "approval", approvalId: "approval-17" },
+          sandbox: {
+            runId: "run-waiting",
+            repository: "read",
+            rootDir: "/repo/.kota/runtime/run-waiting",
+            workspaceDir: "/repo/.worktrees/runs/run-waiting/workspace",
+            tempDir: "/repo/.kota/runtime/run-waiting/temp",
+            artifactDir: "/repo/.kota/runtime/run-waiting/artifacts",
+            branch: null,
+            baseCommit: "3333333333333333333333333333333333333333",
+            workspace: {
+              available: true,
+              headCommit: "3333333333333333333333333333333333333333",
+              dirty: false,
+              dirtySummary: "clean",
+            },
+          },
+        }),
+        writeSandboxRun({
+          runId: "run-attention",
+          workflow: "publisher",
+          state: "needs_attention",
+          resources: [],
+          processes: [{ processKey: "publisher", status: "unknown" }],
+          wait: { kind: "operator" },
+          lastError: "process identity could not be recovered",
+          sandbox: {
+            runId: "run-attention",
+            repository: "none",
+            rootDir: "/repo/.kota/runtime/run-attention",
+            workspaceDir: "/repo/.kota/runtime/run-attention/workspace",
+            tempDir: "/repo/.kota/runtime/run-attention/temp",
+            artifactDir: "/repo/.kota/runtime/run-attention/artifacts",
+            branch: null,
+            baseCommit: null,
+            workspace: null,
+          },
+        }),
+      ],
+    },
   });
 }
 
@@ -131,85 +135,88 @@ function locateRunDir(): string | null {
   return entries[0]?.full ?? null;
 }
 
-describe("formatStatusOutput automation worktrees", () => {
-  it("renders lifecycle, cleanup, metadata, and next action details", () => {
-    const out = formatStatusOutput(worktreeSnapshot());
-    expect(out).toContain("Automation worktrees");
-    expect(out).toContain("Removed hidden");
-    expect(out).toContain("66");
-    expect(out).toContain("task-active-worktree");
-    expect(out).toContain("pending-merge");
-    expect(out).toContain("conflicted");
-    expect(out).toContain("Cleanup");
-    expect(out).toContain("Run");
-    expect(out).toContain("active");
-    expect(out).toContain("eligible");
-    expect(out).toContain("blocked: worktree has untracked files");
-    expect(out).toContain("Runtime resources");
-    expect(out).toContain("profile task-active-worktree:run-active");
-    expect(out).toContain("ports 41000-41019");
-    expect(out).toContain("temp /repo/.worktrees/task-active-worktree-run-active/.kota/tmp/run-active");
-    expect(out).toContain("artifacts /repo/.kota/runs/run-active/artifacts");
-    expect(out).toContain("Metadata");
-    expect(out).toContain("Next");
+describe("formatStatusOutput run sandboxes", () => {
+  it("renders durable state, resources, processes, sandbox Git evidence, wait, and error", () => {
+    const out = formatStatusOutput(runSnapshot());
+
+    expect(out).toContain("Run sandboxes");
+    expect(out).toContain("running");
+    expect(out).toContain("queued");
+    expect(out).toContain("waiting");
+    expect(out).toContain("needs_attention");
+    expect(out).toContain("repository:write");
+    expect(out).toContain('{"processKey":"agent","pid":4217}');
+    expect(out).toContain("kota/run/run-active");
+    expect(out).toContain("1111111111111111111111111111111111111111");
+    expect(out).toContain("2222222222222222222222222222222222222222");
+    expect(out).toContain("M src/core/workflow/runtime.ts");
+    expect(out).toContain('{"kind":"approval","approvalId":"approval-17"}');
+    expect(out).toContain("process identity could not be recovered");
+    expect(out).toContain("not allocated");
+    expect(out).not.toContain("pending-merge");
+    expect(out).not.toContain("Cleanup eligible");
+    expect(out).not.toContain("Metadata");
   });
 
-  it("can render only the compact summary when removed worktree metadata is hidden", () => {
+  it("reports unavailable live Git evidence without inventing branch state", () => {
+    const run = writeSandboxRun();
+    if (run.sandbox?.repository !== "write") throw new Error("Expected a write sandbox fixture");
     const out = formatStatusOutput(makeSnap({
-      worktrees: [],
-      worktreeSummary: {
-        active: 0,
-        staleDirty: 0,
-        staleClean: 0,
-        blocked: 0,
-        cleanupEligible: 0,
-        removedHidden: 66,
+      runProjection: {
+        available: true,
+        databasePath: "/repo/.kota/kota.sqlite",
+        runs: [
+          writeSandboxRun({
+            sandbox: {
+              ...run.sandbox,
+              workspace: {
+                available: false,
+                headCommit: null,
+                dirty: null,
+                dirtySummary: "git status unavailable: workspace missing",
+              },
+            },
+          }),
+        ],
       },
     }));
-    expect(out).toContain("Automation worktrees");
-    expect(out).toContain("Removed hidden");
-    expect(out).toContain("66");
-    expect(out).not.toContain("Workspace");
+
+    expect(out).toContain("git status unavailable: workspace missing");
+    expect(out).toContain("Head");
+    expect(out).toContain("unavailable");
   });
 
-  it("does not render historical runtime resources for non-active worktrees", () => {
+  it("shows when the durable projection database is unavailable", () => {
     const out = formatStatusOutput(makeSnap({
-      worktrees: [
-        makeWorktree({
-          taskId: "task-stale-worktree",
-          runId: "run-stale",
-          state: "stale",
-          runState: "finished",
-          runtimeResources: {
-            profileId: "task-stale-worktree:run-stale",
-            agentRunDir: "/repo/.worktrees/task-stale-worktree/.kota/runs/run-stale",
-            ports: { start: 42_000, end: 42_019 },
-          },
-        }),
-      ],
+      runProjection: {
+        available: false,
+        databasePath: "/repo/.kota/kota.sqlite",
+        runs: [],
+      },
     }));
-    expect(out).toContain("task-stale-worktree");
-    expect(out).not.toContain("Runtime resources");
-    expect(out).not.toContain("ports 42000-42019");
+
+    expect(out).toContain("Run sandboxes");
+    expect(out).toContain("Projection");
+    expect(out).toContain("unavailable");
+    expect(out).toContain("/repo/.kota/kota.sqlite");
   });
 
-  it("writes a deterministic CLI transcript with active, merged, and cleanup-blocked worktrees", () => {
+  it("writes a deterministic CLI transcript for the durable run projection", () => {
     const transcript = [
-      "# CLI transcript: kota status automation worktrees",
+      "# CLI transcript: kota status run sandboxes",
       "# Generated by status-cli-worktrees.test.ts (deterministic, no daemon spawn).",
       "",
       "$ kota status",
-      formatStatusOutput(worktreeSnapshot()),
+      formatStatusOutput(runSnapshot()),
       "",
     ].join("\n");
-    expect(transcript).toContain("task-active-worktree");
-    expect(transcript).toContain("task-merged-worktree");
-    expect(transcript).toContain("blocked: worktree has untracked files");
-    expect(transcript).toContain("Runtime resources");
+    expect(transcript).toContain("run-active");
+    expect(transcript).toContain("run-queued");
+    expect(transcript).toContain("run-attention");
 
     const runDir = locateRunDir();
     if (!runDir) return;
     mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "cli-worktree-status-transcript.txt"), transcript);
+    writeFileSync(join(runDir, "cli-run-sandbox-status-transcript.txt"), transcript);
   });
 });

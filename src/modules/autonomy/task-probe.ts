@@ -1,6 +1,8 @@
-import { spawnSync } from "node:child_process";
 import { basename } from "node:path";
-import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
+import {
+  WorkflowCommandError,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import { parseConstrainedProbeCommand } from "./task-probe-command.js";
 
 export { runTaskProbe } from "./task-probe-runner.js";
@@ -120,15 +122,20 @@ function stripCodeFence(section: string): string {
   return fenced ? fenced[1] : section;
 }
 
-export function verifyTaskProbeProvenance(args: {
+export async function verifyTaskProbeProvenance(args: {
   projectDir: string;
   taskPath: string;
   probe: TaskProbe;
-}): TaskProbeProvenance {
+  runCommand: WorkflowCommandRunner;
+}): Promise<TaskProbeProvenance> {
   const filename = basename(args.taskPath);
   for (const state of TRUSTED_PROBE_TASK_STATES) {
     const sourcePath = `data/tasks/${state}/${filename}`;
-    const sourceContent = readHeadFile(args.projectDir, sourcePath);
+    const sourceContent = await readHeadFile(
+      args.projectDir,
+      sourcePath,
+      args.runCommand,
+    );
     if (sourceContent === null) continue;
 
     const sourceProbe = extractTaskProbe(sourceContent);
@@ -176,15 +183,25 @@ export function rejectedTaskProbeResult(
   };
 }
 
-function readHeadFile(projectDir: string, relPath: string): string | null {
-  const result = spawnSync("git", ["show", `HEAD:${relPath}`], {
-    cwd: projectDir,
-    env: buildRequiredInheritedSubprocessEnv(),
-    encoding: "utf-8",
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  if (result.status !== 0) return null;
-  return result.stdout ?? "";
+async function readHeadFile(
+  projectDir: string,
+  relPath: string,
+  runCommand: WorkflowCommandRunner,
+): Promise<string | null> {
+  try {
+    const result = await runCommand({
+      command: "git",
+      args: ["show", `HEAD:${relPath}`],
+      cwd: projectDir,
+      timeoutMs: 30_000,
+      outputLimitBytes: 256 * 1024,
+      captureLimitBytesPerStream: 256 * 1024,
+    });
+    return result.stdout.text;
+  } catch (error) {
+    if (error instanceof WorkflowCommandError) return null;
+    throw error;
+  }
 }
 
 function sameProbeDeclaration(left: TaskProbe, right: TaskProbe): boolean {

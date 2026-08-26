@@ -43,7 +43,7 @@ export class AgentBackoffManager {
     return null;
   }
 
-  apply(signal: WorkflowAgentBackoffSignal): void {
+  apply(signal: WorkflowAgentBackoffSignal): WorkflowAgentBackoffState {
     const current = this.getStored();
     const policy = AGENT_BACKOFF_FACTORS[signal.kind];
     const nextFailureCount =
@@ -71,6 +71,7 @@ export class AgentBackoffManager {
     this.log(
       `Agent dispatch backed off until ${new Date(backoff.until).toLocaleString()} (${backoff.kind}, attempt ${backoff.failureCount})`,
     );
+    return backoff;
   }
 
   clear(reason = "after successful agent run"): boolean {

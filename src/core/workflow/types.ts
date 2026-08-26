@@ -1,12 +1,10 @@
-import type { KotaConfig } from "#core/config/config.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import type { WorkflowBlockingOperationRunner } from "./blocking-operation.js";
-import type { WorkflowRunMetadata } from "./run-types.js";
+import type { TransactionalRunState } from "./run-context.js";
+import type { RepositoryAccess } from "./run-sandbox.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
 import type {
-  WorkflowAgentBackoffKind,
   WorkflowRunTrigger,
   WorkflowTrigger,
   WorkflowTriggerInput,
@@ -27,11 +25,6 @@ export type WorkflowDefinitionInput = {
    */
   moduleRoot?: string;
   /**
-   * When true, this workflow is eligible for dirty-worktree recovery dispatch.
-   * Only workflows that can commit, stash, or reset should declare this.
-   */
-  recoveryCapable?: boolean;
-  /**
    * Workflow-level default for every agent step's `autonomyMode`. When set, any
    * agent step in this workflow (including steps nested inside parallel, branch,
    * or foreach) that omits its own `autonomyMode` inherits this value. When
@@ -40,35 +33,12 @@ export type WorkflowDefinitionInput = {
    * steps may still override this default with a stricter mode.
    */
   defaultAutonomyMode?: AutonomyMode;
-  /**
-   * Named concurrency group for this workflow. Workflows in the same named group
-   * run at most one at a time. Omit to use type-based defaults: agent-step
-   * workflows use the default "agent" group (agentConcurrency cap), code-only
-   * workflows use the "code" group (codeConcurrency cap).
-   *
-   * A code-only workflow may explicitly set `concurrencyGroup: "agent"` when
-   * it mutates tracked workflow/task state that agent write-scope snapshots
-   * would otherwise misattribute. That explicit code-only "agent" group is an
-   * exclusive slot: it waits for active agent workflows and blocks new ones.
-   */
-  concurrencyGroup?: string;
-  /**
-   * Maximum active runs for this workflow name. Defaults to 1 so workflows
-   * stay serialized unless they deliberately opt in. A resolver may inspect
-   * project config and the resolved concurrency-group capacity when the safe
-   * cap depends on runtime posture.
-   */
-  maxConcurrentRuns?:
-    | number
-    | ((input: WorkflowConcurrencyInput) => number);
-  /**
-   * Number of queued runs to materialize for one trigger delivery. Defaults to
-   * 1. Use with maxConcurrentRuns when one event represents multiple
-   * independent work items.
-   */
-  dispatchBurst?:
-    | number
-    | ((input: WorkflowDispatchBurstInput) => number);
+  /** Repository access granted through the run-owned sandbox. */
+  repository: RepositoryAccess;
+  /** Required for writers; runtime reruns it after rebases and repairs. */
+  integration?: WorkflowIntegrationPolicy;
+  /** Logical resources claimed atomically before the run consumes capacity. */
+  resources?: WorkflowResourceResolver;
   /**
    * Optional definition-owned admission check that runs after trigger payload
    * validation but before any pending-queue or dispatch-idempotency mutation.
@@ -103,47 +73,61 @@ export type WorkflowDefinitionInput = {
    * (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
-  /**
-   * Optional workflow-owned terminal callback. Core runtime invokes this after
-   * a run reaches a terminal state; the contributing workflow owns any
-   * module-specific cleanup logic executed by the callback.
-   */
-  terminalFinalizer?: WorkflowTerminalFinalizer;
   tags?: readonly string[];
   triggers: WorkflowTriggerInput[];
   steps: WorkflowStepInput[];
 };
 
-export type WorkflowTerminalFinalizerInput = WorkflowBlockingOperationRunner & {
-  projectDir: string;
-  workspaceDir: string;
-  metadata: WorkflowRunMetadata;
-  trigger: WorkflowRunTrigger;
-  agentFailureKind?: WorkflowAgentBackoffKind;
-  emit: (event: string, payload: WorkflowRunTrigger["payload"]) => void;
-  log: (message: string) => void;
-};
+export type WorkflowIntegrationPolicy = Readonly<{
+  validationCommand: readonly [string, ...string[]];
+  /**
+   * Pure semantic guard evaluated against the exact canonical snapshot a
+   * writer was reconciled onto. The runtime executes it while publication is
+   * serialized, immediately before moving the canonical ref.
+   */
+  postReconcile?: WorkflowPostReconcileInvariant;
+}>;
 
-export type WorkflowTerminalFinalizer = (
-  input: WorkflowTerminalFinalizerInput,
-) => void | Promise<void>;
-
-export type WorkflowConcurrencyInput = {
+export type WorkflowPostReconcileInvariantInput = Readonly<{
+  /** Reconciled writer workspace at `head`. */
   projectDir: string;
-  config?: KotaConfig;
+  /** Clean canonical repository at `canonicalHead`. */
+  scopeDir: string;
+  /** Canonical durable runtime-state directory for this scope. */
+  stateDir: string;
   workflowName: string;
-  /** Resolved capacity of this workflow's concurrency group. */
-  concurrencyLimit: number;
-};
+  trigger: WorkflowRunTrigger;
+  head: string;
+  canonicalHead: string;
+  signal: AbortSignal;
+}>;
 
-export type WorkflowDispatchBurstInput = WorkflowConcurrencyInput & {
+export type WorkflowPostReconcileInvariantResult =
+  | Readonly<{ satisfied: true }>
+  | Readonly<{ satisfied: false; reason: string }>;
+
+export type WorkflowPostReconcileInvariant = (
+  input: WorkflowPostReconcileInvariantInput,
+) => WorkflowPostReconcileInvariantResult;
+
+export type WorkflowResourceInput = {
+  projectDir: string;
+  /** Canonical durable runtime-state directory for this scope. */
+  stateDir: string;
+  workflowName: string;
   trigger: WorkflowRunTrigger;
 };
+
+export type WorkflowResourceResolver = (
+  input: WorkflowResourceInput,
+) => readonly string[];
 
 export type WorkflowTriggerAdmissionInput = {
   projectDir: string;
+  stateDir: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;
+  state: Pick<TransactionalRunState, "read">;
 };
 
 export type WorkflowTriggerAdmissionDecision =
@@ -188,31 +172,15 @@ export type WorkflowDefinition = {
    * is pointed at an external project directory.
    */
   moduleRoot: string;
-  recoveryCapable: boolean;
   /**
    * Workflow-level default for agent-step autonomy mode. Populated by the
    * loader when the workflow definition sets `defaultAutonomyMode`; used only
    * by the validator when normalizing agent steps and not re-read at runtime.
    */
   defaultAutonomyMode?: AutonomyMode;
-  /**
-   * Named concurrency group. Workflows in the same named group run at most one
-   * at a time, except the reserved "agent" and "code" groups. Omit to use
-   * type-based defaults ("agent" or "code").
-   */
-  concurrencyGroup?: string;
-  /**
-   * Maximum active runs for this workflow name. Defaults to 1.
-   */
-  maxConcurrentRuns?:
-    | number
-    | ((input: WorkflowConcurrencyInput) => number);
-  /**
-   * Number of queued runs to materialize for one trigger delivery.
-   */
-  dispatchBurst?:
-    | number
-    | ((input: WorkflowDispatchBurstInput) => number);
+  repository: RepositoryAccess;
+  integration?: WorkflowIntegrationPolicy;
+  resources?: WorkflowResourceResolver;
   /** Definition-owned pre-queue semantic replay admission. */
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
@@ -230,7 +198,6 @@ export type WorkflowDefinition = {
    * Omit to use defaults (onFailure: true, onSuccess: false).
    */
   notify?: WorkflowNotifyConfig;
-  terminalFinalizer?: WorkflowTerminalFinalizer;
   tags: readonly string[];
   definitionPath: string;
   triggers: WorkflowTrigger[];

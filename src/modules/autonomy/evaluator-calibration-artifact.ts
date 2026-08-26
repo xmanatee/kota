@@ -19,6 +19,7 @@ import {
   type EvaluatorCalibrationArtifact,
   type EvaluatorCalibrationVerdict,
 } from "./evaluator-calibration-types.js";
+import { readBuilderTaskPayload } from "./workflows/builder/task-contract.js";
 
 export type CalibrationCriticVerdict = CriticVerdict & {
   /** Prompt identity captured when the critic made this verdict. */
@@ -157,7 +158,7 @@ export function deriveCalibrationReviewSignals(
   };
 }
 
-/** Compose and persist the calibration artifact after a builder commit. */
+/** Persist review signals before runtime-owned writer integration. */
 export function writeCalibrationArtifact(
   ctx: WorkflowStepContext,
   options: WriteCalibrationArtifactOptions = {},
@@ -165,14 +166,6 @@ export function writeCalibrationArtifact(
   const agentStepId = options.agentStepId ?? "build";
   const findTaskFinalState = options.findTaskFinalState ?? findCalibrationTaskFinalState;
   const runDir = ctx.workflow.runDirPath;
-  const runSummary = readOptionalJsonFile<{
-    runId: string;
-    workflow: string;
-    taskId: string | null;
-    commitSha: string;
-    filesChanged: string[];
-    completedAt: string;
-  }>(join(runDir, "run-summary.json"));
 
   const criticVerdict = readCalibrationCriticVerdict([
     ...(options.criticVerdictRunDir ? [options.criticVerdictRunDir] : []),
@@ -183,25 +176,27 @@ export function writeCalibrationArtifact(
     criticVerdict,
   );
 
-  // This writer runs only after the builder commit. A failed build is gated
-  // before this point; anything else is still in progress.
+  // A failed build is gated before this point. Git outcome is joined from the
+  // runtime-owned writer integration evidence by the aggregate reader.
   const terminalRunStatus: WorkflowRunStatus | "running" =
     ctx.stepResults[agentStepId]?.status === "success" ? "success" : "running";
-  const taskId = runSummary?.taskId ?? null;
+  const taskId = ctx.workflow.name === "builder"
+    ? readBuilderTaskPayload(ctx.trigger.payload).taskId
+    : typeof ctx.trigger.payload.taskId === "string"
+      ? ctx.trigger.payload.taskId
+      : null;
   const artifact: EvaluatorCalibrationArtifact = {
     runId: ctx.workflow.runId,
     workflow: ctx.workflow.name,
-    completedAt: runSummary?.completedAt ?? new Date().toISOString(),
+    completedAt: new Date().toISOString(),
     ...reviewSignals,
     terminalRunStatus,
     taskId,
     taskFinalState: taskId
       ? findTaskFinalState(ctx.projectDir, taskId)
       : null,
-    sourceRevision: runSummary?.commitSha ?? null,
-    sourceFilesChanged: (runSummary?.filesChanged ?? []).filter(
-      isCalibrationSourceFile,
-    ),
+    sourceRevision: null,
+    sourceFilesChanged: [],
     criticPromptHash:
       options.criticPromptHash ??
       criticVerdict?.reviewerPromptHash ??

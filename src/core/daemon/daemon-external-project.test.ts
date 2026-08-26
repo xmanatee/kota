@@ -4,11 +4,12 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
@@ -135,6 +136,8 @@ describe("daemon operates against external project fixture", () => {
         pollIntervalMs: 60_000,
         workflows: [
           registerWorkflowDefinition("test/fixture-noop.ts", {
+            repository: "write",
+            integration: { validationCommand: ["git", "diff", "--exit-code", "HEAD"] },
             name: "fixture-noop",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -155,6 +158,7 @@ describe("daemon operates against external project fixture", () => {
 
       const startPromise = daemon.start();
       try {
+        await daemon.whenReady();
         const deadline = Date.now() + 5000;
         while (Date.now() < deadline) {
           if (daemon.getDashboardSnapshot().completedRuns >= 1) break;
@@ -169,10 +173,14 @@ describe("daemon operates against external project fixture", () => {
         await startPromise;
       }
 
-      // The code step ran with the configured projectDir, not process.cwd().
+      // Repository work ran in a fixture-owned transaction workspace, not
+      // the canonical checkout or KOTA's source tree.
       expect(observedProjectDirs.length).toBeGreaterThanOrEqual(1);
+      const canonicalFixtureDir = realpathSync(fixtureDir);
       for (const observed of observedProjectDirs) {
-        expect(observed).toBe(fixtureDir);
+        const workspace = relative(canonicalFixtureDir, observed);
+        expect(workspace.startsWith(`${join(".kota", "runtime", "worktrees")}${sep}`))
+          .toBe(true);
       }
 
       // The sentinel landed inside the fixture, not the KOTA tree.
@@ -234,7 +242,7 @@ describe("daemon operates against external project fixture", () => {
     });
     const startPromise = daemon.start();
     try {
-      await wait(100);
+      await daemon.whenReady();
     } finally {
       await daemon.stop();
       await startPromise;

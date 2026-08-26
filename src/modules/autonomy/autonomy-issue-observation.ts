@@ -58,7 +58,6 @@ export function emptyAutonomyIssueLinks(): AutonomyIssueLinks {
     taskIds: [],
     ownerQuestionIds: [],
     deadLetterIds: [],
-    recoveryDispositionRefs: [],
   };
 }
 
@@ -79,20 +78,6 @@ function linkedDeadLetterIds(
       const id = ref.ref.split("#").at(-1)?.trim();
       return id ? [id] : [];
     }),
-  );
-}
-
-function linkedRecoveryDispositionRefs(
-  refs: readonly AutonomyHealthEvidenceRef[],
-): string[] {
-  return uniqueAutonomyIssueStrings(
-    refs
-      .filter(
-        (ref) =>
-          ref.kind === "artifact" &&
-          ref.ref.endsWith("/workflow-state-recovery.json"),
-      )
-      .map((ref) => ref.ref),
   );
 }
 
@@ -154,7 +139,6 @@ export function buildAutonomyIssueObservation(args: {
     semanticFingerprint,
     links: {
       deadLetterIds: linkedDeadLetterIds(evidenceRefs),
-      recoveryDispositionRefs: linkedRecoveryDispositionRefs(evidenceRefs),
     },
   };
 }

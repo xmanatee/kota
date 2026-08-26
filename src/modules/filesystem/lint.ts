@@ -1,8 +1,15 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { extname } from "node:path";
 
 export type LintResult = { ok: true } | { ok: false; error: string };
+
+const ESBUILD_CHECK_SCRIPT = [
+  "const [path, loader] = process.argv.slice(1);",
+  "const source = require('node:fs').readFileSync(path, 'utf-8');",
+  "require('esbuild').transformSync(source, { loader });",
+].join("\n");
+const PYTHON_CHECK_SCRIPT = "import ast,sys; ast.parse(open(sys.argv[1]).read())";
 
 /**
  * Run a syntax check on a file based on its module.
@@ -45,7 +52,7 @@ function lintJSON(path: string): LintResult {
 
 function lintJS(path: string): LintResult {
   try {
-    execSync(`node --check "${path}"`, {
+    execFileSync(process.execPath, ["--check", path], {
       encoding: "utf-8",
       stdio: "pipe",
       timeout: 10_000,
@@ -59,13 +66,12 @@ function lintJS(path: string): LintResult {
 
 function lintWithEsbuild(path: string, ext: string): LintResult {
   const loader = ext === ".tsx" || ext === ".jsx" ? "tsx" : "ts";
-  const escaped = path.replace(/'/g, "'\\''");
-  const cmd =
-    `node -e "require('esbuild').transformSync(` +
-    `require('fs').readFileSync('${escaped}','utf-8'),` +
-    `{loader:'${loader}'})"`;
   try {
-    execSync(cmd, { encoding: "utf-8", stdio: "pipe", timeout: 10_000 });
+    execFileSync(process.execPath, ["-e", ESBUILD_CHECK_SCRIPT, path, loader], {
+      encoding: "utf-8",
+      stdio: "pipe",
+      timeout: 10_000,
+    });
     return { ok: true };
   } catch (err) {
     const msg = (err as Error).message || "";
@@ -79,10 +85,10 @@ function lintWithEsbuild(path: string, ext: string): LintResult {
 }
 
 function lintPython(path: string): LintResult {
-  const escaped = path.replace(/'/g, "'\\''");
   try {
-    execSync(
-      `python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" '${escaped}'`,
+    execFileSync(
+      "python3",
+      ["-c", PYTHON_CHECK_SCRIPT, path],
       { encoding: "utf-8", stdio: "pipe", timeout: 10_000 },
     );
     return { ok: true };
@@ -97,9 +103,8 @@ function lintPython(path: string): LintResult {
 }
 
 function lintShell(path: string): LintResult {
-  const escaped = path.replace(/'/g, "'\\''");
   try {
-    execSync(`bash -n '${escaped}'`, {
+    execFileSync("bash", ["-n", path], {
       encoding: "utf-8",
       stdio: "pipe",
       timeout: 10_000,

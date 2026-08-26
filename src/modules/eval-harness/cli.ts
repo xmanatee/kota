@@ -473,11 +473,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       "--fixture <id>",
       "Target fixture id under src/modules/eval-harness/fixtures/",
     )
-    .option(
-      "--source-commit-sha <sha>",
-      "Override for the source commit SHA; use when steps/commit.json reports committed=true but pre-dates the SHA capture. Ignored with --judge (judges have no commit).",
-    )
-    .action((opts: { runId: string; step?: string; judge?: string; fixture: string; sourceCommitSha?: string }) => {
+    .action((opts: { runId: string; step?: string; judge?: string; fixture: string }) => {
       const fixturesRoot = join(ctx.cwd, "src/modules/eval-harness/fixtures");
       const fixtureDir = resolveRecordingFixtureDir(fixturesRoot, opts.fixture);
       if (!opts.step === !opts.judge) {
@@ -513,9 +509,6 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         sourceRunId: opts.runId,
         stepId: opts.step!,
         fixtureDir,
-        ...(opts.sourceCommitSha !== undefined && {
-          explicitCommitSha: opts.sourceCommitSha,
-        }),
       });
       print(stack(
         line(

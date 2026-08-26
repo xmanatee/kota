@@ -1,26 +1,27 @@
-import { spawnSync } from "node:child_process";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type {
 	DiffSummaryFacts,
 	DiffSummaryFileBucket,
 	DiffSummaryNameStatus,
 	DiffSummaryNameStatusKind,
 } from "./diff-summary-consistency-types.js";
-import type { WorkflowRunSummary } from "./run-summary.js";
+import type { AutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 
 const MAX_CHANGED_FILES_IN_RECORD = 60;
 const LARGE_DIFF_FILE_THRESHOLD = 12;
 
-export function collectGitNameStatus(
+export async function collectGitNameStatus(
 	projectDir: string,
-): DiffSummaryNameStatus[] | null {
-	const result = spawnSync("git", ["diff", "--name-status", "HEAD~1"], {
+	runCommand: WorkflowCommandRunner,
+	baseHead = "HEAD~1",
+	publishedHead = "HEAD",
+): Promise<DiffSummaryNameStatus[]> {
+	const result = await runCommand({
+		command: "git",
+		args: ["diff", "--name-status", `${baseHead}..${publishedHead}`, "--"],
 		cwd: projectDir,
-		encoding: "utf-8",
-		env: withProtectedGitBareRepositoryEnv(),
 	});
-	if (result.status !== 0 || typeof result.stdout !== "string") return null;
-	return parseGitNameStatus(result.stdout);
+	return parseGitNameStatus(result.stdout.text);
 }
 
 export function parseGitNameStatus(raw: string): DiffSummaryNameStatus[] {
@@ -48,13 +49,13 @@ export function parseGitNameStatus(raw: string): DiffSummaryNameStatus[] {
 }
 
 export function diffFactsFor(
-	summary: WorkflowRunSummary | null,
+	delivery: AutonomyRunDeliveryEvidence | null,
 	nameStatus: readonly DiffSummaryNameStatus[] | null,
 ): DiffSummaryFacts {
 	const paths = sortedUnique(
 		nameStatus
 			? nameStatus.map((entry) => entry.path)
-			: (summary?.filesChanged ?? []),
+			: (delivery?.changedPaths ?? []),
 	);
 	const taskFileCount = paths.filter(isTaskPath).length;
 	const productionFileCount = paths.filter(isProductionSourcePath).length;

@@ -114,6 +114,7 @@ const commentPolicy = typedCodeStep<RepoAiCheckCommentPolicy>({
 const repoAiChecksWorkflow: WorkflowDefinitionInput = {
   name: "repo-ai-checks",
   description: "Run trusted repo-local AI check files as advisory GitHub pull-request workflow checks.",
+  repository: "read",
   tags: ["monitored"],
   defaultAutonomyMode: "passive",
   runTimeoutMs: 30 * 60 * 1000,

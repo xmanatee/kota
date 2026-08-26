@@ -153,25 +153,6 @@ export function formatEmail(event: string, payload: Record<string, unknown>): Em
       return { subject, text: lines.join("\n") };
     }
 
-    case "workflow.build.committed": {
-      const commitMessage = payload.commitMessage as string | undefined;
-      const taskId = payload.taskId as string | null | undefined;
-      const costUsd = payload.costUsd as number | null | undefined;
-      const durationMs = payload.durationMs as number | null | undefined;
-      const subject = `[KOTA] Builder committed: ${commitMessage ?? ""}`;
-      const meta = [
-        taskId ? `Task: ${taskId}` : null,
-        costUsd != null ? `Cost: $${costUsd.toFixed(2)}` : null,
-        durationMs != null ? `Duration: ${Math.round(durationMs / 60000)}m` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      return {
-        subject,
-        text: [commitMessage ?? "", meta].filter(Boolean).join("\n"),
-      };
-    }
-
     default:
       return {
         subject: `[KOTA] ${event}`,

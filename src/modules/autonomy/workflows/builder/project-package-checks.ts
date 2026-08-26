@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
-  type RunCheckOptions,
-  runCheck,
-} from "#modules/autonomy/shared.js";
+  type WorkflowCommandInput,
+  workflowCommandOutput,
+} from "#core/workflow/workflow-command.js";
 
 const PACKAGE_PROJECT_MARKERS = [
   "package.json",
@@ -19,26 +20,31 @@ function hasPackageProject(projectDir: string): boolean {
 }
 
 export async function checkPackageScript(
+  context: Pick<WorkflowStepContext, "runCommand">,
   projectDir: string,
-  command: string,
-  options: RunCheckOptions = {},
+  command: Omit<WorkflowCommandInput, "cwd" | "signal">,
 ): Promise<string> {
   if (!hasPackageProject(projectDir)) {
     return "OK: no package project present";
   }
-  return runCheck(command, projectDir, options);
+  return workflowCommandOutput(await context.runCommand({
+    ...command,
+    cwd: projectDir,
+  }));
 }
 
 export async function checkMacosSwiftBuild(
+  context: Pick<WorkflowStepContext, "runCommand">,
   projectDir: string,
-  options: Pick<RunCheckOptions, "signal"> = {},
 ): Promise<string> {
   const appleDir = join(projectDir, "clients/apple");
   if (!existsSync(join(appleDir, "Package.swift"))) {
     return "OK: no Apple client present";
   }
-  return runCheck("swift build", appleDir, {
+  return workflowCommandOutput(await context.runCommand({
+    command: "swift",
+    args: ["build"],
+    cwd: appleDir,
     timeoutMs: 180_000,
-    signal: options.signal,
-  });
+  }));
 }

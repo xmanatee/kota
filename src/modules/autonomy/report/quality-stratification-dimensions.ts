@@ -19,11 +19,11 @@ export function runDimensions(
   indexes: QualityRunIndexes,
   changedFiles?: readonly string[],
 ): Partial<Record<QualityStratificationDimension, string[]>> {
-  const summaryFiles = indexes.summaryByRunId.get(run.id)?.filesChanged ?? [];
+  const integrationFiles = indexes.deliveryByRunId.get(run.id)?.changedPaths ?? [];
   return {
     workflow: [run.workflow],
     harness: harnessesForRun(run),
-    changedArea: changedAreasFromFiles(changedFiles ?? summaryFiles),
+    changedArea: changedAreasFromFiles(changedFiles ?? integrationFiles),
   };
 }
 

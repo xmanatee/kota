@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import {
+  type AutonomyRunDeliveryEvidence,
+  readAutonomyRunDeliveryEvidence,
+} from "#modules/autonomy/run-delivery-evidence.js";
 import {
   isSourceSizeCheckPath,
   SOURCE_FILE_SIZE_WARNING_TYPE,
@@ -13,11 +16,6 @@ import { findOpenCleanupCoverage } from "./code-health-drift-coverage.js";
 import type { CodeHealthDriftRecord } from "./code-health-drift-types.js";
 
 const SOURCE_SIZE_REVIEW_ARTIFACT = "source-file-size-review.json";
-
-type BuilderSummaryWithSourceSize = WorkflowRunSummary & {
-  sourceFileSize?: SourceFileSizeReview;
-  warnings?: SourceFileSizeWarning[];
-};
 
 type ParsedSourceSizeReview = {
   outcome?: string;
@@ -49,10 +47,10 @@ export function readCodeHealthRunRecord(
   openTasks: readonly RepoTaskFullRecord[],
 ): CodeHealthRunReadResult {
   const runDir = join(runsDir, run.id);
-  const summary = readSummary(runDir);
-  if (!summary || !isValidSummary(summary)) return { kind: "unsupported" };
+  const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
+  if (!delivery || !isValidDelivery(delivery)) return { kind: "unsupported" };
 
-  const review = readSourceReview(runDir, summary);
+  const review = readSourceReview(runDir);
   if (review === "unsupported") return { kind: "unsupported" };
   if (review.outcome === "ok") return { kind: "clean" };
   if (!isValidReview(review)) return { kind: "unsupported" };
@@ -60,9 +58,9 @@ export function readCodeHealthRunRecord(
   const files = sortedUnique(review.warnings.map((warning) => warning.file));
   const base = {
     runId: run.id,
-    taskId: summary.taskId,
-    commitRef: summary.commitSha,
-    changedSourceFiles: summary.filesChanged.filter(isSourceSizeCheckPath).sort(),
+    taskId: delivery.taskId,
+    commitRef: delivery.publishedHead,
+    changedSourceFiles: delivery.changedPaths.filter(isSourceSizeCheckPath).sort(),
     warningFamily: "source-size" as const,
     warningCount: review.warnings.length,
     files,
@@ -77,7 +75,7 @@ export function readCodeHealthRunRecord(
           {
             kind: "cleanup-exception",
             runId: run.id,
-            taskId: summary.taskId,
+            taskId: delivery.taskId,
             taskPath: review.exception.taskPath,
             files: review.exception.reducingFiles,
           },
@@ -95,17 +93,8 @@ export function readCodeHealthRunRecord(
   };
 }
 
-function readSummary(runDir: string): BuilderSummaryWithSourceSize | null {
-  try {
-    return JSON.parse(readFileSync(join(runDir, "run-summary.json"), "utf-8")) as BuilderSummaryWithSourceSize;
-  } catch {
-    return null;
-  }
-}
-
 function readSourceReview(
   runDir: string,
-  summary: BuilderSummaryWithSourceSize,
 ): SourceFileSizeReview | "unsupported" {
   const path = join(runDir, SOURCE_SIZE_REVIEW_ARTIFACT);
   if (existsSync(path)) {
@@ -115,14 +104,6 @@ function readSourceReview(
     } catch {
       return "unsupported";
     }
-  }
-  if (summary.sourceFileSize) return normalizeReview(summary.sourceFileSize);
-  if (Array.isArray(summary.warnings) && summary.warnings.length > 0) {
-    return normalizeReview({
-      outcome: "advisory",
-      warnings: summary.warnings,
-      message: "Legacy builder run summary source-size warnings",
-    });
   }
   return "unsupported";
 }
@@ -179,14 +160,14 @@ function normalizeExceptionReview(
   };
 }
 
-function isValidSummary(summary: BuilderSummaryWithSourceSize): boolean {
+function isValidDelivery(delivery: AutonomyRunDeliveryEvidence): boolean {
   return (
-    summary.workflow === "builder" &&
-    typeof summary.runId === "string" &&
-    (typeof summary.taskId === "string" || summary.taskId === null) &&
-    typeof summary.commitSha === "string" &&
-    Array.isArray(summary.filesChanged) &&
-    summary.filesChanged.every((file) => typeof file === "string")
+    delivery.workflow === "builder" &&
+    typeof delivery.runId === "string" &&
+    (typeof delivery.taskId === "string" || delivery.taskId === null) &&
+    typeof delivery.publishedHead === "string" &&
+    Array.isArray(delivery.changedPaths) &&
+    delivery.changedPaths.every((file) => typeof file === "string")
   );
 }
 

@@ -82,8 +82,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     completedRuns: 0,
     workflows: {},
     paused: false,
-    agentConcurrency: 1,
-    codeConcurrency: 4,
+    concurrency: 4,
   };
   return {
     getDaemonLiveState: vi.fn(() => ({
@@ -1120,8 +1119,7 @@ describe("DaemonControlServer", () => {
           completedRuns: 1,
           workflows: {},
           paused: true,
-          agentConcurrency: 1,
-          codeConcurrency: 4,
+          concurrency: 4,
         })),
       });
       await server.stop();

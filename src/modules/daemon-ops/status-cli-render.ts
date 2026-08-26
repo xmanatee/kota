@@ -12,17 +12,10 @@ import type {
   StatusDashboard,
   StatusSnapshot,
 } from "./status-cli-types.js";
-import { buildWorktreeStatusNode } from "./status-cli-worktrees.js";
+import { buildRunSandboxStatusNode } from "./status-cli-worktrees.js";
 
 function formatUptime(ms: number): string {
   return formatUptimeFromIso(new Date(Date.now() - ms).toISOString());
-}
-
-function formatDirtyCheckout(
-  dirtyCheckout: NonNullable<StatusSnapshot["pendingRecovery"]>["dirtyCheckout"],
-): string {
-  if (dirtyCheckout === undefined) return "worktree";
-  return dirtyCheckout === "workspace" ? "workspace checkout" : "canonical checkout";
 }
 
 function describeDispatch(snap: StatusSnapshot): {
@@ -31,13 +24,6 @@ function describeDispatch(snap: StatusSnapshot): {
 } {
   if (!snap.workflowPaused) return { value: "running", role: "muted" };
   switch (snap.workflowPause?.kind) {
-    case "dirty-recovery":
-      return {
-        value:
-          `paused for dirty recovery  (${snap.workflowPause.recovery.sourceWorkflow} ` +
-          `${snap.workflowPause.recovery.sourceRunId})`,
-        role: "warn",
-      };
     case "operator":
       return {
         value: "paused by operator  (run `kota workflow resume`)",
@@ -55,18 +41,6 @@ function describeDispatch(snap: StatusSnapshot): {
         role: "warn",
       };
   }
-}
-
-function formatRecovery(recovery: NonNullable<StatusSnapshot["pendingRecovery"]>): string {
-  const prefix = "status" in recovery && recovery.status === "unavailable"
-    ? "git status unavailable for"
-    : "dirty";
-  const nextAction = "nextAction" in recovery ? `; next: ${recovery.nextAction}` : "";
-  return (
-    `${prefix} ${formatDirtyCheckout(recovery.dirtyCheckout)} from ${recovery.sourceWorkflow} ` +
-    `(${recovery.sourceRunId}, attempts ${recovery.attempts}): ` +
-    `${recovery.worktreeSummary}${nextAction}`
-  );
 }
 
 function describeControlFile(identity: DaemonControlIdentity): {
@@ -176,20 +150,19 @@ export function buildStatusNode(
     );
   } else {
     entries.push(
-      { label: "Dispatch", value: "offline  (daemon control API unavailable)", role: "muted" as const },
-      { label: "Runs", value: "offline  (live run state unavailable)", role: "muted" as const },
+      {
+        label: "Dispatch",
+        value: snap.workflowPaused
+          ? "offline  (daemon control API unavailable; operator pause signal present)"
+          : "offline  (daemon control API unavailable)",
+        role: snap.workflowPaused ? "warn" as const : "muted" as const,
+      },
+      {
+        label: "Runs",
+        value: `${snap.activeRuns} active, ${snap.queuedRuns} queued  (durable database)`,
+        role: snap.activeRuns > 0 || snap.queuedRuns > 0 ? "warn" as const : "muted" as const,
+      },
     );
-    appendOfflineStatusEntries(entries, snap);
-  }
-
-  if (snap.pendingRecovery) {
-    entries.push({
-      label: "status" in snap.pendingRecovery && snap.pendingRecovery.status === "unavailable"
-        ? "Recovery status"
-        : "Pending recovery",
-      value: formatRecovery(snap.pendingRecovery),
-      role: "warn" as const,
-    });
   }
 
   entries.push({
@@ -203,37 +176,14 @@ export function buildStatusNode(
       label: "Runtime source",
       value: snap.daemonRunning
         ? "daemon control API; event stream expected available through the daemon"
-        : "local files only; daemon API and event stream unavailable",
+        : "durable run database and local files; daemon API and event stream unavailable",
       role: snap.daemonRunning ? "success" as const : "warn" as const,
     });
   }
 
   const status = kvBlock(entries);
-  const worktreeStatus = buildWorktreeStatusNode(snap.worktrees ?? [], snap.worktreeSummary);
-  return worktreeStatus ? stack(status, worktreeStatus) : status;
-}
-
-function appendOfflineStatusEntries(
-  entries: Parameters<typeof kvBlock>[0],
-  snap: StatusSnapshot,
-): void {
-  if (
-    snap.historicalWorkflow &&
-    (snap.historicalWorkflow.activeRuns > 0 ||
-      snap.historicalWorkflow.queuedRuns > 0 ||
-      snap.historicalWorkflow.workflowPaused)
-  ) {
-    const paused = snap.historicalWorkflow.workflowPaused
-      ? `, ${snap.workflowPause?.kind === "dirty-recovery" ? "dirty recovery pause signal" : "operator pause signal"} present`
-      : "";
-    entries.push({
-      label: "Historical run store",
-      value:
-        `${snap.historicalWorkflow.activeRuns} active, ` +
-        `${snap.historicalWorkflow.queuedRuns} queued from offline files${paused}`,
-      role: "warn" as const,
-    });
-  }
+  const runSandboxStatus = buildRunSandboxStatusNode(snap.runProjection);
+  return runSandboxStatus ? stack(status, runSandboxStatus) : status;
 }
 
 export function formatStatusOutput(

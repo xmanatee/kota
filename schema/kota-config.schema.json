@@ -1206,12 +1206,8 @@
     "scheduler": {
       "additionalProperties": false,
       "properties": {
-        "agentConcurrency": {
-          "description": "Max simultaneous agent-step workflows. Must be a positive integer. Default: 1.",
-          "type": "number"
-        },
-        "codeConcurrency": {
-          "description": "Max simultaneous code-only workflows. Must be a positive integer. Default: 4.",
+        "concurrency": {
+          "description": "Max simultaneous top-level automation runs. Default: 4.",
           "type": "number"
         },
         "dispatchWindow": {

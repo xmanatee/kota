@@ -25,10 +25,6 @@ export function createScopedWorkflowClient(input: {
     ...base,
     listDeadLetters: (filter) =>
       scoped(selectedId, () => base.listDeadLetters(withScope(filter, selector))),
-    listStateRecoveryActions: (filter) =>
-      scoped(selectedId, () => base.listStateRecoveryActions(withScope(filter, selector))),
-    resolveStateRecovery: (value) =>
-      scoped(selectedId, () => base.resolveStateRecovery(withScope(value, selector))),
     getDeadLetter: (id) =>
       scoped(selectedId, () => base.getDeadLetter(id, selectedId)),
     dismissDeadLetter: (id, reason) =>
@@ -39,6 +35,15 @@ export function createScopedWorkflowClient(input: {
       scoped(selectedId, () => base.exportDeadLetterDiagnostics(id, selectedId)),
     status: (filter) =>
       scoped(selectedId, () => base.status(withScope(filter, selector))),
+	getRun: (id) =>
+		scoped(selectedId, () => base.getRun(id, selector)),
+	listDefinitions: () =>
+		scoped(selectedId, () => base.listDefinitions(selector)),
+	triggerByName: (name, options) =>
+		scoped(
+			selectedId,
+			() => base.triggerByName(name, withScope(options, selector)),
+		),
     trial: (name, options) =>
       scoped(selectedId, () => base.trial(name, withScope(options, selector))),
   };

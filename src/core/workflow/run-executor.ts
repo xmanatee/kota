@@ -9,19 +9,19 @@ import {
 } from "./active-timeout.js";
 import {
   buildStepStartedPayload,
-  buildWorkflowCompletedPayload,
   buildWorkflowStartedPayload,
 } from "./event-payloads.js";
 import { validatePayloadSchema } from "./payload-validator.js";
-import { RepairLoopYield } from "./repair-loop.js";
 import type { RunExecutorDeps } from "./run-executor-deps.js";
 import { executeGroupStep } from "./run-executor-groups.js";
-import { replayRunRuntimeState, updateRunRuntimeStateFromStep } from "./run-executor-runtime-state.js";
 import { buildSkippedResult, executeWorkflowStep } from "./run-executor-step.js";
 import { buildResumeInitialState, buildRetryInitialState } from "./run-executor-utils.js";
-import { finishYieldedWorkflowRun } from "./run-executor-yield.js";
-import type { WorkflowRunExecutionResult, WorkflowRunStatus, WorkflowRunWarning } from "./run-types.js";
-import { createAgentRunLimiter } from "./steps/agent-run-limiter.js";
+import type {
+  WorkflowRunExecutionResult,
+  WorkflowRunStatus,
+  WorkflowRuntimeResources,
+  WorkflowRunWarning,
+} from "./run-types.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
   type AgentStepConfig,
@@ -42,6 +42,18 @@ export function executeWorkflowRun(
   inputDeps: RunExecutorDeps,
   abortController: AbortController = new AbortController(),
 ): { promise: Promise<WorkflowRunExecutionResult>; abortController: AbortController } {
+  const runContext = inputDeps.runContext;
+  const runtimeResources: WorkflowRuntimeResources = {
+    profileId: `${runContext.run.id}:${runContext.run.attempt}`,
+    env: { ...runContext.resources.env },
+    agentRunDir: runContext.resources.agentDir,
+    tempRoot: runContext.resources.tempDir,
+    artifactRoot: runContext.resources.artifactDir,
+    ports: {
+      start: runContext.resources.ports.start,
+      end: runContext.resources.ports.end,
+    },
+  };
   // Resolve `pbus` once: callers from the daemon path supply the
   // per-project wrapper directly; standalone callers (CLI exec, focused
   // tests) get a wrapper bound to their own `projectDir`. Either way the
@@ -50,11 +62,11 @@ export function executeWorkflowRun(
   const pbus = inputDeps.pbus
     ?? new ProjectScopedEventBus(
       inputDeps.bus,
-      deriveDirectoryScopeId(inputDeps.projectDir),
+      deriveDirectoryScopeId(runContext.project.root),
     );
   const approvalQueue = inputDeps.approvalQueue
     ?? new ApprovalQueue(
-      join(inputDeps.projectDir, ".kota", "approvals"),
+      join(runContext.project.root, ".kota", "approvals"),
       pbus,
       {
         scopeId: pbus.getScopeId(),
@@ -62,20 +74,31 @@ export function executeWorkflowRun(
       },
     );
   const deps: RunExecutorDeps & {
+    projectDir: string;
+    scopeDir: string;
     pbus: ProjectScopedEventBus;
-    workspaceDir: string;
+    runtimeResources: WorkflowRuntimeResources;
     approvalQueue: ApprovalQueue;
   } = {
     ...inputDeps,
-    workspaceDir: inputDeps.workspaceDir ?? inputDeps.projectDir,
+    projectDir: runContext.sandbox.workspaceDir,
+    scopeDir: runContext.project.root,
+    runtimeResources,
     pbus,
     approvalQueue,
   };
-  const run = deps.store.createRun(definition, trigger, deps.runId);
+  const run = deps.store.createRun(
+    definition,
+    trigger,
+    runContext.run.id,
+    runContext.sandbox.repository === "none"
+      ? null
+      : runContext.sandbox.baseCommit,
+  );
   const startedAt = Date.now();
-  const agentRunLimiter =
-    deps.agentRunLimiter ?? createAgentRunLimiter(deps.agentConcurrency);
-  const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(agentRunLimiter);
+  const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(
+    runContext.processes.register,
+  );
   const contextDeps = {
     ...deps,
     runAgentHarness: nestedAgentHarnessRunner,
@@ -112,12 +135,6 @@ export function executeWorkflowRun(
       const retryState = resumedFromRunId && resumeFromStep
         ? buildResumeInitialState(resumedFromRunId, resumeFromStep, definition.steps, (result) => run.recordStep(result), deps.store.runsDir)
         : buildRetryInitialState(retryOfId, definition.steps, (result) => run.recordStep(result), deps.store.runsDir);
-      replayRunRuntimeState(
-        contextDeps,
-        definition,
-        retryState.retryFromIndex,
-        retryState.stepResultsById,
-      );
       const { stepOutputsById, stepResultsById, stepOutputs, retryFromIndex } = retryState;
       let previousOutput = retryState.previousOutput;
       let hadWarnings = retryState.hadWarnings;
@@ -148,19 +165,20 @@ export function executeWorkflowRun(
         const agentConfig: AgentStepConfig = {
           model: deps.model,
           config: deps.config,
-          projectDir: deps.projectDir,
-          workspaceDir: contextDeps.workspaceDir,
+          projectDir: deps.scopeDir,
+          workspaceDir: deps.projectDir,
           authorityConfigPath: deps.authorityConfigPath,
           runtimeResources: contextDeps.runtimeResources,
+          repository: runContext.sandbox.repository,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
           createCanUseTool: deps.createAgentCanUseTool,
-          agentRunLimiter,
           delegateBudget,
           runTokenBudget,
           approvalQueue: deps.approvalQueue,
           idempotencyStore: deps.idempotencyStore,
+          onProcessSpawn: runContext.processes.register,
           scopeId,
           projectId: deps.pbus.getProjectId(),
           scopePolicyAuthority: deps.scopePolicyAuthority,
@@ -217,7 +235,6 @@ export function executeWorkflowRun(
         const { completed, agentBackoff: stepBackoff, thrownError } = await executeWorkflowStep(
           definition, step, run, trigger, context, abortController, agentConfig, acc, stepDeps, stepStartedAt,
         );
-        updateRunRuntimeStateFromStep(contextDeps, step, completed);
         if (stepBackoff && !agentBackoff) agentBackoff = stepBackoff;
         if (completed.status === "success") previousOutput = completed.output;
         else if (completed.continueOnFailure) { hadWarnings = true; }
@@ -245,10 +262,6 @@ export function executeWorkflowRun(
         ...activeTimingMetadata(timing),
         ...(outputWarnings.length > 0 ? { warnings: outputWarnings } : {}),
       });
-      deps.pbus.emit(
-        "workflow.completed",
-        buildWorkflowCompletedPayload(completed, finalStatus, definition.tags, undefined, definition.defaultAutonomyMode),
-      );
       deps.log(`Completed workflow "${definition.name}" (${completed.id})`);
       return {
         metadata: completed,
@@ -256,11 +269,6 @@ export function executeWorkflowRun(
       };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      if (err instanceof RepairLoopYield) {
-        return finishYieldedWorkflowRun({
-          definition, signal: err, run, runTimeout, startedAt, deps,
-        });
-      }
       if (!agentBackoff && err instanceof AgentStepRuntimeError) {
         agentBackoff = workflowAgentBackoffSignalFromError(err);
       }
@@ -276,10 +284,6 @@ export function executeWorkflowRun(
         ...activeTimingMetadata(timing),
         error: err.message,
       });
-      deps.pbus.emit(
-        "workflow.completed",
-        buildWorkflowCompletedPayload(completed, status, definition.tags, agentBackoff?.kind, definition.defaultAutonomyMode),
-      );
       deps.log(
         `${status === "interrupted" ? "Interrupted" : "Failed"} workflow "${definition.name}" (${completed.id}): ${err.message}`,
       );

@@ -61,6 +61,8 @@ describe("progress-reviewer canonical state evidence", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,

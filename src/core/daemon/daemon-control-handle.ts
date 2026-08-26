@@ -109,8 +109,6 @@ export type DaemonControlHandle = {
   pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
   resumeWorkflowDispatch(projectId?: ProjectId, options?: WorkflowResumeOptions): {
     already: boolean;
-    blocked?: "dirty-recovery";
-    message?: string;
     agentBackoffCleared?: true;
   };
   abortActiveRuns(projectId?: ProjectId): { aborted: number };

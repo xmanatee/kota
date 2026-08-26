@@ -14,7 +14,7 @@ import {
   defaultAgentStep,
   initGitRepo,
   seedSourceRun,
-  writeCommitArtifact,
+  seedWriterIntegration,
   writeFile,
 } from "./recorder.test-helpers.js";
 
@@ -111,9 +111,8 @@ describe("extractAgentStepRecording", () => {
         }),
       ],
     );
-    writeCommitArtifact(join(projectDir, ".kota", "runs", runId), {
-      committed: true,
-      sha,
+    seedWriterIntegration(projectDir, runId, {
+      publishedHead: sha,
       message: "decomposer commit",
     });
 
@@ -199,9 +198,8 @@ describe("extractAgentStepRecording", () => {
       [],
     );
     rmSync(join(runDir, "steps", "build.events.jsonl"));
-    writeCommitArtifact(runDir, {
-      committed: true,
-      sha,
+    seedWriterIntegration(projectDir, runId, {
+      publishedHead: sha,
       message: "builder commit",
     });
     writeFileSync(join(runDir, "commit-message.txt"), "Builder: finish fixture\n");

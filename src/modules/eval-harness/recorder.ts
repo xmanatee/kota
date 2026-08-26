@@ -2,13 +2,13 @@
  * Agent-step and judge-call recording extractor.
  *
  * Repo-tree `fileOperations` come from the commit the source run produced:
- * the recorder reads the SHA from `steps/commit.json`, then walks the
- * commit diff (`recorder-commit-diff.ts`) to emit one `write`/`delete` per
+ * the recorder reads the published range from `writer-integration.json`, then
+ * walks that diff (`recorder-commit-diff.ts`) to emit one `write`/`delete` per
  * touched path, with renames expanded to a delete + write pair. Run-dir
  * paths (under `.kota/runs/<sourceRunId>/`) are never committed; they come
  * from a best-effort Write-event scan of the step's events.jsonl, with a
  * narrow fallback for known agent-authored run artifacts, and stay templated
- * to `{{runDir}}`. A source run whose commit step did not commit is a hard
+ * to `{{runDir}}`. A source run that did not integrate writer changes is a hard
  * error — the recorder will not emit an empty or partial recording.
  *
  * Judge-call recordings (critic, improver semantic gate, any future judge)
@@ -30,7 +30,7 @@ import type {
 import { recordingPathForStep } from "./agent-step-recording.js";
 import {
   extractCommitDiffOperations,
-  resolveSourceCommitSha,
+  resolveSourceIntegrationRange,
 } from "./recorder-commit-diff.js";
 import { requireRecorderIdentifier } from "./recorder-paths.js";
 import { extractRunDirWriteOperations } from "./recorder-run-dir-writes.js";
@@ -92,15 +92,6 @@ export type ExtractRecordingParams = {
   sourceRunId: string;
   stepId: string;
   fixtureDir: string;
-  /**
-   * Optional override for the source commit SHA. Older source runs committed
-   * successfully but did not persist the SHA to `steps/commit.json`; an
-   * operator who knows the SHA can pass it explicitly so the recorder's
-   * diff walk proceeds without recomputing it. `committed=true` is still
-   * enforced from the step artifact so a non-committing run can never be
-   * recorded.
-   */
-  explicitCommitSha?: string;
 };
 
 export type ExtractRecordingResult = {
@@ -183,14 +174,16 @@ export function extractAgentStepRecording(
   }
   const response = extractResponse(artifact, stepId);
   const workflowName = readWorkflowName(params.projectDir, sourceRunId);
-  const sourceCommitSha = resolveSourceCommitSha(
-    params.projectDir,
-    sourceRunId,
-    params.explicitCommitSha,
-  );
+  const sourceRange = resolveSourceIntegrationRange(params.projectDir, sourceRunId);
+  const sourceCommitSha = sourceRange.publishedHead;
 
   const { ops: commitOps, skippedOutsideProject: skippedFromCommit } =
-    extractCommitDiffOperations(params.projectDir, sourceRunId, sourceCommitSha);
+    extractCommitDiffOperations(
+      params.projectDir,
+      sourceRunId,
+      sourceRange.baseHead,
+      sourceRange.publishedHead,
+    );
   const { ops: runDirOps, skippedOutsideProject: skippedFromWrites } =
     extractRunDirWriteOperations(params.projectDir, sourceRunId, stepId);
 

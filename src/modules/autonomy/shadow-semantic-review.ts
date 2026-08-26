@@ -33,7 +33,6 @@ export {
 } from "./shadow-semantic-review-prompt.js";
 export {
   shadowSemanticReviewTargetOperation,
-  stagedDiffArtifacts,
   workflowMutationArtifacts,
 } from "./shadow-semantic-review-targets.js";
 
@@ -159,7 +158,7 @@ export async function runShadowSemanticReview(args: {
   const startedAt = Date.now();
   try {
     const prompt = buildShadowSemanticReviewPrompt(declaration, resolution);
-    const cwd = ctx.workspaceDir ?? ctx.projectDir;
+    const cwd = ctx.projectDir;
     const response = args.invoker
       ? await args.invoker(prompt, cwd, declaration)
       : await defaultInvoker(prompt, cwd, declaration, ctx);

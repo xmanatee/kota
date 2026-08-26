@@ -3,11 +3,47 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
-import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { WorkflowRuntime } from "./runtime.js";
+import { RunCoordinator } from "./run-coordinator.js";
+import { RunStateDatabase } from "./run-state-database.js";
+import { WorkflowRuntime, type WorkflowRuntimeConfig } from "./runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
+
+const runStates: RunStateDatabase[] = [];
+
+function createRuntime(
+  config: Omit<
+    WorkflowRuntimeConfig,
+    "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
+  > & { projectDir: string },
+  concurrency = 2,
+): WorkflowRuntime {
+  const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
+  runStates.push(runState);
+  const projectId = "test-project";
+  runState.registerProject({
+    id: projectId,
+    rootPath: config.projectDir,
+    createdAt: "2026-08-25T10:00:00.000Z",
+  });
+  const daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
+  let runtime!: WorkflowRuntime;
+  const runCoordinator = new RunCoordinator({
+    store: runState,
+    daemonEpoch,
+    concurrency,
+    execute: (run, signal) => runtime.executeAdmittedRun(run, signal),
+    deliverPublication: (publication) => runtime.deliverPublication(publication),
+  });
+  runtime = new WorkflowRuntime({
+    ...config,
+    projectId,
+    runState,
+    runCoordinator,
+    daemonEpoch,
+  });
+  return runtime;
+}
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -44,16 +80,8 @@ function makeProjectDir(): string {
   return projectDir;
 }
 
-function commitFixtureFiles(projectDir: string): void {
-  execFileSync("git", ["add", "-A"], { cwd: projectDir, stdio: "ignore" });
-  execFileSync(
-    "git",
-    ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "fixture"],
-    { cwd: projectDir, stdio: "ignore" },
-  );
-}
-
 const idleWorkflow: RegisteredWorkflowDefinitionInput = {
+  repository: "read",
   name: "idle-listener",
   definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
   moduleRoot: process.cwd(),
@@ -89,11 +117,12 @@ describe("runtime idle dispatch", () => {
   });
 
   afterEach(() => {
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
   it("does not keep dispatching runtime.idle while repo state is unchanged", async () => {
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -108,7 +137,7 @@ describe("runtime idle dispatch", () => {
   });
 
   it("dispatches runtime.idle again after the repo state changes", async () => {
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 10,
@@ -126,12 +155,13 @@ describe("runtime idle dispatch", () => {
   });
 
   it("dispatches manually enqueued workflow runs immediately", async () => {
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "manual-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -158,12 +188,13 @@ describe("runtime idle dispatch", () => {
   });
 
   it("dispatches webhook-enqueued workflow runs immediately", async () => {
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "webhook-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -195,17 +226,13 @@ describe("runtime idle dispatch", () => {
   });
 
   it("dedupes repeated webhook deliveries before appending duplicate queued runs", async () => {
-    const idempotencyStore = new IdempotencyStore(
-      join(projectDir, ".kota", "idempotency"),
-      "scope-a",
-    );
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
-      idempotencyStore,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "webhook-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -240,23 +267,16 @@ describe("runtime idle dispatch", () => {
     expect(first.ok).toBe(true);
     expect(duplicate).toMatchObject({ ok: true, runId: first.runId });
     expect(runtime.getState().pendingRuns).toHaveLength(1);
-    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toMatchObject([
-      {
-        scopeId: "scope-a",
-        operation: "workflow-dispatch",
-        status: "replayed",
-        duplicateCount: 1,
-      },
-    ]);
   });
 
   it("keeps explicitly keyed deliveries as separate queued runs", async () => {
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "webhook-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -304,12 +324,13 @@ describe("runtime idle dispatch", () => {
       }
       next();
     });
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus,
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "lossless-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -326,7 +347,7 @@ describe("runtime idle dispatch", () => {
     await runtime.stop();
 
     const pending = runtime.getState().pendingRuns;
-    expect(pending.map((run) => run.trigger.payload.runId)).toEqual([
+    expect(pending.map((run) => run.trigger.payload.runId).sort()).toEqual([
       "run-a",
       "run-b",
     ]);
@@ -343,12 +364,13 @@ describe("runtime idle dispatch", () => {
       }
       next();
     });
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus,
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "latest-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -379,18 +401,14 @@ describe("runtime idle dispatch", () => {
       if (envelope.type === "custom.event") envelope.eventId = "evtj-000000000123";
       next();
     });
-    const idempotencyStore = new IdempotencyStore(
-      join(projectDir, ".kota", "idempotency"),
-      "scope-a",
-    );
     const processed: string[] = [];
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus,
       projectDir,
-      idempotencyStore,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "custom-event-listener",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -425,24 +443,16 @@ describe("runtime idle dispatch", () => {
 
     expect(processed).toEqual(["ready"]);
     expect(countWorkflowRuns(projectDir, "custom-event-listener")).toBe(1);
-    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toMatchObject([
-      {
-        scopeId: "scope-a",
-        operation: "workflow-dispatch",
-        status: "replayed",
-        duplicateCount: 1,
-      },
-    ]);
   });
 
-  it("dispatches a workflow emitted by a running code step after an agent slot frees", async () => {
-    const runtime = new WorkflowRuntime({
+  it("dispatches workflows emitted while coordinator capacity is occupied", async () => {
+    const runtime = createRuntime({
       bus: new EventBus(),
       projectDir,
       idleIntervalMs: 60_000,
-      agentConcurrency: 1,
       workflows: [
         {
+          repository: "read",
           name: "dispatcher",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
@@ -474,10 +484,10 @@ describe("runtime idle dispatch", () => {
           ],
         },
         {
+          repository: "read",
           name: "builder-like-agent-slot",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
-          concurrencyGroup: "agent",
           triggers: [{ event: "autonomy.queue.available", cooldownMs: 0 }],
           steps: [
             {
@@ -491,10 +501,10 @@ describe("runtime idle dispatch", () => {
           ],
         },
         {
+          repository: "read",
           name: "security-review",
           definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
           moduleRoot: process.cwd(),
-          concurrencyGroup: "agent",
           triggers: [{ event: "autonomy.security-review.due", cooldownMs: 0 }],
           steps: [
             {
@@ -505,7 +515,7 @@ describe("runtime idle dispatch", () => {
           ],
         },
       ],
-    });
+    }, 1);
 
     runtime.start();
     try {
@@ -514,7 +524,7 @@ describe("runtime idle dispatch", () => {
           countWorkflowRuns(projectDir, "builder-like-agent-slot") === 1 &&
           countWorkflowRuns(projectDir, "security-review") === 1 &&
           runtime.getState().pendingRuns.length === 0,
-        "Timed out waiting for emitted workflow to dispatch after the agent slot freed",
+        "Timed out waiting for emitted workflows to dispatch",
       );
     } finally {
       await runtime.stop();
@@ -525,110 +535,4 @@ describe("runtime idle dispatch", () => {
     expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
 
-  it("keeps code-only agent-group workflows from overlapping active agent workflows", async () => {
-    const harnessName =
-      `runtime-dispatch-agent-hold-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    writeFileSync(join(projectDir, "prompt.md"), "Investigate.\n");
-    commitFixtureFiles(projectDir);
-
-    let agentActive = false;
-    let healthStarted = false;
-    let healthStartedWhileAgentActive = false;
-    let releaseAgent!: () => void;
-    const agentReleased = new Promise<void>((resolve) => {
-      releaseAgent = resolve;
-    });
-
-    registerAgentHarness({
-      name: harnessName,
-      description: "runtime dispatch hold harness",
-      supportsMultiTurn: false,
-      supportedHookKinds: [],
-      askOwnerToolName: null,
-      emitsAgentMessageStream: false,
-      toolControl: "kota",
-      run: async () => {
-        agentActive = true;
-        await agentReleased;
-        agentActive = false;
-        return {
-          text: "done",
-          streamedText: "done",
-          turns: 1,
-          isError: false,
-        };
-      },
-    });
-
-    const runtime = new WorkflowRuntime({
-      bus: new EventBus(),
-      projectDir,
-      idleIntervalMs: 60_000,
-      agentConcurrency: 2,
-      workflows: [
-        {
-          name: "security-review",
-          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
-          moduleRoot: projectDir,
-          triggers: [{ event: "manual", cooldownMs: 0 }],
-          steps: [
-            {
-              id: "investigate-candidates",
-              type: "agent",
-              harness: harnessName,
-              promptPath: "prompt.md",
-              model: "test-model",
-              effort: "low",
-              autonomyMode: "autonomous",
-              timeoutMs: 2_000,
-            },
-          ],
-        },
-        {
-          name: "autonomy-health-reviewer",
-          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
-          moduleRoot: projectDir,
-          concurrencyGroup: "agent",
-          triggers: [{ event: "manual", cooldownMs: 0 }],
-          steps: [
-            {
-              id: "create-task",
-              type: "code",
-              run: () => {
-                healthStarted = true;
-                healthStartedWhileAgentActive = agentActive;
-                return { ok: true };
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    runtime.start();
-    try {
-      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
-      await waitUntil(() => agentActive, "Timed out waiting for security-review agent step");
-
-      expect(runtime.enqueuePendingRun("autonomy-health-reviewer").ok).toBe(true);
-      await wait(50);
-      expect(healthStarted).toBe(false);
-
-      releaseAgent();
-      await waitUntil(
-        () =>
-          healthStarted &&
-          !runtime.isBusy() &&
-          runtime.getState().pendingRuns.length === 0,
-        "Timed out waiting for exclusive agent-group workflow to run",
-      );
-    } finally {
-      releaseAgent();
-      await runtime.stop();
-    }
-
-    expect(healthStartedWhileAgentActive).toBe(false);
-    expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
-    expect(countWorkflowRuns(projectDir, "autonomy-health-reviewer")).toBe(1);
-  });
 });

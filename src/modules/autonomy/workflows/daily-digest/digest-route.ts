@@ -6,7 +6,7 @@
  * drift between operator surfaces.
  *
  * Honors the on-demand seam invariants: reuses `renderOnDemandDigest`, so it
- * does not write `.kota/daily-digest-state.json` and does not emit
+ * does not mutate runtime-owned cadence state and does not emit
  * `workflow.daily.digest`. Per the no-cost-bias-in-autonomy contract, this
  * body is operator-facing only — it never reaches an autonomy agent prompt
  * because the route is an HTTP handler, not an agent step with
@@ -14,6 +14,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { join } from "node:path";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { renderOnDemandDigest } from "./on-demand.js";
@@ -46,6 +47,7 @@ export function digestRoutes(opts: { projectDir: string }): RouteRegistration[] 
         try {
           const result = renderOnDemandDigest({
             projectDir: opts.projectDir,
+            stateDir: join(opts.projectDir, ".kota"),
             windowEndMs,
           });
           jsonResponse(res, 200, { data: result.data, text: result.text });

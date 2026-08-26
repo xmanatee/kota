@@ -35,7 +35,10 @@ describe("critic judge retry handling", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+      (check as CodeCheck).run(
+        makeContext(dir, runDir, undefined, undefined, {}, ""),
+        TEST_PARENT_STEP,
+      ),
     ).rejects.toThrow(/Critic agent failed \(attempt 3\/3\)/);
     await vi.runAllTimersAsync();
     await assertion;
@@ -158,7 +161,10 @@ describe("critic judge retry handling", () => {
       });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const promise = (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    const promise = (check as CodeCheck).run(
+      makeContext(dir, runDir, undefined, undefined, {}, ""),
+      TEST_PARENT_STEP,
+    );
     await vi.runAllTimersAsync();
     const result = await promise;
     expect(result).toMatch(/pass/);
@@ -190,7 +196,10 @@ describe("critic judge retry handling", () => {
       });
 
     const check = createCriticCheck({ runDirPath: runDir });
-    const promise = (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
+    const promise = (check as CodeCheck).run(
+      makeContext(dir, runDir, undefined, undefined, {}, ""),
+      TEST_PARENT_STEP,
+    );
     await vi.runAllTimersAsync();
     const result = await promise;
 
@@ -214,7 +223,10 @@ describe("critic judge retry handling", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     const assertion = expect(
-      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+      (check as CodeCheck).run(
+        makeContext(dir, runDir, undefined, undefined, {}, ""),
+        TEST_PARENT_STEP,
+      ),
     ).rejects.toThrow(/returned unparseable response/);
     await vi.runAllTimersAsync();
     await assertion;

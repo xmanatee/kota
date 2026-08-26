@@ -43,6 +43,10 @@ export {
   PROGRESS_REVIEW_MAX_TASKS,
 } from "./progress-review/constants.js";
 export {
+  collectProgressReviewGitEvidence,
+  type ProgressReviewGitEvidenceByScope,
+} from "./progress-review/git-evidence.js";
+export {
   classifyProgressReviewTrigger,
 } from "./progress-review/trigger-target.js";
 export type {

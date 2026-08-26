@@ -1,9 +1,9 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
   CONTROL_COVERAGE_NOW,
+  collectControlCoverageAudit,
   expectApprovalOwnerGatePattern,
   expectNoObservableGateDiagnostics,
   makeControlCoverageProjectDir,
@@ -38,7 +38,7 @@ describe("runtime health audit control coverage integrity", () => {
       step: { id: "approve-comment", type: "approval", status: "skipped" },
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -63,7 +63,7 @@ describe("runtime health audit control coverage integrity", () => {
       errorKind: "step-timeout",
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -85,7 +85,7 @@ describe("runtime health audit control coverage integrity", () => {
       error: 'Agent step "review-evidence" failed: local invariant broke',
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -130,7 +130,7 @@ describe("runtime health audit control coverage integrity", () => {
       );
     }
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -152,7 +152,7 @@ describe("runtime health audit control coverage integrity", () => {
       step: { id: "sort-inbox", type: "code", status: "skipped" },
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
@@ -205,7 +205,7 @@ describe("runtime health audit control coverage integrity", () => {
       "utf-8",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectControlCoverageAudit({
       projectDir,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });

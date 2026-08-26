@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   applyCalibrationRepair,
   CALIBRATION_REPAIR_TASK_ID,
@@ -89,37 +90,52 @@ describe("proposeCalibrationRepair", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("proposes create when the repair task does not exist anywhere", () => {
-    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+  it("proposes create when the repair task does not exist anywhere", async () => {
+    const proposal = await proposeCalibrationRepair(
+      makeContext(projectDir),
+      unexpectedWorkflowCommandRun,
+    );
     expect(proposal.action).toBe("create");
   });
 
-  it("proposes noop when the repair task is in ready/", () => {
+  it("proposes noop when the repair task is in ready/", async () => {
     seedTask(projectDir, "ready");
-    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    const proposal = await proposeCalibrationRepair(
+      makeContext(projectDir),
+      unexpectedWorkflowCommandRun,
+    );
     expect(proposal.action).toBe("noop");
     if (proposal.action !== "noop") return;
     expect(proposal.existingState).toBe("ready");
   });
 
-  it("proposes noop when the repair task is in doing/", () => {
+  it("proposes noop when the repair task is in doing/", async () => {
     seedTask(projectDir, "doing");
-    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    const proposal = await proposeCalibrationRepair(
+      makeContext(projectDir),
+      unexpectedWorkflowCommandRun,
+    );
     expect(proposal.action).toBe("noop");
   });
 
-  it("proposes noop with a precondition reason when the repair task is in blocked/", () => {
+  it("proposes noop with a precondition reason when the repair task is in blocked/", async () => {
     seedTask(projectDir, "blocked");
-    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    const proposal = await proposeCalibrationRepair(
+      makeContext(projectDir),
+      unexpectedWorkflowCommandRun,
+    );
     expect(proposal.action).toBe("noop");
     if (proposal.action !== "noop") return;
     expect(proposal.existingState).toBe("blocked");
     expect(proposal.reason).toContain("blocked-promoter");
   });
 
-  it("proposes promote when the repair task is in backlog/", () => {
+  it("proposes promote when the repair task is in backlog/", async () => {
     seedTask(projectDir, "backlog");
-    const proposal = proposeCalibrationRepair(makeContext(projectDir));
+    const proposal = await proposeCalibrationRepair(
+      makeContext(projectDir),
+      unexpectedWorkflowCommandRun,
+    );
     expect(proposal.action).toBe("promote");
     if (proposal.action !== "promote") return;
     expect(proposal.fromState).toBe("backlog");
@@ -139,9 +155,12 @@ describe("applyCalibrationRepair", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("creates a new ready/ task with the calibration evidence in its body", () => {
+  it("creates a new ready/ task with the calibration evidence in its body", async () => {
     const ctx = makeContext(projectDir);
-    const proposal = proposeCalibrationRepair(ctx);
+    const proposal = await proposeCalibrationRepair(
+      ctx,
+      unexpectedWorkflowCommandRun,
+    );
     const applied = applyCalibrationRepair(proposal, ctx);
     expect(applied.kind).toBe("created");
     const targetPath = join(
@@ -161,10 +180,13 @@ describe("applyCalibrationRepair", () => {
     expect(content).toContain("Pass-with-warnings follow-up rate");
   });
 
-  it("promotes from backlog/ to ready/", () => {
+  it("promotes from backlog/ to ready/", async () => {
     seedTask(projectDir, "backlog");
     const ctx = makeContext(projectDir);
-    const proposal = proposeCalibrationRepair(ctx);
+    const proposal = await proposeCalibrationRepair(
+      ctx,
+      unexpectedWorkflowCommandRun,
+    );
     const applied = applyCalibrationRepair(proposal, ctx);
     expect(applied.kind).toBe("promoted");
     expect(
@@ -179,11 +201,14 @@ describe("applyCalibrationRepair", () => {
     ).toBe(true);
   });
 
-  it("returns noop without disk changes when the repair task is already in ready/", () => {
+  it("returns noop without disk changes when the repair task is already in ready/", async () => {
     const seededPath = seedTask(projectDir, "ready");
     const seededBody = readFileSync(seededPath, "utf-8");
     const ctx = makeContext(projectDir);
-    const proposal = proposeCalibrationRepair(ctx);
+    const proposal = await proposeCalibrationRepair(
+      ctx,
+      unexpectedWorkflowCommandRun,
+    );
     const applied = applyCalibrationRepair(proposal, ctx);
     expect(applied.kind).toBe("noop");
     expect(readFileSync(seededPath, "utf-8")).toBe(seededBody);

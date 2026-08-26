@@ -1,3 +1,4 @@
+import { WORKFLOW_STOP_ABORT_WAIT_MS } from "#core/workflow/runtime-lifecycle.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { releaseInstanceLock } from "./daemon-instance-lock.js";
 import type { DaemonStopReason } from "./daemon-state.js";
@@ -20,6 +21,11 @@ export async function runDaemonShutdown(
     ctx.log("Daemon shutting down...");
   }
 
+  // Fence the shared daemon generation before any scope starts detaching.
+  // Existing attempts may finish through the bounded runtime stop, but no
+  // timer or completion callback may admit replacement work.
+  ctx.runCoordinator.beginDisposal();
+
   if (ctx.sessionSweepTimer !== null) {
     clearInterval(ctx.sessionSweepTimer);
     ctx.sessionSweepTimer = null;
@@ -37,14 +43,11 @@ export async function runDaemonShutdown(
   ctx.channelStatuses = [];
 
   await stopDaemonWorkflowRuntimes(ctx, ...options.workflowsStopArgs);
+  await ctx.runCoordinator.dispose(
+    options.workflowsStopArgs[1] ?? WORKFLOW_STOP_ABORT_WAIT_MS,
+  );
   await ctx.controlServer.stop();
   await ctx.config.unloadModules?.();
-
-  releaseInstanceLock(ctx.stateRoot, {
-    pid: ctx.state.pid,
-    startedAt: ctx.state.startedAt,
-    token: ctx.token,
-  });
 
   ctx.unsubscribe?.();
   ctx.unsubscribe = null;
@@ -60,6 +63,15 @@ export async function runDaemonShutdown(
     process.removeListener("SIGTERM", ctx.shutdownHandler);
     ctx.shutdownHandler = null;
   }
+
+  // Coordinator disposal proves that no process-owned attempt, publication,
+  // retry, or refill can touch this daemon generation again.
+  ctx.runState.close();
+  releaseInstanceLock(ctx.stateRoot, {
+    pid: ctx.state.pid,
+    startedAt: ctx.state.startedAt,
+    token: ctx.token,
+  });
 
   if (options.saveState) {
     ctx.state.lastStoppedAt = new Date().toISOString();

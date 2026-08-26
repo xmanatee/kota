@@ -1,13 +1,16 @@
-import { join } from "node:path";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import {
+  type AutonomyIssueProjection,
+  emptyAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
 import { cloneDeadLetterEvidence, cloneEvidenceItem, evidenceRefs } from "./agent-packet.js";
 import { listArtifactEvidence } from "./artifact-evidence.js";
 import { listCanonicalProgressState } from "./canonical-state-evidence.js";
 import { listBatchEvents } from "./event-evidence.js";
-import { listScopedGitEvidence } from "./git-evidence.js";
+import type { ProgressReviewGitEvidenceByScope } from "./git-evidence.js";
 import {
   listDeadLetterCounts,
   listScopedApprovalEvidence,
@@ -56,8 +59,12 @@ function collectProgressReviewEvidenceForSource(args: {
   stateDir: string;
   eventJournal?: EventJournal;
   semanticInput: ProgressReviewSemanticInput;
+  gitEvidenceByScope?: ProgressReviewGitEvidenceByScope;
+  autonomyIssueProjection: AutonomyIssueProjection;
 }): ProgressReviewScopeEvidence {
   const excluded: string[] = [];
+  const gitCollection = args.gitEvidenceByScope?.[args.source.scopeId];
+  if (gitCollection) excluded.push(...gitCollection.excluded);
   const scopedRuns = listRecentRunsForSources(
     [args.source],
     args.windowStartMs,
@@ -72,12 +79,13 @@ function collectProgressReviewEvidenceForSource(args: {
     args.windowStartMs,
     excluded,
     {
-      stateDir: args.stateDir,
-      eventJournal: args.eventJournal,
+      stateDir: args.source.stateDir,
+      eventJournal:
+        args.source.stateDir === args.stateDir ? args.eventJournal : undefined,
     },
   );
   const artifacts = listArtifactEvidence(scopedRuns, excluded);
-  const git = listScopedGitEvidence([args.source], args.windowStartMs, excluded);
+  const git = gitCollection?.evidence ?? [];
   const ownerQuestions = listScopedOwnerQuestionEvidence([args.source], args.windowStartMs, excluded);
   const approvals = listScopedApprovalEvidence([args.source], args.windowStartMs, excluded);
   const deadLetterCounts = listDeadLetterCounts([args.source]);
@@ -85,6 +93,7 @@ function collectProgressReviewEvidenceForSource(args: {
   const canonicalState = listCanonicalProgressState({
     source: args.source,
     semanticInput: args.semanticInput,
+    autonomyIssueProjection: args.autonomyIssueProjection,
   });
   const allTasks = [
     ...tasks,
@@ -132,11 +141,14 @@ function aggregateExcluded(scopes: readonly ProgressReviewScopeEvidence[]): stri
 
 export function collectProgressReviewEvidence(args: {
   projectDir: string;
-  stateDir?: string;
+  scopeDir: string;
+  stateDir: string;
   eventJournal?: EventJournal;
   trigger: WorkflowRunTrigger;
   now: Date;
   semanticInput?: ProgressReviewSemanticInput;
+  gitEvidenceByScope?: ProgressReviewGitEvidenceByScope;
+  autonomyIssueProjection?: AutonomyIssueProjection;
 }): ProgressReviewEvidencePacket {
   const payload = requestPayload(args.trigger);
   const semanticInput = args.semanticInput ?? {
@@ -148,12 +160,19 @@ export function collectProgressReviewEvidence(args: {
     reason: "explicit progress review request",
     deliveryAttempt: 0,
   };
+  const autonomyIssueProjection =
+    args.autonomyIssueProjection ?? emptyAutonomyIssueProjection();
   const windowMs = readWindowMs(payload);
   const endedAt = args.now.toISOString();
   const startedAtMs = args.now.getTime() - windowMs;
   const startedAt = new Date(startedAtMs).toISOString();
-  const stateDir = args.stateDir ?? join(args.projectDir, ".kota");
-  const target = selectEvidenceTarget(args.projectDir, args.trigger, stateDir);
+  const stateDir = args.stateDir;
+  const target = selectEvidenceTarget(
+    args.projectDir,
+    args.scopeDir,
+    args.trigger,
+    stateDir,
+  );
   const window = {
     startedAt,
     endedAt,
@@ -168,6 +187,8 @@ export function collectProgressReviewEvidence(args: {
       stateDir,
       eventJournal: args.eventJournal,
       semanticInput,
+      gitEvidenceByScope: args.gitEvidenceByScope,
+      autonomyIssueProjection,
     }),
   );
   const runs = scopes.flatMap((scope) => scope.runs.map(cloneEvidenceItem));
@@ -238,10 +259,13 @@ export function collectProgressReviewEvidence(args: {
 
 export type ProgressReviewEvidenceOperationInput = {
   projectDir: string;
+  scopeDir: string;
   stateDir: string;
   trigger: WorkflowRunTrigger;
   nowIso: string;
   semanticInput: ProgressReviewSemanticInput;
+  gitEvidenceByScope: ProgressReviewGitEvidenceByScope;
+  autonomyIssueProjection: AutonomyIssueProjection;
 };
 
 export function collectProgressReviewEvidenceInWorker(
@@ -249,10 +273,13 @@ export function collectProgressReviewEvidenceInWorker(
 ): ProgressReviewEvidencePacket {
   return collectProgressReviewEvidence({
     projectDir: input.projectDir,
+    scopeDir: input.scopeDir,
     stateDir: input.stateDir,
     trigger: input.trigger,
     now: new Date(input.nowIso),
     semanticInput: input.semanticInput,
+    gitEvidenceByScope: input.gitEvidenceByScope,
+    autonomyIssueProjection: input.autonomyIssueProjection,
   });
 }
 

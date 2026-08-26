@@ -26,9 +26,9 @@ describe("automation authoring adapter", () => {
   it("compiles hook-style event authoring into a normal workflow run contract", () => {
     const projectDir = createTempProject();
     const workflowInput = defineHook({
+      repository: "read",
       name: "release-gate",
       description: "Gate release work on a task event.",
-      concurrencyGroup: "operator-hook",
       on: {
         event: "task.ready",
         filter: { area: "core" },
@@ -66,7 +66,6 @@ describe("automation authoring adapter", () => {
     expect(validated).toMatchObject({
       name: "release-gate",
       definitionPath,
-      concurrencyGroup: "operator-hook",
       triggers: [
         {
           event: "task.ready",
@@ -123,6 +122,7 @@ describe("automation authoring adapter", () => {
   it("keeps schedule, watch, interval, and webhook automations on workflow triggers", () => {
     const projectDir = createTempProject();
     const workflowInput = defineAutomation({
+      repository: "read",
       kind: "automation",
       name: "automation-intake",
       on: [

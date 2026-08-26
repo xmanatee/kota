@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
+  emptyAutonomyIssueProjection,
+  materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
@@ -13,10 +15,12 @@ import {
   type AutonomyHealthSignalInput,
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
+import type { AutonomyHealthReview } from "./health-review.js";
 import {
-  applyAutonomyHealthReviewActions,
   buildAutonomyHealthAttentionDigest,
   buildAutonomyHealthReviewFromSignals,
+  finalizeAutonomyHealthReviewActions,
+  stageAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
 
@@ -49,6 +53,27 @@ function review(signals: ReturnType<typeof signal>[], generatedAt = NOW) {
   });
 }
 
+function applyReview(projectDir: string, built: AutonomyHealthReview) {
+  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const repositoryActions = stageAutonomyHealthReviewActions({
+    projectDir,
+    currentProjection,
+    scopeDir: projectDir,
+    review: built,
+  });
+  const finalized = finalizeAutonomyHealthReviewActions({
+    currentProjection,
+    scopeDir: projectDir,
+    ownerQuestionQueue: new OwnerQuestionQueue(
+      join(projectDir, ".kota", "owner-questions"),
+    ),
+    review: built,
+    repositoryActions,
+  });
+  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  return finalized;
+}
+
 describe("autonomy health issue projection", () => {
   let projectDir: string;
 
@@ -61,9 +86,9 @@ describe("autonomy health issue projection", () => {
   });
 
   it("requests one issue decision without writing tasks or owner questions", () => {
-    const actions = applyAutonomyHealthReviewActions({
+    const actions = applyReview(
       projectDir,
-      review: review([
+      review([
         signal(),
         signal({
           evidenceRefs: [
@@ -72,7 +97,7 @@ describe("autonomy health issue projection", () => {
           createdAt: "2026-06-17T12:31:00.000Z",
         }),
       ]),
-    });
+    );
 
     expect(actions.applied).toEqual([
       expect.objectContaining({
@@ -84,7 +109,6 @@ describe("autonomy health issue projection", () => {
     ]);
     expect(actions.touchedTaskQueue).toBe(false);
     expect(existsSync(join(projectDir, "data", "tasks"))).toBe(false);
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
     expect(
       readAutonomyIssueProjection(projectDir).issues[0]?.evidenceRefs.map(
         (ref) => ref.ref,
@@ -97,7 +121,7 @@ describe("autonomy health issue projection", () => {
 
   it("enriches repeated evidence without another decision or attention item", () => {
     const firstReview = review([signal()]);
-    applyAutonomyHealthReviewActions({ projectDir, review: firstReview });
+    applyReview(projectDir, firstReview);
     const repeatedReview = review(
       [
         signal({
@@ -109,10 +133,7 @@ describe("autonomy health issue projection", () => {
       ],
       "2026-06-17T13:00:00.000Z",
     );
-    const repeated = applyAutonomyHealthReviewActions({
-      projectDir,
-      review: repeatedReview,
-    });
+    const repeated = applyReview(projectDir, repeatedReview);
 
     expect(repeated.issueTransitions).toEqual([
       expect.objectContaining({ kind: "repeated", requiresDecision: false }),
@@ -127,10 +148,7 @@ describe("autonomy health issue projection", () => {
   });
 
   it("resolves linked pending questions only from an explicit clear", () => {
-    const opened = applyAutonomyHealthReviewActions({
-      projectDir,
-      review: review([signal()]),
-    });
+    const opened = applyReview(projectDir, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const queue = new OwnerQuestionQueue(
       join(projectDir, ".kota", "owner-questions"),
@@ -143,8 +161,8 @@ describe("autonomy health issue projection", () => {
       answerBehavior: "record-only",
       origin: { kind: "manual", source: "fixture" },
     });
-    recordAutonomyIssueDispositions({
-      projectDir,
+    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(projectDir),
       updates: [{
         issueKey,
         kind: "owner-question",
@@ -152,11 +170,11 @@ describe("autonomy health issue projection", () => {
         taskIds: [],
         ownerQuestionIds: [question.id],
       }],
-    });
+    }));
 
-    const cleared = applyAutonomyHealthReviewActions({
+    const cleared = applyReview(
       projectDir,
-      review: review(
+      review(
         [
           signal({
             observation: "cleared",
@@ -165,7 +183,7 @@ describe("autonomy health issue projection", () => {
         ],
         "2026-06-17T13:00:00.000Z",
       ),
-    });
+    );
 
     expect(cleared.dismissedOwnerQuestionIds).toEqual([question.id]);
     expect(cleared.applied).toEqual([
@@ -179,10 +197,7 @@ describe("autonomy health issue projection", () => {
 
   it("drops the stable generated task on an explicit source clear", () => {
     execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-    const opened = applyAutonomyHealthReviewActions({
-      projectDir,
-      review: review([signal()]),
-    });
+    const opened = applyReview(projectDir, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const task = materializeGeneratedWorkProposal({
       projectDir,
@@ -204,8 +219,8 @@ describe("autonomy health issue projection", () => {
         },
       },
     });
-    recordAutonomyIssueDispositions({
-      projectDir,
+    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(projectDir),
       updates: [{
         issueKey,
         kind: "task",
@@ -213,18 +228,18 @@ describe("autonomy health issue projection", () => {
         taskIds: [task.taskId!],
         ownerQuestionIds: [],
       }],
-    });
+    }));
 
-    const cleared = applyAutonomyHealthReviewActions({
+    const cleared = applyReview(
       projectDir,
-      review: review(
+      review(
         [signal({
           observation: "cleared",
           createdAt: "2026-06-17T13:00:00.000Z",
         })],
         "2026-06-17T13:00:00.000Z",
       ),
-    });
+    );
 
     expect(cleared.droppedTaskIds).toEqual([task.taskId]);
     expect(cleared.touchedTaskQueue).toBe(true);
@@ -252,8 +267,10 @@ describe("autonomy health issue projection", () => {
         }],
       }),
     ]);
-    const actions = applyAutonomyHealthReviewActions({
+    const actions = stageAutonomyHealthReviewActions({
       projectDir,
+      currentProjection: emptyAutonomyIssueProjection(),
+      scopeDir: projectDir,
       review: built,
     });
     const path = writeAutonomyHealthReviewArtifact(

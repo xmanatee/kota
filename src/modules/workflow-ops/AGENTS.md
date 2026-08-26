@@ -28,7 +28,9 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 - workflow exec is the eval-harness subprocess boundary. Its paired
   --agent-harness / --agent-model override may also carry --agent-effort so
   model-matrix runs execute the requested runtime facts instead of merely
-  labelling the result.
+  labelling the result. Standalone execution is limited to positively
+  identified eval-harness roots; canonical execution uses the scoped daemon
+  workflow client and fails closed when daemon authority is unavailable.
 
 ## KotaClient Surface
 

@@ -6,7 +6,7 @@ const baseWorkflow: WorkflowDefinition = {
   name: "builder",
   description: "Autonomous improvement workflow",
   enabled: true,
-  recoveryCapable: false,
+  repository: "read",
   tags: [],
   definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
   moduleRoot: "/test-module-root",

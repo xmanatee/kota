@@ -122,9 +122,11 @@ export function collectFromBatch(
   payload: WorkflowBatchFlushPayload,
   options: { stateDir?: string; eventJournal?: EventJournal } = {},
 ) {
+  const stateDir = options.stateDir ?? join(projectDir, ".kota");
   return collectProgressReviewEvidence({
     projectDir,
-    stateDir: options.stateDir,
+    scopeDir: projectDir,
+    stateDir,
     eventJournal: options.eventJournal,
     trigger: {
       event: WORKFLOW_BATCH_FLUSH_EVENT,
@@ -155,24 +157,6 @@ export function reviewBatchCases(scopeId: string): ReviewBatchCase[] {
         runId: "live-builder-run",
         status: "success",
         triggerEvent: "autonomy.queue.available",
-      },
-    },
-    {
-      sourceEventName: "workflow.build.committed",
-      triggerIndex: 3,
-      droppedPayload: {
-        scopeId,
-        projectId: scopeId,
-        runId: "dropped-build-run",
-        taskId: "task-dropped",
-        commitMessage: "ship dropped task",
-      },
-      livePayload: {
-        scopeId,
-        projectId: scopeId,
-        runId: "live-build-run",
-        taskId: "task-live",
-        commitMessage: "ship live task",
       },
     },
     {

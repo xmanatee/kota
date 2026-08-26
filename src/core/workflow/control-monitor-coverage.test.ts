@@ -11,6 +11,7 @@ import {
   writeJson,
   writeJsonl,
 } from "./control-monitor-coverage-test-support.js";
+import { writeWriterIntegrationEvidence } from "./writer-integration-evidence.js";
 
 describe("control monitor coverage artifacts", () => {
   let fixture: ControlCoverageFixture;
@@ -145,6 +146,33 @@ describe("control monitor coverage artifacts", () => {
       average: 60_000,
     });
     expect(JSON.stringify(artifact)).not.toContain("SECRET_TOKEN");
+  });
+
+  it("prefers the runtime-owned published head for an integrated writer", () => {
+    writeJson(join(runDirPath, "workflow.json"), { steps: [] });
+    writeWriterIntegrationEvidence(projectDir, {
+      version: 1,
+      runId: "run-control",
+      workflow: "builder",
+      projectId: "project-control",
+      targetBranch: "main",
+      baseHead: "base-head",
+      integratedFromHead: "canonical-before-publication",
+      publishedHead: "published-head",
+      commitSubject: "deliver change",
+      commitMessage: "deliver change",
+      changedPaths: ["feature.ts"],
+      completedAt: COMPLETED_AT,
+    });
+
+    const artifact = buildControlMonitorCoverageArtifact({
+      projectDir,
+      runDirPath,
+      metadata: baseMetadata(),
+      headSha: "base-head",
+    });
+
+    expect(artifact.run.headSha).toBe("published-head");
   });
 
   it("counts agent-step evidence before step result metadata exists", () => {

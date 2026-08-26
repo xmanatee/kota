@@ -5,17 +5,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
+import type { DigestState } from "./aggregate.js";
 import {
   buildDailyDigestInWorker,
   type DailyDigestBuildOperationInput,
   dailyDigestBuildOperation,
 } from "./blocking-operations.js";
+import { DAILY_DIGEST_STATE_KEY } from "./on-demand.js";
 import dailyDigestWorkflow, {
   DAILY_DIGEST_DIGEST_JSON,
   DAILY_DIGEST_DIGEST_TXT,
   DAILY_DIGEST_EVENT,
-  DAILY_DIGEST_STATE_FILENAME,
 } from "./workflow.js";
 
 async function runBlockingInline<TInput, TOutput>(
@@ -121,10 +124,13 @@ describe("daily-digest build-digest step", () => {
     const buildStep = dailyDigestWorkflow.steps[0];
     if (buildStep.type !== "code") throw new Error("expected code step");
 
+    const state = createTestTransactionalRunState();
     await buildStep.run({
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state,
       agentRuntime: resolveAgentRuntime(undefined),
-      workspaceDir: projectDir,
       workflow: {
         name: "daily-digest",
         definitionPath: "src/modules/autonomy/workflows/daily-digest/workflow.ts",
@@ -138,6 +144,7 @@ describe("daily-digest build-digest step", () => {
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+      runCommand: unexpectedWorkflowCommandRun,
       runTool: () => {
         throw new Error("not used");
       },
@@ -167,30 +174,33 @@ describe("daily-digest build-digest step", () => {
     expect(json.quiet).toBe(true);
     expect(json.queueDelta).toBeDefined();
 
-    const state = JSON.parse(
-      readFileSync(
-        join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME),
-        "utf-8",
-      ),
-    );
-    expect(state.counts).toBeDefined();
-    expect(typeof state.capturedAt).toBe("string");
+    expect(state.read<DigestState>(DAILY_DIGEST_STATE_KEY)).toEqual({
+      revision: 1,
+      value: expect.objectContaining({
+        capturedAt: expect.any(String),
+        counts: expect.any(Object),
+      }),
+    });
   });
 
   it("computes a delta on the second invocation using the persisted snapshot", async () => {
     const buildStep = dailyDigestWorkflow.steps[0];
     if (buildStep.type !== "code") throw new Error("expected code step");
 
+    const state = createTestTransactionalRunState();
     const ctxBase = {
       projectDir,
+      scopeDir: projectDir,
+      stateDir: join(projectDir, ".kota"),
+      state,
       agentRuntime: resolveAgentRuntime(undefined),
-      workspaceDir: projectDir,
       trigger: { event: "schedule", schemaRef: null, payload: {} },
       previousOutput: undefined,
       stepOutputs: {},
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+      runCommand: unexpectedWorkflowCommandRun,
       runTool: () => {
         throw new Error("not used");
       },

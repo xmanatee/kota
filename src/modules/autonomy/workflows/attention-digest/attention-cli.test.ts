@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
@@ -116,17 +116,14 @@ describe("kota attention CLI", () => {
     expect(parsed).toEqual({ items: expected.items, text: expected.text });
   });
 
-  it("does not write the cadence counter file or emit workflow.attention.digest", async () => {
+  it("does not emit workflow.attention.digest", async () => {
     makeTaskDir(projectDir, "doing", 2);
-    const counterFile = join(runsDir, "..", "attention-digest-counter.json");
-    expect(existsSync(counterFile)).toBe(false);
 
     await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "attention"]);
       await makeProgram().parseAsync(["node", "kota", "attention", "--json"]);
     });
 
-    expect(existsSync(counterFile)).toBe(false);
     expect(observed).toEqual([]);
   });
 });

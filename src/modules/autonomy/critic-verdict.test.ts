@@ -197,7 +197,7 @@ describe("critic verdict handling", () => {
       reviewerPromptHash: getCriticPromptHash(),
     });
     expect(artifact.warnings).toEqual([
-      expect.stringContaining("src/modules/autonomy/critic.ts:98"),
+      expect.stringMatching(/Reviewed diff refs: [^:]+:\d+\./),
     ]);
 
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));

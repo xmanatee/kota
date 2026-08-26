@@ -55,7 +55,7 @@ export function taskRoutes(
       handler: (req, res) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskCreate(req, res, project.projectDir);
+        return handleTaskCreate(req, res, project);
       },
     },
     {
@@ -64,7 +64,7 @@ export function taskRoutes(
       handler: (req, res) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskCreateNormalized(req, res, project.projectDir);
+        return handleTaskCreateNormalized(req, res, project);
       },
     },
     {
@@ -73,7 +73,7 @@ export function taskRoutes(
       handler: (req, res) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskCapture(req, res, project.projectDir);
+        return handleTaskCapture(req, res, project);
       },
     },
     {
@@ -82,7 +82,7 @@ export function taskRoutes(
       handler: (req, res) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskGc(req, res, project.projectDir);
+        return handleTaskGc(req, res, project);
       },
     },
     {
@@ -91,7 +91,7 @@ export function taskRoutes(
       handler: (req, res, params) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskStateChange(req, res, params.id, project.projectDir);
+        return handleTaskStateChange(req, res, params.id, project);
       },
     },
     {
@@ -100,7 +100,7 @@ export function taskRoutes(
       handler: (req, res, params) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskMove(req, res, params.id, project.projectDir);
+        return handleTaskMove(req, res, params.id, project);
       },
     },
     {
@@ -109,7 +109,7 @@ export function taskRoutes(
       handler: (req, res, params) => {
         const project = resolveRouteProject(projectStores, req, res);
         if (!project.ok) return;
-        return handleTaskBodyUpdate(req, res, params.id, project.projectDir);
+        return handleTaskBodyUpdate(req, res, params.id, project);
       },
     },
     {

@@ -5,8 +5,16 @@
   "trigger": {
     "event": "autonomy.queue.available",
     "payload": {
-      "pullableCount": 1,
-      "actionableCount": 1
+      "taskId": "task-fixture-agent-call-replay-target",
+      "taskPath": "data/tasks/doing/task-fixture-agent-call-replay-target.md",
+      "taskState": "doing",
+      "taskUpdatedAt": "2026-04-24T14:00:00.000Z",
+      "taskDigest": "fbf40f8f110e1cd3ce6c6ed7339ff406667c2f46527e3c5060519cace4d463d0",
+      "title": "Fixture target task for decomposer agent-call replay",
+      "priority": "p2",
+      "taskClass": "Unclassified",
+      "dependsOn": [],
+      "idempotencyKey": "builder:task-fixture-agent-call-replay-target:fbf40f8f110e1cd3ce6c6ed7339ff406667c2f46527e3c5060519cace4d463d0"
     }
   },
   "startedAt": "2026-04-24T14:00:00.000Z",
@@ -15,17 +23,6 @@
   "durationMs": 10800000,
   "runDir": ".kota/runs/2026-04-24T14-00-00-000Z-builder-agcf01",
   "steps": [
-    {
-      "id": "claim-task",
-      "type": "code",
-      "status": "success",
-      "startedAt": "2026-04-24T14:00:00.001Z",
-      "completedAt": "2026-04-24T14:00:00.050Z",
-      "durationMs": 49,
-      "output": {
-        "taskId": "task-fixture-agent-call-replay-target"
-      }
-    },
     {
       "id": "build",
       "type": "agent",

@@ -1,5 +1,5 @@
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type { WorkflowRunSummary } from "./run-summary.js";
+import type { AutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 
 export const DIFF_SUMMARY_CONSISTENCY_ARTIFACT =
 	"diff-summary-consistency.json";
@@ -21,7 +21,7 @@ export type DiffSummaryMismatchCategory =
 	| "generated-or-baseline-omitted";
 
 export type DiffSummaryMissingData =
-	| "run-summary"
+	| "writer-integration"
 	| "commit-message-file"
 	| "task-metadata"
 	| "diff-name-status";
@@ -92,7 +92,7 @@ export type DiffSummaryConsistencyRecord = {
 };
 
 export type BuildDiffSummaryConsistencyRecordInput = {
-	runSummary: WorkflowRunSummary | null;
+	delivery: AutonomyRunDeliveryEvidence | null;
 	commitMessageFile: string | null;
 	task: Pick<RepoTaskFullRecord, "id" | "title" | "summary" | "state"> | null;
 	nameStatus: readonly DiffSummaryNameStatus[] | null;

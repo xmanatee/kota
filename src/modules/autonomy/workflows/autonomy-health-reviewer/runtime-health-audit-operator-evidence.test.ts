@@ -5,8 +5,8 @@ import {
   DAEMON_STOP_ATTEMPTS_RELATIVE_PATH,
   recordDaemonStopAttempt,
 } from "#modules/daemon-ops/daemon-ops-operations.js";
-import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
+  collectRuntimeHealthAuditForProject,
   makeRuntimeHealthAuditProjectDir,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
@@ -42,7 +42,7 @@ describe("runtime health audit operator evidence", () => {
       "utf-8",
     );
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
@@ -73,7 +73,7 @@ describe("runtime health audit operator evidence", () => {
       result: { ok: false, reason: "timeout", pid: 12345 },
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
@@ -103,7 +103,7 @@ describe("runtime health audit operator evidence", () => {
       timeoutSec: 3,
       result: { ok: false, reason: "timeout", pid: 12345 },
     });
-    const repeatedAudit = collectRuntimeHealthAudit({
+    const repeatedAudit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
@@ -121,7 +121,7 @@ describe("runtime health audit operator evidence", () => {
       JSON.stringify({ message: "SMTP provider network timeout" }),
     ]);
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });

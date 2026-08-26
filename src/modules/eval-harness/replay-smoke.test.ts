@@ -4,8 +4,8 @@
  * The cadence workflow runs every shipped fixture weekly; the CLI runs them on
  * demand. Until this test landed, neither path was reachable from the autonomy
  * builder's own `pnpm test` repair-loop check, so a workflow-layer regression
- * (replay adapter, subprocess executor, gather-run-data, repair loop, commit
- * step) could ship and only surface in a real autonomy run that paid a live
+ * (replay adapter, subprocess executor, gather-run-data, repair loop, writer
+ * integration) could ship and only surface in a real autonomy run that paid a live
  * LLM bill. This test closes that gap by replaying representative shipped
  * fixtures end-to-end through the same `runFixture` + subprocess executor path
  * the cadence uses, asserting predicate pass.
@@ -18,10 +18,10 @@
  *     check path against silent regression. Its `review-decomposition`
  *     recording also covers judge-prompt routing.
  *   - `explorer-agent-call-replay` covers the explorer's post-agent plumbing
- *     (the `record-exploration` state-file rewrite, the
+ *     (the staged explorer publication request, the
  *     `apply-watchlist-updates` reader's empty-apply path, the five explorer
  *     repair checks, and the `{{NOW_MINUS_HOURS:N}}` templating hook for the
- *     `explorer-state.json` seed) that none of the other shipped replays
+ *     empty cooldown state) that none of the other shipped replays
  *     exercise.
  *   - `inbox-sorter-agent-call-replay` covers the `autonomy.inbox.available`
  *     trigger receipt path, the `inspect-inbox` `needsAttention` gating
@@ -35,8 +35,7 @@
  *     `precondition.evaluateCandidate`'s URL classification + marker
  *     fingerprint), the `mark-attempt` post-agent fingerprint-marker
  *     writeback, and the research-retry repair-check tuple
- *     (`task-queue-valid` with default `min-ready`,
- *     `no-scratch-artifacts`, `commit-message-exists`, `commit-stageable`)
+ *     (`task-queue-valid` with default `min-ready`)
  *     — none of which the other four replays exercise.
  *   - `pr-reviewer-agent-call-replay` covers the `assess-pr`
  *     webhook-payload assessment path (action / kota-task branch / fork

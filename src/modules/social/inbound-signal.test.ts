@@ -175,6 +175,7 @@ type ProbeDecision = {
 };
 
 const socialSignalProbeWorkflow: WorkflowDefinitionInput = {
+  repository: "read",
   name: "social-signal-probe",
   description: "Test-only bounded workflow for social-origin inbound signals.",
   triggers: [

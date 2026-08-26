@@ -11,6 +11,9 @@ This directory owns step execution strategies and context construction.
   reviewers, and resolvers use `ctx.runAgentHarness` for capacity, cancellation,
   workflow tracing, and live scope authority. Direct native harness calls carry
   that authority into fail-closed capability preflight before process launch.
+- Code-step subprocesses use `ctx.runCommand`; the runtime binds cancellation,
+  bounded output, timeout, process-group termination, and durable process
+  registration through the shared process supervisor.
 
 New step types add a new strategy file here and a dispatch case in `step-executor.ts`.
 
@@ -58,8 +61,9 @@ snapshots, including paths already dirty before the step. Unrestricted scope
 uses lightweight mutation-path attribution because it has no rejection
 boundary. An out-of-scope mutation throws `AgentWriteScopeViolationError` and
 records the paths in the step artifact. This hard failure consumes no retry.
-Deny-all restores the exact pre-step index and worktree; other scopes retain
-the normal dirty-recovery path.
+Deny-all restores the exact pre-step index and workspace. Other scope
+violations fail inside the run-owned sandbox; `RunLifecycle` owns the resulting
+run disposition and cleanup.
 
 This enforcement lives in the core executor, not in per-workflow prompts or
 repair checks. Workflows declare scope honestly on their agent definitions
@@ -125,10 +129,6 @@ fuzzy string matches to the classifier. The same classifier governs autonomy
 agent judges; see `src/modules/autonomy/AGENTS.md` for the judge-wrapper rule
 that protects repair loops from runaway-judge throws.
 
-The repair-loop's own agent invocation (`executeRepairAgentIteration` in
-`../repair-loop.ts`) classifies SDK `isError` results through the same path:
-when the SDK exhausts its internal retries on a provider 5xx, it throws a
-non-retryable `AgentStepRuntimeError` so the run-executor surfaces a classified
-backoff signal to `AgentBackoffManager`. Without this, a
-provider outage during repair leaks as a plain `Error` and the dispatcher
-fires the next agent workflow into the same saturated provider.
+`executeRepairAgentIteration` in `../repair-loop.ts` uses the same classifier.
+After SDK retries exhaust on provider failure, it surfaces a non-retryable
+`AgentStepRuntimeError` so `AgentBackoffManager` prevents further dispatch.

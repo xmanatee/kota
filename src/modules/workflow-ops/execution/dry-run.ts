@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { EventSchemaReference } from "#core/events/event-bus.js";
 import {
   type EventEnvelope,
@@ -7,6 +8,7 @@ import type { ModuleEventPayloadObject } from "#core/events/module-event.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
 import { validatePayloadAgainstSchema } from "#core/events/module-event-payload-validation.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
+import type { TransactionalRunState } from "#core/workflow/run-context.js";
 import { matchesFilter } from "#core/workflow/run-executor-utils.js";
 import type { WorkflowPredicate, WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowStep } from "#core/workflow/step-types.js";
@@ -65,12 +67,21 @@ export type DryRunOptions = {
 type Payload = WorkflowRunTrigger["payload"];
 type PayloadValue = Payload[string];
 
+const dryRunState: TransactionalRunState = {
+  read: () => ({ revision: 0, value: null }),
+  compareAndSet: () => {
+    throw new Error("dry-run: runtime state mutations cannot be executed");
+  },
+};
+
 function makeDryRunContext(
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
 ): WorkflowStepContext {
   return {
     projectDir: process.cwd(),
+    scopeDir: process.cwd(),
+    stateDir: join(process.cwd(), ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: definition.name,
@@ -80,6 +91,7 @@ function makeDryRunContext(
       runDirPath: process.cwd(),
     },
     trigger,
+    state: dryRunState,
     previousOutput: undefined,
     stepOutputs: {},
     stepResults: {},
@@ -88,6 +100,8 @@ function makeDryRunContext(
       Promise.reject(
         new Error("dry-run: nested agent harnesses cannot be executed"),
       ),
+    runCommand: () =>
+      Promise.reject(new Error("dry-run: commands cannot be executed")),
     runTool: () => Promise.reject(new Error("dry-run: tools cannot be executed")),
     emit: () => {},
     requestRestart: () => {},

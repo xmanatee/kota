@@ -181,8 +181,7 @@ export type WorkflowNotifyConfig = {
    */
   onFailure?: boolean;
   /**
-   * When false, suppresses `workflow.build.committed` emit steps for this workflow.
-   * Default: false (suppress by default — this event is opt-in at the channel level).
+   * Reserved for success notifications emitted by notification adapters.
    */
   onSuccess?: boolean;
 };

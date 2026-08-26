@@ -8,7 +8,7 @@ import {
   assessAgainstBaseline,
   type BaselineAssessment,
 } from "./baseline-assessment.js";
-import { loadBaseline, saveBaseline } from "./baseline-store.js";
+import type { PersistedBaseline } from "./baseline-state.js";
 import { runEvalSet } from "./eval-set.js";
 import type { EvalHarnessSetCompletedPayload } from "./events.js";
 import { loadAllFixtures } from "./fixture.js";
@@ -57,12 +57,14 @@ export type EvalHarnessCadenceOperationInput = {
   projectDir: string;
   runDirPath: string;
   isolationBackend: Extract<SubprocessIsolationBackend, { kind: "container" }>;
+  priorBaseline: PersistedBaseline | null;
 };
 
 export type EvalHarnessCadenceOperationOutput = {
   result: EvalHarnessCadenceResult;
   completedEvent: EvalHarnessSetCompletedPayload;
   regressionEvent: EvalHarnessRegressionPayload | null;
+  baselineToRecord: PersistedBaseline | null;
 };
 
 function summarizeAssessment(assessment: BaselineAssessment) {
@@ -150,7 +152,6 @@ export async function runEvalHarnessCadenceInWorker(
   const runArtifactBaseDir = join(input.runDirPath, "eval-runs");
   const requestedProfile =
     detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
-  const priorBaseline = loadBaseline(input.projectDir);
   const progressHeartbeat = setInterval(
     () => context.reportProgress("eval-harness cadence fixtures running"),
     CADENCE_PROGRESS_INTERVAL_MS,
@@ -165,11 +166,11 @@ export async function runEvalHarnessCadenceInWorker(
       requestedProfile,
       runArtifactBaseDir,
       repeatCount: CADENCE_REPEAT_COUNT,
-      priorBaseline,
+      priorBaseline: input.priorBaseline,
     });
     context.signal.throwIfAborted();
 
-    const assessment = assessAgainstBaseline(priorBaseline, {
+    const assessment = assessAgainstBaseline(input.priorBaseline, {
       aggregate: report.aggregate,
       executionProfile: report.executionProfile,
       runConfiguration: report.runConfiguration,
@@ -177,15 +178,6 @@ export async function runEvalHarnessCadenceInWorker(
       runArtifactBaseDir: report.runArtifactBaseDir,
       recordedAt: report.completedAt,
     });
-
-    if (
-      assessment.status === "first-run" ||
-      assessment.status === "not-gated" ||
-      (assessment.status === "non-gating" &&
-        assessment.kind === "run-configuration")
-    ) {
-      saveBaseline(input.projectDir, assessment.baselineToRecord);
-    }
 
     writeFileSync(
       join(input.runDirPath, "ran-at.json"),
@@ -238,6 +230,13 @@ export async function runEvalHarnessCadenceInWorker(
       regressionEvent:
         assessment.status === "gated"
           ? regressionPayload(assessment, result, report.resourceProfile.hostClass)
+          : null,
+      baselineToRecord:
+        assessment.status === "first-run" ||
+          assessment.status === "not-gated" ||
+          (assessment.status === "non-gating" &&
+            assessment.kind === "run-configuration")
+          ? assessment.baselineToRecord
           : null,
     };
   } finally {

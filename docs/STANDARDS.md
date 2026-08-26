@@ -39,6 +39,20 @@
 - Durable conventions and boundaries belong in local `AGENTS.md` files by default, not repeated across several prompts.
 - If the same guidance appears in both a prompt and a nearby `AGENTS.md`, keep the durable version and trim the prompt.
 
+## Workflow Execution
+
+- Declare `repository: "none" | "read" | "write"` on every workflow. Writers
+  also declare integration validation; use logical resource keys for domain
+  work that must be exclusive.
+- Treat `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, and
+  `IntegrationQueue` as the shared ownership chain. Workflows define semantic
+  steps, not private queues, claims, worktrees, leases, process registries,
+  port allocators, commits, merge gates, or restart recovery.
+- Keep Git publication runtime-owned. AI may repair reported conflicts or
+  validation failures inside the supplied sandbox and write scope, while the
+  runtime retains staging, rebase, commit, no-progress, cancellation, and
+  publication authority.
+
 ## Engineering Rules
 
 - Use `pnpm` for package scripts, dependency installation, and one-off package
@@ -61,6 +75,23 @@
   integration tests should exercise precedence, propagation, no-fallback
   behavior, and observable effects. Inspect literal registries directly unless
   a generated projection is being compared with its canonical source.
+- Give each behavior one owning test layer. Prefer a focused unit test for pure
+  decisions, a component test for one real boundary such as SQLite, Git, or a
+  child process, and a small end-to-end test only for a distinct product
+  journey that crosses several boundaries.
+- Assert public outcomes and durable invariants, not private phases, helper
+  call counts, source text, filenames, or constructor placement. Structural
+  source scans are appropriate only for security boundaries that cannot be
+  expressed through types, runtime behavior, or package visibility.
+- Keep integration suites intentionally small. A new integration scenario must
+  identify the failure mode it uniquely catches; remove the replaced scenario
+  or implementation-specific suite in the same change.
+- Test generic parameters once over representative values. Do not duplicate a
+  concurrency, retry, or capacity scenario for each configured number.
+- Test workflow execution through durable outcomes and owner boundaries:
+  admission, resource ownership, capacity, pause/resume, child waits, sandbox
+  lifecycle, process/effect recovery, validation, and serialized publication.
+  Do not pin private phases, file layouts, or retired queue mechanics.
 - Avoid optimizing healthy mechanisms for speed or cost at the expense of quality, clarity, or capability.
 - Owner-visible product quality outranks internal meta-work. When CLI, client,
   daemon status, approvals, owner requests, setup, or blocked-work visibility

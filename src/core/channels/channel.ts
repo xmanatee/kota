@@ -29,7 +29,7 @@ import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
-import type { WorkflowRuntimeState } from "#core/workflow/run-types.js";
+import type { WorkflowRuntimeSnapshot } from "#core/workflow/run-types.js";
 
 /**
  * Informational identity for a channel user or operator.
@@ -86,7 +86,7 @@ export type ChannelAdapter = {
  * report on the daemon's execution state (e.g., Telegram status poll).
  */
 export type ChannelWorkflowStatus = {
-  runtimeState: WorkflowRuntimeState;
+  runtimeState: WorkflowRuntimeSnapshot;
   dispatchPaused: boolean;
   runsDir: string;
 };

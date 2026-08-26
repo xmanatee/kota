@@ -1,57 +1,38 @@
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import {
-  deferScopeImprovementInput,
-  writeScopeImprovementState,
-} from "./scope-improvement-state.js";
 import type {
   ScopeImprovementConsumptionDecision,
   ScopeImprovementInputs,
 } from "./scope-improvement-types.js";
 
-type ScopeImprovementConsumptionInput = {
-  projectDir: string;
+export function decideScopeImprovementConsumption(input: {
   inputs: ScopeImprovementInputs;
   recommendationCount: number;
   worktreeClean: boolean;
   actionApplied: boolean;
-};
-
-export function recordScopeImprovementConsumptionInWorker(
-  input: ScopeImprovementConsumptionInput,
-): ScopeImprovementConsumptionDecision {
-  const { inputs } = input;
+}): ScopeImprovementConsumptionDecision {
   if (
-    inputs.semanticInput.automatic &&
-    !inputs.alreadyConsumed &&
+    input.inputs.semanticInput.automatic &&
+    !input.inputs.alreadyConsumed &&
     !input.worktreeClean &&
     input.recommendationCount > 0 &&
     !input.actionApplied
   ) {
-    deferScopeImprovementInput(input.projectDir, inputs);
     return {
-      recorded: false,
-      reason: "semantic scope input deferred until the canonical worktree is clean",
+      disposition: "defer",
+      reason: "semantic scope input deferred until the canonical repository is clean",
     };
   }
-  if (!inputs.config.enabled || input.actionApplied) {
-    return { recorded: false, reason: null };
+  if (!input.inputs.config.enabled) {
+    return { disposition: "ignore", reason: "scope improvement is disabled" };
   }
-  const reason = inputs.alreadyConsumed
-    ? "latest automatic scope fingerprint was already consumed"
-    : input.recommendationCount === 0
-      ? "semantic input produced no scope-improvement recommendations"
-      : null;
-  if (reason === null) return { recorded: false, reason: null };
-  writeScopeImprovementState({
-    projectDir: input.projectDir,
-    inputs,
-    actions: [],
-  });
-  return { recorded: true, reason };
+  if (
+    input.actionApplied ||
+    input.inputs.alreadyConsumed ||
+    input.recommendationCount === 0
+  ) {
+    return { disposition: "consume", reason: null };
+  }
+  return {
+    disposition: "ignore",
+    reason: "scope recommendations were not applied",
+  };
 }
-
-export const recordScopeImprovementConsumptionOperation =
-  defineWorkflowBlockingOperation<
-    ScopeImprovementConsumptionInput,
-    ScopeImprovementConsumptionDecision
-  >(import.meta.url, "recordScopeImprovementConsumptionInWorker");

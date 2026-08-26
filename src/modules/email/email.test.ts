@@ -89,20 +89,6 @@ describe("formatEmail", () => {
     expect(msg.text).toContain("kota owner-question dismiss oq-abc");
   });
 
-  it("formats workflow.build.committed", () => {
-    const msg = formatEmail("workflow.build.committed", {
-      commitMessage: "feat: add email module",
-      taskId: "task-email-channel-module",
-      costUsd: 0.42,
-      durationMs: 120000,
-    });
-    expect(msg.subject).toContain("Builder committed");
-    expect(msg.subject).toContain("feat: add email module");
-    expect(msg.text).toContain("Task: task-email-channel-module");
-    expect(msg.text).toContain("$0.42");
-    expect(msg.text).toContain("2m");
-  });
-
   it("falls back for unknown events", () => {
     const msg = formatEmail("some.unknown.event", { foo: "bar" });
     expect(msg.subject).toBe("[KOTA] some.unknown.event");

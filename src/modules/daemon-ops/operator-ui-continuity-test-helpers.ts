@@ -33,8 +33,7 @@ export function continuityInput(
       completedRuns: 4,
       workflows: {},
       paused: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
       pendingAbort: false,
     }),
     runs: ok({

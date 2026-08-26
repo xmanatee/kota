@@ -33,6 +33,7 @@ function workflow(
   overrides: Partial<LoopQualityWorkflowInput> = {},
 ): LoopQualityWorkflowInput {
   return {
+    repository: "read",
     name,
     triggers: [{ event: "fixture.tick" }],
     steps,
@@ -134,7 +135,7 @@ describe("loop quality audit", () => {
         repairLoop: {
           checks: [
             codeCheck("success-criteria-declared"),
-            codeCheck("commit-stageable"),
+            codeCheck("artifact-integrity"),
           ],
         },
       }),
@@ -151,6 +152,21 @@ describe("loop quality audit", () => {
       "loop.mutating-retry-safety.missing",
       "loop.verifier.missing",
     ]));
+
+    const findings = auditLoopQuality([
+      spinning,
+      mutatingWithoutPosture,
+    ]).findings;
+    expect(
+      findings.find((finding) =>
+        finding.id === "loop.repeatable-without-brake"
+      )?.message,
+    ).toBe("repeatable trigger has no cooldown, batch bound, timeout, or retry brake");
+    expect(
+      findings.find((finding) =>
+        finding.id === "loop.mutating-retry-safety.missing"
+      )?.message,
+    ).toBe("mutating workflow has no typed idempotency, marker, task validation, or publication-safety evidence");
   });
 
   it("keeps workflow.completed self-trigger protection explicit", () => {

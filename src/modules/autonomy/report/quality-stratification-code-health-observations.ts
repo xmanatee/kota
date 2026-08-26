@@ -45,10 +45,10 @@ export function buildCodeHealthQualityObservations(
     if (result.kind === "unsupported") continue;
 
     const record = result.kind === "record" ? result.record : null;
-    const summary = indexes.summaryByRunId.get(run.id);
-    const taskId = record?.taskId ?? summary?.taskId ?? null;
+    const delivery = indexes.deliveryByRunId.get(run.id);
+    const taskId = record?.taskId ?? delivery?.taskId ?? null;
     const task = taskId ? indexes.taskById.get(taskId) : undefined;
-    const files = record?.changedSourceFiles ?? summary?.filesChanged ?? [];
+    const files = record?.changedSourceFiles ?? delivery?.changedPaths ?? [];
     observations.push({
       signal: "code-health-drift",
       bucket,
@@ -71,7 +71,7 @@ export function buildCodeHealthQualityObservations(
       reference: {
         runId: run.id,
         taskId: taskId ?? undefined,
-        artifact: record ? "source-file-size-review.json" : "run-summary.json",
+        artifact: record ? "source-file-size-review.json" : "writer-integration.json",
       },
     });
   }

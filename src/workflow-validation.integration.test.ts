@@ -90,6 +90,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
           steps: [
@@ -124,6 +125,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -155,6 +157,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -179,6 +182,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/fanout.ts", {
+          repository: "read",
           name: "fanout",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -211,6 +215,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/fanout.ts", {
+            repository: "read",
             name: "fanout",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -239,6 +244,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/fanout.ts", {
+            repository: "read",
             name: "fanout",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -267,6 +273,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/wait.ts", {
+            repository: "read",
             name: "waiter",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -290,6 +297,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/improver.ts", {
+          repository: "read",
           name: "improver",
           triggers: [
             {
@@ -322,6 +330,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/default-scope-schedule.ts", {
+          repository: "read",
           name: "default-scope-schedule",
           triggers: [
             {
@@ -348,6 +357,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/bad-run-on.ts", {
+            repository: "read",
             name: "bad-run-on",
             triggers: [
               {
@@ -366,6 +376,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/bad-schedule-payload.ts", {
+            repository: "read",
             name: "bad-schedule-payload",
             triggers: [
               {
@@ -397,6 +408,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/observer.ts", {
+              repository: "read",
               name: "fixture-observer",
               triggers: [
                 {
@@ -448,6 +460,7 @@ describe("workflow validation", () => {
       const definitions = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/nested-observer.ts", {
+            repository: "read",
             name: "fixture-nested-observer",
             triggers: [
               {
@@ -493,6 +506,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/version-observer.ts", {
+              repository: "read",
               name: "fixture-version-observer",
               triggers: [
                 {
@@ -529,6 +543,7 @@ describe("workflow validation", () => {
       const definitions = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/observer.ts", {
+            repository: "read",
             name: "fixture-observer-ok",
             triggers: [
               {
@@ -564,6 +579,7 @@ describe("workflow validation", () => {
       const definitions = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/scoped-observer.ts", {
+            repository: "read",
             name: "fixture-scoped-observer",
             triggers: [
               {
@@ -591,6 +607,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/explorer.ts", {
+          repository: "read",
           name: "explorer",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -627,6 +644,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -672,6 +690,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -722,6 +741,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/explorer.ts", {
+            repository: "read",
             name: "explorer",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -743,6 +763,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/lossless-listener.ts", {
+          repository: "read",
           name: "lossless-listener",
           triggers: [{ event: "work.completed", queueMode: "all" }],
           steps: [{ id: "run", type: "emit", event: "listener.done" }],
@@ -756,6 +777,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/invalid-listener.ts", {
+            repository: "read",
             name: "invalid-listener",
             triggers: [
               { event: "work.completed", queueMode: "oldest" as never },
@@ -777,6 +799,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -805,6 +828,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/heartbeat.ts", {
+          repository: "read",
           name: "heartbeat",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -830,6 +854,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/heartbeat.ts", {
+            repository: "read",
             name: "heartbeat",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -852,6 +877,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -880,6 +906,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -894,6 +921,7 @@ describe("workflow validation", () => {
             ],
           }),
           registerWorkflowDefinition("test/another-builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -920,6 +948,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -955,6 +984,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -986,6 +1016,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1022,6 +1053,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1054,6 +1086,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/builder.ts", {
+              repository: "read",
               name: "builder",
               triggers: [{ event: "runtime.idle" }],
               steps: [
@@ -1085,6 +1118,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1115,6 +1149,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "passive-codex-fixture",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1147,6 +1182,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1177,6 +1213,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1206,6 +1243,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -1237,6 +1275,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitionsCore(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -1276,6 +1315,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitionsCore(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -1315,6 +1355,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitionsCore(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -1352,6 +1393,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1382,6 +1424,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1410,6 +1453,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1439,6 +1483,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1468,6 +1513,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1498,6 +1544,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitionsCore(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             defaultAutonomyMode: "autonomous",
@@ -1528,6 +1575,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           defaultAutonomyMode: "autonomous",
@@ -1559,6 +1607,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           defaultAutonomyMode: "autonomous",
@@ -1591,6 +1640,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1617,6 +1667,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             defaultAutonomyMode: "bogus" as never,
@@ -1638,6 +1689,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/builder.ts", {
+            repository: "read",
             name: "builder",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1676,6 +1728,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/deploy.ts", {
+          repository: "read",
           name: "deploy",
           triggers: [{ webhook: true }],
           steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1692,6 +1745,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/deploy.ts", {
+            repository: "read",
             name: "deploy",
             triggers: [{ webhook: true, event: "runtime.idle" } as never],
             steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1707,6 +1761,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/notifier.ts", {
+            repository: "read",
             name: "notifier",
             triggers: [{ event: "workflow.completed" }],
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
@@ -1722,6 +1777,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/notifier.ts", {
+            repository: "read",
             name: "notifier",
             triggers: [
               {
@@ -1742,6 +1798,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/notifier.ts", {
+            repository: "read",
             name: "notifier",
             triggers: [
               {
@@ -1761,6 +1818,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/parent.ts", {
+          repository: "read",
           name: "parent",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -1788,6 +1846,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/parent.ts", {
+          repository: "read",
           name: "parent",
           triggers: [{ event: "runtime.idle" }],
           steps: [{ id: "notify", type: "trigger", workflow: "child" }],
@@ -1804,6 +1863,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/recursive.ts", {
+            repository: "read",
             name: "recursive",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "self-trigger", type: "trigger", workflow: "recursive" }],
@@ -1819,6 +1879,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/parent.ts", {
+            repository: "read",
             name: "parent",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -1840,6 +1901,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/watcher.ts", {
+          repository: "read",
           name: "watcher",
           triggers: [{ watch: "src/**/*.ts", debounceMs: 500 }],
           steps: [{ id: "run", type: "emit", event: "watcher.done" }],
@@ -1860,6 +1922,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/watcher.ts", {
+          repository: "read",
           name: "watcher",
           triggers: [{ watch: ["src/**/*.ts", "test/**/*.ts"] }],
           steps: [{ id: "run", type: "emit", event: "watcher.done" }],
@@ -1878,6 +1941,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/watcher.ts", {
+            repository: "read",
             name: "watcher",
             triggers: [{ watch: "src/**/*.ts", debounceMs: 100 }],
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
@@ -1893,6 +1957,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/watcher.ts", {
+            repository: "read",
             name: "watcher",
             triggers: [{ watch: "src/**/*.ts", event: "runtime.idle" } as never],
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
@@ -1908,6 +1973,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/watcher.ts", {
+            repository: "read",
             name: "watcher",
             triggers: [{ watch: [] as unknown as string }],
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
@@ -1922,6 +1988,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/deploy.ts", {
+          repository: "read",
           name: "deploy",
           triggers: [{ webhook: true }],
           steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1938,6 +2005,7 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/deploy.ts", {
+            repository: "read",
             name: "deploy",
             triggers: [{ webhook: true }],
             steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1953,6 +2021,7 @@ describe("workflow validation", () => {
     const definitions = validateWorkflowDefinitions(
       [
         registerWorkflowDefinition("test/deploy.ts", {
+          repository: "read",
           name: "deploy",
           triggers: [{ webhook: true }],
           steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1968,6 +2037,7 @@ describe("workflow validation", () => {
       const definitions = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/deploy.ts", {
+            repository: "read",
             name: "deploy",
             triggers: [{ webhook: true }],
             steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -1984,6 +2054,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/deploy.ts", {
+              repository: "read",
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -2000,6 +2071,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/deploy.ts", {
+              repository: "read",
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -2016,6 +2088,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/deploy.ts", {
+              repository: "read",
               name: "deploy",
               triggers: [{ webhook: true }],
               steps: [{ id: "run", type: "emit", event: "deploy.done" }],
@@ -2034,11 +2107,13 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/parent.ts", {
+            repository: "read",
             name: "parent",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "launch", type: "trigger", workflow: "child" }],
           }),
           registerWorkflowDefinition("test/child.ts", {
+            repository: "read",
             name: "child",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "run", type: "emit", event: "child.done" }],
@@ -2067,11 +2142,13 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/parent.ts", {
+            repository: "read",
             name: "parent",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "launch", type: "trigger", workflow: "child", waitFor: "queued" }],
           }),
           registerWorkflowDefinition("test/child.ts", {
+            repository: "read",
             name: "child",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "run", type: "emit", event: "child.done" }],
@@ -2100,11 +2177,13 @@ describe("workflow validation", () => {
       validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/parent.ts", {
+            repository: "read",
             name: "parent",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "launch", type: "trigger", workflow: "child", waitFor: "completed" }],
           }),
           registerWorkflowDefinition("test/child.ts", {
+            repository: "read",
             name: "child",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "run", type: "emit", event: "child.done" }],
@@ -2128,6 +2207,7 @@ describe("workflow validation", () => {
       const defs = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/wf.ts", {
+            repository: "read",
             name: "my-workflow",
             triggers: [{ event: "runtime.idle" }],
             steps: [{ id: "confirm", type: "approval" }],
@@ -2142,6 +2222,7 @@ describe("workflow validation", () => {
       const defs = validateWorkflowDefinitions(
         [
           registerWorkflowDefinition("test/wf.ts", {
+            repository: "read",
             name: "my-workflow",
             triggers: [{ event: "runtime.idle" }],
             steps: [
@@ -2171,6 +2252,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/wf.ts", {
+              repository: "read",
               name: "my-workflow",
               triggers: [{ event: "runtime.idle" }],
               steps: [
@@ -2192,6 +2274,7 @@ describe("workflow validation", () => {
         validateWorkflowDefinitions(
           [
             registerWorkflowDefinition("test/wf.ts", {
+              repository: "read",
               name: "my-workflow",
               triggers: [{ event: "runtime.idle" }],
               steps: [
@@ -2210,38 +2293,6 @@ describe("workflow validation", () => {
     });
   });
 
-  describe("recovery guard", () => {
-    it("rejects a runtime.recovered trigger without recoveryCapable", () => {
-      expect(() =>
-        validateWorkflowDefinitions(
-          [
-            registerWorkflowDefinition("test/wf.ts", {
-              name: "my-recovery",
-              triggers: [{ event: "runtime.recovered" }],
-              steps: [{ id: "fix", type: "code", run: () => {} }],
-            }),
-          ],
-          projectDir,
-        ),
-      ).toThrow("does not set recoveryCapable: true");
-    });
-
-    it("accepts a runtime.recovered trigger with recoveryCapable", () => {
-      const defs = validateWorkflowDefinitions(
-        [
-          registerWorkflowDefinition("test/wf.ts", {
-            name: "my-recovery",
-            recoveryCapable: true,
-            triggers: [{ event: "runtime.recovered" }],
-            steps: [{ id: "fix", type: "code", run: () => {} }],
-          }),
-        ],
-        projectDir,
-      );
-      expect(defs[0].recoveryCapable).toBe(true);
-    });
-  });
-
   describe("agent step harnessOptions carve-out", () => {
     function makeAgentStepWithHarnessOptions(
       harnessOptions: Record<string, unknown> | undefined,
@@ -2252,6 +2303,7 @@ describe("workflow validation", () => {
         "Build.\n",
       );
       return registerWorkflowDefinition("test/builder.ts", {
+        repository: "read",
         name: "builder",
         triggers: [{ event: "runtime.idle" }],
         steps: [

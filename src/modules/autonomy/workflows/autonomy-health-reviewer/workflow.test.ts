@@ -11,10 +11,6 @@ import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
-  AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP,
-  autonomyWorkflowConcurrencyGroupFor,
-} from "#modules/autonomy/workflow-workspace-policy.js";
-import {
   RUNTIME_HEALTH_AUDIT_ARTIFACT,
   type RuntimeHealthAudit,
 } from "./runtime-health-audit.js";
@@ -52,12 +48,6 @@ describe("autonomy-health-reviewer workflow", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("serializes explicit generated-task resolution with canonical mutators", () => {
-    expect(
-      autonomyWorkflowConcurrencyGroupFor(autonomyHealthReviewerWorkflow.name),
-    ).toBe(AUTONOMY_CANONICAL_MUTATION_CONCURRENCY_GROUP);
-  });
-
   it("reviews health signals and audits persisted runtime evidence on a cadence", () => {
     const critical = autonomyHealthReviewerWorkflow.triggers.find(
       (trigger) =>
@@ -72,9 +62,6 @@ describe("autonomy-health-reviewer workflow", () => {
     const runtimeAudit = autonomyHealthReviewerWorkflow.triggers.find(
       (trigger) => trigger.event === "autonomy.runtime-health.audit.scheduled",
     );
-    const recovery = autonomyHealthReviewerWorkflow.triggers.find(
-      (trigger) => trigger.event === "runtime.recovered",
-    );
 
     expect(critical?.batch).toBeUndefined();
     expect(batched?.filter).toEqual({ severity: ["warning", "error"] });
@@ -88,7 +75,6 @@ describe("autonomy-health-reviewer workflow", () => {
       intervalMs: 6 * 60 * 60 * 1000,
       cooldownMs: 60 * 60 * 1000,
     });
-    expect(recovery).toBeDefined();
   });
 
   it("keeps runtime audit step output below the workflow output cap", () => {

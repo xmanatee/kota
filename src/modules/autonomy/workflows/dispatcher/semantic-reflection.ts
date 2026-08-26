@@ -2,24 +2,18 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import {
-  readOptionalJsonFile,
-  writeJsonFileAtomic,
-} from "#core/util/json-file.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   getRepoHeadSha,
   getRepoWorktreeStatus,
 } from "#core/util/repo-worktree.js";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
-  getClaimAwareRepoTaskQueueSnapshot,
-} from "#modules/autonomy/queue-availability.js";
-import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+  getRepoTaskQueueSnapshot,
+  listFullRepoTasks,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ProgressReviewRequest } from "../progress-reviewer/events.js";
-import {
-  progressReviewDispatchKey,
-  readPendingProgressReviewInput,
-  recordProgressReviewInputQueued,
-} from "../progress-reviewer/semantic-input.js";
+import { progressReviewDispatchKey } from "../progress-reviewer/semantic-input.js";
 import {
   changedTaskPaths,
   isStrategicCompletion,
@@ -27,18 +21,12 @@ import {
 } from "./semantic-task-transitions.js";
 
 export type { ScopeBoundaryInspection } from "./semantic-scope-reflection.js";
-export {
-  inspectScopeSemanticBoundary,
-  recordScopeSemanticBoundaryQueued,
-} from "./semantic-scope-reflection.js";
+export { inspectScopeSemanticBoundary } from "./semantic-scope-reflection.js";
 
-const PROGRESS_BOUNDARY_STATE = join(
-  ".kota",
-  "progress-reviewer",
-  "semantic-boundary-state.json",
-);
+export const PROGRESS_BOUNDARY_STATE_KEY =
+  "dispatcher/progress-semantic-boundary";
 
-type ProgressBoundaryState = {
+export type ProgressBoundaryState = {
   schemaVersion: 1;
   scopeId: string;
   lastObservedHead: string;
@@ -51,30 +39,11 @@ export type ProgressBoundaryInspection = {
   shouldEmit: boolean;
   reason: string;
   payload: ProgressReviewRequest | null;
+  nextState: ProgressBoundaryState | null;
 };
 
-function readProgressBoundaryState(
-  projectDir: string,
-): ProgressBoundaryState | null {
-  const state = readOptionalJsonFile<Partial<ProgressBoundaryState>>(
-    join(projectDir, PROGRESS_BOUNDARY_STATE),
-  );
-  if (
-    state?.schemaVersion !== 1 ||
-    typeof state.scopeId !== "string" ||
-    typeof state.lastObservedHead !== "string" ||
-    (state.ownerDecisionWatermark !== null &&
-      typeof state.ownerDecisionWatermark !== "string") ||
-    typeof state.parked !== "boolean" ||
-    typeof state.inputRevision !== "number"
-  ) {
-    return null;
-  }
-  return state as ProgressBoundaryState;
-}
-
-function ownerDecisionRecords(projectDir: string): OwnerDecisionRecord[] {
-  const directory = join(projectDir, ".kota", "owner-decisions");
+function ownerDecisionRecords(stateDir: string): OwnerDecisionRecord[] {
+  const directory = join(stateDir, "owner-decisions");
   if (!existsSync(directory)) return [];
   return readdirSync(directory)
     .filter((file) => /^[0-9a-f]{8}\.json$/.test(file))
@@ -96,8 +65,8 @@ function resolvedDecisionKey(record: OwnerDecisionRecord): string | null {
   return `${record.updatedAt}:${record.id}`;
 }
 
-function latestOwnerDecisionWatermark(projectDir: string): string | null {
-  return ownerDecisionRecords(projectDir)
+function latestOwnerDecisionWatermark(stateDir: string): string | null {
+  return ownerDecisionRecords(stateDir)
     .flatMap((record) => {
       const key = resolvedDecisionKey(record);
       return key ? [key] : [];
@@ -106,63 +75,64 @@ function latestOwnerDecisionWatermark(projectDir: string): string | null {
     .at(-1) ?? null;
 }
 
-function writeProgressBoundaryState(
-  projectDir: string,
-  state: ProgressBoundaryState,
-): void {
-  writeJsonFileAtomic(join(projectDir, PROGRESS_BOUNDARY_STATE), state);
-}
-
-export function inspectProgressSemanticBoundary(args: {
+export async function inspectProgressSemanticBoundary(args: {
   projectDir: string;
-}): ProgressBoundaryInspection {
-  const worktree = getRepoWorktreeStatus(args.projectDir);
+  scopeDir: string;
+  stateDir: string;
+  progressBoundaryState: ProgressBoundaryState | null;
+  runCommand: WorkflowCommandRunner;
+}): Promise<ProgressBoundaryInspection> {
+  const worktree = getRepoWorktreeStatus(args.scopeDir);
   if (!worktree.available || worktree.dirty) {
     return {
       shouldEmit: false,
       reason: "semantic progress input is parked until the canonical worktree is clean",
       payload: null,
+      nextState: null,
     };
   }
-  const scopeId = deriveDirectoryScopeId(args.projectDir);
+  const scopeId = deriveDirectoryScopeId(args.scopeDir);
   const head = getRepoHeadSha(args.projectDir);
-  const queue = getClaimAwareRepoTaskQueueSnapshot(args.projectDir);
+  const queue = getRepoTaskQueueSnapshot(args.projectDir);
   const parked = queue.openCount > 0 && !queue.hasDispatchableWork;
-  const ownerWatermark = latestOwnerDecisionWatermark(args.projectDir);
-  const stored = readProgressBoundaryState(args.projectDir);
+  const ownerWatermark = latestOwnerDecisionWatermark(args.stateDir);
+  const stored = args.progressBoundaryState;
   const previous = stored?.scopeId === scopeId ? stored : null;
   if (!previous || !head) {
-    writeProgressBoundaryState(args.projectDir, {
+    const nextState: ProgressBoundaryState = {
       schemaVersion: 1,
       scopeId,
       lastObservedHead: head,
       ownerDecisionWatermark: ownerWatermark,
       parked,
       inputRevision: previous?.inputRevision ?? 0,
-    });
-    return deferredProgressInput(args.projectDir) ?? {
+    };
+    return {
       shouldEmit: false,
       reason: "initialized semantic progress watermark",
       payload: null,
+      nextState,
     };
   }
 
-  const changedPaths = changedTaskPaths(
+  const changedPaths = await changedTaskPaths(
+    args.runCommand,
     args.projectDir,
     previous.lastObservedHead,
     head,
   );
   if (changedPaths === null) {
-    writeProgressBoundaryState(args.projectDir, {
+    const nextState: ProgressBoundaryState = {
       ...previous,
       lastObservedHead: head,
       ownerDecisionWatermark: ownerWatermark,
       parked,
-    });
+    };
     return {
       shouldEmit: false,
       reason: "reset semantic progress watermark after an unavailable Git range",
       payload: null,
+      nextState,
     };
   }
 
@@ -179,7 +149,7 @@ export function inspectProgressSemanticBoundary(args: {
   const strategic = transitions.filter((transition) =>
     isStrategicCompletion({ ...transition, task: taskById.get(transition.id) })
   );
-  const newlyResolvedDecisions = ownerDecisionRecords(args.projectDir)
+  const newlyResolvedDecisions = ownerDecisionRecords(args.stateDir)
     .flatMap((record) => {
       const key = resolvedDecisionKey(record);
       if (!key || (previous.ownerDecisionWatermark && key <= previous.ownerDecisionWatermark)) {
@@ -199,20 +169,19 @@ export function inspectProgressSemanticBoundary(args: {
           ? "owner-decision-resolution" as const
           : null;
   const nextRevision = boundary ? previous.inputRevision + 1 : previous.inputRevision;
-  writeProgressBoundaryState(args.projectDir, {
+  const nextState: ProgressBoundaryState = {
     ...previous,
     lastObservedHead: head,
     ownerDecisionWatermark: ownerWatermark,
     parked,
     inputRevision: nextRevision,
-  });
+  };
   if (!boundary) {
-    return deferredProgressInput(args.projectDir) ?? {
+    return {
       shouldEmit: false,
-      reason: readPendingProgressReviewInput(args.projectDir)?.delivery === "queued"
-        ? "latest semantic progress input is already queued"
-        : "no accepted semantic progress boundary",
+      reason: "no accepted semantic progress boundary",
       payload: null,
+      nextState,
     };
   }
 
@@ -226,6 +195,7 @@ export function inspectProgressSemanticBoundary(args: {
   return {
     shouldEmit: true,
     reason: `${boundary} at semantic input revision ${nextRevision}`,
+    nextState,
     payload: {
       automatic: true,
       boundary,
@@ -237,24 +207,4 @@ export function inspectProgressSemanticBoundary(args: {
       requestedBy: "dispatcher",
     },
   };
-}
-
-function deferredProgressInput(
-  projectDir: string,
-): ProgressBoundaryInspection | null {
-  const pending = readPendingProgressReviewInput(projectDir);
-  if (pending?.delivery !== "deferred") return null;
-  return {
-    shouldEmit: true,
-    reason:
-      `${pending.boundary} semantic input revision ${pending.inputRevision} resumed after cleanup`,
-    payload: pending.payload,
-  };
-}
-
-export function recordProgressSemanticBoundaryQueued(args: {
-  projectDir: string;
-  payload: ProgressReviewRequest;
-}): void {
-  recordProgressReviewInputQueued(args);
 }

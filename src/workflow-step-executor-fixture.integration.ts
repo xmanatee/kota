@@ -49,7 +49,7 @@ export function makeDefinition(
   return {
     name: "test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "read",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],

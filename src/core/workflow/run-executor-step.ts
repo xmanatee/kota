@@ -12,7 +12,6 @@ import {
   rejectWhenActiveTimeoutExpires,
 } from "./active-timeout.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
-import { RepairLoopYield } from "./repair-loop.js";
 import { readToolCallSummary } from "./run-executor-step-artifacts.js";
 import { recordWorkflowStepFailure } from "./run-executor-step-failure.js";
 import {
@@ -21,7 +20,6 @@ import {
   type StepAccumulators,
   type StepDeps,
 } from "./run-executor-step-shared.js";
-import { recordWorkflowStepYield } from "./run-executor-step-yield.js";
 import type { WorkflowStepContext, WorkflowStepResult } from "./run-types.js";
 import {
   createStepIdleTimeoutMonitor,
@@ -111,6 +109,25 @@ export async function executeWorkflowStep(
     signal: stepAbortController.signal,
     reportProgress: idleMonitor?.reportProgress ?? context.reportProgress ?? (() => {}),
   };
+  const pendingCodeEmits: Array<{
+    event: string;
+    payload: Record<string, unknown>;
+    options?: Readonly<{ delivery?: "on-run-success"; stepId: string }>;
+  }> = [];
+  if (step.type === "code") {
+    progressContext.emit = (event, payload, options) => {
+      pendingCodeEmits.push({
+        event,
+        payload: structuredClone(payload),
+        ...(options === undefined ? {} : { options }),
+      });
+    };
+  }
+  progressContext.runCommand = (input) =>
+    context.runCommand({
+      ...input,
+      signal: input.signal ?? stepAbortController.signal,
+    });
   const toolSession = {
     sessionId: `workflow:${randomUUID()}`,
     scopeId: deps.pbus.getScopeId(),
@@ -151,6 +168,9 @@ export async function executeWorkflowStep(
     const rawResult = await (racePromises.length === 1
       ? stepPromise
       : Promise.race(racePromises));
+    for (const pending of pendingCodeEmits) {
+      context.emit(pending.event, pending.payload, pending.options);
+    }
     const timing = activeTimeout?.snapshot();
     activeTimeout?.dispose();
     idleMonitor?.dispose();
@@ -246,20 +266,6 @@ export async function executeWorkflowStep(
     const timing = activeTimeout?.snapshot();
     activeTimeout?.dispose();
     idleMonitor?.dispose();
-    if (error instanceof RepairLoopYield) {
-      return recordWorkflowStepYield({
-        signal: error,
-        definition,
-        step,
-        run,
-        agentConfig,
-        acc,
-        deps,
-        stepStartedAt,
-        timing,
-        capturedAgentMessages,
-      });
-    }
     return recordWorkflowStepFailure({
       error,
       definition,

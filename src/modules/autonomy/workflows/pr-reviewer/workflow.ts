@@ -24,7 +24,7 @@ const COMMENT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 
 export const agent: AgentDef = {
   name: "pr-reviewer",
-  role: "Draft advisory review feedback for KOTA-created pull requests relative to the task's Done When criteria.",
+  role: "Draft advisory semantic review feedback for trusted same-repository pull requests.",
   promptPath: "src/modules/autonomy/workflows/pr-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   // The reviewer drafts structured output only; the workflow's approval and
@@ -32,13 +32,10 @@ export const agent: AgentDef = {
   writeScope: "deny-all",
 };
 
-// Not recovery-capable: runs on github.pull_request webhooks and does not touch
-// the local worktree. Its only side effect is an external GitHub comment after
-// the configured policy allows the deterministic write path, so crash recovery
-// cannot safely replay the write path without duplicate risk.
 const prReviewerWorkflow: WorkflowDefinitionInput = {
   name: "pr-reviewer",
-  description: "Review KOTA-created pull requests and post one bounded advisory PR comment.",
+  description: "Review trusted same-repository pull requests and post one bounded advisory comment.",
+  repository: "read",
   tags: ["monitored"],
   defaultAutonomyMode: "passive",
   triggers: [
@@ -82,7 +79,7 @@ const prReviewerWorkflow: WorkflowDefinitionInput = {
       type: "approval",
       timeoutMs: COMMENT_APPROVAL_TIMEOUT_MS,
       defaultResolution: "deny",
-      reason: "Approve posting one bounded KOTA PR review comment to the originating GitHub pull request.",
+      reason: "Approve posting one bounded review comment to the originating GitHub pull request.",
       when: (ctx) =>
         stepSucceeded("comment-policy")(ctx) &&
         commentPolicy.outputRequired(ctx).approvalRequired,

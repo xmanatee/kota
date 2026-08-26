@@ -4,10 +4,54 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { registerSessionEnvironmentResource } from "#core/tools/session-environment.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = projectDir,
+): RunContext {
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir: projectDir,
+      workspaceDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 const TRIGGER: WorkflowRunTrigger = {
   event: "runtime.idle",
@@ -19,7 +63,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition>): WorkflowDefinit
   return {
     name: "tool-session-test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -116,7 +160,7 @@ describe("workflow direct-tool session isolation", () => {
     });
 
     const { promise: runPromise } = executeWorkflowRun(args.definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir, TRIGGER),
       bus,
       store,
       log,

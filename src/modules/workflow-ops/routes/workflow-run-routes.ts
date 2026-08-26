@@ -14,7 +14,10 @@ import { jsonResponse, SseTransport, setCors } from "#core/server/session-pool.j
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
-import type { BuilderRunSummary } from "#modules/autonomy/workflows/builder/run-summary.js";
+import {
+  WRITER_INTEGRATION_EVIDENCE,
+  type WriterIntegrationEvidence,
+} from "#core/workflow/writer-integration-evidence.js";
 import {
   parseKotaAgentMessageLine,
   projectAgentMessageToRunStreamEvents,
@@ -308,7 +311,7 @@ export function handleWorkflowRunStream(
 const ARTIFACT_SKIP = new Set(["metadata.json", "workflow.json", "trigger.json"]);
 
 export type RunArtifacts = {
-  runSummary: EvidenceJsonObject | null;
+  writerIntegration: EvidenceJsonObject | null;
   commitMessage: string | null;
   textFiles: Array<{ name: string; content: string }>;
 };
@@ -328,9 +331,11 @@ export function handleWorkflowRunArtifacts(
     return;
   }
 
-  const rawRunSummary = readOptionalJsonFile<BuilderRunSummary>(join(runDir, "run-summary.json"));
-  const runSummary = rawRunSummary
-    ? projectEvidenceObject(rawRunSummary, "daemon-api")
+  const rawWriterIntegration = readOptionalJsonFile<WriterIntegrationEvidence>(
+    join(runDir, WRITER_INTEGRATION_EVIDENCE),
+  );
+  const writerIntegration = rawWriterIntegration
+    ? projectEvidenceObject(rawWriterIntegration, "daemon-api")
     : null;
 
   let commitMessage: string | null = null;
@@ -353,7 +358,11 @@ export function handleWorkflowRunArtifacts(
     return;
   }
   for (const name of entries) {
-    if (ARTIFACT_SKIP.has(name) || name === "run-summary.json" || name === "commit-message.txt") continue;
+    if (
+      ARTIFACT_SKIP.has(name) ||
+      name === WRITER_INTEGRATION_EVIDENCE ||
+      name === "commit-message.txt"
+    ) continue;
     const ext = extname(name);
     if (ext !== ".txt" && ext !== ".md") continue;
     try {
@@ -367,7 +376,7 @@ export function handleWorkflowRunArtifacts(
     }
   }
 
-  const artifacts: RunArtifacts = { runSummary, commitMessage, textFiles };
+  const artifacts: RunArtifacts = { writerIntegration, commitMessage, textFiles };
   jsonResponse(res, 200, artifacts);
 }
 

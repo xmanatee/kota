@@ -1,6 +1,5 @@
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type { TaskClaimInspection } from "#modules/autonomy/task-claims.js";
 import type {
   RepoTaskClass,
   RepoTaskFullRecord,
@@ -16,7 +15,6 @@ export type SupervisionLoadStatus =
 
 export type SupervisionLoadEvidenceSource =
   | "active-runs"
-  | "task-claims"
   | "approvals"
   | "owner-questions"
   | "dead-letters"
@@ -36,9 +34,6 @@ export type SupervisionLoadEvidence = {
 
 export type SupervisionLoadCounts = {
   activeRuns: number | null;
-  activeTaskClaims: number | null;
-  pendingMergeTaskClaims: number | null;
-  blockedClaimRecoveries: number | null;
   pendingApprovals: number | null;
   pendingOwnerQuestions: number | null;
   openDeadLetters: number | null;
@@ -71,13 +66,10 @@ export type SupervisionLoadWorkstreamGroup = {
   scopeId: string | null;
   projectId: string | null;
   activeRuns: number;
-  taskClaims: number;
-  pendingMergeTaskClaims: number;
 };
 
 export type SupervisionLoadReferenceKind =
   | "active-run"
-  | "task-claim"
   | "approval"
   | "owner-question"
   | "dead-letter"
@@ -154,7 +146,6 @@ export type AttentionRecord = {
 
 export type SupervisionLoadStoreReads = {
   activeRuns: StoreResult<WorkflowRunMetadata>;
-  taskClaims: StoreResult<TaskClaimInspection>;
   approvals: StoreResult<ApprovalRecord>;
   ownerQuestions: StoreResult<OwnerQuestionRecord>;
   deadLetters: StoreResult<DeadLetterRecord>;
@@ -166,9 +157,6 @@ export const DEFAULT_SUPERVISION_LOAD_THRESHOLDS: SupervisionLoadThresholds = {
   overloadedAt: 6,
   weights: {
     activeRuns: 1,
-    activeTaskClaims: 1,
-    pendingMergeTaskClaims: 2,
-    blockedClaimRecoveries: 2,
     pendingApprovals: 2,
     pendingOwnerQuestions: 2,
     openDeadLetters: 2,

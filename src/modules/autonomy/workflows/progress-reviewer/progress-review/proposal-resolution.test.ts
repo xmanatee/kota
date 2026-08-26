@@ -82,9 +82,14 @@ describe("progress-reviewer generated-work resolution", () => {
 
     expect(result).toMatchObject({
       touchedTaskQueue: true,
-      applied: [
+      applied: expect.arrayContaining([
         { kind: "dropped-task", taskId: created.taskId, fromState: "ready" },
-      ],
+        {
+          kind: "owner-question-dismissal-pending",
+          topicKey: "recovery:stale-worktrees",
+          reason: "The canonical projection reports no stale worktrees.",
+        },
+      ]),
     });
     expect(listFullRepoTasks(projectDir)).toEqual([
       expect.objectContaining({ id: created.taskId, state: "dropped" }),

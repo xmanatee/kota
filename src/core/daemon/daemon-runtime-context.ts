@@ -2,6 +2,8 @@ import type { ChannelAdapter, ChannelStatus } from "#core/channels/channel.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { HealthCheckResult } from "#core/modules/module-types.js";
+import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import type { DaemonConfig } from "./daemon-config.js";
@@ -31,6 +33,8 @@ export type DaemonRuntimeContext = {
   readonly stateRoot: DaemonStateRoot;
   readonly bus: EventBus;
   readonly eventJournal: EventJournal;
+  readonly runState: RunStateDatabase;
+  readonly runCoordinator: RunCoordinator;
   readonly uninstallEventJournal: () => void;
   readonly runStore: WorkflowRunStore;
   readonly workflows: WorkflowRuntime;
@@ -45,6 +49,7 @@ export type DaemonRuntimeContext = {
   readonly scopeLifecycle: ScopeLifecycleService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
   readonly eventLoopLatency: DaemonEventLoopLatencyMonitor;
+  readonly startupDispatchPaused: boolean;
   unsubscribe: (() => void) | null;
   sessionSweepTimer: ReturnType<typeof setInterval> | null;
   healthCheckTimer: ReturnType<typeof setInterval> | null;
@@ -69,9 +74,12 @@ export type BuildDaemonInitParams = {
   state: DaemonState;
   token: string;
   eventJournal: EventJournal;
+  runState: RunStateDatabase;
+  runCoordinator: RunCoordinator;
   uninstallEventJournal: () => void;
   projectRegistry: ScopeRegistry;
   scopeAuthority: ScopeAuthorityService;
   scopeAuthorityOperatorVerifier: ScopeAuthorityOperatorTokenVerifier;
   projectRuntimes: ProjectRuntimeRegistry;
+  startupDispatchPaused: boolean;
 };

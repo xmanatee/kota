@@ -4,8 +4,7 @@
  *
  * Both surfaces consume `renderOnDemandAttention` so the rendered body never
  * drifts between operator surfaces. The command is read-only against the
- * project directory: it does not advance the cadence counter at
- * `<runsDir>/../attention-digest-counter.json` and does not emit
+ * project directory: it does not advance runtime-owned cadence state or emit
  * `workflow.attention.digest`. Per the no-cost-bias-in-autonomy contract,
  * this output is operator-facing only and is not exposed to autonomy agents.
  */

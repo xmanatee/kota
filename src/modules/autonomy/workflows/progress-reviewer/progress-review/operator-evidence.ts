@@ -34,7 +34,7 @@ function listOwnerQuestionEvidence(
   windowStartMs: number,
   excluded: string[],
 ): ProgressReviewOwnerQuestionEvidence[] {
-  const dir = join(source.projectDir, ".kota", "owner-questions");
+  const dir = join(source.stateDir, "owner-questions");
   if (!existsSync(dir)) return [];
   const questions: ProgressReviewOwnerQuestionEvidence[] = [];
   for (const file of readdirSync(dir).sort().reverse()) {
@@ -110,7 +110,7 @@ function listApprovalEvidence(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
 ): ScopedApprovalEvidence[] {
-  const dir = join(source.projectDir, ".kota", "approvals");
+  const dir = join(source.stateDir, "approvals");
   if (!existsSync(dir)) return [];
   const approvals: ScopedApprovalEvidence[] = [];
   for (const file of readdirSync(dir).sort().reverse()) {
@@ -149,8 +149,8 @@ export function listScopedApprovalEvidence(
     .map((approval) => approval.evidence);
 }
 
-function deadLetterQueuePath(projectDir: string): string {
-  return join(projectDir, ".kota", "dead-letter-queue", "items.json");
+function deadLetterQueuePath(stateDir: string): string {
+  return join(stateDir, "dead-letter-queue", "items.json");
 }
 
 function emptyDeadLetterCounts(source: ProgressReviewDirectorySource): ProgressReviewDeadLetterCounts {
@@ -169,12 +169,12 @@ export function listDeadLetterCounts(
   sources: readonly ProgressReviewDirectorySource[],
 ): ProgressReviewDeadLetterCounts[] {
   return sources.map((source) => {
-    if (!existsSync(deadLetterQueuePath(source.projectDir))) {
+    if (!existsSync(deadLetterQueuePath(source.stateDir))) {
       return emptyDeadLetterCounts(source);
     }
-    const store = deadLetterStoreForProject(source.projectDir);
+    const store = deadLetterStoreForProject(source.scopeDir);
     const counts = store.counts(source.scopeId);
-    const runArtifacts = deadLetterRunArtifactIds(source.projectDir);
+    const runArtifacts = deadLetterRunArtifactIds(source.scopeDir);
     return {
       scopeId: source.scopeId,
       path: join(".kota", "dead-letter-queue", "items.json"),
@@ -223,8 +223,8 @@ function summarizeDeadLetter(
 function listDeadLetterEvidence(
   source: ProgressReviewDirectorySource,
 ): ScopedDeadLetterEvidence[] {
-  if (!existsSync(deadLetterQueuePath(source.projectDir))) return [];
-  const store = deadLetterStoreForProject(source.projectDir);
+  if (!existsSync(deadLetterQueuePath(source.stateDir))) return [];
+  const store = deadLetterStoreForProject(source.scopeDir);
   return store.list({ status: "open", scopeId: source.scopeId }).map((item) => ({
     updatedMs: deadLetterActivityMs(item),
     evidence: summarizeDeadLetter(source, item),

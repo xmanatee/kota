@@ -1,20 +1,12 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-  stepSucceeded,
 } from "#modules/autonomy/shared.js";
-import { workflowCommitOperation } from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  captureMutationBaseline,
   recordEmptyScan,
   scanCandidates,
-  securityReviewCommitPolicy,
 } from "./candidate-steps.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
@@ -28,7 +20,7 @@ import {
   securityInvestigationOutputSchema,
   securityRevalidationOutputSchema,
 } from "./output-schemas.js";
-import { validateBeforeCommit } from "./preflight-step.js";
+import { validateChanges } from "./preflight-step.js";
 import {
   decodeSecurityInvestigationOutput,
   decodeSecurityRevalidationVerdictOutput,
@@ -39,15 +31,16 @@ export const agent: AgentDef = {
   role: "Investigate bounded security-sensitive code candidates and revalidate findings.",
   promptPath: "src/modules/autonomy/workflows/security-review/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  writeScope: [".kota/runs/"],
+  writeScope: "deny-all",
 };
 
 const securityReviewWorkflow: WorkflowDefinitionInput = {
   name: "security-review",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Scan KOTA for security-sensitive candidates, investigate a bounded batch, revalidate findings, and create normal follow-up tasks for confirmed vulnerabilities.",
   tags: ["monitored"],
-  recoveryCapable: true,
   defaultAutonomyMode: "autonomous",
   triggers: [
     {
@@ -58,20 +51,8 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       event: SECURITY_REVIEW_DUE_EVENT,
       cooldownMs: 60 * 60 * 1000,
     },
-    { event: "runtime.recovered" },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "security-review",
-        }),
-    },
-    captureMutationBaseline,
     scanCandidates,
     recordEmptyScan,
     {
@@ -108,18 +89,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
     recordRevalidation,
     createFollowUpTasks,
     writeCommitMessage,
-    validateBeforeCommit,
-    {
-      id: "commit",
-      type: "code",
-      when: stepSucceeded("validate-before-commit"),
-      run: (ctx) =>
-        ctx.runBlocking(workflowCommitOperation, {
-          projectDir: ctx.projectDir,
-          runDirPath: ctx.workflow.runDirPath,
-          policy: securityReviewCommitPolicy(ctx),
-        }),
-    },
+    validateChanges,
   ],
 };
 

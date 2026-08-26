@@ -16,12 +16,12 @@ paths are covered by `decomposer-agent-call-replay` and focused workflow tests.
   a synthetic failed-builder run whose `build` step has no structured
   timeout or repair-exhaustion `errorKind`, so the classification returns
   no rescoping signal.
-- The sibling `task-claim.json` identifies the exact builder-owned task.
 - `data/tasks/doing/task-fixture-decomposer-decision-seed.md` is a
-  builder-claimed task. If the gate ever lets the agent step run, the
-  durable claim identifies this task as the candidate, which lets the
-  fixture's predicates catch the regression by observing the file move
-  out of `doing/`.
+  dependency-clear actionable task. The failed builder metadata carries its
+  immutable task identity in the original trigger payload. If the gate ever
+  lets the agent step run, that contract identifies this task as the candidate,
+  which lets the fixture's predicates catch the regression by observing the
+  file move out of `doing/`.
 
 ## triggerPayload shape
 
@@ -47,10 +47,10 @@ about the decompose step's status.
 - `file-absent` against `data/tasks/dropped/<seed>` is the
   anti-canary for the most likely move target — decomposer's prompt
   moves the original task to `dropped/` after sub-decomposing.
-- The four `file-contains` predicates against the decomposer's own
+- The metadata predicates against the decomposer's own
   metadata.json directly assert: assess-failure ran successfully,
-  returned `shouldDecompose: false`, and both `decompose` (agent step)
-  and `commit` (code step) were skipped. This is the harness's primary
+  returned `shouldDecompose: false`, and `decompose` (the agent step)
+  was skipped. This is the harness's primary
   evidence that the decision gate held — without these, a regression
   that ran the agent step but failed to commit would still pass the
   task-state assertions.
@@ -58,7 +58,7 @@ about the decompose step's status.
 ## Cost shape
 
 The healthy case never invokes an LLM: assess-failure is a code step,
-and decompose / commit / request-restart are all skipped. The fixture
+and every dependent step is skipped. The fixture
 budget (60 000 ms) covers subprocess start-up, module loading, and the
 tiny code-step run. A regression that lets the agent step actually run
 will cost a real LLM call once before the fixture trips and the

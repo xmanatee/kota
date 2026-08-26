@@ -118,7 +118,12 @@ describe("owner-decision blocked-task unblock cycle", () => {
             if (!existsSync(runsDir)) return null;
             for (const dir of readdirSync(runsDir)) {
               if (existsSync(
-                join(runsDir, dir, "awaits", "blocked-promoter-ask-wait.json"),
+                join(
+                  runsDir,
+                  dir,
+                  "awaits",
+                  "blocked-promoter-owner-decision-wait.json",
+                ),
               )) {
                 return dir;
               }
@@ -133,7 +138,7 @@ describe("owner-decision blocked-task unblock cycle", () => {
           runsDir,
           suspendedRunId,
           "awaits",
-          "blocked-promoter-ask-wait.json",
+          "blocked-promoter-owner-decision-wait.json",
         );
         const suspension = JSON.parse(readFileSync(suspensionPath, "utf-8"));
         expect(
@@ -155,7 +160,14 @@ describe("owner-decision blocked-task unblock cycle", () => {
 
       // (c) Suspension survives the stop. ----
       const persistedSuspensionRunId = readdirSync(runsDir).find((dir) =>
-        existsSync(join(runsDir, dir, "awaits", "blocked-promoter-ask-wait.json")),
+        existsSync(
+          join(
+            runsDir,
+            dir,
+            "awaits",
+            "blocked-promoter-owner-decision-wait.json",
+          ),
+        ),
       );
       expect(
         persistedSuspensionRunId,

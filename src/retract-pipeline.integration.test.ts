@@ -20,7 +20,6 @@
  * read-side seam settles after a successful retract.
  */
 
-import { execSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -47,6 +46,10 @@ import {
   createMemoryContributor as createMemoryRecallContributor,
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { createNormalizedTask } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   createInboxContributor,
@@ -97,10 +100,11 @@ function startServer(specs: RouteSpec[]): Promise<{ server: Server; port: number
 }
 
 function makeProjectRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-retract-pipeline-"));
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "kota-retract-pipeline-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "retract-pipeline",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
@@ -153,8 +157,9 @@ describe("cross-store retract pipeline (HTTP)", () => {
     const retractProvider = new RetractProviderImpl();
     retractProvider.register(createMemoryContributor(memoryStore));
     retractProvider.register(createKnowledgeContributor(knowledgeStore));
-    retractProvider.register(createTasksContributor(projectRoot));
-    retractProvider.register(createInboxContributor(projectRoot));
+    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    retractProvider.register(createTasksContributor(mutationTarget));
+    retractProvider.register(createInboxContributor(mutationTarget));
 
     recallProvider = new RecallProviderImpl();
     recallProvider.register(createMemoryRecallContributor(memoryStore));

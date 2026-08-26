@@ -8,8 +8,7 @@ export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
   const workflows = ctx.projectRuntimes.getDefault().workflowRuntime;
   const state = workflows.getState();
   const dispatchWindow = workflows.getDispatchWindowStatus();
-  const recovery = workflows.getRecoveryStatus();
-  const dispatchPause = workflows.getDispatchPauseStatus(recovery);
+  const dispatchPause = workflows.getDispatchPauseStatus();
   const lastCompletion = latestWorkflowCompletion(state.workflows);
   return {
     pid: ctx.state.pid,
@@ -27,14 +26,13 @@ export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
           lastCompletedStatus: lastCompletion.status,
         }
       : {}),
-    activeRuns: state.activeRuns ?? [],
+    activeRuns: state.activeRuns,
     pendingRuns: state.pendingRuns,
     dispatchPaused: dispatchPause.paused,
     dispatchPause,
     dispatchWindowBlocked: dispatchWindow.blocked,
     dispatchWindowOpensAt: dispatchWindow.opensAt,
     agentBackoff: state.agentBackoff,
-    ...(recovery.status !== "none" && { recovery }),
     definitionCount: workflows.getDefinitionCount(),
     sessionCount: ctx.sessions.size,
   };

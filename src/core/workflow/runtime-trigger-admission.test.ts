@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { WorkflowRuntime } from "./runtime.js";
+import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 
 describe("runtime trigger admission", () => {
   let projectDir: string;
+  const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-trigger-admission-"));
@@ -25,18 +26,20 @@ describe("runtime trigger admission", () => {
   });
 
   afterEach(() => {
+    for (const runState of runStates.splice(0)) runState.close();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
   it("applies definition-owned admission before pending queue mutation", async () => {
     const bus = new EventBus();
     const admittedVersions: number[] = [];
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus,
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "admitted-listener",
           definitionPath: "src/core/workflow/runtime-trigger-admission.test.ts",
           moduleRoot: process.cwd(),
@@ -52,6 +55,7 @@ describe("runtime trigger admission", () => {
         },
       ],
     });
+    runStates.push(runState);
 
     runtime.start();
     runtime.setDispatchPaused(true);
@@ -68,12 +72,13 @@ describe("runtime trigger admission", () => {
 
   it("coalesces explicitly keyed deliveries when latest is requested", async () => {
     const bus = new EventBus();
-    const runtime = new WorkflowRuntime({
+    const { runtime, runState } = createTestWorkflowRuntime({
       bus,
       projectDir,
       idleIntervalMs: 60_000,
       workflows: [
         {
+          repository: "read",
           name: "latest-keyed-listener",
           definitionPath: "src/core/workflow/runtime-trigger-admission.test.ts",
           moduleRoot: process.cwd(),
@@ -82,6 +87,7 @@ describe("runtime trigger admission", () => {
         },
       ],
     });
+    runStates.push(runState);
 
     runtime.start();
     runtime.setDispatchPaused(true);

@@ -33,7 +33,7 @@ export function runBuilderHarnessPreflight(input: {
   const artifactPath = join(
     input.runDirPath,
     "steps",
-    "builder-preclaim.harness-capability.json",
+    "builder-preflight.harness-capability.json",
   );
   mkdirSync(dirname(artifactPath), { recursive: true });
   writeFileSync(
@@ -44,7 +44,7 @@ export function runBuilderHarnessPreflight(input: {
   const failures = findRequiredHarnessReadinessFailures(snapshot);
   if (failures.length > 0) {
     throw new AgentStepRuntimeError(
-      `Builder stopped before claiming work (harness_readiness): ${formatRequiredHarnessReadinessFailures(
+      `Builder stopped before agent execution (harness_readiness): ${formatRequiredHarnessReadinessFailures(
         harness.name,
         failures,
       )}`,

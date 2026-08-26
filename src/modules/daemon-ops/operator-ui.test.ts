@@ -14,17 +14,17 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {
     daemonRunning: false,
     activeRuns: 0,
-    queuedRuns: 0,
+    queuedRuns: 2,
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
     projectDir: "/repo",
     projectName: "repo",
     controlFile: { kind: "missing" },
-    historicalWorkflow: {
-      activeRuns: 0,
-      queuedRuns: 2,
-      workflowPaused: false,
+    runProjection: {
+      available: true,
+      databasePath: "/repo/.kota/kota.sqlite",
+      runs: [],
     },
     ...overrides,
   };
@@ -39,7 +39,7 @@ function inbox(overrides: Partial<OperatorInboxSnapshot> = {}): OperatorInboxSna
         kind: "runtime",
         id: "daemon-offline",
         title: "Daemon is offline",
-        detail: "Dispatch, event stream, live sessions, and live run state are unavailable.",
+        detail: "Dispatch, event stream, and live sessions are unavailable.",
         action: "kota daemon start",
         role: "warn",
       },

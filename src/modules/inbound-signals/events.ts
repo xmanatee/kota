@@ -287,6 +287,13 @@ export const inboundSignalRouted =
     },
   );
 
+/**
+ * Targeted workflow admission label. This is intentionally not emitted on the
+ * event bus: `inboundSignalRouted` is the audit fact, while this label identifies
+ * the one workflow selected by the route.
+ */
+export const inboundSignalWorkflowTargeted = "inbound.signal.workflow-targeted";
+
 function nonEmpty(value: string): boolean {
   return value.trim().length > 0;
 }

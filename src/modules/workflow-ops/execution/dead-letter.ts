@@ -179,7 +179,9 @@ export function registerDeadLetterCommand(wfCmd: Command, ctx: ModuleContext): v
       });
       if (!result.ok) {
         const message =
-          result.reason === "unknown_workflow"
+          result.reason === "daemon_required"
+            ? "the daemon must be running for an original redrive"
+            : result.reason === "unknown_workflow"
             ? "redrive workflow is not available"
             : result.reason === "not_redrivable"
               ? "item is not redrivable"

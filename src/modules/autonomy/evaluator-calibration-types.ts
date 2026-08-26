@@ -6,7 +6,7 @@ export const EVALUATOR_CALIBRATION_STEP_ID = "write-calibration-artifact";
 
 /**
  * Repair-check id of the critic. A failure means the critic found something
- * the builder repaired before commit; it is diagnostic iteration evidence.
+ * the builder repaired before publication; it is diagnostic iteration evidence.
  */
 export const CRITIC_CHECK_ID = "critic-review";
 
@@ -16,7 +16,7 @@ export type EvaluatorCalibrationVerdict =
   | "fail"
   | "absent";
 
-/** Raw evaluator signals derived after a builder run commits. */
+/** Raw evaluator signals derived after a builder run completes. */
 export type EvaluatorCalibrationArtifact = {
   runId: string;
   workflow: string;

@@ -243,6 +243,7 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
     ]);
     ctx.getContributedWorkflows = () => [
       {
+        repository: "read",
         name: "decomposer",
         definitionPath: "src/modules/autonomy/workflows/decomposer/workflow.ts",
         defaultAutonomyMode: "autonomous",

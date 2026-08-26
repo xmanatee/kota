@@ -28,7 +28,7 @@ export type ScopeDrainBlocker = {
 };
 
 export type ScopeExternalDrainBlocker = ScopeDrainBlocker & {
-  kind: "task_claim" | "pending_work" | "resource_lease";
+  kind: "pending_work" | "resource_lease";
 };
 
 export interface ScopeDrainInspectionSource {

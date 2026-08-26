@@ -86,7 +86,7 @@ function workflowDefinition(): WorkflowDefinition {
     name: "apply-code-hook",
     enabled: true,
     moduleRoot: "/tmp/kota-route-test",
-    recoveryCapable: false,
+    repository: "none",
     tags: [],
     definitionPath: "/tmp/kota-route-test/workflow.ts",
     triggers: [
@@ -104,7 +104,7 @@ function channelWorkflowDefinition(): WorkflowDefinition {
     name: "channel-match",
     enabled: true,
     moduleRoot: "/tmp/kota-route-test",
-    recoveryCapable: false,
+    repository: "none",
     tags: [],
     definitionPath: "/tmp/kota-route-test/channel-workflow.ts",
     triggers: [

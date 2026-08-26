@@ -58,6 +58,7 @@ export class EventJournal {
   private readonly now: () => Date;
   private readonly scopeLineage: (scopeId: string) => readonly string[];
   private nextSequence: number;
+  private authoritativeOutboxEvents: Map<string, EventEnvelope> | null = null;
 
   constructor(dir: string, options: EventJournalOptions = {}) {
     this.filePath = join(dir, options.fileName ?? DEFAULT_JOURNAL_FILE);
@@ -82,14 +83,29 @@ export class EventJournal {
       this.retention,
       this.scopeLineage,
     );
+    const authoritativeEventId = record.idempotency.eventId;
+    if (authoritativeEventId !== undefined) {
+      const existing = this.getAuthoritativeOutboxEvents().get(authoritativeEventId);
+      if (existing !== undefined) {
+        assertEquivalentOutboxDelivery(existing, record, authoritativeEventId);
+        return existing;
+      }
+    }
     appendFileSync(this.filePath, `${JSON.stringify(record)}\n`, "utf-8");
     this.nextSequence = sequence + 1;
+    if (authoritativeEventId !== undefined) {
+      this.getAuthoritativeOutboxEvents().set(authoritativeEventId, record);
+    }
     return record;
   }
 
   appendEnvelope(envelope: EventEnvelope): EventEnvelope {
     appendFileSync(this.filePath, `${JSON.stringify(envelope)}\n`, "utf-8");
     this.nextSequence = Math.max(this.nextSequence, envelope.sequence + 1);
+    const authoritativeEventId = envelope.idempotency?.eventId;
+    if (authoritativeEventId !== undefined && this.authoritativeOutboxEvents !== null) {
+      this.authoritativeOutboxEvents.set(authoritativeEventId, envelope);
+    }
     return envelope;
   }
 
@@ -152,6 +168,17 @@ export class EventJournal {
   private readNextSequence(): number {
     const latest = this.readFromEnd(1, () => true).at(-1);
     return latest === undefined ? 1 : latest.sequence + 1;
+  }
+
+  private getAuthoritativeOutboxEvents(): Map<string, EventEnvelope> {
+    if (this.authoritativeOutboxEvents !== null) return this.authoritativeOutboxEvents;
+    this.authoritativeOutboxEvents = new Map(
+      this.readAll().flatMap((event) => {
+        const eventId = event.idempotency?.eventId;
+        return eventId === undefined ? [] : [[eventId, event] as const];
+      }),
+    );
+    return this.authoritativeOutboxEvents;
   }
 
   private readEventsAfter(after: string | undefined): EventEnvelope[] {
@@ -228,6 +255,36 @@ export class EventJournal {
   }
 }
 
+function outboxDeliveryProjection(envelope: EventEnvelope): object {
+  return {
+    event: envelope.event,
+    source: envelope.source,
+    scope: envelope.scope,
+    producer: envelope.producer,
+    causality: envelope.causality,
+    trace: envelope.trace,
+    idempotency: envelope.idempotency,
+    data: envelope.data,
+    payload: envelope.payload,
+  };
+}
+
+function assertEquivalentOutboxDelivery(
+  existing: EventEnvelope,
+  candidate: EventEnvelope,
+  eventId: string,
+): void {
+  if (
+    JSON.stringify(outboxDeliveryProjection(existing)) ===
+    JSON.stringify(outboxDeliveryProjection(candidate))
+  ) {
+    return;
+  }
+  throw new Error(
+    `Authoritative outbox event "${eventId}" was redelivered with different content`,
+  );
+}
+
 function parseEventJournalLine(
   line: string,
   path: string,
@@ -249,7 +306,7 @@ export function installEventJournal(
 ): () => void {
   return bus.addEmitMiddleware((envelope, next) => {
     const durable = journal.appendFromBusEnvelope(envelope);
-    envelope.eventId = durable.id;
+    if (envelope.eventId === undefined) envelope.eventId = durable.id;
     next();
   });
 }

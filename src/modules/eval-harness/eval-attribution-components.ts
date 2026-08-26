@@ -1,4 +1,4 @@
-import type { PersistedBaseline } from "./baseline-store.js";
+import type { PersistedBaseline } from "./baseline-state.js";
 import type { CodeHealthAggregate } from "./code-health-diagnostics.js";
 import {
   component,

@@ -19,11 +19,6 @@ export type RepairSummary = {
   attempts: number;
   failedChecksByAttempt: string[][];
   totalCostUsd: number;
-  continuation?: {
-    decision: string;
-    summary: string;
-    nextAction: string;
-  };
 };
 
 function summarizeStep(step: WorkflowStep): Record<string, unknown> {
@@ -106,39 +101,14 @@ function summarizeStep(step: WorkflowStep): Record<string, unknown> {
 
 export function extractRepairSummary(output: unknown): RepairSummary | null {
   const iterations = readRepairIterations(output);
-  const outputRecord = output as
-    | {
-        continuationDecisions?: Array<{
-          decision?: string;
-          summary?: string;
-          nextAction?: string;
-        }>;
-      }
-    | null;
-  const latestContinuation = outputRecord?.continuationDecisions?.at(-1);
-  const continuation =
-    typeof latestContinuation?.decision === "string" &&
-    typeof latestContinuation.summary === "string" &&
-    typeof latestContinuation.nextAction === "string"
-      ? {
-          decision: latestContinuation.decision,
-          summary: latestContinuation.summary,
-          nextAction: latestContinuation.nextAction,
-        }
-      : undefined;
-  if (iterations.length === 0 && continuation === undefined) return null;
+  if (iterations.length === 0) return null;
   let totalCostUsd = 0;
   const failedChecksByAttempt: string[][] = [];
   for (const iter of iterations) {
     failedChecksByAttempt.push(iter.failures.map((f) => f.id));
     totalCostUsd += iter.agentCostUsd ?? 0;
   }
-  return {
-    attempts: iterations.length,
-    failedChecksByAttempt,
-    totalCostUsd,
-    ...(continuation === undefined ? {} : { continuation }),
-  };
+  return { attempts: iterations.length, failedChecksByAttempt, totalCostUsd };
 }
 
 export function buildWorkflowSnapshot(workflow: WorkflowDefinition): WorkflowSnapshot {

@@ -75,7 +75,7 @@ export function showTask(projectDir: string, id: string): RepoTaskShowResult {
   return { found: false };
 }
 
-/** Replace a non-terminal task's markdown body through the canonical staged writer. */
+/** Replace a non-terminal task's markdown body through the path-safe domain writer. */
 export function updateTaskBody(
   projectDir: string,
   id: string,

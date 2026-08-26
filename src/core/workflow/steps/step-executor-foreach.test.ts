@@ -8,10 +8,12 @@ import type {
   AgentHarnessResult,
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
+import type { RunContext } from "../run-context.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowForeachStepInput } from "../step-input-control-flow.js";
 import type { WorkflowAgentStep } from "../step-types.js";
+import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
@@ -27,7 +29,7 @@ function makeDefinition(
   return {
     name: "test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -38,6 +40,46 @@ function makeDefinition(
 }
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
+
+function makeRunContext(
+  projectDir: string,
+  trigger: WorkflowRunTrigger = TRIGGER,
+): RunContext {
+  const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir: projectDir,
+      workspaceDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir: projectDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
 
 const AGENT_OK_RESULT: AgentHarnessResult = {
   text: "done",
@@ -132,7 +174,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -168,7 +210,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -206,7 +248,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -251,7 +293,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     // Workflow continues but has warnings
@@ -294,7 +336,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -333,7 +375,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -368,7 +410,7 @@ describe("foreach step – executor", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -424,7 +466,7 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -467,7 +509,7 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -503,14 +545,14 @@ describe("foreach step – maxConcurrency", () => {
       },
     ]);
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("completed-with-warnings");
     expect(processed.sort()).toEqual([0, 1, 2, 3]);
   });
 
-  it("runs agent iterations concurrently up to foreach and agent caps", async () => {
+  it("runs agent iterations concurrently up to the foreach cap", async () => {
     const harness = uniqueHarnessName("foreach-agent-cap");
     let active = 0;
     let maxActive = 0;
@@ -536,20 +578,19 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
-      agentConcurrency: 2,
     });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
     expect(calls).toBe(4);
-    expect(maxActive).toBe(2);
+    expect(maxActive).toBe(3);
   });
 
-  it("serializes agent iterations when agentConcurrency is 1", async () => {
+  it("serializes agent iterations when maxConcurrency is 1", async () => {
     const harness = uniqueHarnessName("foreach-agent-serial");
     let active = 0;
     let maxActive = 0;
@@ -565,7 +606,7 @@ describe("foreach step – maxConcurrency", () => {
       {
         id: "iterate",
         type: "foreach",
-        maxConcurrency: 3,
+        maxConcurrency: 1,
         items: () => [0, 1, 2],
         as: "n",
         steps: [makeAgentStep(projectDir, harness)],
@@ -573,11 +614,10 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
-      agentConcurrency: 1,
     });
     const result = await promise;
 
@@ -585,7 +625,7 @@ describe("foreach step – maxConcurrency", () => {
     expect(maxActive).toBe(1);
   });
 
-  it("serializes repair-loop agent iterations through agentConcurrency", async () => {
+  it("serializes repair-loop agent iterations through maxConcurrency", async () => {
     const harness = uniqueHarnessName("foreach-agent-repair-serial");
     let active = 0;
     let maxActive = 0;
@@ -608,7 +648,7 @@ describe("foreach step – maxConcurrency", () => {
       {
         id: "iterate",
         type: "foreach",
-        maxConcurrency: 2,
+        maxConcurrency: 1,
         items: () => [0, 1],
         as: "n",
         steps: [
@@ -635,11 +675,10 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
-      agentConcurrency: 1,
     });
     const result = await promise;
 
@@ -672,11 +711,10 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
-      agentConcurrency: 3,
     });
     const result = await promise;
 
@@ -721,11 +759,10 @@ describe("foreach step – maxConcurrency", () => {
     ]);
 
     const { promise: firstRun } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
-      agentConcurrency: 3,
     });
     const first = await firstRun;
     expect(first.metadata.status).toBe("completed-with-warnings");
@@ -736,15 +773,15 @@ describe("foreach step – maxConcurrency", () => {
       return { ...AGENT_OK_RESULT, text: `retry:${callIndex}` };
     });
 
+    const retryTrigger = makeRetryTrigger(first.metadata.id);
     const { promise: retryRun } = executeWorkflowRun(
       definition,
-      makeRetryTrigger(first.metadata.id),
+      retryTrigger,
       {
-        projectDir,
+        runContext: makeRunContext(projectDir, retryTrigger),
         bus,
         store,
         log,
-        agentConcurrency: 3,
       },
     );
     const retried = await retryRun;
@@ -772,6 +809,7 @@ describe("foreach step – validation", () => {
   function makeInput(steps: WorkflowForeachStepInput["steps"] = [{ id: "s", type: "code", run: () => 1 }]) {
     return validateWorkflowDefinitions([
       {
+        repository: "read",
         definitionPath: "test.ts",
         name: "test",
         triggers: [{ event: "runtime.idle" }],
@@ -797,6 +835,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -818,6 +857,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -843,6 +883,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -869,6 +910,7 @@ describe("foreach step – validation", () => {
   it("accepts maxConcurrency: 1", () => {
     const defs = validateWorkflowDefinitions([
       {
+        repository: "read",
         definitionPath: "test.ts",
         name: "test",
         triggers: [{ event: "runtime.idle" }],
@@ -898,6 +940,7 @@ describe("foreach step – validation", () => {
       const defs = validateWorkflowDefinitions(
         [
           {
+            repository: "read",
             definitionPath: "test.ts",
             name: "test",
             triggers: [{ event: "runtime.idle" }],
@@ -935,6 +978,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -963,6 +1007,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -985,6 +1030,7 @@ describe("foreach step – validation", () => {
     expect(() =>
       validateWorkflowDefinitions([
         {
+          repository: "read",
           definitionPath: "test.ts",
           name: "test",
           triggers: [{ event: "runtime.idle" }],
@@ -1052,7 +1098,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
     ]);
 
     // First run: items 0 and 2 succeed, item 1 fails
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     expect(first.metadata.status).toBe("completed-with-warnings");
     const firstId = first.metadata.id;
@@ -1081,7 +1127,13 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p2 } = executeWorkflowRun(fixedDefinition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    const retryTrigger = makeRetryTrigger(firstId);
+    const { promise: p2 } = executeWorkflowRun(fixedDefinition, retryTrigger, {
+      runContext: makeRunContext(projectDir, retryTrigger),
+      bus,
+      store,
+      log,
+    });
     const retried = await p2;
 
     // Only item 1 should have been re-run
@@ -1124,7 +1176,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     const firstId = first.metadata.id;
     processed.length = 0;
@@ -1152,7 +1204,13 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p2 } = executeWorkflowRun(expandedDefinition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    const retryTrigger = makeRetryTrigger(firstId);
+    const { promise: p2 } = executeWorkflowRun(expandedDefinition, retryTrigger, {
+      runContext: makeRunContext(projectDir, retryTrigger),
+      bus,
+      store,
+      log,
+    });
     await p2;
 
     // All 3 items run (full re-run due to count mismatch)
@@ -1193,7 +1251,7 @@ describe("foreach step – retryFailedItems partial-resume", () => {
       },
     ]);
 
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const first = await p1;
     expect(first.metadata.status).toBe("completed-with-warnings");
     const firstId = first.metadata.id;
@@ -1203,7 +1261,13 @@ describe("foreach step – retryFailedItems partial-resume", () => {
     // because findRetryFromIndex skips continueOnFailure failures without retryFailedItems.
     // However, "after" succeeded in the first run, so retryFromIndex goes past it too —
     // the whole workflow is considered fully complete and retryFromIndex = steps.length.
-    const { promise: p2 } = executeWorkflowRun(definition, makeRetryTrigger(firstId), { projectDir, bus, store, log });
+    const retryTrigger = makeRetryTrigger(firstId);
+    const { promise: p2 } = executeWorkflowRun(definition, retryTrigger, {
+      runContext: makeRunContext(projectDir, retryTrigger),
+      bus,
+      store,
+      log,
+    });
     const retried = await p2;
 
     // No items were processed — the foreach was not re-run

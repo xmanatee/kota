@@ -41,7 +41,6 @@ export type ScopeLifecycleBlockerKind =
   | "session"
   | "pending_approval"
   | "pending_work"
-  | "task_claim"
   | "resource_lease"
   | "inspection_failure";
 

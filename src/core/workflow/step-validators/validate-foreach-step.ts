@@ -81,8 +81,6 @@ export function validateForeachStep(
         innerIndex,
         `${stepLabel}.steps[${innerIndex}]`,
         {
-          allowWorkspaceDirUpdate: false,
-          allowRuntimeResourcesUpdate: false,
           allowRerunOnRetry: false,
         },
         options,

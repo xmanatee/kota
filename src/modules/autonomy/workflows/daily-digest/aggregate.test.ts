@@ -6,6 +6,7 @@ import {
   type OwnerQuestionEnqueueInput,
   OwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
+import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
 import { aggregateDailyDigest } from "./aggregate.js";
 
 function writeRunMetadata(
@@ -27,30 +28,47 @@ function writeRunMetadata(
   );
 }
 
-function writeBuilderRunSummary(
+function writeBuilderIntegrationEvidence(
   runsDir: string,
   id: string,
-  summary: Record<string, unknown>,
+  evidence: Record<string, unknown>,
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(dir, "run-summary.json"),
+    join(dir, WRITER_INTEGRATION_EVIDENCE),
     JSON.stringify({
+      version: 1,
       runId: id,
       workflow: "builder",
-      taskId: null,
-      taskTitle: null,
-      outcome: "success",
-      commitSha: "abc",
+      projectId: "project-daily-digest",
+      targetBranch: "main",
+      baseHead: "a".repeat(40),
+      integratedFromHead: "b".repeat(40),
+      publishedHead: "c".repeat(40),
+      commitSubject: "x",
       commitMessage: "x",
-      filesChanged: [],
-      costUsd: null,
-      durationMs: null,
+      changedPaths: [],
       completedAt: new Date().toISOString(),
-      ...summary,
+      ...evidence,
     }),
   );
+}
+
+function builderTrigger(taskId: string, title: string): Record<string, unknown> {
+  const taskDigest = "d".repeat(64);
+  return {
+    event: "autonomy.queue.available",
+    payload: {
+      taskId,
+      taskPath: `data/tasks/ready/${taskId}.md`,
+      taskState: "ready",
+      taskUpdatedAt: "2026-04-25T07:00:00.000Z",
+      taskDigest,
+      idempotencyKey: `builder:${taskId}:${taskDigest}`,
+      title,
+    },
+  };
 }
 
 function writeBlockedTask(
@@ -118,21 +136,20 @@ describe("aggregateDailyDigest", () => {
     });
   });
 
-  it("collects builder commits from run-summary.json", () => {
+  it("collects integrated builder commits from runtime delivery evidence", () => {
     const id = "2026-04-25-builder-a";
     writeRunMetadata(runsDir, id, {
       workflow: "builder",
+      trigger: builderTrigger("task-foo", "Foo"),
       status: "success",
       startedAt: new Date(NOW - 60_000).toISOString(),
       completedAt: new Date(NOW - 30_000).toISOString(),
       durationMs: 30_000,
       steps: [],
     });
-    writeBuilderRunSummary(runsDir, id, {
-      taskId: "task-foo",
-      taskTitle: "Foo",
+    writeBuilderIntegrationEvidence(runsDir, id, {
+      commitSubject: "Add foo",
       commitMessage: "Add foo\n\nBody",
-      durationMs: 30_000,
     });
     const data = aggregate();
     expect(data.quiet).toBe(false);
@@ -154,9 +171,8 @@ describe("aggregateDailyDigest", () => {
       durationMs: 1000,
       steps: [],
     });
-    writeBuilderRunSummary(runsDir, id, {
-      taskId: "task-old",
-      taskTitle: "Old",
+    writeBuilderIntegrationEvidence(runsDir, id, {
+      commitSubject: "Old",
       commitMessage: "Old",
     });
     const data = aggregate();

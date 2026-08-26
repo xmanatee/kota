@@ -83,7 +83,7 @@ function makeChannelStartContext(
     log: () => {},
     reportFailure: overrides.reportFailure ?? (() => {}),
     getWorkflowStatus: () => ({
-      runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
+      runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
       dispatchPaused: false,
       runsDir: "/tmp/.kota/runs",
     }),

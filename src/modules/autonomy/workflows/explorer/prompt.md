@@ -37,9 +37,9 @@ as `fan-out`; the autonomy loop should not default to them.
 
 ## Mandatory Rationale Artifact
 
-Every committing run must write
+Every repository-writing run must write
 `<run-directory>/exploration-rationale.json` documenting your decision.
-The repair loop rejects a commit without this file and re-runs you with
+The repair loop rejects missing rationale and re-runs you with
 the failing check surfaced. Schema:
 
 ```json
@@ -120,9 +120,9 @@ Write a JSON file at `<run-directory>/watchlist-updates.json`:
   `url` and `added` fields — the snapshot will populate on the next run.
 - Watchlist checks supplement open-ended discovery; do not let them dominate
   the run.
-- Writing `watchlist-updates.json` counts as a committing run because the
+- Writing `watchlist-updates.json` counts as a repository-writing run because the
   workflow applies it to `data/watchlist.yaml` after your step finishes. Follow
-  the workflow finish protocol for that case even if `git status` is clean
+  the normal evidence requirements for that case even if `git status` is clean
   before the apply step runs.
 
 ## Scope
@@ -142,7 +142,6 @@ Use `pnpm kota task create` to scaffold new task files, then follow
 
 - If nothing should change, leave the queue untouched, write
   `exploration-rationale.json` with `decision: "noop"` and an explicit
-  reason, and stop. Do not commit changes; the workflow's commit step
-  will skip on its own.
-- Otherwise follow the workflow finish protocol and ensure
+  reason, and stop. Runtime integration will remain a no-op.
+- Otherwise ensure
   `exploration-rationale.json` reflects what you actually did.

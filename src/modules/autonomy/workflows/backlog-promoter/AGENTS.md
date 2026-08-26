@@ -1,33 +1,18 @@
-# backlog-promoter
+# Backlog Promoter
 
-This workflow keeps `ready/` honest as the short execution queue. When the
-dispatcher reports actionable=0 with at least one non-anchor, dependency-clear,
-ready-actionable backlog task (`autonomy.queue.needs-promotion`) this workflow
-deterministically promotes a small batch of the best backlog candidates so
-builder runs land on intentionally selected work, not on whatever backlog
-ordering happens to produce.
+Keeps `ready/` as a short, intentional execution queue.
 
-Runtime contract:
-
-- Code-only workflow. No agent step, no per-step autonomy mode.
-- Recovery-capable: stashes any tracked dirt before doing anything else.
-- Never acts on a dirty worktree and never promotes more than
-  `PROMOTION_BATCH_LIMIT` tasks per run.
-- Ranking is deterministic in `promotion.ts`: priority (p0..p3), then a
-  narrow runtime-posture repair exception for generated workflow-failure Meta
-  tasks, then task class (Safety, Product, Platform, unclassified, Meta), then
-  strategic-area tie-break (architecture/autonomy/core/modules), then oldest
-  `updated_at`, then id. The same record set therefore picks the same batch
-  every run.
-- Tasks with `anchor: true` in frontmatter and tasks that would violate
-  `ready/` lifecycle rules are filtered out before ranking and recorded in
-  `rejected` with the exact reason. Anchors track an initiative across a
-  sequenced set of sub-slice tasks and never land in `ready/` themselves. See
-  `data/tasks/AGENTS.md` for the convention.
-- Every successful run writes `promotion-rationale.json` to its run directory:
-  candidates considered (backlog + blocked, so blocked alternatives are
-  visible), selected with per-pick reason, rejected (lower-ranked backlog and
-  stuck blocked work), and a human-readable `summary`.
-- The commit message echoes the rationale summary so the operator-facing
-  `git log` is enough to audit the loop's queue-shaping decisions; deeper
-  detail stays in the run-directory artifact.
+- Trigger on `autonomy.queue.needs-promotion` when no actionable work exists and
+  a dependency-clear, non-anchor backlog task can legally enter `ready`.
+- This code-only workflow declares repository write access and task validation.
+  Shared runtime owns its sandbox, capacity, recovery, commit, and publication.
+- Rank candidates deterministically by priority, narrow runtime-posture repair
+  exception, task class, strategic area, age, and id. Filter anchors and invalid
+  lifecycle transitions before ranking.
+- Promote no more than the bounded small batch. Write
+  `promotion-rationale.json` with considered, selected, and rejected candidates
+  plus a human-readable summary.
+- The commit message echoes the rationale summary so Git history remains useful;
+  the deeper explanation stays in the run artifact.
+- Tests cover selection, filtering, batch bounds, rationale, and task outcomes.
+  Shared runtime tests own isolation and integration behavior.

@@ -23,7 +23,9 @@ import type { WorkflowAgentStep } from "./step-types.js";
 import { AgentWriteScopeViolationError } from "./steps/agent-write-scope.js";
 import type { AgentStepResult } from "./steps/step-executor-agent.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import { createWorkflowCommandRunner } from "./workflow-command.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 const runAgentHarness = createWorkflowAgentHarnessRunner(undefined);
@@ -61,9 +63,10 @@ function registerRepairHarness(
 
 function makeContext(projectDir: string, workspaceDir: string): WorkflowStepContext {
   return {
-    projectDir,
+    projectDir: workspaceDir,
+    scopeDir: projectDir,
+    stateDir: join(projectDir, ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
-    workspaceDir,
     workflow: {
       name: "test-workflow",
       definitionPath: "src/modules/test/workflows/test/workflow.ts",
@@ -77,11 +80,13 @@ function makeContext(projectDir: string, workspaceDir: string): WorkflowStepCont
     stepResults: {},
     stepOutputList: [],
     runAgentHarness,
+    runCommand: createWorkflowCommandRunner({ cwd: workspaceDir }),
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),
     readPrompt: (promptPath) => readFileSync(join(projectDir, promptPath), "utf-8"),
-    readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+    readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+    state: createTestTransactionalRunState(),
     reportProgress: vi.fn(),
     triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
   };

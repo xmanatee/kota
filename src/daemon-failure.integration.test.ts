@@ -12,11 +12,12 @@ import {
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon failure and lifecycle", () => {
-  it("fails fast on corrupted daemon state files", () => {
+  it("fails fast on corrupted daemon state files", async () => {
     mkdirSync(stateDir, { recursive: true });
     writeFileSync(join(stateDir, "daemon-state.json"), "not json", "utf-8");
 
-    expect(() => makeDaemon({ workflows: [] })).toThrow(/daemon-state\.json/);
+    const daemon = makeDaemon({ workflows: [] });
+    await expect(daemon.start()).rejects.toThrow(/daemon-state\.json/);
   });
 
   it("fails before publishing control state when workflow definitions are invalid", async () => {
@@ -27,6 +28,7 @@ describe("Daemon failure and lifecycle", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -55,6 +57,8 @@ describe("Daemon failure and lifecycle", () => {
 
     const daemon = makeDaemon({ workflows: [] });
     const startPromise = daemon.start();
+
+    await expect.poll(() => process.listenerCount("SIGINT")).toBe(initialSigintCount + 1);
 
     expect(process.listenerCount("SIGINT")).toBe(initialSigintCount + 1);
     expect(process.listenerCount("SIGTERM")).toBe(initialSigtermCount + 1);
@@ -85,6 +89,7 @@ describe("Daemon failure and lifecycle", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -128,6 +133,7 @@ describe("Daemon failure and lifecycle", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -176,6 +182,7 @@ describe("Daemon failure and lifecycle", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -202,6 +209,20 @@ describe("Daemon failure and lifecycle", () => {
     await secondStart;
 
     expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops a context still being created and can start a fresh generation", async () => {
+    const daemon = makeDaemon({ workflows: [] });
+    const firstStart = daemon.start();
+    await daemon.stop(1, "programmatic", 1_000);
+    await firstStart;
+    expect(daemon.isRunning()).toBe(false);
+
+    const secondStart = daemon.start();
+    await expect.poll(() => daemon.isRunning()).toBe(true);
+    await daemon.stop(1, "programmatic", 1_000);
+    await secondStart;
+    expect(daemon.isRunning()).toBe(false);
   });
 
 });

@@ -1,18 +1,19 @@
 import { join } from "node:path";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
-  SCOPE_IMPROVEMENT_CONFIG_PATH,
+  SCOPE_IMPROVEMENT_CONFIG_FILE,
   SCOPE_IMPROVEMENT_DEFAULT_MAX_ACTIONS_PER_RUN,
   SCOPE_IMPROVEMENT_MAX_SIGNATURES,
-  SCOPE_IMPROVEMENT_STATE_PATH,
   type ScopeImprovementAppliedAction,
   type ScopeImprovementConfig,
   type ScopeImprovementInputs,
   type ScopeImprovementState,
 } from "./scope-improvement-types.js";
 
+export const SCOPE_IMPROVEMENT_STATE_KEY =
+  "autonomy/scope-improvement/semantic-state";
+
 type ConfigFile = Partial<ScopeImprovementConfig>;
-type StateFile = Partial<ScopeImprovementState>;
 
 function defaultConfig(): ScopeImprovementConfig {
   return {
@@ -22,8 +23,14 @@ function defaultConfig(): ScopeImprovementConfig {
 }
 
 export function readScopeImprovementConfig(projectDir: string): ScopeImprovementConfig {
+  return readScopeImprovementConfigFromStateDir(join(projectDir, ".kota"));
+}
+
+export function readScopeImprovementConfigFromStateDir(
+  stateDir: string,
+): ScopeImprovementConfig {
   const raw = readOptionalJsonFile<ConfigFile>(
-    join(projectDir, SCOPE_IMPROVEMENT_CONFIG_PATH),
+    join(stateDir, SCOPE_IMPROVEMENT_CONFIG_FILE),
   );
   const base = defaultConfig();
   if (!raw) return base;
@@ -36,81 +43,157 @@ export function readScopeImprovementConfig(projectDir: string): ScopeImprovement
   };
 }
 
-export function readScopeImprovementState(
-  projectDir: string,
-  scopeId: string,
-): ScopeImprovementState {
-  const raw = readOptionalJsonFile<StateFile>(
-    join(projectDir, SCOPE_IMPROVEMENT_STATE_PATH),
-  );
-  if (!raw) {
-    return {
-      scopeId,
-      lastRunAt: null,
-      consumedFingerprint: null,
-      pendingFingerprint: null,
-      pendingBoundary: null,
-      pendingDelivery: null,
-      pendingDeliveryAttempt: 0,
-      recentSignatures: [],
-    };
-  }
-  const pendingFingerprint =
-    typeof raw.pendingFingerprint === "string" ? raw.pendingFingerprint : null;
-  const pendingBoundary = raw.pendingBoundary === "initial-onboarding" ||
-      raw.pendingBoundary === "content-policy-changed"
-    ? raw.pendingBoundary
-    : pendingFingerprint
-      ? typeof raw.consumedFingerprint === "string"
-        ? "content-policy-changed"
-        : "initial-onboarding"
-      : null;
-  const pendingDelivery = raw.pendingDelivery === "queued" ||
-      raw.pendingDelivery === "deferred"
-    ? raw.pendingDelivery
-    : pendingFingerprint
-      ? "deferred"
-      : null;
-  const pendingDeliveryAttempt = Number.isInteger(raw.pendingDeliveryAttempt) &&
-      raw.pendingDeliveryAttempt! >= 0
-    ? raw.pendingDeliveryAttempt!
-    : 0;
+export function emptyScopeImprovementState(scopeId: string): ScopeImprovementState {
   return {
-    scopeId: typeof raw.scopeId === "string" ? raw.scopeId : scopeId,
-    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
-    consumedFingerprint:
-      typeof raw.consumedFingerprint === "string"
-        ? raw.consumedFingerprint
-        : null,
-    pendingFingerprint,
-    pendingBoundary,
-    pendingDelivery,
-    pendingDeliveryAttempt,
-    recentSignatures: Array.isArray(raw.recentSignatures)
-      ? raw.recentSignatures.filter(
-          (entry): entry is ScopeImprovementState["recentSignatures"][number] =>
-            typeof entry.signature === "string" &&
-            typeof entry.action === "string" &&
-            typeof entry.lastSeenAt === "string",
-        )
-      : [],
+    scopeId,
+    lastRunAt: null,
+    consumedFingerprint: null,
+    pendingFingerprint: null,
+    pendingBoundary: null,
+    pendingDelivery: null,
+    pendingDeliveryAttempt: 0,
+    recentSignatures: [],
   };
 }
 
-export function writeScopeImprovementState(args: {
-  projectDir: string;
+function nullableString(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string") {
+    throw new Error(`scope improvement state ${field} must be a string or null`);
+  }
+  return value;
+}
+
+export function decodeScopeImprovementState(
+  value: unknown,
+  scopeId: string,
+): ScopeImprovementState {
+  if (value === null || value === undefined) return emptyScopeImprovementState(scopeId);
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("scope improvement state must be an object");
+  }
+  const raw = value as Partial<ScopeImprovementState>;
+  if (raw.scopeId !== scopeId) {
+    throw new Error("scope improvement state does not belong to its runtime scope");
+  }
+  const pendingFingerprint = nullableString(
+    raw.pendingFingerprint,
+    "pendingFingerprint",
+  );
+  const pendingBoundary = raw.pendingBoundary === null || raw.pendingBoundary === undefined
+    ? null
+    : raw.pendingBoundary === "initial-onboarding" ||
+        raw.pendingBoundary === "content-policy-changed"
+      ? raw.pendingBoundary
+      : (() => {
+          throw new Error("scope improvement state has an invalid pending boundary");
+        })();
+  const pendingDelivery = raw.pendingDelivery === null || raw.pendingDelivery === undefined
+    ? null
+    : raw.pendingDelivery === "queued" || raw.pendingDelivery === "deferred"
+      ? raw.pendingDelivery
+      : (() => {
+          throw new Error("scope improvement state has an invalid pending delivery");
+        })();
+  if (!Number.isSafeInteger(raw.pendingDeliveryAttempt) || raw.pendingDeliveryAttempt! < 0) {
+    throw new Error("scope improvement state has an invalid delivery attempt");
+  }
+  if (!Array.isArray(raw.recentSignatures)) {
+    throw new Error("scope improvement state recentSignatures must be an array");
+  }
+  const recentSignatures = raw.recentSignatures.map((entry) => {
+    if (
+      !entry ||
+      typeof entry.signature !== "string" ||
+      typeof entry.action !== "string" ||
+      typeof entry.lastSeenAt !== "string"
+    ) {
+      throw new Error("scope improvement state has an invalid signature entry");
+    }
+    return {
+      signature: entry.signature,
+      action: entry.action,
+      lastSeenAt: entry.lastSeenAt,
+    };
+  });
+  return {
+    scopeId,
+    lastRunAt: nullableString(raw.lastRunAt, "lastRunAt"),
+    consumedFingerprint: nullableString(
+      raw.consumedFingerprint,
+      "consumedFingerprint",
+    ),
+    pendingFingerprint,
+    pendingBoundary,
+    pendingDelivery,
+    pendingDeliveryAttempt: raw.pendingDeliveryAttempt!,
+    recentSignatures,
+  };
+}
+
+export function reserveScopeImprovementInput(
+  state: ScopeImprovementState,
+  input: {
+    fingerprint: string;
+    boundary: "initial-onboarding" | "content-policy-changed";
+    delivery: "queued" | "deferred";
+    deliveryAttempt: number;
+  },
+): ScopeImprovementState {
+  if (!input.fingerprint) throw new Error("scope improvement fingerprint is required");
+  if (!Number.isSafeInteger(input.deliveryAttempt) || input.deliveryAttempt < 0) {
+    throw new Error("scope improvement delivery attempt must be non-negative");
+  }
+  return {
+    ...state,
+    pendingFingerprint: input.fingerprint,
+    pendingBoundary: input.boundary,
+    pendingDelivery: input.delivery,
+    pendingDeliveryAttempt: input.deliveryAttempt,
+  };
+}
+
+export function deferScopeImprovementInput(
+  current: ScopeImprovementState,
+  inputs: ScopeImprovementInputs,
+): ScopeImprovementState {
+  if (!inputs.semanticInput.automatic) return current;
+  if (inputs.triggerKind === "explicit-request") {
+    throw new Error("automatic scope improvement input requires a semantic boundary");
+  }
+  if (current.consumedFingerprint === inputs.semanticInput.fingerprint) return current;
+  if (
+    current.pendingFingerprint !== null &&
+    current.pendingFingerprint !== inputs.state.pendingFingerprint &&
+    current.pendingFingerprint !== inputs.semanticInput.fingerprint
+  ) {
+    return current;
+  }
+  return reserveScopeImprovementInput(current, {
+    fingerprint: inputs.semanticInput.fingerprint,
+    boundary: inputs.triggerKind,
+    delivery: "deferred",
+    deliveryAttempt: inputs.state.pendingDeliveryAttempt + 1,
+  });
+}
+
+export function completeScopeImprovementInput(input: {
+  current: ScopeImprovementState;
   inputs: ScopeImprovementInputs;
   actions: readonly ScopeImprovementAppliedAction[];
-}): void {
-  const now = args.inputs.generatedAt;
-  const automatic = args.inputs.semanticInput.automatic;
-  const currentState = automatic
-    ? args.inputs.state
-    : readScopeImprovementState(
-      args.projectDir,
-      args.inputs.scope.scopeId,
-    );
-  const recorded = args.actions
+}): ScopeImprovementState {
+  const { current, inputs } = input;
+  if (current.scopeId !== inputs.scope.scopeId) {
+    throw new Error("scope improvement state does not belong to its runtime scope");
+  }
+  const now = inputs.generatedAt;
+  if (current.lastRunAt !== null && current.lastRunAt >= now) return current;
+  const automatic = inputs.semanticInput.automatic;
+  const preserveNewerPending = automatic &&
+    current.pendingFingerprint !== null &&
+    current.pendingFingerprint !== inputs.state.pendingFingerprint &&
+    current.pendingFingerprint !== inputs.semanticInput.fingerprint;
+  const recorded = input.actions
     .filter((action) => action.kind !== "skipped")
     .map((action) => ({
       signature: action.signature,
@@ -119,57 +202,24 @@ export function writeScopeImprovementState(args: {
     }));
   const recentSignatures = [
     ...recorded,
-    ...currentState.recentSignatures.filter(
+    ...current.recentSignatures.filter(
       (entry) => !recorded.some((item) => item.signature === entry.signature),
     ),
   ].slice(0, SCOPE_IMPROVEMENT_MAX_SIGNATURES);
-  writeJsonFileAtomic(join(args.projectDir, SCOPE_IMPROVEMENT_STATE_PATH), {
-    scopeId: args.inputs.scope.scopeId,
+  return {
+    scopeId: inputs.scope.scopeId,
     lastRunAt: now,
     consumedFingerprint: automatic
-      ? args.inputs.semanticInput.fingerprint
-      : currentState.consumedFingerprint,
-    pendingFingerprint: automatic ? null : currentState.pendingFingerprint,
-    pendingBoundary: automatic ? null : currentState.pendingBoundary,
-    pendingDelivery: automatic ? null : currentState.pendingDelivery,
-    pendingDeliveryAttempt: automatic ? 0 : currentState.pendingDeliveryAttempt,
+      ? inputs.semanticInput.fingerprint
+      : current.consumedFingerprint,
+    pendingFingerprint:
+      automatic && !preserveNewerPending ? null : current.pendingFingerprint,
+    pendingBoundary:
+      automatic && !preserveNewerPending ? null : current.pendingBoundary,
+    pendingDelivery:
+      automatic && !preserveNewerPending ? null : current.pendingDelivery,
+    pendingDeliveryAttempt:
+      automatic && !preserveNewerPending ? 0 : current.pendingDeliveryAttempt,
     recentSignatures,
-  } satisfies ScopeImprovementState);
-}
-
-export function writePendingScopeFingerprint(args: {
-  projectDir: string;
-  scopeId: string;
-  fingerprint: string;
-  boundary: "initial-onboarding" | "content-policy-changed";
-  delivery: "queued" | "deferred";
-  deliveryAttempt: number;
-}): void {
-  const state = readScopeImprovementState(args.projectDir, args.scopeId);
-  writeJsonFileAtomic(join(args.projectDir, SCOPE_IMPROVEMENT_STATE_PATH), {
-    ...state,
-    scopeId: args.scopeId,
-    pendingFingerprint: args.fingerprint,
-    pendingBoundary: args.boundary,
-    pendingDelivery: args.delivery,
-    pendingDeliveryAttempt: args.deliveryAttempt,
-  } satisfies ScopeImprovementState);
-}
-
-export function deferScopeImprovementInput(
-  projectDir: string,
-  inputs: ScopeImprovementInputs,
-): void {
-  if (!inputs.semanticInput.automatic) return;
-  if (inputs.triggerKind === "explicit-request") {
-    throw new Error("automatic scope improvement input requires a semantic boundary");
-  }
-  writePendingScopeFingerprint({
-    projectDir,
-    scopeId: inputs.scope.scopeId,
-    fingerprint: inputs.semanticInput.fingerprint,
-    boundary: inputs.triggerKind,
-    delivery: "deferred",
-    deliveryAttempt: inputs.state.pendingDeliveryAttempt + 1,
-  });
+  };
 }

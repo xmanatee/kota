@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import type { PersistedBaseline } from "./baseline-store.js";
+import type { PersistedBaseline } from "./baseline-state.js";
 import type { PriorEvalSetReport } from "./eval-attribution-types.js";
 import { readJsonFile } from "./eval-attribution-util.js";
 

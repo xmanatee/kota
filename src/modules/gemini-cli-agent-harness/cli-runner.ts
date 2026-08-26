@@ -16,6 +16,7 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
+import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import {
   type CollectedGeminiOutput,
   collectGeminiOutput,
@@ -68,6 +69,7 @@ type CollectTextFromGeminiCliArgs = {
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
   onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
+  onProcessSpawn: AgentHarnessRunOptions["onProcessSpawn"] | undefined;
 };
 
 async function runGeminiCliProcess(
@@ -80,6 +82,12 @@ async function runGeminiCliProcess(
     ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  try {
+    ProcessSupervisor.notifySpawnedProcessGroup(child.pid, args.onProcessSpawn);
+  } catch (error) {
+    signalNativeCliProcessGroup(child, "SIGKILL");
+    throw error;
+  }
 
   const stderr: string[] = [];
   let spawnError: string | undefined;

@@ -10,11 +10,13 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { EMITTED_EVENTS_LOG_FILENAME } from "../run-event-evidence.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
+import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
-import { createStepContext, EMITTED_EVENTS_LOG_FILENAME } from "./step-context.js";
+import { createStepContext } from "./step-context.js";
 
 function tempProject(): string {
   const dir = join(
@@ -49,6 +51,116 @@ afterEach(() => {
 });
 
 describe("createStepContext", () => {
+  it.skipIf(process.platform === "win32")(
+    "registers command processes with the run-owned registry",
+    async () => {
+      const projectDir = tempProject();
+      try {
+        const bus = new EventBus();
+        const pbus = new ProjectScopedEventBus(bus, "scope-a");
+        const store = new WorkflowRunStore(projectDir);
+        const register = vi.fn();
+
+        const context = createStepContext(
+          makeMetadata(),
+          trigger,
+          undefined,
+          {},
+          {},
+          [],
+          {
+            projectDir,
+            scopeDir: projectDir,
+            bus,
+            pbus,
+            store,
+            runContext: {
+              sandbox: { repository: "read" },
+              signal: new AbortController().signal,
+              processes: { register },
+              effects: { execute: (input) => input.execute() },
+              publications: { stageEmit: () => {} },
+              state: createTestTransactionalRunState(),
+            },
+            runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+          },
+        );
+
+        const result = await context.runCommand({
+          command: process.execPath,
+          args: ["-e", "process.stdout.write('registered')"],
+        });
+
+        expect(result.stdout.text).toBe("registered");
+        expect(register).toHaveBeenCalledOnce();
+        expect(register).toHaveBeenCalledWith(result.identity);
+      } finally {
+        rmSync(projectDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("stages every writer code-step event until integration succeeds", () => {
+    const projectDir = tempProject();
+    try {
+      const event = defineDaemonWideModuleEvent<{ value: number }>(
+        "step-context.writer.completed",
+        ["value"],
+        {
+          payloadSchema: {
+            type: "object",
+            properties: { value: { type: "number" } },
+            additionalProperties: false,
+          },
+        },
+      );
+      initModuleEventRegistry().register("step-context-test", event);
+      const bus = new EventBus();
+      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const store = new WorkflowRunStore(projectDir);
+      const stageEmit = vi.fn();
+      const observed = vi.fn();
+      bus.on("*", observed);
+
+      const context = createStepContext(
+        makeMetadata(),
+        trigger,
+        undefined,
+        {},
+        {},
+        [],
+        {
+          projectDir,
+          scopeDir: projectDir,
+          bus,
+          pbus,
+          store,
+          currentStepId: "mutate",
+          runContext: {
+            sandbox: { repository: "write" },
+            signal: new AbortController().signal,
+            processes: { register: () => undefined },
+            effects: { execute: (input) => input.execute() },
+            publications: { stageEmit },
+            state: createTestTransactionalRunState(),
+          },
+          runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+        },
+      );
+
+      context.emit(event.name, { value: 1 });
+      context.emit(event.name, { value: 2 });
+
+      expect(observed).not.toHaveBeenCalled();
+      expect(stageEmit.mock.calls).toEqual([
+        ["mutate:emit:0", event.name, { value: 1 }],
+        ["mutate:emit:1", event.name, { value: 2 }],
+      ]);
+    } finally {
+      rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("separates the canonical project root from the workflow workspace", async () => {
     const projectDir = tempProject();
     try {
@@ -68,8 +180,8 @@ describe("createStepContext", () => {
         {},
         [],
         {
-          projectDir,
-          workspaceDir,
+          projectDir: workspaceDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store,
@@ -143,6 +255,7 @@ describe("createStepContext", () => {
         [],
         {
           projectDir,
+          scopeDir: projectDir,
           bus,
           pbus,
           store,

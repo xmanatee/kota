@@ -2,23 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
-import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  runCheck,
-  stepCommitRequiresDaemonRestart,
-  stepSucceeded,
-} from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
+import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import {
   collectInputs,
@@ -31,11 +15,14 @@ import {
   applyScopeImprovementRecommendationsOperation,
   type ScopeImprovementActionResult,
   type ScopeImprovementArtifact,
-  type ScopeImprovementConsumptionDecision,
   type ScopeImprovementPreflight,
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
-import { recordScopeImprovementConsumptionOperation } from "./scope-improvement-consumption.js";
+import { decideScopeImprovementConsumption } from "./scope-improvement-consumption.js";
+import {
+  SCOPE_IMPROVEMENT_PUBLICATION_REQUESTED_EVENT,
+  scopeImprovementPublicationKey,
+} from "./scope-improvement-publication.js";
 import { admitScopeImprovementTrigger } from "./semantic-request.js";
 import { scopeImproverTriggers } from "./triggers.js";
 
@@ -61,35 +48,6 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
       inputs: collectInputs.outputRequired(ctx),
       recommendations: recommend.outputRequired(ctx).recommendations,
     }),
-});
-
-function hasVisibleActions(actions: ScopeImprovementActionResult): boolean {
-  return (
-    actions.createdTaskIds.length > 0 ||
-    actions.ownerQuestionIds.length > 0
-  );
-}
-
-const recordSemanticConsumption = typedCodeStep<ScopeImprovementConsumptionDecision>({
-  id: "record-semantic-consumption",
-  type: "code",
-  when: stepSucceeded("recommend-improvements"),
-  validate: (raw) =>
-    expectStructuredOutput<ScopeImprovementConsumptionDecision>(raw, [
-      "recorded",
-      "reason",
-    ]),
-  run: (ctx) => {
-    const inputs = collectInputs.outputRequired(ctx);
-    const recommendations = recommend.output(ctx)?.recommendations ?? [];
-    return ctx.runBlocking(recordScopeImprovementConsumptionOperation, {
-      projectDir: ctx.projectDir,
-      inputs,
-      recommendationCount: recommendations.length,
-      worktreeClean: inspectWorktree.output(ctx)?.dirty === false,
-      actionApplied: applyRecommendations.output(ctx) !== undefined,
-    });
-  },
 });
 
 function emptyActions(): ScopeImprovementActionResult {
@@ -125,17 +83,23 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       "path",
     ]),
   run: (ctx) => {
+    const inputs = collectInputs.outputRequired(ctx);
+    const recommendations = recommend.output(ctx)?.recommendations ?? [];
+    const actions = applyRecommendations.output(ctx) ?? emptyActions();
     const artifact: ScopeImprovementArtifact = {
+      schemaVersion: 1,
       generatedAt: new Date().toISOString(),
       preflight: scopeImproverPreflight(ctx),
-      inputs: collectInputs.outputRequired(ctx),
+      inputs,
       evidence: gatherEvidence.outputRequired(ctx),
-      recommendations: recommend.output(ctx)?.recommendations ?? [],
-      actions: applyRecommendations.output(ctx) ?? emptyActions(),
-      consumption: recordSemanticConsumption.output(ctx) ?? {
-        recorded: false,
-        reason: null,
-      },
+      recommendations,
+      actions,
+      consumption: decideScopeImprovementConsumption({
+        inputs,
+        recommendationCount: recommendations.length,
+        worktreeClean: inspectWorktree.output(ctx)?.dirty === false,
+        actionApplied: applyRecommendations.output(ctx) !== undefined,
+      }),
     };
     return {
       written: true,
@@ -166,8 +130,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
   validate: (raw) => {
@@ -180,90 +144,49 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
       projectDir: ctx.projectDir,
       options: { minReady: 0 },
     });
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
 });
 
-const commitChanges = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit",
-  type: "code",
-  when: (ctx) => validateBeforeCommit.output(ctx)?.ok === true,
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
-});
-
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
   name: "scope-improver",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
   tags: ["scope-improvement"],
-  recoveryCapable: true,
   triggerAdmission: admitScopeImprovementTrigger,
   triggers: scopeImproverTriggers,
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "scope-improver",
-        }),
-    },
     inspectWorktree,
     collectInputs,
     discoverCandidates,
     gatherEvidence,
     recommend,
     applyRecommendations,
-    recordSemanticConsumption,
     writeArtifact,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
+    validateChanges,
     {
-      id: "emit-applied",
+      id: "emit-scope-improvement-publication",
       type: "emit",
-      when: (ctx) => {
-        if (!stepSucceeded("write-artifact")(ctx)) return false;
-        const actions = applyRecommendations.output(ctx);
-        return actions ? hasVisibleActions(actions) : false;
-      },
-      event: "workflow.attention.digest",
+      when: stepSucceeded("write-artifact"),
+      event: SCOPE_IMPROVEMENT_PUBLICATION_REQUESTED_EVENT,
       payload: (ctx) => {
-        const actions = applyRecommendations.output(ctx) ?? emptyActions();
+        const publicationKey = scopeImprovementPublicationKey(
+          ctx.workflow.runId,
+        );
         return {
-          items: [
-            {
-              label: "Scope improvement",
-              detail:
-                `tasks=${actions.createdTaskIds.length} ` +
-                `questions=${actions.ownerQuestionIds.length}`,
-            },
-          ],
-          text:
-            "Scope improvement run completed.\n" +
-            `Tasks: ${actions.createdTaskIds.join(", ") || "none"}\n` +
-            `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}`,
+          idempotencyKey: publicationKey,
+          publicationKey,
+          sourceRunId: ctx.workflow.runId,
         };
       },
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "scope-improver committed scoped improvement actions",
-      requires: ["commit"],
     },
   ],
 };

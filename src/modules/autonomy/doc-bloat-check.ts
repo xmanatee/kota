@@ -1,4 +1,4 @@
-import { parseAddedLinesByFile, readStagedDiff } from "./staged-diff.js";
+import { parseAddedLinesByFile, readWorkflowDiff } from "./workflow-diff.js";
 
 const DOC_PATH_RE = /(?:^|\/)(?:AGENTS\.md|CLAUDE\.md)$/;
 const DOCS_DIR_RE = /^docs\/.+\.md$/;
@@ -97,7 +97,7 @@ export function formatDocBloatMessage(findings: DocBloatFinding[]): string {
 }
 
 function readStagedDocDiff(projectDir: string): string {
-  return readStagedDiff(projectDir, ["*AGENTS.md", "*CLAUDE.md", "docs/**/*.md"]);
+  return readWorkflowDiff(projectDir, ["*AGENTS.md", "*CLAUDE.md", "docs/**/*.md"]);
 }
 
 export function checkDocBloat(projectDir: string): string {

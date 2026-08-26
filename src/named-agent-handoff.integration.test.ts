@@ -18,6 +18,7 @@ import {
 import { executeTool } from "#core/tools/index.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
 import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
@@ -116,10 +117,7 @@ describe("named agent handoff workflow integration", () => {
               toolUseId: "child-bash-tool",
             },
           );
-          if (
-            guardDecision?.behavior !== "deny" ||
-            !guardDecision.message.includes("Workflow agents must not run `git commit`")
-          ) {
+          if (guardDecision?.behavior !== "deny") {
             return harnessError("child did not inherit workflow canUseTool guard");
           }
           return {
@@ -212,6 +210,7 @@ describe("named agent handoff workflow integration", () => {
       [
         registerWorkflowDefinition("src/modules/test/workflows/handoff/workflow.ts", {
           name: "handoff-workflow",
+          repository: "read",
           triggers: [{ event: "runtime.idle" }],
           steps: [
             {
@@ -268,7 +267,11 @@ describe("named agent handoff workflow integration", () => {
       definition,
       { event: "runtime.idle", schemaRef: null, payload: {} },
       {
-        projectDir,
+        runContext: createTestRunContext(projectDir, {
+          event: "runtime.idle",
+          schemaRef: null,
+          payload: {},
+        }),
         bus,
         store,
         log: vi.fn(),

@@ -1,11 +1,6 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
   AUTONOMY_AGENT_DEFAULTS,
-  stepCommitRequiresDaemonRestart,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
@@ -17,30 +12,32 @@ import {
   validateProgressReviewAgentStepOutput,
 } from "./progress-review.js";
 import { admitProgressReviewTrigger } from "./semantic-input.js";
+import {
+  PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT,
+  progressReviewPublicationKey,
+} from "./semantic-publication.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
 import {
   agent,
   applyActions,
   collectEvidence,
-  commitChanges,
-  deferSemanticInput,
   emptyActions,
   inspectSemanticInput,
-  inspectWorktree,
   needsAttention,
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
-  validateBeforeCommit,
+  validateChanges,
   writeArtifact,
   writeCommitMessage,
 } from "./workflow-steps.js";
 
 const progressReviewerWorkflow: WorkflowDefinitionInput = {
   name: "progress-reviewer",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Review revisioned strategic boundaries against canonical scope state and reconcile normal steering work.",
   tags: ["progress-reviewer"],
-  recoveryCapable: true,
   // Capable-tier presets may resolve to a native CLI harness. The reviewer is
   // bounded by its projected AgentDef writeScope plus the post-step mutation
   // check.
@@ -57,24 +54,9 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       cooldownMs: 0,
       queueMode: "latest",
     },
-    {
-      event: "runtime.recovered",
-    },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "progress-reviewer",
-        }),
-    },
     inspectSemanticInput,
-    inspectWorktree,
-    deferSemanticInput,
     collectEvidence,
     prepareReviewInput,
     {
@@ -91,14 +73,26 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       validate: validateProgressReviewAgentStepOutput,
       when: (ctx) =>
         stepSucceeded("prepare-review-input")(ctx) &&
-        inspectSemanticInput.output(ctx)?.shouldReview === true &&
-        inspectWorktree.output(ctx)?.dirty === false,
+        inspectSemanticInput.output(ctx)?.shouldReview === true,
     },
     applyActions,
     writeArtifact,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitChanges,
+    validateChanges,
+    {
+      id: "emit-progress-publication",
+      type: "emit",
+      when: stepSucceeded("write-artifact"),
+      event: PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT,
+      payload: (ctx) => {
+        const publicationKey = progressReviewPublicationKey(ctx.workflow.runId);
+        return {
+          idempotencyKey: publicationKey,
+          publicationKey,
+          sourceRunId: ctx.workflow.runId,
+        };
+      },
+    },
     {
       id: "emit-attention",
       type: "emit",
@@ -123,13 +117,6 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
             `Owner questions: ${actions.ownerQuestionIds.join(", ") || "none"}`,
         };
       },
-    },
-    {
-      id: "request-restart",
-      type: "restart",
-      when: stepCommitRequiresDaemonRestart("commit"),
-      reason: "progress-reviewer committed progress review follow-up tasks",
-      requires: ["commit"],
     },
   ],
 };

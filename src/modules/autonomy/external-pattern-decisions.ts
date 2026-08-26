@@ -181,28 +181,6 @@ export const EXTERNAL_PATTERN_DECISIONS: readonly ExternalPatternDecision[] = [
       "primitive our planner/generator/evaluator triad cannot express.",
   },
   {
-    pattern: "Multi-Claude parallel builds",
-    verdict: "reject",
-    source:
-      "Anthropic Claude Code worktrees/agent-teams docs, Codex app worktrees, " +
-      "AgenticFlict conflict study, and KOTA worktree-backed autonomy decision",
-    date: "2026-06-26",
-    kotaPrimitives: [
-      "builder",
-      "critic",
-      "workspaceDir",
-      "task claim lease",
-      "git worktree lifecycle",
-      "merge gate",
-      "scheduler concurrency",
-    ],
-    revisitWhen:
-      "Direct adoption remains rejected until KOTA's own workspaceDir " +
-      "execution, git-module lifecycle, task claim leases, merge gate, " +
-      "status/cleanup controls, and guarded parallel-builder fixtures " +
-      "are complete.",
-  },
-  {
     pattern: "Claude Code 1M context + session management",
     verdict: "reject",
     source: "Anthropic Claude Code 1M-context and session-management post",

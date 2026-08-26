@@ -1,6 +1,6 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Scheduler } from "#core/daemon/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
@@ -29,6 +29,7 @@ describe("Daemon runtime state", () => {
     const daemon = makeDaemon({
       workflows: [
         registerWorkflowDefinition("test/builder.ts", {
+          repository: "read",
           name: "builder",
           triggers: [{ event: "runtime.idle" }],
           steps: [
@@ -45,20 +46,19 @@ describe("Daemon runtime state", () => {
       ],
     });
     const startPromise = daemon.start();
-    try {
-      await vi.waitFor(
-        () => {
-          const state = daemon.getDashboardSnapshot();
-          expect(state.completedRuns).toBeGreaterThanOrEqual(1);
-          expect(state.lastCompletedWorkflow).toBe("builder");
-          expect(state.lastCompletedStatus).toBe("success");
-        },
-        { interval: 20, timeout: 10_000 },
-      );
-    } finally {
-      await daemon.stop();
-      await startPromise;
+    await daemon.whenReady();
+    const deadline = Date.now() + 5_000;
+    while (daemon.getDashboardSnapshot().completedRuns < 1 && Date.now() < deadline) {
+      await wait(20);
     }
+
+    const state = daemon.getDashboardSnapshot();
+    expect(state.completedRuns).toBeGreaterThanOrEqual(1);
+    expect(state.lastCompletedWorkflow).toBe("builder");
+    expect(state.lastCompletedStatus).toBe("success");
+
+    await daemon.stop();
+    await startPromise;
   });
 
   it("handles scheduled notification items when they fire", async () => {

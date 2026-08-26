@@ -19,7 +19,6 @@ import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import {
@@ -27,6 +26,7 @@ import {
   seedAutonomousLoopFixture,
   wait,
 } from "./autonomous-loop.integration-test-helpers.js";
+import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -86,7 +86,7 @@ describe("autonomous workflow loop integration", () => {
       });
 
       const bus = new EventBus();
-      const runtime = new WorkflowRuntime({
+      const runtimeHarness = createTestWorkflowRuntime({
         config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
         bus,
         projectDir,
@@ -96,9 +96,9 @@ describe("autonomous workflow loop integration", () => {
         ),
       });
 
-      runtime.start();
+      runtimeHarness.runtime.start();
       await wait(500);
-      await runtime.stop();
+      await runtimeHarness.stop();
 
       const runsDir = join(projectDir, ".kota", "runs");
       const runIds = readdirSync(runsDir);
@@ -212,16 +212,16 @@ describe("autonomous workflow loop integration", () => {
         } as never);
 
         const bus = new EventBus();
-        const runtime = new WorkflowRuntime({
+        const runtimeHarness = createTestWorkflowRuntime({
           config: operatorConfig,
           bus,
           projectDir: externalProjectDir,
           idleIntervalMs: 10,
           workflows: compiled.filter((w) => w.name === "dispatcher"),
         });
-        runtime.start();
+        runtimeHarness.runtime.start();
         await wait(200);
-        await runtime.stop();
+        await runtimeHarness.stop();
 
         // No crash means the daemon booted and ticked at least once against
         // the external project directory using KOTA-owned workflow prompts.

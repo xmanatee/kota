@@ -6,7 +6,7 @@ import { assembleWorkflowGraph } from "./assemble.js";
 
 function makeDef(
   overrides: Partial<RegisteredWorkflowDefinitionInput> &
-    Pick<RegisteredWorkflowDefinitionInput, "name">,
+    Pick<RegisteredWorkflowDefinitionInput, "name" | "repository">,
 ): RegisteredWorkflowDefinitionInput {
   return {
     definitionPath: `src/modules/test/workflows/${overrides.name}/workflow.ts`,
@@ -27,6 +27,7 @@ describe("assembleWorkflowGraph", () => {
   it("builds workflow nodes with metadata", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "builder",
         description: "Builds things",
         enabled: true,
@@ -42,13 +43,15 @@ describe("assembleWorkflowGraph", () => {
   });
 
   it("defaults enabled to true when omitted", () => {
-    const graph = assembleWorkflowGraph([makeDef({ name: "test" })]);
+    const graph = assembleWorkflowGraph([
+      makeDef({ repository: "read", name: "test" }),
+    ]);
     expect(graph.workflows[0].enabled).toBe(true);
   });
 
   it("respects enabled: false", () => {
     const graph = assembleWorkflowGraph([
-      makeDef({ name: "test", enabled: false }),
+      makeDef({ repository: "read", name: "test", enabled: false }),
     ]);
     expect(graph.workflows[0].enabled).toBe(false);
   });
@@ -56,6 +59,7 @@ describe("assembleWorkflowGraph", () => {
   it("extracts trigger summaries from event triggers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "test",
         triggers: [
           { event: "autonomy.queue.available", cooldownMs: 5000 },
@@ -74,6 +78,7 @@ describe("assembleWorkflowGraph", () => {
   it("extracts trigger summaries from schedule triggers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "cron-job",
         triggers: [{ event: "schedule", schedule: "0 9 * * *" }],
       }),
@@ -86,6 +91,7 @@ describe("assembleWorkflowGraph", () => {
   it("extracts trigger summaries from watch triggers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "watcher",
         triggers: [{ event: "files.changed", watch: ["src/**/*.ts"] }],
       }),
@@ -98,6 +104,7 @@ describe("assembleWorkflowGraph", () => {
   it("extracts trigger summaries from interval triggers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "poller",
         triggers: [{ event: "interval", intervalMs: 60_000 }],
       }),
@@ -110,6 +117,7 @@ describe("assembleWorkflowGraph", () => {
   it("includes trigger filter in summary", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "filtered",
         triggers: [
           { event: "workflow.completed", filter: { workflowName: "builder" } },
@@ -124,20 +132,22 @@ describe("assembleWorkflowGraph", () => {
   it("collects emitted events from emit steps", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "emitter",
         steps: [
-          { type: "emit", id: "notify", event: "workflow.build.committed" },
+          { type: "emit", id: "notify", event: "example.completed" },
           { type: "emit", id: "alert", event: "workflow.failure.alert" },
         ],
       }),
     ]);
     const wf = graph.workflows[0];
-    expect(wf.emits).toEqual(["workflow.build.committed", "workflow.failure.alert"]);
+    expect(wf.emits).toEqual(["example.completed", "workflow.failure.alert"]);
   });
 
   it("deduplicates emitted events", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "emitter",
         steps: [
           { type: "emit", id: "a", event: "same.event" },
@@ -151,6 +161,7 @@ describe("assembleWorkflowGraph", () => {
   it("collects emitted events from branch steps", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "brancher",
         steps: [
           {
@@ -170,6 +181,7 @@ describe("assembleWorkflowGraph", () => {
   it("collects direct workflow triggers from trigger steps", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "orchestrator",
         steps: [
           { type: "trigger", id: "kick", workflow: "builder" },
@@ -182,6 +194,7 @@ describe("assembleWorkflowGraph", () => {
   it("collects agent names from agent steps", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "builder",
         steps: [
           {
@@ -201,6 +214,7 @@ describe("assembleWorkflowGraph", () => {
   it("collects agents from parallel steps", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "parallel-wf",
         steps: [
           {
@@ -220,6 +234,7 @@ describe("assembleWorkflowGraph", () => {
   it("summarizes step types and agent details", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "multi-step",
         steps: [
           { type: "code", id: "init", run: () => {} },
@@ -301,6 +316,7 @@ describe("assembleWorkflowGraph", () => {
     const graph = assembleWorkflowGraph(
       [
         makeDef({
+          repository: "read",
           name: "tool-workflow",
           steps: [
             {
@@ -336,6 +352,7 @@ describe("assembleWorkflowGraph", () => {
   it("marks steps with when predicates as conditional", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "conditional",
         steps: [
           { type: "code", id: "always", run: () => {} },
@@ -351,6 +368,7 @@ describe("assembleWorkflowGraph", () => {
   it("builds event nodes linking producers to consumers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "dispatcher",
         triggers: [{ event: "runtime.idle" }],
         steps: [
@@ -358,6 +376,7 @@ describe("assembleWorkflowGraph", () => {
         ],
       }),
       makeDef({
+        repository: "read",
         name: "builder",
         triggers: [{ event: "autonomy.queue.available" }],
         steps: [],
@@ -375,6 +394,7 @@ describe("assembleWorkflowGraph", () => {
   it("shows external events with no producers", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "listener",
         triggers: [{ event: "external.webhook" }],
         steps: [],
@@ -390,6 +410,7 @@ describe("assembleWorkflowGraph", () => {
   it("excludes schedule/interval from event nodes", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "cron-job",
         triggers: [{ event: "schedule", schedule: "0 9 * * *" }],
         steps: [],
@@ -401,12 +422,14 @@ describe("assembleWorkflowGraph", () => {
   it("aggregates agents across multiple workflows", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "wf1",
         steps: [
           { type: "agent", id: "a", agentName: "builder", model: "m", effort: "xhigh" },
         ],
       }),
       makeDef({
+        repository: "read",
         name: "wf2",
         steps: [
           { type: "agent", id: "b", agentName: "explorer", model: "m", effort: "xhigh" },
@@ -420,6 +443,7 @@ describe("assembleWorkflowGraph", () => {
   it("handles parallel step children in summary", () => {
     const graph = assembleWorkflowGraph([
       makeDef({
+        repository: "read",
         name: "par",
         steps: [
           {

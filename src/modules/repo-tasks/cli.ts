@@ -177,14 +177,12 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 	taskCmd
 		.command("gc")
 		.description(
-			"Archive or delete terminal tasks (done, dropped) older than a threshold.\n\n" +
-			"  Tasks are moved to .kota/task-archive/ by default. Pass --delete to remove\n" +
-			"  them permanently. Only done and dropped tasks are eligible.",
+			"Remove terminal tasks (done, dropped) older than a threshold.\n\n" +
+			"  Removed tasks remain available in Git history. Only done and dropped tasks are eligible.",
 		)
-		.option("--days <n>", "Archive tasks older than N days (default: 30)")
-		.option("--delete", "Permanently delete instead of archiving")
+		.option("--days <n>", "Remove tasks older than N days (default: 30)")
 		.option("--dry-run", "Print what would be done without mutating anything")
-		.action(async (opts: { days?: string; delete?: boolean; dryRun?: boolean }) => {
+		.action(async (opts: { days?: string; dryRun?: boolean }) => {
 			const days = opts.days != null ? Number.parseInt(opts.days, 10) : 30;
 			if (Number.isNaN(days) || days <= 0) {
 				printToStderr(line(span("--days must be a positive number", "error")));
@@ -192,17 +190,16 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 			}
 			const result = await ctx.client.tasks.gc({
 				days,
-				...(opts.delete !== undefined && { delete: opts.delete }),
 				...(opts.dryRun !== undefined && { dryRun: opts.dryRun }),
 			});
-			const affected = opts.delete ? result.deleted : result.archived;
+			const affected = result.removed;
 			if (affected.length === 0) {
-				print(line(plain("Nothing to archive.")));
+				print(line(plain("Nothing to remove.")));
 				return;
 			}
 			const verb = opts.dryRun
-				? opts.delete ? "Would delete" : "Would archive"
-				: opts.delete ? "Deleted" : "Archived";
+				? "Would remove"
+				: "Removed";
 			const header: LineNode = line(plain(
 				`${verb} ${affected.length} task${affected.length === 1 ? "" : "s"}:`,
 			));

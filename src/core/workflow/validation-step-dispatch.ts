@@ -40,8 +40,6 @@ export function validateStep(
   workflowDefaultAutonomyMode: AutonomyMode | undefined,
   options: WorkflowValidationOptions,
   codeStepPlacement: {
-    allowWorkspaceDirUpdate?: boolean;
-    allowRuntimeResourcesUpdate?: boolean;
     allowRerunOnRetry?: boolean;
   } = {},
   stepLabel = `steps[${index}]`,
@@ -106,8 +104,6 @@ export function validateStep(
           armDefault,
           options,
           {
-            allowWorkspaceDirUpdate: false,
-            allowRuntimeResourcesUpdate: true,
             allowRerunOnRetry: false,
           },
           armStepLabel,

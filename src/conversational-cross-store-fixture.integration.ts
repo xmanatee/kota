@@ -20,7 +20,6 @@
  * the openai-tools harness against a scripted ModelClient.
  */
 
-import { execSync } from "node:child_process";
 import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -76,6 +75,10 @@ import {
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallToolDef } from "#modules/recall/tool.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 import {
   createInboxContributor as createInboxRetractContributor,
@@ -103,10 +106,11 @@ export type CrossStoreFixture = {
 };
 
 export function makeCrossStoreProjectRoot(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), prefix));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "conversational-cross-store",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
@@ -188,8 +192,9 @@ export function buildCrossStoreFixture(
   });
   captureProvider.register(createMemoryCaptureContributor(memoryStore));
   captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-  captureProvider.register(createTasksCaptureContributor(projectRoot));
-  captureProvider.register(createInboxCaptureContributor(projectRoot));
+  const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+  captureProvider.register(createTasksCaptureContributor(mutationTarget));
+  captureProvider.register(createInboxCaptureContributor(mutationTarget));
 
   const recallProvider = new RecallProviderImpl({
     onContributorError: () => {},
@@ -209,8 +214,8 @@ export function buildCrossStoreFixture(
   const retractProvider = new RetractProviderImpl();
   retractProvider.register(createMemoryRetractContributor(memoryStore));
   retractProvider.register(createKnowledgeRetractContributor(knowledgeStore));
-  retractProvider.register(createTasksRetractContributor(projectRoot));
-  retractProvider.register(createInboxRetractContributor(projectRoot));
+  retractProvider.register(createTasksRetractContributor(mutationTarget));
+  retractProvider.register(createInboxRetractContributor(mutationTarget));
 
   const recallSeam: AnswerRecallSeam = {
     async recall(query, filter) {

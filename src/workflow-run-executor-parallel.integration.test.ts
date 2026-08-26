@@ -3,9 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
+import type { RunContext } from "#core/workflow/run-context.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
@@ -25,7 +27,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   return {
     name: "test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -36,6 +38,55 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
 }
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
+
+function makeRunContext(
+  projectDir: string,
+  trigger: WorkflowRunTrigger = TRIGGER,
+): RunContext {
+  const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const workspaceDir = join(rootDir, "workspace");
+  const tempDir = join(rootDir, "tmp");
+  const artifactDir = join(rootDir, "artifacts");
+  const agentDir = join(rootDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const path of [workspaceDir, tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir,
+      workspaceDir,
+      tempDir,
+      artifactDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: rootDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
 
 describe("parallel step groups", () => {
   let projectDir: string;
@@ -98,7 +149,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
@@ -115,9 +166,6 @@ describe("parallel step groups", () => {
 
   it("aborts the workflow when a child step fails without continueOnFailure", async () => {
     const executed: string[] = [];
-    const completed: unknown[] = [];
-    bus.on("workflow.completed", (payload) => completed.push(payload));
-
     const definition = makeDefinition({
       steps: [
         {
@@ -153,15 +201,15 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
     expect(executed).not.toContain("unreachable");
-    expect((completed[0] as { status: string }).status).toBe("failed");
+    expect(result.metadata.status).toBe("failed");
   });
 
   it("records all child results in the parallel group output", async () => {
@@ -189,7 +237,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
@@ -209,9 +257,6 @@ describe("parallel step groups", () => {
 
   it("child with continueOnFailure: workflow continues but group still succeeds", async () => {
     const executed: string[] = [];
-    const completed: unknown[] = [];
-    bus.on("workflow.completed", (payload) => completed.push(payload));
-
     const definition = makeDefinition({
       steps: [
         {
@@ -245,22 +290,19 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
     expect(executed).toContain("next");
-    expect((completed[0] as { status: string }).status).toBe("completed-with-warnings");
+    expect(result.metadata.status).toBe("completed-with-warnings");
   });
 
   it("group with continueOnFailure: workflow continues with warnings when group fails", async () => {
     const executed: string[] = [];
-    const completed: unknown[] = [];
-    bus.on("workflow.completed", (payload) => completed.push(payload));
-
     const definition = makeDefinition({
       steps: [
         {
@@ -289,15 +331,15 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
     });
-    await promise;
+    const result = await promise;
 
     expect(executed).toContain("next");
-    expect((completed[0] as { status: string }).status).toBe("completed-with-warnings");
+    expect(result.metadata.status).toBe("completed-with-warnings");
   });
 
   it("skips the entire parallel group when when-predicate is false", async () => {
@@ -331,7 +373,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
@@ -381,7 +423,7 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
+      runContext: makeRunContext(projectDir),
       bus,
       store,
       log,
@@ -454,7 +496,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -484,7 +526,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -513,7 +555,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -553,7 +595,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, { projectDir, bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { runContext: makeRunContext(projectDir), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");

@@ -47,7 +47,7 @@ function makeContext() {
     emit: mockEmit,
     requestRestart: () => {},
     readPrompt: () => "",
-    readRuntimeState: () => ({ completedRuns: 0, pendingRuns: [], workflows: {} }),
+    readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
     triggerWorkflow: () => Promise.reject(new Error("not used")),
   };
 }
@@ -105,6 +105,7 @@ describe("executeApprovalStep – abort cleanup", () => {
 
 function makeWorkflow(steps: WorkflowDefinitionInput["steps"]): WorkflowDefinitionInput {
   return {
+    repository: "read",
     name: "test",
     triggers: [{ event: "runtime.idle" }],
     steps,

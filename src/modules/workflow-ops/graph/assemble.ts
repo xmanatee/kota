@@ -28,7 +28,6 @@ type WorkflowGraphDefinition = {
   description?: string;
   enabled?: boolean;
   tags?: readonly string[];
-  concurrencyGroup?: string;
   triggers: readonly WorkflowTriggerInput[];
   steps: readonly WorkflowStepInput[];
 };
@@ -213,7 +212,6 @@ function buildWorkflowNode(
     description: def.description,
     enabled: def.enabled !== false,
     tags: def.tags ?? [],
-    concurrencyGroup: def.concurrencyGroup,
     triggers,
     steps,
     listensTo,

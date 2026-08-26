@@ -89,6 +89,10 @@ export type ProgressReviewAppliedAction =
       question: string;
     }
   | {
+      kind: "owner-question-pending";
+      question: string;
+    }
+  | {
       kind: "skipped-owner-question";
       question: string;
       reason: string;
@@ -96,6 +100,11 @@ export type ProgressReviewAppliedAction =
   | {
       kind: "dismissed-owner-question";
       questionId: string;
+    }
+  | {
+      kind: "owner-question-dismissal-pending";
+      topicKey: string;
+      reason: string;
     }
   | {
       kind: "resolved-work";

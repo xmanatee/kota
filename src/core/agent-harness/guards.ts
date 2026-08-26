@@ -20,7 +20,7 @@ import {
   classifyWorkflowShellTeardownCommand,
   hasPackageBootstrapAllowMarker,
   hasPackageProjectMarker,
-  isGitCommitCommand,
+  isGitMetadataMutationCommand,
   isPackageBootstrapCommand,
   normalizeCommand,
 } from "./guard-command-classifiers.js";
@@ -29,13 +29,14 @@ import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 export {
   classifyWorkflowShellTeardownCommand,
   isGitCommitCommand,
+  isGitMetadataMutationCommand,
   isPackageBootstrapCommand,
 } from "./guard-command-classifiers.js";
 
 type AgentToolInput = Parameters<AgentCanUseTool>[1];
 
-const COMMIT_DENIAL_MESSAGE =
-  "Workflow agents must not run `git commit` or amend workflow-owned commits. Stage changes with `git add` and write `<run-dir>/commit-message.txt`; the workflow's commit step creates the commit after validation gates pass.";
+const GIT_OWNERSHIP_DENIAL_MESSAGE =
+  "Workflow agents must not run git add, git commit, mutate branches, push, or amend workflow-owned commits. Leave workspace changes unstaged and write `<run-dir>/commit-message.txt`; the workflow runtime owns Git metadata and commits after validation gates pass.";
 
 const DAEMON_DENIAL_MESSAGE =
   "Workflow agents must not control, stop, restart, or signal the daemon process that hosts them.";
@@ -83,11 +84,22 @@ function commandWorkingDirectory(input: AgentToolInput): string {
   return isAbsolute(cwd) ? cwd : resolve(process.cwd(), cwd);
 }
 
-export function createAgentCommitGuard(): AgentCanUseTool {
+const RUNTIME_OWNED_GIT_TOOL_OPERATIONS = new Set([
+  "add",
+  "branch",
+  "commit",
+  "push",
+]);
+
+/** Keeps Git metadata and publication under the workflow runtime's ownership. */
+export function createWorkflowGitOwnershipGuard(): AgentCanUseTool {
   return async (toolName, input): Promise<AgentPermissionResult> => {
-    if (!isShellCommandTool(toolName)) return { behavior: "allow", updatedInput: input };
-    const command = typeof input.command === "string" ? input.command : "";
-    if (!isGitCommitCommand(command)) {
+    const shellMutation = isShellCommandTool(toolName) &&
+      isGitMetadataMutationCommand(typeof input.command === "string" ? input.command : "");
+    const routedGitMutation = toolName === "git" &&
+      typeof input.op === "string" &&
+      RUNTIME_OWNED_GIT_TOOL_OPERATIONS.has(input.op);
+    if (!shellMutation && !routedGitMutation) {
       return { behavior: "allow", updatedInput: input };
     }
     // Deny without `interrupt: true`: the claude SDK translates `interrupt`
@@ -97,7 +109,7 @@ export function createAgentCommitGuard(): AgentCanUseTool {
     // agent adapt instead of losing the run.
     return {
       behavior: "deny",
-      message: COMMIT_DENIAL_MESSAGE,
+      message: GIT_OWNERSHIP_DENIAL_MESSAGE,
       decisionAttribution: "operator-deny",
     };
   };
@@ -345,7 +357,7 @@ function createWorkflowNestingGuard(): AgentCanUseTool {
 
 /**
  * Standard guard stack applied to every workflow / autonomy agent run:
- * blocks hidden nesting and `git commit` (the workflow owns both), and denies
+ * blocks hidden nesting and Git metadata mutation (the workflow owns both), and denies
  * calls that would stop or restart the daemon hosting the agent.
  */
 export function createWorkflowAgentGuards(
@@ -355,7 +367,7 @@ export function createWorkflowAgentGuards(
     createScopeAuthorityMutationGuard(authorityConfigPath),
     createDaemonHostControlGuard(),
     createWorkflowShellTeardownGuard(),
-    createAgentCommitGuard(),
+    createWorkflowGitOwnershipGuard(),
     createPackageBootstrapGuard(),
     createWorkflowNestingGuard(),
   );

@@ -104,6 +104,8 @@ export type PatternInput = {
 
 export type RuntimeHealthAuditContext = {
   projectDir: string;
+  stateDir: string;
+  scopeDir: string;
   nowIso: string;
   nowMs: number;
   windowStartMs: number;

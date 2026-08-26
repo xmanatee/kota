@@ -56,12 +56,12 @@ function stepEvidenceRefForRun(
 
   const stepsDir = resolve(
     storedWorkflowRunDirectory(
-      join(ctx.projectDir, ".kota", "runs"),
+      join(ctx.stateDir, "runs"),
       run,
     ),
     "steps",
   );
-  const resolvedPath = resolve(ctx.projectDir, path);
+  const resolvedPath = resolve(ctx.stateDir, relative(".kota", path));
   const relativeToSteps = relative(stepsDir, resolvedPath);
   if (
     relativeToSteps.length === 0 ||
@@ -82,7 +82,7 @@ function ownerWaitStepIdsForRun(
   run: WorkflowHistoryRunLike,
 ): Set<string> {
   const runDir = storedWorkflowRunDirectory(
-    join(ctx.projectDir, ".kota", "runs"),
+    join(ctx.stateDir, "runs"),
     run,
   );
   const snapshot = readJsonObject(

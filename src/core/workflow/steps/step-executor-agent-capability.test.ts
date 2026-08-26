@@ -19,6 +19,7 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
+import { createTestRunContext } from "../testing/run-context-fixture.js";
 import {
   AGENT_OK_RESULT,
   makeAgentStep,
@@ -102,7 +103,7 @@ describe("workflow agent-step harness capability artifacts", () => {
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
-      { projectDir, bus, store, log: () => {} },
+      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -181,7 +182,7 @@ describe("workflow agent-step harness capability artifacts", () => {
       makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
       TRIGGER,
       {
-        projectDir,
+        runContext: createTestRunContext(projectDir, TRIGGER),
         bus,
         store,
         log: () => {},
@@ -220,11 +221,12 @@ describe("workflow agent-step harness capability artifacts", () => {
     const step = makeAgentStep(projectDir, harnessName, {
       agentName: RESTRICTED_AGENT.name,
     });
+    const runContext = createTestRunContext(projectDir, TRIGGER);
     const { promise } = executeWorkflowRun(
       makeDefinition(projectDir, step),
       TRIGGER,
       {
-        projectDir,
+        runContext,
         bus,
         store,
         log: () => {},
@@ -236,9 +238,7 @@ describe("workflow agent-step harness capability artifacts", () => {
 
     expect(result.metadata.status).toBe("success");
     expect(receivedWriteScope).toEqual(RESTRICTED_AGENT.writeScope);
-    expect(receivedOutputDir).toBe(
-      `${projectDir}/${result.metadata.runDir}/agent-output`,
-    );
+    expect(receivedOutputDir).toBe(runContext.resources.agentDir);
     expect(receivedPrompt).toContain("Agent write scope: .kota/runs/");
     expect(receivedPrompt).toContain(`Run directory: ${receivedOutputDir}`);
     expect(receivedPrompt).toContain("out-of-scope writes fail this step");

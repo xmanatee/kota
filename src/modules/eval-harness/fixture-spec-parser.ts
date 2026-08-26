@@ -133,6 +133,9 @@ export function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSp
     "aggregateObjectiveMetrics",
   ]);
   const triggerPayload = parseJsonPayload(r.triggerPayload, fixtureDir, "triggerPayload");
+  const triggerEvent = r.triggerEvent === undefined
+    ? undefined
+    : parseRequiredString(r, "triggerEvent", fixtureDir);
   const objectiveMetrics = parseObjectiveMetrics(
     r.objectiveMetrics,
     fixtureDir,
@@ -142,6 +145,7 @@ export function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSp
     ...common,
     mode: "single-workflow",
     workflowName: parseRequiredString(r, "workflowName", fixtureDir),
+    ...(triggerEvent !== undefined && { triggerEvent }),
     budgetMs: parseBudgetMs(r.budgetMs, fixtureDir),
     predicates: parsePredicates(r.predicates, fixtureDir, "predicate"),
     preRunExpectations: parsePreRunExpectations(

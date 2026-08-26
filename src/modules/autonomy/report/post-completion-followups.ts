@@ -1,7 +1,5 @@
-import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   buildCompletedTaskEvidenceRefs,
@@ -139,13 +137,11 @@ function buildBuilderEvidenceByTaskId(
     if (run.status !== "success" && run.status !== "completed-with-warnings") {
       continue;
     }
-    const summary = readOptionalJsonFile<WorkflowRunSummary>(
-      join(runsDir, run.id, "run-summary.json"),
-    );
-    if (!summary?.taskId || !summary.commitSha) continue;
-    const existing = evidence.get(summary.taskId) ?? [];
-    existing.push({ runId: run.id, commitSha: summary.commitSha });
-    evidence.set(summary.taskId, existing);
+    const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
+    if (!delivery?.taskId) continue;
+    const existing = evidence.get(delivery.taskId) ?? [];
+    existing.push({ runId: run.id, commitSha: delivery.publishedHead });
+    evidence.set(delivery.taskId, existing);
   }
   return evidence;
 }

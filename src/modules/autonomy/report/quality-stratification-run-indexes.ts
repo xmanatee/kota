@@ -1,7 +1,8 @@
-import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import {
+  type AutonomyRunDeliveryEvidence,
+  readAutonomyRunDeliveryEvidence,
+} from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export type BuildQualityRunIndexesInput = {
@@ -13,7 +14,7 @@ export type BuildQualityRunIndexesInput = {
 export type QualityRunIndexes = {
   taskById: Map<string, RepoTaskFullRecord>;
   runById: Map<string, WorkflowRunMetadata>;
-  summaryByRunId: Map<string, WorkflowRunSummary | null>;
+  deliveryByRunId: Map<string, AutonomyRunDeliveryEvidence | null>;
   runIdsByTaskId: Map<string, string[]>;
 };
 
@@ -22,20 +23,18 @@ export function buildQualityRunIndexes(
 ): QualityRunIndexes {
   const taskById = new Map(input.tasks.map((task) => [task.id, task]));
   const runById = new Map(input.runs.map((run) => [run.id, run]));
-  const summaryByRunId = new Map<string, WorkflowRunSummary | null>();
+  const deliveryByRunId = new Map<string, AutonomyRunDeliveryEvidence | null>();
   const runIdsByTaskId = new Map<string, string[]>();
 
   for (const run of input.runs) {
-    const summary = readOptionalJsonFile<WorkflowRunSummary>(
-      join(input.runsDir, run.id, "run-summary.json"),
-    );
-    summaryByRunId.set(run.id, summary);
-    if (!summary?.taskId) continue;
+    const delivery = readAutonomyRunDeliveryEvidence(input.runsDir, run);
+    deliveryByRunId.set(run.id, delivery);
+    if (!delivery?.taskId) continue;
 
-    const existing = runIdsByTaskId.get(summary.taskId) ?? [];
+    const existing = runIdsByTaskId.get(delivery.taskId) ?? [];
     existing.push(run.id);
-    runIdsByTaskId.set(summary.taskId, existing);
+    runIdsByTaskId.set(delivery.taskId, existing);
   }
 
-  return { taskById, runById, summaryByRunId, runIdsByTaskId };
+  return { taskById, runById, deliveryByRunId, runIdsByTaskId };
 }

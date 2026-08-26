@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/testing-api.js";
 import {
   computeResourceFingerprint,
@@ -10,6 +11,10 @@ import {
 } from "../research-retry/precondition.js";
 import { scopeImprovementChanged } from "../scope-improver/events.js";
 import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
+import {
+  emptyScopeImprovementState,
+  SCOPE_IMPROVEMENT_STATE_KEY,
+} from "../scope-improver/scope-improvement-state.js";
 import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import dispatcherWorkflow from "./workflow.js";
 
@@ -132,19 +137,37 @@ describe("dispatcher workflow", () => {
     );
   }
 
-  it("emits autonomy.queue.available when ready tasks exist", async () => {
+  it("emits one targeted autonomy.queue.available event per ready task", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "ready", "task-foo.md"),
       taskFixture("task-foo", "ready"),
+    );
+    writeFileSync(
+      join(projectDir, "data", "tasks", "ready", "task-bar.md"),
+      taskFixture("task-bar", "ready"),
     );
     const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
     const result = await harness.run();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
-    expect(output.actionableCount).toBe(1);
-    expect(output.dispatchableCount).toBe(1);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
+    expect(output.pullableCount).toBe(2);
+    expect(output.actionableCount).toBe(2);
+    expect(output.dispatchableCount).toBe(2);
+    expect(
+      result.emitted
+        .filter((event) => event.event === "autonomy.queue.available")
+        .map((event) => event.payload.taskId)
+        .sort(),
+    ).toEqual(["task-bar", "task-foo"]);
+    expect(
+      result.emitted
+        .filter((event) => event.event === "autonomy.queue.available")
+        .every((event) =>
+          typeof event.payload.taskDigest === "string" &&
+          event.payload.idempotencyKey ===
+            `builder:${event.payload.taskId}:${event.payload.taskDigest}`
+        ),
+    ).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
@@ -292,7 +315,7 @@ describe("dispatcher workflow", () => {
     expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
     expect(output.dependencyBlockedTasks).toHaveLength(2);
     expect(output.quiescent).toBe(true);
-    expect(output.quiescentReason).toBe("work is dependency- or claim-blocked");
+    expect(output.quiescentReason).toBe("work is dependency-blocked");
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
@@ -462,15 +485,15 @@ describe("dispatcher workflow", () => {
       projectDir,
       scopePolicySnapshot.policy,
     );
-    writeProjectFile(
-      ".kota/scope-improvement/state.json",
-      `${JSON.stringify({
-        scopeId: scopePolicySnapshot.policy.scopeId,
+    const state = createTestTransactionalRunState();
+    state.compareAndSet(
+      SCOPE_IMPROVEMENT_STATE_KEY,
+      0,
+      {
+        ...emptyScopeImprovementState(scopePolicySnapshot.policy.scopeId),
         lastRunAt: "2026-06-19T00:00:00.000Z",
         consumedFingerprint: initial.fingerprint,
-        pendingFingerprint: null,
-        recentSignatures: [],
-      }, null, 2)}\n`,
+      },
     );
     const changedScopePolicySnapshot = scopePolicySnapshotForTest(
       projectDir,
@@ -485,6 +508,7 @@ describe("dispatcher workflow", () => {
     const first = await new WorkflowTestHarness(dispatcherWorkflow, {
       projectDir,
       scopePolicySnapshot: changedScopePolicySnapshot,
+      contextOverrides: { state },
     }).run();
 
     const evidenceEvent = first.emitted.find(
@@ -507,6 +531,7 @@ describe("dispatcher workflow", () => {
     const second = await new WorkflowTestHarness(dispatcherWorkflow, {
       projectDir,
       scopePolicySnapshot: changedScopePolicySnapshot,
+      contextOverrides: { state },
     }).run();
 
     expect(

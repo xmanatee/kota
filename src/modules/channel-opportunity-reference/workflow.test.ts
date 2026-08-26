@@ -29,6 +29,7 @@ import type {
   WorkflowRunExecutionResult,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
+import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -231,7 +232,7 @@ describe("channel opportunity reference workflow", () => {
     return {
       ...input,
       enabled: true,
-      recoveryCapable: false,
+      repository: input.repository ?? "none",
       definitionPath: "src/modules/channel-opportunity-reference/workflow.ts",
       moduleRoot: process.cwd(),
       tags: input.tags ?? [],
@@ -329,7 +330,7 @@ describe("channel opportunity reference workflow", () => {
     options: RunOptions,
   ): Promise<WorkflowRunExecutionResult> {
     const run = executeWorkflowRun(definition(options), trigger(options.batch), {
-      projectDir,
+      runContext: createTestRunContext(projectDir, trigger(options.batch)),
       bus,
       pbus,
       store: runStore,

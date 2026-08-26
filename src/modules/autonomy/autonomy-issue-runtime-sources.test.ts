@@ -10,14 +10,11 @@ import {
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import {
+  applyHealthReviewSignals,
   ISSUE_SOURCE_SCOPE_ID,
   wireAutonomyIssueSourceFixture,
 } from "./autonomy-issue-sources.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
-import {
-  applyAutonomyHealthReviewActions,
-  buildAutonomyHealthReviewFromSignals,
-} from "./workflows/autonomy-health-reviewer/health-review.js";
 
 const NOW = "2026-08-13T10:00:00.000Z";
 
@@ -50,17 +47,14 @@ describe("runtime-owned autonomy issue observations", () => {
     const failureReason =
       'Agent harness "codex" cannot honor requested run option(s): autonomyMode="passive". autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA\'s passive contract.';
     let processedSignalCount = 0;
-    const applied: ReturnType<typeof applyAutonomyHealthReviewActions>["applied"] = [];
+    const applied: ReturnType<typeof applyHealthReviewSignals>["applied"] = [];
     const projectNewSignals = (reason: string) => {
       for (const signal of signals.slice(processedSignalCount)) {
-        const result = applyAutonomyHealthReviewActions({
+        const result = applyHealthReviewSignals({
           projectDir,
-          review: buildAutonomyHealthReviewFromSignals({
-            signals: [signal],
-            generatedAt: signal.createdAt,
-            sourceEventName: "autonomy.health.signal",
-            reason,
-          }),
+          signals: [signal],
+          generatedAt: signal.createdAt,
+          reason,
         });
         applied.push(...result.applied);
       }

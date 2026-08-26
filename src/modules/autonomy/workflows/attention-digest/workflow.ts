@@ -1,52 +1,49 @@
 import { join } from "node:path";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import { attentionDigestStepOperation } from "./step.js";
+  ATTENTION_DIGEST_COUNTER_STATE_KEY,
+  attentionDigestStepOperation,
+} from "./step.js";
 
 const attentionDigestWorkflow: WorkflowDefinitionInput = {
   name: "attention-digest",
   description:
     "Check for attention-worthy system conditions and emit a notification digest when any are found.",
-  recoveryCapable: true,
+  repository: "read",
   triggers: [
-    {
-      event: "workflow.build.committed",
-    },
     {
       event: "workflow.completed",
       filter: {
         tags: ["monitored"],
-        status: ["failed", "interrupted"],
+        status: ["success", "completed-with-warnings", "failed", "interrupted"],
       },
-    },
-    {
-      event: "runtime.recovered",
     },
   ],
   steps: [
     {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "attention-digest",
-        }),
-    },
-    {
       id: "digest",
       type: "code",
-      run: async ({ projectDir, emit, runBlocking }) => {
-        const runsDir = join(projectDir, ".kota", "runs");
+      run: async ({ projectDir, stateDir, state, emit, runBlocking }) => {
+        const counter = state.read<{ count: number }>(
+          ATTENTION_DIGEST_COUNTER_STATE_KEY,
+        );
+        const count = (counter.value?.count ?? 0) + 1;
+        state.compareAndSet(
+          ATTENTION_DIGEST_COUNTER_STATE_KEY,
+          counter.revision,
+          { count },
+        );
         const result = await runBlocking(attentionDigestStepOperation, {
           projectDir,
-          runsDir,
+          runsDir: join(stateDir, "runs"),
+          count,
         });
-        if (result.event) emit(result.event.name, result.event.payload);
+        if (result.event) {
+          emit(result.event.name, result.event.payload, {
+            delivery: "on-run-success",
+            stepId: "digest",
+          });
+        }
       },
     },
   ],

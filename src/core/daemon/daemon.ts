@@ -35,6 +35,34 @@ export type { DaemonState } from "./daemon-state.js";
 export const RESTART_EXIT_CODE = 75;
 const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
 
+type DaemonStopRequest = Readonly<{
+  gracePeriodMs: number;
+  reason: DaemonStopReason;
+  abortWaitMs?: number;
+}>;
+
+type Deferred<T> = Readonly<{
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}>;
+
+type DaemonGeneration = {
+  context: DaemonRuntimeContext | null;
+  operation: Promise<void> | null;
+  readiness: Deferred<"ready" | "failed">;
+  stopped: Deferred<void>;
+  stopRequest: DaemonStopRequest | null;
+  shutdown: Promise<void> | null;
+};
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 /**
  * The daemon orchestrator. Owns one `DaemonRuntimeContext` and dispatches
  * lifecycle phases (`buildDaemonInit`, `runDaemonStartup`, `runDaemonShutdown`)
@@ -42,26 +70,64 @@ const DEFAULT_SHUTDOWN_GRACE_PERIOD_MS = 60_000;
  * stable public surface and the restart bookkeeping.
  */
 export class Daemon {
-  private readonly ctx: DaemonRuntimeContext;
+  private generation: DaemonGeneration | null = null;
+  private lastState: DaemonState | null = null;
   private restartShutdownScheduled = false;
+  private restartIdleWaitScheduled = false;
   private restartHandoff: Promise<Error | null> | null = null;
 
-  constructor(config: DaemonConfig) {
-    this.ctx = createDaemonRuntimeContext(config, {
-      onScopeTrustRevoked: (scopeId) => this.beginScopeTrustRevocation(scopeId),
+  constructor(private readonly config: DaemonConfig) {}
+
+  start(): Promise<void> {
+    if (this.generation !== null) return this.generation.operation!;
+    const generation: DaemonGeneration = {
+      context: null,
+      operation: null,
+      readiness: deferred(),
+      stopped: deferred(),
+      stopRequest: null,
+      shutdown: null,
+    };
+    this.generation = generation;
+    const operation = this.runGeneration(generation).finally(() => {
+      generation.stopped.resolve();
+      if (generation.context !== null) {
+        this.lastState = { ...generation.context.state };
+      }
+      if (this.generation === generation) this.generation = null;
     });
+    generation.operation = operation;
+    return operation;
   }
 
-  async start(): Promise<void> {
-    if (this.ctx.running) return;
-    this.ctx.running = true;
-    this.ctx.restartRequested = false;
-    this.ctx.restartReason = null;
-    this.restartShutdownScheduled = false;
-    this.restartHandoff = null;
+  async whenReady(): Promise<void> {
+    const generation = this.generation;
+    if (generation === null) throw new Error("Daemon has not been started");
+    const readiness = await generation.readiness.promise;
+    if (readiness === "failed") await generation.operation;
+  }
 
+  private async runGeneration(generation: DaemonGeneration): Promise<void> {
+    let ctx: DaemonRuntimeContext | null = null;
     try {
-      await runDaemonStartup(this.ctx, {
+      ctx = await createDaemonRuntimeContext(this.config, {
+        onScopeTrustRevoked: (scopeId) => this.beginScopeTrustRevocation(scopeId),
+      });
+      generation.context = ctx;
+      ctx.running = true;
+      ctx.restartRequested = false;
+      ctx.restartReason = null;
+      this.restartShutdownScheduled = false;
+      this.restartIdleWaitScheduled = false;
+      this.restartHandoff = null;
+
+      if (generation.stopRequest !== null) {
+        generation.readiness.resolve("ready");
+        await this.shutdownGeneration(generation, generation.stopRequest);
+        return;
+      }
+
+      await runDaemonStartup(ctx, {
         requestRestart: (reason) => this.requestRestart(reason),
         maybeRestart: () => this.maybeRestart(),
         onSignalStop: (signal, gracePeriodMs) => {
@@ -70,14 +136,28 @@ export class Daemon {
             signal === "SIGINT" ? "sigint" : "sigterm",
           );
         },
+        onReady: () => generation.readiness.resolve("ready"),
+        waitForStop: () => generation.stopped.promise,
       });
+      if (generation.shutdown !== null) await generation.shutdown;
     } catch (err) {
-      await runDaemonShutdown(this.ctx, {
-        workflowsStopArgs: [1, 1_000],
-        saveState: false,
-        logShutdown: false,
-        stopReason: "programmatic",
-      });
+      generation.readiness.resolve("failed");
+      if (ctx !== null && generation.shutdown === null) {
+        try {
+          await this.shutdownGeneration(generation, {
+            gracePeriodMs: 1,
+            reason: "programmatic",
+            abortWaitMs: 1_000,
+          }, false);
+        } catch (shutdownError) {
+          throw new AggregateError(
+            [err, shutdownError],
+            "Daemon startup and cleanup both failed",
+          );
+        }
+      } else if (generation.shutdown !== null) {
+        await generation.shutdown;
+      }
       throw err;
     }
     if (this.restartHandoff !== null) {
@@ -91,60 +171,89 @@ export class Daemon {
     reason: DaemonStopReason = "programmatic",
     abortWaitMs?: number,
   ): Promise<void> {
-    if (this.ctx.stopping) return;
-    this.ctx.stopping = true;
-    await runDaemonShutdown(this.ctx, {
-      workflowsStopArgs: abortWaitMs === undefined
-        ? [gracePeriodMs]
-        : [gracePeriodMs, abortWaitMs],
-      saveState: true,
-      logShutdown: true,
-      stopReason: reason,
+    const generation = this.generation;
+    if (generation === null) return;
+    generation.stopRequest ??= {
+      gracePeriodMs,
+      reason,
+      ...(abortWaitMs === undefined ? {} : { abortWaitMs }),
+    };
+    const readiness = await generation.readiness.promise;
+    if (readiness === "failed" || generation.context === null) return;
+    await this.shutdownGeneration(generation, generation.stopRequest);
+  }
+
+  private shutdownGeneration(
+    generation: DaemonGeneration,
+    request: DaemonStopRequest,
+    saveState = true,
+  ): Promise<void> {
+    if (generation.shutdown !== null) return generation.shutdown;
+    const ctx = generation.context;
+    if (ctx === null) return Promise.resolve();
+    ctx.stopping = true;
+    const shutdown = runDaemonShutdown(ctx, {
+      workflowsStopArgs: request.abortWaitMs === undefined
+        ? [request.gracePeriodMs]
+        : [request.gracePeriodMs, request.abortWaitMs],
+      saveState,
+      logShutdown: saveState,
+      stopReason: request.reason,
+    }).finally(() => {
+      generation.stopped.resolve();
     });
+    generation.shutdown = shutdown;
+    return shutdown;
   }
 
   getState(): DaemonState {
-    return { ...this.ctx.state };
+    if (this.generation?.context !== null && this.generation?.context !== undefined) {
+      return { ...this.generation.context.state };
+    }
+    if (this.generation === null && this.lastState !== null) {
+      return { ...this.lastState };
+    }
+    throw new Error("Daemon has not started");
   }
 
   registerDirectoryScope(
     input: DirectoryScopeRegistrationInput,
   ): Promise<ScopeRegistrationResult> {
-    return this.ctx.scopeLifecycle.registerDirectoryScope(input);
+    return this.context().scopeLifecycle.registerDirectoryScope(input);
   }
 
   updateScopeDisplayName(
     scopeId: ScopeId,
     displayName: string,
   ): Promise<ScopeMutationResult> {
-    return this.ctx.scopeLifecycle.updateDisplayName(scopeId, displayName);
+    return this.context().scopeLifecycle.updateDisplayName(scopeId, displayName);
   }
 
   setDefaultScope(scopeId: ScopeId): Promise<ScopeMutationResult> {
-    return this.ctx.scopeLifecycle.setDefaultScope(scopeId);
+    return this.context().scopeLifecycle.setDefaultScope(scopeId);
   }
 
   drainScope(scopeId: ScopeId): Promise<ScopeDrainResult> {
-    return this.ctx.scopeLifecycle.drainScope(scopeId);
+    return this.context().scopeLifecycle.drainScope(scopeId);
   }
 
   removeScope(scopeId: ScopeId): Promise<ScopeRemovalResult> {
-    return this.ctx.scopeLifecycle.removeScope(scopeId);
+    return this.context().scopeLifecycle.removeScope(scopeId);
   }
 
   getScopeRegistryProjection(): ScopeRegistryProjection {
-    return this.ctx.projectRegistry.toScopeProjection();
+    return this.context().projectRegistry.toScopeProjection();
   }
 
   inspectScopeAuthority(scopeId: ScopeId): ScopeAuthorityView | ScopeAuthorityFailure {
-    return this.ctx.scopeAuthority.inspect(scopeId);
+    return this.context().scopeAuthority.inspect(scopeId);
   }
 
   validateScopeAuthority(
     scopeId: ScopeId,
     mutation: ScopeAuthorityMutation,
   ): ScopeAuthorityValidationResult {
-    return this.ctx.scopeAuthority.validate(scopeId, mutation);
+    return this.context().scopeAuthority.validate(scopeId, mutation);
   }
 
   applyScopeAuthority(
@@ -152,80 +261,93 @@ export class Daemon {
     mutation: ScopeAuthorityMutation,
     operatorAction?: ScopeAuthorityOperatorAction,
   ): Promise<ScopeAuthorityMutationResult> {
-    return this.ctx.scopeAuthority.apply(scopeId, mutation, operatorAction);
+    return this.context().scopeAuthority.apply(scopeId, mutation, operatorAction);
   }
 
   getHostedScopeCount(): number {
-    return this.ctx.scopeRuntimeHost.hostedCount();
+    return this.generation?.context?.scopeRuntimeHost.hostedCount() ?? 0;
   }
 
   isRunning(): boolean {
-    return this.ctx.running && !this.ctx.stopping;
+    const ctx = this.generation?.context;
+    return ctx?.running === true && !ctx.stopping;
   }
 
   hasActiveWorkflow(): boolean {
-    return anyDaemonWorkflowRuntimeBusy(this.ctx);
+    const ctx = this.generation?.context;
+    return ctx !== null && ctx !== undefined && anyDaemonWorkflowRuntimeBusy(ctx);
   }
 
   /** Snapshot of every contributed channel's startup posture. */
   getChannelStatuses(): readonly ChannelStatus[] {
-    return this.ctx.channelStatuses;
+    return this.generation?.context?.channelStatuses ?? [];
   }
 
   getDashboardSnapshot() {
-    return buildDaemonDashboardSnapshot(this.ctx);
+    return buildDaemonDashboardSnapshot(this.context());
   }
 
   private requestRestart(reason: string): void {
-    if (this.ctx.restartRequested) return;
-    this.ctx.restartRequested = true;
-    this.ctx.restartReason = reason;
-    setDaemonWorkflowDispatchPaused(this.ctx, true);
-    this.ctx.log(`${reason} — restart requested`);
+    const ctx = this.context();
+    if (ctx.restartRequested) return;
+    ctx.restartRequested = true;
+    ctx.restartReason = reason;
+    setDaemonWorkflowDispatchPaused(ctx, true);
+    ctx.log(`${reason} — restart requested`);
     this.maybeRestart();
   }
 
   private beginScopeTrustRevocation(scopeId: string): void {
-    if (!this.ctx.running || this.ctx.stopping || this.restartHandoff !== null) return;
+    const ctx = this.context();
+    if (!ctx.running || ctx.stopping || this.restartHandoff !== null) return;
     const reason = `Scope ${scopeId} was untrusted; reloading machine authority`;
-    this.ctx.restartRequested = true;
-    this.ctx.restartReason = reason;
-    setDaemonWorkflowDispatchPaused(this.ctx, true);
-    for (const runtime of this.ctx.projectRuntimes.list()) {
+    ctx.restartRequested = true;
+    ctx.restartReason = reason;
+    setDaemonWorkflowDispatchPaused(ctx, true);
+    for (const runtime of ctx.projectRuntimes.list()) {
       runtime.workflowRuntime.abortActiveRuns();
     }
-    this.ctx.controlServer.quarantine(reason);
-    this.ctx.log(`${reason} — daemon quarantined and restart requested`);
+    ctx.controlServer.quarantine(reason);
+    ctx.log(`${reason} — daemon quarantined and restart requested`);
     this.restartShutdownScheduled = true;
     this.restartHandoff = this.finishRestart(1, 1_000)
       .then(() => null)
       .catch((error) => {
         const restartError = error instanceof Error ? error : new Error(String(error));
-        this.ctx.log(`Authority-revocation restart failed: ${restartError.message}`);
+        ctx.log(`Authority-revocation restart failed: ${restartError.message}`);
         return restartError;
       });
   }
 
   private maybeRestart(): void {
-    if (!this.ctx.restartRequested || this.ctx.stopping) return;
-    if (anyDaemonWorkflowRuntimeBusy(this.ctx)) return;
+    const ctx = this.context();
+    if (!ctx.restartRequested || ctx.stopping) return;
+    if (anyDaemonWorkflowRuntimeBusy(ctx)) {
+      if (this.restartIdleWaitScheduled) return;
+      this.restartIdleWaitScheduled = true;
+      void ctx.runCoordinator.whenIdle().then(() => {
+        this.restartIdleWaitScheduled = false;
+        if (this.generation?.context === ctx) this.maybeRestart();
+      });
+      return;
+    }
     if (this.restartShutdownScheduled) return;
     this.restartShutdownScheduled = true;
 
-    const reason = this.ctx.restartReason ?? "workflow requested restart";
+    const reason = ctx.restartReason ?? "workflow requested restart";
     setImmediate(() => {
-      if (this.ctx.stopping || !this.ctx.running) {
+      if (ctx.stopping || !ctx.running) {
         this.restartShutdownScheduled = false;
         return;
       }
-      this.ctx.log(`Restarting daemon: ${reason}`);
-      saveDaemonStateToDisk(this.ctx.stateDir, this.ctx.state);
+      ctx.log(`Restarting daemon: ${reason}`);
+      saveDaemonStateToDisk(ctx.stateDir, ctx.state);
       this.restartHandoff = this.finishRestart()
         .then(() => null)
         .catch((error) => {
           this.restartShutdownScheduled = false;
           const restartError = error instanceof Error ? error : new Error(String(error));
-          this.ctx.log(`Restart shutdown failed: ${restartError.message}`);
+          ctx.log(`Restart shutdown failed: ${restartError.message}`);
           return restartError;
         });
     });
@@ -235,10 +357,18 @@ export class Daemon {
     gracePeriodMs = DEFAULT_SHUTDOWN_GRACE_PERIOD_MS,
     abortWaitMs?: number,
   ): Promise<void> {
-    await this.stop(gracePeriodMs, "restart", abortWaitMs);
-    const restartExit = this.ctx.config.restartExit ?? ((code: number) => {
+    const restartExit = this.context().config.restartExit ?? ((code: number) => {
       process.exit(code);
     });
+    await this.stop(gracePeriodMs, "restart", abortWaitMs);
     restartExit(RESTART_EXIT_CODE);
+  }
+
+  private context(): DaemonRuntimeContext {
+    const ctx = this.generation?.context;
+    if (ctx === null || ctx === undefined) {
+      throw new Error("Daemon has not started");
+    }
+    return ctx;
   }
 }

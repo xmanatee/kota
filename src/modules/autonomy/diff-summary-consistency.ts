@@ -6,6 +6,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
 	listFullRepoTasks,
 	type RepoTaskFullRecord,
@@ -24,7 +25,7 @@ import {
 	type DiffSummaryMismatch,
 	type DiffSummaryMissingData,
 } from "./diff-summary-consistency-types.js";
-import type { WorkflowRunSummary } from "./run-summary.js";
+import type { AutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 
 export type {
 	BuildDiffSummaryConsistencyRecordInput,
@@ -48,16 +49,22 @@ const GENERATED_TERMS =
 const IMPLEMENTATION_CLAIM_TERMS =
 	/\b(add(?:ed|s)?|client|daemon|fix(?:ed|es)?|guard|harden(?:ed|s)?|implement(?:ed|s)?|module|repair(?:ed|s)?|route|runtime|test(?:ed|s)?|update(?:d|s)?|workflow)\b/i;
 
-export function writeDiffSummaryConsistencyArtifact(
+export async function writeDiffSummaryConsistencyArtifact(
 	projectDir: string,
 	runDirPath: string,
-	runSummary: WorkflowRunSummary,
-): DiffSummaryConsistencyRecord {
+	delivery: AutonomyRunDeliveryEvidence,
+	runCommand: WorkflowCommandRunner,
+): Promise<DiffSummaryConsistencyRecord> {
 	const record = buildDiffSummaryConsistencyRecord({
-		runSummary,
+		delivery,
 		commitMessageFile: readTrimmedFile(join(runDirPath, "commit-message.txt")),
-		task: findTaskForSummary(projectDir, runSummary),
-		nameStatus: collectGitNameStatus(projectDir),
+		task: findTaskForDelivery(projectDir, delivery),
+		nameStatus: await collectGitNameStatus(
+			projectDir,
+			runCommand,
+			delivery.integratedFromHead,
+			delivery.publishedHead,
+		),
 		knownModuleNames: collectKnownModuleNames(projectDir),
 	});
 	writeFileSync(
@@ -73,7 +80,7 @@ export function buildDiffSummaryConsistencyRecord(
 ): DiffSummaryConsistencyRecord {
 	const missingData = missingDataFor(input);
 	const declared = declaredTextFor(input);
-	const facts = diffFactsFor(input.runSummary, input.nameStatus);
+	const facts = diffFactsFor(input.delivery, input.nameStatus);
 	const declaredScopeText = [
 		declared.commitSubject,
 		declared.commitMessageFile,
@@ -89,10 +96,10 @@ export function buildDiffSummaryConsistencyRecord(
 
 	return {
 		version: 1,
-		runId: input.runSummary?.runId ?? null,
-		taskId: input.runSummary?.taskId ?? input.task?.id ?? null,
-		taskTitle: input.runSummary?.taskTitle ?? input.task?.title ?? null,
-		commitSha: input.runSummary?.commitSha ?? null,
+		runId: input.delivery?.runId ?? null,
+		taskId: input.delivery?.taskId ?? input.task?.id ?? null,
+		taskTitle: input.delivery?.taskTitle ?? input.task?.title ?? null,
+		commitSha: input.delivery?.publishedHead ?? null,
 		declared,
 		facts,
 		mismatches: mismatchRecords(facts, mentionedModules, declaredScopeText),
@@ -104,18 +111,18 @@ function missingDataFor(
 	input: BuildDiffSummaryConsistencyRecordInput,
 ): DiffSummaryMissingData[] {
 	const missing: DiffSummaryMissingData[] = [];
-	if (!input.runSummary) missing.push("run-summary");
+	if (!input.delivery) missing.push("writer-integration");
 	if (!input.commitMessageFile) missing.push("commit-message-file");
-	if (input.runSummary?.taskId && !input.task) missing.push("task-metadata");
+	if (input.delivery?.taskId && !input.task) missing.push("task-metadata");
 	if (input.nameStatus === null) missing.push("diff-name-status");
 	return missing;
 }
 
 function declaredTextFor(input: BuildDiffSummaryConsistencyRecordInput) {
 	return {
-		commitSubject: boundText(input.runSummary?.commitMessage ?? null),
+		commitSubject: boundText(input.delivery?.commitSubject ?? null),
 		commitMessageFile: boundText(input.commitMessageFile),
-		taskTitle: boundText(input.runSummary?.taskTitle ?? input.task?.title ?? null),
+		taskTitle: boundText(input.delivery?.taskTitle ?? input.task?.title ?? null),
 		taskSummary: boundText(input.task?.summary ?? null),
 	};
 }
@@ -221,13 +228,13 @@ function collectKnownModuleNames(projectDir: string): string[] {
 		.sort();
 }
 
-function findTaskForSummary(
+function findTaskForDelivery(
 	projectDir: string,
-	summary: WorkflowRunSummary,
+	delivery: AutonomyRunDeliveryEvidence,
 ): RepoTaskFullRecord | null {
-	if (!summary.taskId) return null;
+	if (!delivery.taskId) return null;
 	return (
-		listFullRepoTasks(projectDir).find((task) => task.id === summary.taskId) ??
+		listFullRepoTasks(projectDir).find((task) => task.id === delivery.taskId) ??
 		null
 	);
 }

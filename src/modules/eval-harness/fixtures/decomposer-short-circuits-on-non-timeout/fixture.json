@@ -46,11 +46,6 @@
       "kind": "file-contains",
       "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
       "needle": "\"id\": \"decompose\",\n      \"type\": \"agent\",\n      \"status\": \"skipped\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-decomposer-shortcircuit-2026-04-24/metadata.json",
-      "needle": "\"id\": \"commit\",\n      \"type\": \"code\",\n      \"status\": \"skipped\""
     }
   ],
   "tags": [

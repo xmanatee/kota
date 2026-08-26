@@ -1,15 +1,18 @@
 import { rmSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { readScopeImprovementState } from "./scope-improvement-state.js";
-import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
+import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import onboardingWorkflow from "../scope-improvement-onboarding/workflow.js";
 import {
-  handleRegisteredScopeImprovementOnboarding,
-  scopeImprovementDispatchKey,
-} from "./semantic-request.js";
+  decodeScopeImprovementState,
+  SCOPE_IMPROVEMENT_STATE_KEY,
+} from "./scope-improvement-state.js";
+import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
+import { scopeImprovementDispatchKey } from "./semantic-request.js";
 import { makeScopeFixture } from "./workflow.test-helpers.js";
 
-describe("scope improvement onboarding activation", () => {
+describe("scope improvement onboarding workflow", () => {
   const projectDirs: string[] = [];
 
   afterEach(() => {
@@ -18,66 +21,58 @@ describe("scope improvement onboarding activation", () => {
     }
   });
 
-  it("turns one live scope registration into one initial semantic request", () => {
+  it("durably reserves and emits one initial request across restart replay", async () => {
     const projectDir = makeScopeFixture("production-onboarding");
     projectDirs.push(projectDir);
     const scopeId = deriveDirectoryScopeId(projectDir);
-    const snapshot = scopePolicySnapshotForTest(projectDir);
-    const emit = vi.fn();
-    const warn = vi.fn();
-    const ctx = {
-      getProvider: () => ({
-        resolveProjectRuntime: () => ({
-          ok: true as const,
-          runtime: {
-            project: {
-              projectId: scopeId,
-              projectDir,
-              displayName: "External scope",
-            },
-            scopePolicyAuthority: { getSnapshot: () => snapshot },
-          },
-        }),
-      }),
-      events: { emit },
-      log: {
-        info: vi.fn(),
-        warn,
-        error: vi.fn(),
-        debug: vi.fn(),
+    const state = createTestTransactionalRunState();
+    const options = {
+      projectDir,
+      trigger: {
+        event: "scope.lifecycle.changed",
+        schemaRef: null,
+        payload: {
+          transition: "registered",
+          affectedScopeId: scopeId,
+          directoryRoot: projectDir,
+          displayName: "External scope",
+        },
       },
-    } as unknown as Parameters<
-      typeof handleRegisteredScopeImprovementOnboarding
-    >[0];
-    const lifecycle = {
-      transition: "registered" as const,
-      affectedScopeId: scopeId,
-      directoryRoot: projectDir,
-      displayName: "External scope",
-    };
+      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      contextOverrides: { state },
+    } as const;
 
-    handleRegisteredScopeImprovementOnboarding(ctx, lifecycle);
-    handleRegisteredScopeImprovementOnboarding(ctx, lifecycle);
+    const first = await new WorkflowTestHarness(onboardingWorkflow, options).run();
+    const second = await new WorkflowTestHarness(onboardingWorkflow, options).run();
 
-    expect(emit).toHaveBeenCalledTimes(1);
-    const payload = emit.mock.calls[0]?.[1];
+    expect(first.status).toBe("success");
+    expect(first.emitted).toHaveLength(1);
+    expect(second.status).toBe("success");
+    expect(second.emitted).toEqual([]);
+    const payload = first.emitted[0]?.payload;
     expect(payload).toMatchObject({
       automatic: true,
       boundary: "initial-onboarding",
       deliveryAttempt: 0,
-      scopeId,
-      projectId: scopeId,
     });
-    expect(payload.idempotencyKey).toBe(
-      scopeImprovementDispatchKey(scopeId, payload.fingerprint, 0),
+    expect(payload?.idempotencyKey).toBe(
+      scopeImprovementDispatchKey(
+        scopeId,
+        String(payload?.fingerprint),
+        0,
+      ),
     );
-    expect(readScopeImprovementState(projectDir, scopeId)).toMatchObject({
+    expect(
+      decodeScopeImprovementState(
+        state.read(SCOPE_IMPROVEMENT_STATE_KEY).value,
+        scopeId,
+      ),
+    ).toMatchObject({
       consumedFingerprint: null,
-      pendingFingerprint: payload.fingerprint,
+      pendingFingerprint: payload?.fingerprint,
       pendingBoundary: "initial-onboarding",
       pendingDelivery: "queued",
       pendingDeliveryAttempt: 0,
     });
-    expect(warn).not.toHaveBeenCalled();
   });
 });

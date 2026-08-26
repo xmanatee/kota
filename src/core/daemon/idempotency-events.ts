@@ -30,6 +30,7 @@ function eventIngestionIdentity(
   envelope: BusEnvelope,
   defaultScopeId: string,
 ): IdempotencyClaimInput | null {
+  if (envelope.delivery === "outbox") return null;
   const payload = envelope.payload;
   const scopeId = explicitScope(payload, defaultScopeId);
   const explicitKey = payloadString(payload, "idempotencyKey");

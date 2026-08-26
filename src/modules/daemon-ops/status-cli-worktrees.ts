@@ -1,4 +1,3 @@
-import type { AutomationWorktreeOperatorStatus } from "#modules/git/worktree-lifecycle.js";
 import {
   group,
   type KVEntry,
@@ -8,112 +7,118 @@ import {
   type RenderNode,
   type SemanticRole,
   span,
-  stack,
 } from "#modules/rendering/primitives.js";
-import type { StatusSnapshot } from "./status-cli-types.js";
+import type {
+  StatusOperationalRun,
+  StatusRunProjection,
+  StatusRunSandbox,
+} from "./status-cli-types.js";
 
-function cleanupValue(worktree: AutomationWorktreeOperatorStatus): string {
-  if (worktree.cleanupStatus === "removed") return "removed";
-  if (worktree.cleanupEligible) return "eligible";
-  return `blocked: ${worktree.cleanupBlockers.join("; ") || "unknown reason"}`;
+function runRole(run: StatusOperationalRun): SemanticRole {
+  switch (run.state) {
+    case "queued":
+    case "cancelled":
+      return "muted";
+    case "running":
+    case "integrating":
+      return "info";
+    case "waiting":
+      return "warn";
+    case "needs_attention":
+    case "failed":
+      return "error";
+    case "succeeded":
+      return "success";
+  }
 }
 
-function worktreeRole(worktree: AutomationWorktreeOperatorStatus): SemanticRole {
-  if (worktree.state === "conflicted") return "error";
-  if (worktree.cleanupStatus === "blocked" || worktree.state === "pending-merge" || worktree.state === "stale") return "warn";
-  if (worktree.cleanupStatus === "eligible" || worktree.state === "merged") return "success";
-  return worktree.state === "removed" ? "muted" : "info";
+function recordsValue(records: readonly Record<string, unknown>[]): string {
+  return records.length === 0 ? "none" : records.map((record) => JSON.stringify(record)).join("; ");
 }
 
-function runtimeResourceValue(worktree: AutomationWorktreeOperatorStatus): string | null {
-  if (worktree.runState !== "active") return null;
-  const resources = worktree.runtimeResources;
-  if (resources === undefined) return null;
-  const parts = [`profile ${resources.profileId}`];
-  if (resources.ports !== undefined) {
-    parts.push(`ports ${resources.ports.start}-${resources.ports.end}`);
-  }
-  if (resources.tempRoot !== undefined) {
-    parts.push(`temp ${resources.tempRoot}`);
-  }
-  if (resources.artifactRoot !== undefined) {
-    parts.push(`artifacts ${resources.artifactRoot}`);
-  }
-  return parts.join(", ");
+function recordValue(record: Record<string, unknown> | null): string {
+  return record === null ? "none" : JSON.stringify(record);
 }
 
-function worktreeStatusEntries(worktree: AutomationWorktreeOperatorStatus): KVEntry[] {
-  const runtimeResources = runtimeResourceValue(worktree);
+function sandboxEntries(sandbox: StatusRunSandbox | null): KVEntry[] {
+  if (sandbox === null) {
+    return [{ label: "Sandbox", value: "not allocated", role: "muted" }];
+  }
+  const workspace = sandbox.workspace;
+  const head = workspace === null
+    ? { value: "not applicable", role: "muted" as const }
+    : workspace.available
+      ? { value: workspace.headCommit, role: "muted" as const }
+      : { value: "unavailable", role: "warn" as const };
+  const dirty = workspace === null
+    ? { value: "not applicable", role: "muted" as const }
+    : {
+        value: workspace.dirtySummary,
+        role: workspace.available && !workspace.dirty ? "muted" as const : "warn" as const,
+      };
   return [
-    { label: "Owner", value: worktree.owner, role: "muted" },
-    { label: "Branch", value: worktree.branch, role: "muted" },
-    {
-      label: "Commits",
-      value: `base ${worktree.baseCommit.slice(0, 8) || "unknown"}, head ${worktree.headCommit.slice(0, 8) || "unknown"}`,
-      role: "muted",
-    },
-    {
-      label: "Run",
-      value: worktree.runState,
-      role: worktree.runState === "active" ? "info" : worktree.state === "stale" ? "warn" : "muted",
-    },
-    ...(worktree.recoveryRunId !== undefined
-      ? [{ label: "Recovery run", value: worktree.recoveryRunId, role: "info" as const }]
-      : []),
-    {
-      label: "Dirty",
-      value: worktree.dirtyState,
-      role: worktree.dirtyState === "conflicted" ? "error" : worktree.dirtyState === "dirty" ? "warn" : "muted",
-    },
-    {
-      label: "Merge",
-      value: worktree.mergeStatus,
-      role: worktree.state === "conflicted" ? "error" : worktree.state === "pending-merge" ? "warn" : "muted",
-    },
-    {
-      label: "Cleanup",
-      value: cleanupValue(worktree),
-      role: worktree.cleanupStatus === "blocked" ? "warn" : worktree.cleanupStatus === "eligible" ? "success" : "muted",
-    },
-    ...(runtimeResources !== null
-      ? [{ label: "Runtime resources", value: runtimeResources, role: "info" as const }]
-      : []),
-    { label: "Workspace", value: worktree.workspaceDir, role: worktree.exists ? "muted" : "warn" },
-    { label: "Metadata", value: worktree.metadataPath, role: "muted" },
-    { label: "Next", value: worktree.nextAction, role: worktreeRole(worktree) },
+    { label: "Repository", value: sandbox.repository, role: "muted" },
+    { label: "Branch", value: sandbox.branch ?? "none", role: "muted" },
+    { label: "Base", value: sandbox.baseCommit ?? "none", role: "muted" },
+    { label: "Head", ...head },
+    { label: "Dirty", ...dirty },
+    { label: "Sandbox", value: sandbox.rootDir, role: "muted" },
+    { label: "Workspace", value: sandbox.workspaceDir, role: "muted" },
+    { label: "Temp", value: sandbox.tempDir, role: "muted" },
+    { label: "Artifacts", value: sandbox.artifactDir, role: "muted" },
   ];
 }
 
-export function buildWorktreeStatusNode(
-  worktrees: readonly AutomationWorktreeOperatorStatus[],
-  summary?: StatusSnapshot["worktreeSummary"],
-): RenderNode | null {
-  if (worktrees.length === 0 && summary === undefined) return null;
-  const summaryNode = summary
-    ? kvBlock([
-        { label: "Active", value: String(summary.active), role: summary.active > 0 ? "info" : "muted" },
-        { label: "Stale dirty", value: String(summary.staleDirty), role: summary.staleDirty > 0 ? "warn" : "muted" },
-        { label: "Stale clean", value: String(summary.staleClean), role: summary.staleClean > 0 ? "warn" : "muted" },
-        { label: "Blocked", value: String(summary.blocked), role: summary.blocked > 0 ? "warn" : "muted" },
-        { label: "Cleanup eligible", value: String(summary.cleanupEligible), role: summary.cleanupEligible > 0 ? "success" : "muted" },
-        { label: "Removed hidden", value: String(summary.removedHidden), role: "muted" },
-      ])
-    : null;
-  const detailNode = worktrees.length > 0
-    ? list(
-        worktrees.map((worktree) => ({
-          spans: [
-            span(worktree.state, worktreeRole(worktree), true),
-            plain(`  ${worktree.taskId}  ${worktree.runId}`),
-          ],
-          children: [
-            kvBlock(worktreeStatusEntries(worktree)),
-          ],
-        })),
-      )
-    : null;
+function runEntries(run: StatusOperationalRun): KVEntry[] {
+  return [
+    {
+      label: "Resources",
+      value: run.resources.length === 0 ? "none" : run.resources.join(", "),
+      role: run.resources.length === 0 ? "muted" : "info",
+    },
+    {
+      label: "Processes",
+      value: recordsValue(run.processes),
+      role: run.processes.length === 0 ? "muted" : "info",
+    },
+    ...sandboxEntries(run.sandbox),
+    {
+      label: "Wait",
+      value: recordValue(run.wait),
+      role: run.wait === null ? "muted" : "warn",
+    },
+    {
+      label: "Last error",
+      value: run.lastError ?? "none",
+      role: run.lastError === null ? "muted" : "error",
+    },
+  ];
+}
+
+export function buildRunSandboxStatusNode(projection: StatusRunProjection): RenderNode | null {
+  if (!projection.available) {
+    return group(
+      "Run sandboxes",
+      kvBlock([
+        {
+          label: "Projection",
+          value: `unavailable  (${projection.databasePath})`,
+          role: "warn",
+        },
+      ]),
+    );
+  }
+  if (projection.runs.length === 0) return null;
   return group(
-    "Automation worktrees",
-    summaryNode && detailNode ? stack(summaryNode, detailNode) : summaryNode ?? detailNode!,
+    "Run sandboxes",
+    list(
+      projection.runs.map((run) => ({
+        spans: [
+          span(run.state, runRole(run), true),
+          plain(`  ${run.workflow}  ${run.runId}`),
+        ],
+        children: [kvBlock(runEntries(run))],
+      })),
+    ),
   );
 }

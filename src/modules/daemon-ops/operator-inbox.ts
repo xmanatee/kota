@@ -61,7 +61,7 @@ export function buildOperatorRuntimeInboxItems(
       kind: "runtime",
       id: "daemon-offline",
       title: "Daemon is offline",
-      detail: "Dispatch, event stream, live sessions, and live run state are unavailable.",
+      detail: "Dispatch, event stream, and live sessions are unavailable.",
       action: "kota daemon start",
       role: "warn",
     });
@@ -85,21 +85,16 @@ export function buildOperatorRuntimeInboxItems(
       role: "error",
     });
   }
-  const historical = status.historicalWorkflow;
   if (
     !status.daemonRunning &&
-    historical &&
-    (historical.activeRuns > 0 || historical.queuedRuns > 0 || historical.workflowPaused)
+    (status.activeRuns > 0 || status.queuedRuns > 0 || status.workflowPaused)
   ) {
-    const pauseLabel = status.workflowPause?.kind === "dirty-recovery"
-      ? "dirty recovery pause"
-      : "operator pause";
-    const paused = historical.workflowPaused ? `; ${pauseLabel} present` : "";
+    const paused = status.workflowPaused ? "; operator pause present" : "";
     items.push({
       kind: "runtime",
       id: "offline-workflow-store",
-      title: "Offline workflow state needs review",
-      detail: `${historical.activeRuns} active and ${historical.queuedRuns} queued run(s) persisted in .kota${paused}.`,
+      title: "Durable workflow state needs review",
+      detail: `${status.activeRuns} active and ${status.queuedRuns} queued durable run(s)${paused}.`,
       action: "kota status --explain",
       role: "warn",
     });

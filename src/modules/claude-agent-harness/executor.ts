@@ -10,6 +10,7 @@ import type {
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
+import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import { normalizeCanUseTool } from "./executor-permissions.js";
 import {
   detectLocalClaudeCodeExecutable,
@@ -74,6 +75,7 @@ export type ExecutorOptions = {
   env?: Record<string, string>;
   authorityConfigPath?: string;
   abortController?: AbortController;
+  onProcessSpawn?: ProcessSpawnObserver;
   enableFileCheckpointing?: boolean;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   thinkingEnabled?: boolean;
@@ -134,7 +136,8 @@ export function buildQueryOptions(options: ExecutorOptions): SDKQueryOptions {
     enableFileCheckpointing: options.enableFileCheckpointing,
     allowDangerouslySkipPermissions: permissionMode === "bypassPermissions",
     thinking,
-    spawnClaudeCodeProcess: spawnClaudeCodeProcessWithAbortKill,
+    spawnClaudeCodeProcess: (spawnOptions) =>
+      spawnClaudeCodeProcessWithAbortKill(spawnOptions, options.onProcessSpawn),
     canUseTool: normalizeCanUseTool(options.canUseTool),
     sandbox: {
       enabled: true,

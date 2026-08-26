@@ -7,7 +7,6 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
@@ -18,6 +17,7 @@ import {
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-helpers.js";
+import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -27,6 +27,14 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 import "#modules/claude-agent-harness/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+const INTEGRATION_WAIT_MS = 45_000;
+
+function waitForLifecycle(
+  predicate: () => boolean,
+  description: string,
+): Promise<void> {
+  return waitUntil(predicate, description, INTEGRATION_WAIT_MS);
+}
 
 describe("issue-driven owner-answer lifecycle integration", () => {
   let projectDir: string;
@@ -51,7 +59,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
 
   it(
     "returns an owner answer to the originating issue and updates its stable proposal",
-    { timeout: 30_000 },
+    { timeout: 90_000 },
     async () => {
       const dispositions = [
         {
@@ -95,19 +103,18 @@ describe("issue-driven owner-answer lifecycle integration", () => {
 
       const bus = new EventBus();
       const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
-      subscribeAutonomyIssueSources(
-        makeAutonomyIssueSourceContext(
-          projectDir,
-          bus,
-          deriveDirectoryScopeId(projectDir),
-        ).ctx,
+      const source = makeAutonomyIssueSourceContext(
+        projectDir,
+        bus,
+        deriveDirectoryScopeId(projectDir),
       );
+      subscribeAutonomyIssueSources(source.ctx);
       const completed: string[] = [];
       bus.on("workflow.completed", (payload) => {
         if (payload.workflow === "improver") completed.push(payload.runId);
       });
       const workflowDefinitions = await loadAutonomyWorkflowDefinitions();
-      const runtime = new WorkflowRuntime({
+      const runtimeFixture = createTestWorkflowRuntime({
         config: {
           defaultAgentHarness: "claude-agent-sdk",
           defaultPreset: "claude",
@@ -117,9 +124,13 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflow.name === "autonomy-health-reviewer" ||
-          workflow.name === "improver"
+          workflow.name === "autonomy-health-review-publication" ||
+          workflow.name === "autonomy-issue-projection-materialization" ||
+          workflow.name === "improver" ||
+          workflow.name === "improver-disposition-publication"
         ),
       });
+      const { runtime } = runtimeFixture;
       runtime.start();
       try {
         pbus.emit("workflow.failure.alert", {
@@ -130,7 +141,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           errorSummary: "Builder recovery policy is undecided",
           text: "builder failed",
         });
-        await waitUntil(
+        await waitForLifecycle(
           () => {
             const issue = readAutonomyIssueProjection(projectDir).issues[0];
             return issue?.disposition.kind === "owner-question" &&
@@ -146,7 +157,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         );
 
         questions.answer(questionId, "Preserve the worktree", "fixture-owner");
-        await waitUntil(
+        await waitForLifecycle(
           () =>
             completed.length === 2 &&
             readAutonomyIssueProjection(projectDir).issues[0]
@@ -182,7 +193,8 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           answer: "Preserve the worktree",
         });
       } finally {
-        await runtime.stop();
+        await runtimeFixture.stop();
+        source.runtime.runState.close();
       }
     },
   );

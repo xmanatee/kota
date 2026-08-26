@@ -359,7 +359,7 @@ describe("EventBus", () => {
   });
 
   describe("handler errors", () => {
-    it("propagates synchronous handler errors out of emit", () => {
+    it("runs every subscriber before propagating a synchronous handler error", () => {
       const bus = new EventBus();
       const h1 = vi.fn(() => {
         throw new Error("boom");
@@ -371,10 +371,14 @@ describe("EventBus", () => {
           ? (payload: T) => void
           : never,
       );
-      bus.on("runtime.idle", h2);
+      bus.on("*", h2);
       expect(() =>
         bus.emit("runtime.idle", { timestamp: "t", idleIntervalMs: 0 }),
       ).toThrow("boom");
+      expect(h2).toHaveBeenCalledOnce();
+      expect(h2).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "runtime.idle" }),
+      );
     });
   });
 });

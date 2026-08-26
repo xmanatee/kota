@@ -9,9 +9,9 @@
  * - memory    — `MemoryProvider.delete(id)` returns whether the id existed.
  * - knowledge — `KnowledgeProvider.delete(slug)` deletes the slug-indexed
  *               file. The seam returns `not_found` if the slug is unknown.
- * - tasks     — `moveTaskById(projectDir, id, "dropped")` routes through
- *               the existing state machine. The contributor never deletes
- *               the file and never bypasses `updated_at` / `git mv`.
+ * - tasks     — the repo-tasks mutation boundary serializes the state change
+ *               against any workflow owning `task:<id>`. The contributor
+ *               never deletes the file or bypasses `updated_at`.
  * - inbox     — the repo-tasks domain identity-checks, removes, and stages the
  *               resolved path through its descriptor-anchored boundary.
  *
@@ -19,19 +19,15 @@
  * unexpected state) propagate verbatim so the seam can surface them as the
  * typed `contributor_failed` arm.
  */
-import { existsSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
 import type {
   KnowledgeProvider,
   MemoryProvider,
 } from "#core/modules/provider-types.js";
 import {
-  getRepoInboxDir,
-  moveTaskById,
-  REPO_INBOX_DIR,
-  REPO_TASKS_DIR,
-  removeRepoInboxFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+	mutateRepoTask,
+	type RepoTaskMutationTarget,
+	type RepoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-boundary.js";
 import type {
   InboxRetractContributor,
   KnowledgeRetractContributor,
@@ -78,21 +74,21 @@ function retractKnowledge(
   };
 }
 
-function retractTasks(
-  projectDir: string,
+async function retractTasks(
+	target: RepoTaskMutationTarget,
   id: string,
-): RetractContributorResult {
-  const tasksRoot = join(projectDir, REPO_TASKS_DIR);
-  let exists = false;
-  try {
-    exists = anyTaskStateContains(tasksRoot, id);
-  } catch {
-    exists = false;
-  }
-  if (!exists) {
+): Promise<RetractContributorResult> {
+  const result = await mutateRepoTask(target, {
+    kind: "move",
+    id,
+    state: "dropped",
+  });
+  if (!result.ok && result.reason === "not_found") {
     return { kind: "not_found", identifier: id };
   }
-  const result = moveTaskById(projectDir, id, "dropped");
+  if (!result.ok) {
+    throw new Error(`Cannot retract task "${id}": ${result.reason}`);
+  }
   return {
     kind: "removed",
     record: {
@@ -105,31 +101,17 @@ function retractTasks(
   };
 }
 
-function retractInbox(
-  projectDir: string,
+async function retractInbox(
+	target: RepoTaskMutationTarget,
   path: string,
-): RetractContributorResult {
-  const inboxDir = getRepoInboxDir(projectDir);
-  const absolute = resolve(projectDir, path);
-  const inside = relative(inboxDir, absolute);
-  if (
-    inside === ".." ||
-    inside.startsWith(`..${sep}`) ||
-    inside === "" ||
-    inside.includes(sep) ||
-    !inside.endsWith(".md")
-  ) {
-    throw new Error(
-      `Refusing to retract inbox path outside ${REPO_INBOX_DIR}: ${path}`,
-    );
-  }
-  if (!removeRepoInboxFile(projectDir, absolute)) {
+): Promise<RetractContributorResult> {
+  const result = await mutateRepoTask(target, { kind: "retract-inbox", path });
+  if (!result.ok) {
     return { kind: "not_found", identifier: path };
   }
-  const recordId = inside.replace(/\.md$/, "");
   return {
     kind: "removed",
-    record: { target: "inbox", recordId, path },
+    record: { target: "inbox", recordId: result.recordId, path: result.path },
   };
 }
 
@@ -174,12 +156,12 @@ export function createProjectKnowledgeContributor(): KnowledgeRetractContributor
 }
 
 export function createTasksContributor(
-  projectDir: string,
+	target: RepoTaskRuntimeSandboxTarget,
 ): TasksRetractContributor {
   return {
     target: "tasks",
     async retract({ id }): Promise<RetractContributorResult> {
-      return retractTasks(projectDir, id);
+		return retractTasks(target, id);
     },
   };
 }
@@ -188,29 +170,22 @@ export function createProjectTasksContributor(): TasksRetractContributor {
   return {
     target: "tasks",
     async retract({ id, project }): Promise<RetractContributorResult> {
-      return retractTasks(requireProject(project).projectDir, id);
+		const { projectId, projectDir } = requireProject(project);
+		return retractTasks(
+			{ authority: "canonical", projectId, projectDir },
+			id,
+		);
     },
   };
 }
 
-function anyTaskStateContains(tasksRoot: string, id: string): boolean {
-  // Inline the state list rather than importing REPO_TASK_STATES so the
-  // contributor stays self-contained on the path that decides
-  // existence-vs-not_found.
-  const states = ["backlog", "ready", "doing", "blocked", "done", "dropped"];
-  for (const state of states) {
-    if (existsSync(join(tasksRoot, state, `${id}.md`))) return true;
-  }
-  return false;
-}
-
 export function createInboxContributor(
-  projectDir: string,
+	target: RepoTaskRuntimeSandboxTarget,
 ): InboxRetractContributor {
   return {
     target: "inbox",
     async retract({ path }): Promise<RetractContributorResult> {
-      return retractInbox(projectDir, path);
+		return retractInbox(target, path);
     },
   };
 }
@@ -219,7 +194,11 @@ export function createProjectInboxContributor(): InboxRetractContributor {
   return {
     target: "inbox",
     async retract({ path, project }): Promise<RetractContributorResult> {
-      return retractInbox(requireProject(project).projectDir, path);
+		const { projectId, projectDir } = requireProject(project);
+		return retractInbox(
+			{ authority: "canonical", projectId, projectDir },
+			path,
+		);
     },
   };
 }

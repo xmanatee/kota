@@ -1,263 +1,151 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BusEvents } from "#core/events/event-bus.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { subscribeWorkflowFailureAlert } from "./failure-alert.js";
+import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
+import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 
-type ScopedFailureAlert = BusEvents["workflow.failure.alert"] & {
-  scopeId: string;
+const SOURCE_DEFINITION: RegisteredWorkflowDefinitionInput = {
+  name: "source-workflow",
+  definitionPath: "src/core/workflow/failure-alert.test.ts",
+  repository: "none",
+  triggers: [{ event: "manual" }],
+  steps: [{ id: "noop", type: "code", run: () => undefined }],
 };
 
-function makePayload(
-  status: "success" | "failed" | "interrupted",
-  overrides: Partial<{
-    workflow: string;
-    runId: string;
-    durationMs: number;
-    runDir: string;
-  }> = {},
-) {
+function completion(
+  status: BusEvents["workflow.completed"]["status"],
+  overrides: Partial<BusEvents["workflow.completed"]> = {},
+): Omit<BusEvents["workflow.completed"], "projectId"> {
   return {
-    workflow: overrides.workflow ?? "builder",
-    runId: overrides.runId ?? "run-abc",
+    workflow: "source-workflow",
+    runId: "source-run",
     status,
-    triggerEvent: "runtime.idle",
-    durationMs: overrides.durationMs ?? 5000,
-    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-    runDir: overrides.runDir ?? ".kota/runs/run-abc",
+    triggerEvent: "manual",
+    durationMs: 5_000,
+    definitionPath: SOURCE_DEFINITION.definitionPath,
+    runDir: ".kota/runs/source-run",
     tags: [],
+    ...overrides,
   };
 }
 
-describe("subscribeWorkflowFailureAlert", () => {
-  let projectDir: string;
-  let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
-  let unsubscribe: () => void;
-  let emittedAlerts: ScopedFailureAlert[];
+function createProjectDir(): string {
+  const projectDir = join(
+    tmpdir(),
+    `kota-failure-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync(
+    "git",
+    ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "init"],
+    { cwd: projectDir, stdio: "ignore" },
+  );
+  return projectDir;
+}
 
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+describe("workflow failure alert", () => {
+  const cleanups: Array<() => Promise<void>> = [];
+
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  });
+
+  it("runs through durable workflow admission and emits one alert for an idempotent failure publication", async () => {
+    const projectDir = createProjectDir();
+    const bus = new EventBus();
+    const pbus = new ProjectScopedEventBus(bus, "scope-a");
+    const journal = new EventJournal(join(projectDir, ".kota", "events"));
+    const uninstallJournal = installEventJournal(bus, journal);
+    const fixture = createTestWorkflowRuntime({
+      bus,
+      pbus,
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [SOURCE_DEFINITION],
+    });
+    cleanups.push(async () => {
+      uninstallJournal();
+      await fixture.stop();
+      rmSync(projectDir, { recursive: true, force: true });
+    });
+
+    const errorDir = join(projectDir, ".kota", "runs", "source-run");
+    mkdirSync(errorDir, { recursive: true });
+    writeFileSync(join(errorDir, "error.txt"), "Agent exceeded token budget");
+    const alerts: BusEvents["workflow.failure.alert"][] = [];
+    bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
+
+    fixture.runtime.start();
+    expect(fixture.runtime.validateDefinitions()).toEqual({ count: 2 });
+    const payload = completion("failed");
+    pbus.deliverOutbox("workflow.completed", payload, "workflow:source-run:completed");
+    await vi.waitFor(() => expect(alerts).toHaveLength(1));
+
+    pbus.deliverOutbox("workflow.completed", payload, "workflow:source-run:completed");
+    await vi.waitFor(() => {
+      expect(alerts).toHaveLength(1);
+      expect(
+        fixture.runState
+          .listRuns("scope-a")
+          .filter((run) => run.workflow === "workflow-failure-alert"),
+      ).toHaveLength(1);
+    });
+
+    expect(alerts[0]).toMatchObject({
+      workflow: "source-workflow",
+      runId: "source-run",
+      status: "failed",
+      durationMs: 5_000,
+      errorSummary: "Agent exceeded token budget",
+    });
+    expect(alerts[0]?.text).toContain("Agent exceeded token budget");
+  });
+
+  it("does not admit success or workflows whose failure notification is disabled", async () => {
+    const projectDir = createProjectDir();
+    const bus = new EventBus();
+    const pbus = new ProjectScopedEventBus(bus, "scope-a");
+    const fixture = createTestWorkflowRuntime({
+      bus,
+      pbus,
+      projectDir,
+      idleIntervalMs: 60_000,
+      workflows: [{ ...SOURCE_DEFINITION, notify: { onFailure: false } }],
+    });
+    cleanups.push(async () => {
+      await fixture.stop();
+      rmSync(projectDir, { recursive: true, force: true });
+    });
+    const alerts: BusEvents["workflow.failure.alert"][] = [];
+    bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
+
+    fixture.runtime.start();
+    pbus.deliverOutbox(
+      "workflow.completed",
+      completion("failed"),
+      "workflow:source-run:failed",
     );
-    mkdirSync(projectDir, { recursive: true });
-    bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, "test-project");
-    emittedAlerts = [];
-    bus.on("workflow.failure.alert", (payload) => {
-      emittedAlerts.push(payload as ScopedFailureAlert);
-    });
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir);
-  });
-
-  afterEach(() => {
-    unsubscribe();
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("emits workflow.failure.alert on failed workflow", () => {
-    const payload = makePayload("failed");
-    pbus.emit("workflow.completed", payload);
-    expect(emittedAlerts).toHaveLength(1);
-    const alert = emittedAlerts[0];
-    expect(alert.status).toBe("failed");
-    expect(alert.scopeId).toBe("test-project");
-    expect(alert.projectId).toBe("test-project");
-    expect(alert.workflow).toBe("builder");
-    expect(alert.runId).toBe("run-abc");
-    expect(alert.text).toContain("failed");
-    expect(alert.text).toContain("builder");
-    expect(alert.text).toContain("run-abc");
-    expect(alert.text).toContain("5.0s");
-  });
-
-  it("emits workflow.failure.alert on interrupted workflow", () => {
-    pbus.emit("workflow.completed", makePayload("interrupted"));
-    expect(emittedAlerts).toHaveLength(1);
-    expect(emittedAlerts[0].status).toBe("interrupted");
-    expect(emittedAlerts[0].text).toContain("interrupted");
-  });
-
-  it("does not emit alert on success", () => {
-    pbus.emit("workflow.completed", makePayload("success"));
-    expect(emittedAlerts).toHaveLength(0);
-  });
-
-  it("includes error summary when error.txt exists", () => {
-    const runDir = ".kota/runs/run-with-error";
-    const runDirPath = join(projectDir, runDir);
-    mkdirSync(runDirPath, { recursive: true });
-    writeFileSync(join(runDirPath, "error.txt"), "Agent exceeded token budget");
-    pbus.emit("workflow.completed", makePayload("failed", { runDir }));
-    expect(emittedAlerts[0].errorSummary).toBe("Agent exceeded token budget");
-    expect(emittedAlerts[0].text).toContain("Agent exceeded token budget");
-  });
-
-  it("omits error line when error.txt is absent", () => {
-    pbus.emit("workflow.completed", makePayload("failed"));
-    expect(emittedAlerts[0].errorSummary).toBe("");
-    expect(emittedAlerts[0].text).not.toContain("Error:");
-  });
-
-  it("truncates long error summaries", () => {
-    const runDir = ".kota/runs/run-long-error";
-    const runDirPath = join(projectDir, runDir);
-    mkdirSync(runDirPath, { recursive: true });
-    writeFileSync(join(runDirPath, "error.txt"), "x".repeat(500));
-    pbus.emit("workflow.completed", makePayload("failed", { runDir }));
-    expect(emittedAlerts[0].text).toContain("...");
-    expect(emittedAlerts[0].text.length).toBeLessThan(600);
-  });
-
-  it("unsubscribes correctly and stops receiving events", () => {
-    unsubscribe();
-    pbus.emit("workflow.completed", makePayload("failed"));
-    expect(emittedAlerts).toHaveLength(0);
-  });
-});
-
-describe("subscribeWorkflowFailureAlert — cooldown", () => {
-  let projectDir: string;
-  let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
-  let unsubscribe: () => void;
-  let emittedAlerts: ScopedFailureAlert[];
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    pbus.deliverOutbox(
+      "workflow.completed",
+      completion("success", { runId: "successful-run" }),
+      "workflow:successful-run:completed",
     );
-    mkdirSync(projectDir, { recursive: true });
-    bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, "test-project");
-    emittedAlerts = [];
-    bus.on("workflow.failure.alert", (payload) => {
-      emittedAlerts.push(payload as ScopedFailureAlert);
-    });
-  });
+    await new Promise((resolve) => setTimeout(resolve, 25));
 
-  afterEach(() => {
-    unsubscribe?.();
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("fires on first failure when cooldown is set", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, { alertCooldownMs: 60_000 });
-    pbus.emit("workflow.completed", makePayload("failed"));
-    expect(emittedAlerts).toHaveLength(1);
-  });
-
-  it("suppresses second failure within cooldown window", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, { alertCooldownMs: 60_000 });
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
-    expect(emittedAlerts).toHaveLength(1);
-    expect(emittedAlerts[0].runId).toBe("run-1");
-  });
-
-  it("fires again after cooldown window expires", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, { alertCooldownMs: 1 });
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        pbus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
-        expect(emittedAlerts).toHaveLength(2);
-        expect(emittedAlerts[1].runId).toBe("run-2");
-        resolve();
-      }, 5);
-    });
-  });
-
-  it("cooldown is per-workflow — suppresses builder but not explorer", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, { alertCooldownMs: 60_000 });
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-1" }));
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-2" }));
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "explorer", runId: "e-1" }));
-    expect(emittedAlerts).toHaveLength(2);
-    expect(emittedAlerts[0].workflow).toBe("builder");
-    expect(emittedAlerts[1].workflow).toBe("explorer");
-  });
-
-  it("zero cooldown fires on every failure", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, { alertCooldownMs: 0 });
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-1" }));
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-2" }));
-    pbus.emit("workflow.completed", makePayload("failed", { runId: "run-3" }));
-    expect(emittedAlerts).toHaveLength(3);
-  });
-});
-
-describe("subscribeWorkflowFailureAlert — notify config", () => {
-  let projectDir: string;
-  let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
-  let unsubscribe: () => void;
-  let emittedAlerts: ScopedFailureAlert[];
-
-  beforeEach(() => {
-    projectDir = join(
-      tmpdir(),
-      `kota-alert-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(projectDir, { recursive: true });
-    bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, "test-project");
-    emittedAlerts = [];
-    bus.on("workflow.failure.alert", (payload) => {
-      emittedAlerts.push(payload as ScopedFailureAlert);
-    });
-  });
-
-  afterEach(() => {
-    unsubscribe?.();
-    rmSync(projectDir, { recursive: true, force: true });
-  });
-
-  it("suppresses failure alert when onFailure is false for the workflow", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, {
-      getWorkflowNotify: (name) => name === "builder" ? { onFailure: false } : undefined,
-    });
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "builder" }));
-    expect(emittedAlerts).toHaveLength(0);
-  });
-
-  it("does not suppress failure alert for unaffected workflows", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, {
-      getWorkflowNotify: (name) => name === "builder" ? { onFailure: false } : undefined,
-    });
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "explorer" }));
-    expect(emittedAlerts).toHaveLength(1);
-    expect(emittedAlerts[0].workflow).toBe("explorer");
-  });
-
-  it("emits failure alert when onFailure is true (explicit default)", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, {
-      getWorkflowNotify: () => ({ onFailure: true }),
-    });
-    pbus.emit("workflow.completed", makePayload("failed"));
-    expect(emittedAlerts).toHaveLength(1);
-  });
-
-  it("emits failure alert when notify config is undefined (default behavior)", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, {
-      getWorkflowNotify: () => undefined,
-    });
-    pbus.emit("workflow.completed", makePayload("failed"));
-    expect(emittedAlerts).toHaveLength(1);
-  });
-
-  it("suppresses for one workflow but not another in the same run", () => {
-    unsubscribe = subscribeWorkflowFailureAlert(pbus, projectDir, undefined, {
-      getWorkflowNotify: (name) => name === "housekeeping" ? { onFailure: false } : undefined,
-    });
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "housekeeping", runId: "h-1" }));
-    pbus.emit("workflow.completed", makePayload("failed", { workflow: "builder", runId: "b-1" }));
-    expect(emittedAlerts).toHaveLength(1);
-    expect(emittedAlerts[0].workflow).toBe("builder");
+    expect(alerts).toEqual([]);
+    expect(
+      fixture.runState
+        .listRuns("scope-a")
+        .filter((run) => run.workflow === "workflow-failure-alert"),
+    ).toEqual([]);
   });
 });

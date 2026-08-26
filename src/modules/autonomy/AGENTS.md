@@ -1,76 +1,52 @@
 # Autonomy Module
 
-Owns KOTA's autonomous loop.
+Owns KOTA's autonomous workflows and their shared policy.
 
-- Keep workflows/helpers here; no parallel workflow catalog in core.
-- Durable learning belongs in the narrowest useful scoped `AGENTS.md`; evidence
-  lives in run artifacts/git history, not a second lessons store.
-- Promote lessons only from repeated run evidence; retract/narrow when code,
-  behavior, or ownership changes.
-- Workflow prompts stay role-focused; shared policy belongs here or nearby.
-- Shipped autonomy workflows get harness/model/effort from the active preset;
-  generic workflows may still inherit `KotaConfig.defaultAgentHarness`.
-- Repair-loop judges inherit the parent step's resolved harness, not a parallel
-  fallback.
+- Keep workflows and helpers here; do not create a second workflow catalog.
+- Put durable learning in the narrowest useful `AGENTS.md`; evidence stays in
+  run artifacts and Git history.
+- Promote lessons only from repeated evidence and retract them when ownership
+  or behavior changes.
+- Shipped workflows inherit harness, model, and effort from the active preset.
+  Repair judges inherit the parent step's resolved harness.
 
 ## Core Decisions
 
-Load-bearing harness/eval/peer-runtime rules. Post summaries live in artifacts
-or `data/watchlist.yaml`.
-
-- **Generator / evaluator separation.** Decomposer → builder → critic; strip
-  repair-loop checks first and keep roles.
-- **Evaluator probes outcomes, not just artifacts.** Diff-only review misses
-  runtime behavior; reduce success to an inspectable artifact or runtime probe
-  (see `workflows/builder/AGENTS.md`).
-- **Product work proves the operator journey.** For `task_class: Product` or
-  owner-facing client/operator tasks, critic/reviewer judgment must inspect
-  rendered evidence (CLI transcript, screenshot, runtime probe, etc.).
-  Tests alone are insufficient.
-- **Critic input stays artifact-only.** Diff + repo state + run artifacts
-  (+ optional runtime probe). No thinking traces or self-reports.
-- **Infrastructure noise is not statistical noise.** Split allocation from
-  kill thresholds, report resource profile, distinguish `pass@k` from
-  `pass^k`. Judge-repetition per fixture belongs here too.
-- **Autonomy changes need decisions.** Material workflow/prompt/harness/model-
-  routing/reviewer/critic/improver gate/repair-loop changes carry
-  `autonomy-change-decision.json`: baseline/candidate refs, metrics, rollout,
-  and promote/hold/rollback/needs-more-data rationale.
-- **Context resets beat compaction.** Prefer fresh-session handoffs via
-  run artifacts over in-session compaction for distinct-phase workflows.
-- **Untrusted content is an injection surface.** Tool-risk gating
-  classifies the call, not the payload; `injection-defense` screens the
-  payload.
-- **Session state reconstructible from append-only logs.** Write through
-  to run artifacts or the event bus.
-- **Eval fixtures resist contamination.** Keep retired SWE-bench fixtures
-  reference-only; seed `eval-harness` from local failures or justified smoke
-  cases with non-vacuous predicates.
-- **Worktree-backed autonomy.** Accepted in
-  `worktree-backed-autonomy-decision.ts`: `projectDir`, leased `workspaceDir`,
-  gated merges. Per-workflow policy lives in `workflow-workspace-policy.ts`;
-  builder is worktree/merge-gated by default, KOTA control exceptions need
-  explicit safety gates, and external-effect workflows stay out of worktrees.
-
-## Live-Run Evaluator Calibration
-
-`pass^k` catches generator drift; artifacts catch evaluator drift. A later
-overlapping final failure contradicts a pass; raw evidence is never deduped.
-Repair counts are diagnostic. Failed builders retain the judgment-time prompt
-hash; prompt changes reset the window; unavailable review clears stale verdicts.
-PWW needs a later hedge/failure. Drift manages the repair task and digest. Gate
-retunes require repeated evidence and rationale; completion
-verifies the affected snapshot against active config and binds each retained
-signal to an open source-specific task. Reopen only from a repair-descendant
-revision.
-Critic blocks weak evidence, placeholder tests, compat shims, hedged ratchets,
-dishonest sources, Done-When gaps, untested defects, and fixture-only signals.
-Non-trivial warnings require a durable trace; otherwise critical.
+- **Generator/evaluator separation.** Preserve decomposer → builder → critic
+  roles and remove repair-loop checks before collapsing roles.
+- **Outcome evidence.** Evaluators probe behavior, and owner-facing product work
+  includes rendered evidence. Critic input is artifacts and repository state,
+  never thinking traces or self-reports.
+- **Honest measurement.** Resource allocation is distinct from kill thresholds;
+  report profiles, judge repetition, `pass@k`, and `pass^k` explicitly.
+- **Autonomy decisions.** Material workflow, prompt, routing, reviewer, critic,
+  improver, or repair-loop changes carry an `autonomy-change-decision.json`
+  with comparison evidence and rollout rationale.
+- **Fresh handoffs.** Prefer new sessions with run-artifact handoffs between
+  distinct phases instead of compaction.
+- **Injection boundary.** Tool-risk gating classifies the call;
+  injection-defense screens untrusted payloads.
+- **Durable sessions.** State needed after restart writes through to run
+  artifacts, typed events, or runtime-owned state.
+- **Eval provenance.** Retired SWE-bench fixtures are reference-only; new
+  fixtures come from local failures or justified non-vacuous smoke cases.
+- **Repository isolation is runtime-owned.** Workflows declare repository
+  access and logical resources. The runtime supplies the isolated `projectDir`
+  and canonical `scopeDir`, then owns integration, recovery, and cleanup.
+  Workflows do not own worktrees, branches, commits, merges, leases, or
+  finalizers.
+- **Shared autonomy state is runtime-owned.** Issue projections, watermarks,
+  and cooldowns publish through `ctx.state` compare-and-set. JSON projections
+  are read-only materializations, never authority or rebuild input.
+- **Evaluator calibration.** Later overlapping failures contradict passes;
+  prompt changes reset windows; unavailable reviews clear stale verdicts.
+  Critic rejects weak evidence, placeholders, compatibility shims, dishonest
+  sources, untested defects, and fixture-only signals.
 
 ## External Pattern Decisions
 
-Verdicts on peer patterns vs KOTA primitives live in
-`external-pattern-decisions.ts`; tests enforce 1:1 match.
+Metadata and revisit conditions live in `external-pattern-decisions.ts`; tests
+keep this catalog aligned 1:1.
 
 - **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject.
 - **Vercel AI SDK split.** Adopt.
@@ -83,72 +59,31 @@ Verdicts on peer patterns vs KOTA primitives live in
 - **Managed Agents / brain-hands decoupling.** Reject.
 - **Claude Code auto mode + sandboxing.** Read.
 - **Harness design for long-running apps.** Read.
-- **Multi-Claude parallel builds.** Reject direct adoption; revisit via worktrees.
 - **Claude Code 1M context + session management.** Reject.
 - **Production MCP agent integration.** Read.
 - **AGI capability scoring / behavioral-disposition alignment.** Reject.
 - **Microsoft Agent Framework (AutoGen successor).** Reject.
 - **Harness-as-shell (inference.sh).** Read.
 
-## Prompt Hierarchy And Harness Posture
+## Runtime Posture
 
-- **Instruction hierarchy.** SDK system + core rails ≈ Root/System; autonomy
-  mode + module prompt state ≈ Developer; channel/session user message ≈ User;
-  tool/web outputs ≈ untrusted (via `injection-defense`).
-  User/tool output must not silently escalate autonomy mode.
-- **Trustworthy-agents four-layer injection defense.** Model/harness ≈ SDK
-  boundary; tools ≈ `guardrails.ts` + risk; runtime ≈ `approval-queue` +
-  autonomy mode + `injection-defense`.
-- **Quality-first capable-tier defaults at agent-step layer.** Delegate-don't-pair:
-  front-load intent/constraints/success criteria; use the active preset's
-  capable model and `xhigh`-class effort; no clarification loops/fixed caps.
-- **Tool-design hygiene.** High bar for tools; prefer discoverable
-  surfaces (read, grep, scoped `AGENTS.md`, prompt state).
-- **`ask_owner` uses `askOwnerSteps`**
-  (`#core/workflow/ask-owner-step.js`): ask → await → consume, restart-safe.
-  Gate on real prior-step output, 10 min budget, consume every outcome kind.
-  Do not import `#core/tools/ask-owner.js`.
+- Instruction hierarchy is SDK/core rails → autonomy/module policy → user
+  message → untrusted tool/web output. Lower layers cannot escalate autonomy.
+- Capable-tier agent steps front-load intent, constraints, and success criteria;
+  they do not use clarification loops or fixed caps.
+- `ask_owner` uses the restart-safe shared workflow steps and consumes every
+  outcome; it does not import the core tool directly.
+- Agent judges use the shared retry classifier. Runaway budget failures warn;
+  unclassified SDK failures reject. Validation and runtime resolve the same
+  declared agent contract.
 
-## Scoped Contracts
+## Queue Policy
 
-- `src/modules/injection-defense/AGENTS.md` — content ingest.
-- `workflows/builder/AGENTS.md` — runtime probes.
-
-## Operator Reports
-
-`kota report` prints operator balance/quality.
-`task-classification.classifyTaskShape` inspects area + title + summary so
-surface-parity work under `architecture`/`modules` classifies as fan-out. Per
-no-cost-bias-in-autonomy, this output is operator-only and must not reach
-autonomy agents.
-
-## Multi-Client Fan-Out Consolidation
-
-`fan-out-consolidator` seeds one `area: client` review task per closed batch
-(idempotent by capability key, ≤1 primary surface per task); `area: client`
-forces rendered evidence. Detection + body in `fan-out-consolidation.ts`.
-
-## Empty-Queue Loop Shape
-
-Workflow gating only:
-
-- **Builder gates on `autonomy.queue.available`** (ready+doing>0). Do not fire
-  on `runtime.idle` or auto-consume backlog.
-- **`backlog-promoter` records `promotion-rationale.json`** before builder
-  resumes; promotes 1–2 backlog tasks by priority → strategic-area → oldest
-  `updated_at`.
-- **`explorer` repair-loop rejects commits without
-  `exploration-rationale.json`**. `create-task` cites each strategic
-  blocked id; `noop` at `actionableCount===0` cites each `movable`
-  one. No `--min-ready 1`; a paused queue may noop.
-- **Cooldowns over caps.** Explorer 30-minute refresh; builder paced
-  by repair checks and task availability.
-- **Honesty over speculation.** Inaccessible sources block
-  (`done-task-inaccessible-source`); no synthesis from unread content.
-
-## Agent Judge Runtime Contract
-
-Agent judges use the shared retry classifier (`src/core/workflow/steps/AGENTS.md`).
-Runaway turn/token failures warn because edits cannot change a judge's budget;
-unclassified SDK failures reject. Judge-backed checks declare
-`resolveAgentContract`; validation and runtime consume the same contract.
+- Builder runs only from targeted, idempotent `autonomy.queue.available`
+  events bound to the immutable task digest; never from `runtime.idle`.
+- Backlog promotion records rationale before resuming builder and selects a
+  small priority/strategy/age-ranked batch.
+- Explorer records rationale; inaccessible sources block rather than invite
+  synthesis. Cooldowns pace exploration and builder work without hard caps.
+- Operator reports, fan-out consolidation, and evaluator drift must remain
+  observation/governance surfaces and never leak cost bias into agent context.

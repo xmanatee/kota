@@ -42,12 +42,24 @@ export async function executeForeachInnerStep(
   deps: ForeachExecutionDeps,
 ): Promise<ForeachInnerStepExecution> {
   const stepStartedAt = Date.now();
+  let emitOrdinal = 0;
+  let toolOrdinal = 0;
   const innerContext: WorkflowStepContext = {
     ...context,
     runTool: (name, input, toolContext) =>
       context.runTool(name, input, {
         ...toolContext,
         stepId: toolContext?.stepId ?? innerStep.id,
+        effectId: toolContext?.effectId === undefined
+          ? `foreach:${innerStep.id}:${itemIndex}:tool:${toolOrdinal++}`
+          : `foreach:${innerStep.id}:${itemIndex}:${toolContext.effectId}`,
+      }),
+    emit: (event, payload, options) =>
+      context.emit(event, payload, {
+        ...options,
+        stepId: options?.stepId === undefined
+          ? `foreach:${innerStep.id}:${itemIndex}:emit:${emitOrdinal++}`
+          : `foreach:${innerStep.id}:${itemIndex}:${options.stepId}`,
       }),
   };
 

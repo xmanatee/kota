@@ -1,3 +1,4 @@
+import type { TransactionalRunState } from "#core/workflow/run-context.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type {
   WorkflowTriggerAdmissionDecision,
@@ -8,17 +9,18 @@ import {
   type ProgressReviewRequest,
 } from "./events.js";
 import {
+  decodeProgressReviewConsumptionState,
   isProgressBoundary,
-  pendingInputFromPayload,
+  PROGRESS_REVIEW_STATE_KEY,
+  type ProgressReviewConsumptionState,
   progressReviewDispatchKey,
-  readConsumptionState,
-  writeConsumptionState,
 } from "./semantic-input-state.js";
 
+export type { ProgressReviewConsumptionState } from "./semantic-input-state.js";
 export {
+  decodeProgressReviewConsumptionState,
+  PROGRESS_REVIEW_STATE_KEY,
   progressReviewDispatchKey,
-  readPendingProgressReviewInput,
-  recordProgressReviewInputQueued,
 } from "./semantic-input-state.js";
 
 export type ProgressReviewSemanticInput = {
@@ -31,37 +33,9 @@ export type ProgressReviewSemanticInput = {
   deliveryAttempt: number;
 };
 
-export function deferProgressReviewSemanticInput(args: {
-  projectDir: string;
-  input: ProgressReviewSemanticInput;
-}): void {
-  if (!args.input.automatic || args.input.inputRevision === null) return;
-  const state = readConsumptionState(args.projectDir);
-  const priorAttempt = state.pendingInput?.inputRevision === args.input.inputRevision
-    ? state.pendingInput.deliveryAttempt
-    : args.input.deliveryAttempt;
-  const pending = pendingInputFromPayload({
-    automatic: true,
-    boundary: args.input.boundary === "explicit-request"
-      ? undefined
-      : args.input.boundary,
-    inputRevision: args.input.inputRevision,
-    evidenceRefs: args.input.evidenceRefs,
-    reason: args.input.reason,
-    deliveryAttempt: priorAttempt + 1,
-  }, "deferred");
-  if (pending.inputRevision <= state.lastConsumedRevision) return;
-  if (
-    state.pendingInput &&
-    state.pendingInput.inputRevision > pending.inputRevision
-  ) {
-    return;
-  }
-  writeConsumptionState(args.projectDir, { ...state, pendingInput: pending });
-}
-
 export function inspectProgressReviewSemanticInput(args: {
-  projectDir: string;
+  scopeDir: string;
+  state: Pick<TransactionalRunState, "read">;
   trigger: WorkflowRunTrigger;
 }): ProgressReviewSemanticInput {
   const payload = args.trigger.payload as ProgressReviewRequest;
@@ -87,7 +61,10 @@ export function inspectProgressReviewSemanticInput(args: {
   if (revision <= 0) {
     throw new Error("automatic progress review inputRevision must be positive");
   }
-  const state = readConsumptionState(args.projectDir);
+  const state = decodeProgressReviewConsumptionState(
+    args.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
+    args.scopeDir,
+  );
   return {
     automatic: true,
     shouldReview: revision > state.lastConsumedRevision,
@@ -122,7 +99,10 @@ export function admitProgressReviewTrigger(
       reason: "automatic progress input is missing its semantic revision",
     };
   }
-  const state = readConsumptionState(input.projectDir);
+  const state = decodeProgressReviewConsumptionState(
+    input.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
+    input.projectDir,
+  );
   const deliveryAttempt = Number.isInteger(payload.deliveryAttempt) &&
       payload.deliveryAttempt! >= 0
     ? payload.deliveryAttempt!
@@ -144,37 +124,24 @@ export function admitProgressReviewTrigger(
       reason: `semantic revision ${payload.inputRevision} was already consumed`,
     };
   }
-  if (
-    state.pendingInput &&
-    payload.inputRevision! < state.pendingInput.inputRevision
-  ) {
-    return {
-      admitted: false,
-      reason:
-        `semantic revision ${payload.inputRevision} was superseded by ` +
-        `${state.pendingInput.inputRevision}`,
-    };
-  }
   return { admitted: true };
 }
 
-export function recordProgressReviewSemanticInput(args: {
-  projectDir: string;
-  input: ProgressReviewSemanticInput;
+export function completeProgressReviewSemanticInput(args: {
+  current: ProgressReviewConsumptionState;
+  input: Pick<ProgressReviewSemanticInput, "automatic" | "inputRevision">;
   consumedAt: string;
-}): void {
-  if (!args.input.automatic || args.input.inputRevision === null) return;
-  const state = readConsumptionState(args.projectDir);
-  if (args.input.inputRevision <= state.lastConsumedRevision) return;
-  writeConsumptionState(args.projectDir, {
-    schemaVersion: 2,
-    scopeId: state.scopeId,
+}): ProgressReviewConsumptionState {
+  if (!args.input.automatic || args.input.inputRevision === null) {
+    return args.current;
+  }
+  if (args.input.inputRevision <= args.current.lastConsumedRevision) {
+    return args.current;
+  }
+  return {
+    schemaVersion: 1,
+    scopeId: args.current.scopeId,
     lastConsumedRevision: args.input.inputRevision,
     consumedAt: args.consumedAt,
-    pendingInput:
-      state.pendingInput &&
-        state.pendingInput.inputRevision > args.input.inputRevision
-        ? state.pendingInput
-        : null,
-  });
+  };
 }

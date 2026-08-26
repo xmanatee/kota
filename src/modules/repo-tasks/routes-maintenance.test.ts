@@ -1,16 +1,15 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleTaskBodyUpdate, handleTaskGc } from "./routes.js";
-import { makeProjectDir, mockRequest, mockResponse, writeTaskFile } from "./routes-test-helpers.js";
-
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execSync: vi.fn(() => {
-    throw new Error("not a git repo");
-  }),
-  execFileSync: vi.fn(),
-}));
+import {
+  makeProjectDir,
+  mockRequest,
+  mockResponse,
+  mutationTarget,
+  resetRouteTestAuthority,
+  writeTaskFile,
+} from "./routes-test-helpers.js";
 
 describe("task maintenance routes", () => {
   let projectDir: string;
@@ -21,6 +20,7 @@ describe("task maintenance routes", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    resetRouteTestAuthority();
   });
 
   function writeTerminal(state: "done" | "dropped", id: string, updatedAt: string): void {
@@ -32,17 +32,17 @@ describe("task maintenance routes", () => {
     );
   }
 
-  it("archives terminal tasks older than the threshold", async () => {
+  it("removes terminal tasks older than the threshold", async () => {
     writeTerminal("done", "task-old-gc", "2020-01-01");
     const { res, result } = mockResponse();
-    await handleTaskGc(mockRequest({ days: 30 }), res, projectDir);
+    await handleTaskGc(mockRequest({ days: 30 }), res, mutationTarget(projectDir));
     expect(result.status).toBe(200);
-    expect((result.body as { archived: string[] }).archived).toContain("task-old-gc.md");
+    expect((result.body as { removed: string[] }).removed).toContain("task-old-gc.md");
   });
 
   it("returns 400 when gc days is not positive", async () => {
     const { res, result } = mockResponse();
-    await handleTaskGc(mockRequest({ days: 0 }), res, projectDir);
+    await handleTaskGc(mockRequest({ days: 0 }), res, mutationTarget(projectDir));
     expect(result.status).toBe(400);
   });
 
@@ -56,7 +56,7 @@ describe("task maintenance routes", () => {
     });
 
     const { res, result } = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "## New body\n\nUpdated content." }), res, "task-edit", projectDir);
+    await handleTaskBodyUpdate(mockRequest({ body: "## New body\n\nUpdated content." }), res, "task-edit", mutationTarget(projectDir));
     expect(result.status).toBe(200);
     expect((result.body as Record<string, string>).body).toContain("Updated content.");
 
@@ -70,7 +70,7 @@ describe("task maintenance routes", () => {
 
   it("returns body update errors for missing, terminal, and malformed requests", async () => {
     const missing = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "some content" }), missing.res, "task-nonexistent", projectDir);
+    await handleTaskBodyUpdate(mockRequest({ body: "some content" }), missing.res, "task-nonexistent", mutationTarget(projectDir));
     expect(missing.result.status).toBe(404);
 
     writeTaskFile(projectDir, "done", "task-done", {
@@ -80,7 +80,7 @@ describe("task maintenance routes", () => {
       status: "done",
     });
     const terminal = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "## Should fail" }), terminal.res, "task-done", projectDir);
+    await handleTaskBodyUpdate(mockRequest({ body: "## Should fail" }), terminal.res, "task-done", mutationTarget(projectDir));
     expect(terminal.result.status).toBe(409);
 
     writeTaskFile(projectDir, "ready", "task-nob", {
@@ -90,7 +90,7 @@ describe("task maintenance routes", () => {
       status: "ready",
     });
     const noBody = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ notbody: "wrong field" }), noBody.res, "task-nob", projectDir);
+    await handleTaskBodyUpdate(mockRequest({ notbody: "wrong field" }), noBody.res, "task-nob", mutationTarget(projectDir));
     expect(noBody.result.status).toBe(400);
   });
 });

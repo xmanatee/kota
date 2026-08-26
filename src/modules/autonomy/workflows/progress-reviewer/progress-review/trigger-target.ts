@@ -39,11 +39,17 @@ export function requestPayload(trigger: WorkflowRunTrigger): ProgressReviewReque
   return trigger.payload as ProgressReviewRequestPayload;
 }
 
-export function currentDirectorySource(projectDir: string): ProgressReviewDirectorySource {
+export function currentDirectorySource(
+  projectDir: string,
+  scopeDir: string,
+  stateDir: string,
+): ProgressReviewDirectorySource {
   return {
-    scopeId: deriveDirectoryScopeId(projectDir),
-    displayName: basename(projectDir),
+    scopeId: deriveDirectoryScopeId(scopeDir),
+    displayName: basename(scopeDir),
     projectDir,
+    scopeDir,
+    stateDir,
     idPrefix: "",
   };
 }
@@ -58,6 +64,8 @@ export function loadConfiguredDirectorySources(
       scopeId: project.projectId,
       displayName: project.displayName,
       projectDir: project.projectDir,
+      scopeDir: project.projectDir,
+      stateDir: join(project.projectDir, ".kota"),
       idPrefix: "",
     })),
   };
@@ -74,12 +82,13 @@ export function prefixGlobalSourceIds(
 
 export function selectEvidenceTarget(
   projectDir: string,
+  scopeDir: string,
   trigger: WorkflowRunTrigger,
-  stateDir = join(projectDir, ".kota"),
+  stateDir: string,
 ): ProgressReviewEvidenceTarget {
   const payload = requestPayload(trigger);
   const selected = nonEmptyString(payload.scopeId) ?? nonEmptyString(payload.projectId);
-  const currentSource = currentDirectorySource(projectDir);
+  const currentSource = currentDirectorySource(projectDir, scopeDir, stateDir);
   const configured = loadConfiguredDirectorySources(stateDir);
   const scopeId = selected ?? currentSource.scopeId;
   if (scopeId === GLOBAL_SCOPE_ID) {
@@ -108,7 +117,7 @@ export function selectEvidenceTarget(
       kind: "directory",
       scopeId,
       displayName: source.displayName,
-      directoryRoot: source.projectDir,
+      directoryRoot: source.scopeDir,
     },
     sources: [source],
   };
@@ -152,7 +161,6 @@ export function classifyProgressReviewTrigger(
   const batch = batchPayload(trigger);
   if (!batch) return "event-batch";
   if (batch.sourceEventName === "workflow.completed") return "run-count";
-  if (batch.sourceEventName === "workflow.build.committed") return "task-count";
   if (batch.sourceEventName === "inbound.signal.received") return "message-batch";
   return "event-batch";
 }
@@ -190,6 +198,6 @@ export function directoryScopeForSource(
     kind: "directory",
     scopeId: source.scopeId,
     displayName: source.displayName,
-    directoryRoot: source.projectDir,
+    directoryRoot: source.scopeDir,
   };
 }

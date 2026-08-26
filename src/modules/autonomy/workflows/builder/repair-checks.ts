@@ -1,17 +1,12 @@
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { withWorkflowBlockingOperation } from "#core/workflow/blocking-operation-context.js";
 import type { WorkflowRepairCheck } from "#core/workflow/run-types.js";
 import { AUTONOMY_CHANGE_DECISION_CHECK_ID } from "#modules/autonomy/autonomy-change-decision.js";
 import { createCriticCheck } from "#modules/autonomy/critic.js";
 import { OBSERVABILITY_OBLIGATION_WARNING_TYPE } from "#modules/autonomy/observability-obligation.js";
+import { AUTONOMY_FULL_TEST_TIMEOUT_MS } from "#modules/autonomy/shared.js";
 import { SOURCE_FILE_SIZE_WARNING_TYPE } from "#modules/autonomy/source-size-check.js";
 import { SOURCE_FILE_SIZE_SEVERE_TYPE } from "#modules/autonomy/source-size-escalation.js";
-import type { QueueTaskClaimResult } from "#modules/autonomy/task-claims.js";
-import { workflowCommitCheckOperation } from "#modules/autonomy/workflow-commit-operations.js";
 import {
-  builderMobileTypecheckOperation,
-  checkBuilderCommitOperation,
-  projectBuilderAgentRunArtifactsOperation,
   runBuilderRepairCheck,
 } from "./blocking-operations.js";
 import {
@@ -19,43 +14,14 @@ import {
   checkCalibrationRepairEvidence,
 } from "./calibration-repair-evidence-check.js";
 import { checkMacosSwiftBuild, checkPackageScript } from "./project-package-checks.js";
+import { checkMobileTypecheck } from "./project-repair-checks.js";
+import { readBuilderTaskReviewContract } from "./task-contract.js";
 import { builderAgentRunDir, workflowWorkspaceDir } from "./workspace.js";
 
 export { checkCalibrationRepairEvidence } from "./calibration-repair-evidence-check.js";
 
-type CalibrationRepairEvidenceOperationInput = {
-  workspaceDir: string;
-  agentRunDir: string;
-  claim?: QueueTaskClaimResult;
-};
-
-export function checkCalibrationRepairEvidenceInWorker(
-  input: CalibrationRepairEvidenceOperationInput,
-): string {
-  return checkCalibrationRepairEvidence(
-    input.workspaceDir,
-    input.agentRunDir,
-    input.claim,
-  );
-}
-
-const calibrationRepairEvidenceOperation = defineWorkflowBlockingOperation<
-  CalibrationRepairEvidenceOperationInput,
-  string
->(import.meta.url, "checkCalibrationRepairEvidenceInWorker");
-
 export function builderRepairChecks(): WorkflowRepairCheck[] {
   return [
-    {
-      id: "actionable-task-claimed",
-      type: "code" as const,
-      run: (ctx) =>
-        runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
-          kind: "actionable-task-claimed",
-          projectDir: workflowWorkspaceDir(ctx),
-          claimProjectDir: ctx.projectDir,
-        }),
-    },
     {
       id: "success-criteria-declared",
       type: "code" as const,
@@ -64,6 +30,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
           kind: "success-criteria-declared",
           projectDir: workflowWorkspaceDir(ctx),
           runDirPath: builderAgentRunDir(ctx),
+          taskContract: readBuilderTaskReviewContract(ctx.trigger.payload),
         }),
     },
     {
@@ -77,64 +44,37 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         }),
     },
     {
-      id: "agent-run-artifacts-ready",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(
-          projectBuilderAgentRunArtifactsOperation,
-          {
-            agentRunDir: builderAgentRunDir(ctx),
-            workspaceDir: workflowWorkspaceDir(ctx),
-          },
-        ),
-    },
-    {
       id: CALIBRATION_REPAIR_EVIDENCE_CHECK_ID,
       type: "code" as const,
       phase: 2,
       run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(
-          calibrationRepairEvidenceOperation,
-          {
-            workspaceDir: workflowWorkspaceDir(ctx),
-            agentRunDir: builderAgentRunDir(ctx),
-            ...(ctx.stepOutputs["claim-task"] === undefined
-              ? {}
-              : {
-                  claim: ctx.stepOutputs["claim-task"] as QueueTaskClaimResult,
-                }),
-          },
+        checkCalibrationRepairEvidence(
+          workflowWorkspaceDir(ctx),
+          builderAgentRunDir(ctx),
+          ctx.runtimeResources?.env.KOTA_RUN_ARTIFACT_DIR ??
+            ctx.workflow.runDirPath,
+          String(ctx.trigger.payload.taskId),
+          ctx.runCommand,
         ),
     },
     {
-      id: "actionable-task-resolved",
+      id: "target-task-resolved",
       type: "code" as const,
       phase: 1,
       run: (ctx) =>
         runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
-          kind: "actionable-task-resolved",
+          kind: "target-task-resolved",
           projectDir: workflowWorkspaceDir(ctx),
-        }),
-    },
-    {
-      id: "claimed-task-commit-set",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) =>
-        runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
-          kind: "claimed-task-commit-set",
-          projectDir: workflowWorkspaceDir(ctx),
-          claim: ctx.stepOutputs["claim-task"] as QueueTaskClaimResult | undefined,
+          taskId: String(ctx.trigger.payload.taskId),
         }),
     },
     {
       id: "build-output",
       type: "code" as const,
       run: (ctx) => checkPackageScript(
+        ctx,
         workflowWorkspaceDir(ctx),
-        "pnpm build",
-        { signal: ctx.signal },
+        { command: "pnpm", args: ["build"] },
       ),
     },
     {
@@ -142,30 +82,19 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkPackageScript(
+        ctx,
         workflowWorkspaceDir(ctx),
-        "pnpm dev workflow validate",
-        { signal: ctx.signal },
+        { command: "pnpm", args: ["dev", "workflow", "validate"] },
       ),
-    },
-    {
-      id: "claimed-task-state-staged",
-      type: "code" as const,
-      phase: 1,
-      run: (ctx) =>
-        runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
-          kind: "claimed-task-state-staged",
-          projectDir: workflowWorkspaceDir(ctx),
-          claim: ctx.stepOutputs["claim-task"] as QueueTaskClaimResult | undefined,
-        }),
     },
     {
       id: "task-queue-valid",
       type: "code" as const,
       phase: 2,
       run: (ctx) => checkPackageScript(
+        ctx,
         workflowWorkspaceDir(ctx),
-        "pnpm run validate-tasks",
-        { signal: ctx.signal },
+        { command: "pnpm", args: ["run", "validate-tasks"] },
       ),
     },
     {
@@ -173,9 +102,9 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       phase: 1,
       run: (ctx) => checkPackageScript(
+        ctx,
         workflowWorkspaceDir(ctx),
-        "pnpm run typecheck",
-        { signal: ctx.signal },
+        { command: "pnpm", args: ["run", "typecheck"] },
       ),
     },
     {
@@ -184,29 +113,36 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       phase: 1,
       run: (ctx) =>
         checkPackageScript(
+          ctx,
           workflowWorkspaceDir(ctx),
-          "pnpm run lint",
-          { signal: ctx.signal },
+          { command: "pnpm", args: ["run", "lint"] },
         ),
+    },
+    {
+      id: "test",
+      type: "code" as const,
+      phase: 1,
+      run: (ctx) => checkPackageScript(
+        ctx,
+        workflowWorkspaceDir(ctx),
+        {
+          command: "pnpm",
+          args: ["test"],
+          timeoutMs: AUTONOMY_FULL_TEST_TIMEOUT_MS,
+        },
+      ),
     },
     {
       id: "mobile-typecheck",
       type: "code" as const,
       phase: 1,
-      run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(
-          builderMobileTypecheckOperation,
-          { projectDir: workflowWorkspaceDir(ctx) },
-        ),
+      run: (ctx) => checkMobileTypecheck(ctx, workflowWorkspaceDir(ctx)),
     },
     {
       id: "macos-swift-build",
       type: "code" as const,
       phase: 1,
-      run: (ctx) => checkMacosSwiftBuild(
-        workflowWorkspaceDir(ctx),
-        { signal: ctx.signal },
-      ),
+      run: (ctx) => checkMacosSwiftBuild(ctx, workflowWorkspaceDir(ctx)),
     },
     {
       id: "module-boundary",
@@ -215,15 +151,6 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       run: (ctx) =>
         runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
           kind: "module-boundary",
-          projectDir: workflowWorkspaceDir(ctx),
-        }),
-    },
-    {
-      id: "no-scratch-artifacts",
-      type: "code" as const,
-      run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-          kind: "scratch-artifacts",
           projectDir: workflowWorkspaceDir(ctx),
         }),
     },
@@ -293,24 +220,10 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
         }),
     },
     {
-      id: "commit-message-exists",
-      type: "code" as const,
-      run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(workflowCommitCheckOperation, {
-          kind: "commit-message",
-          projectDir: workflowWorkspaceDir(ctx),
-          runDirPath: builderAgentRunDir(ctx),
-        }),
+      ...createCriticCheck({
+        resolveTaskReviewContract: readBuilderTaskReviewContract,
+      }),
+      phase: 3,
     },
-    {
-      id: "commit-stageable",
-      type: "code" as const,
-      run: (ctx) =>
-        withWorkflowBlockingOperation(ctx).runBlocking(checkBuilderCommitOperation, {
-          workspaceDir: workflowWorkspaceDir(ctx),
-          agentRunDir: builderAgentRunDir(ctx),
-        }),
-    },
-    { ...createCriticCheck(), phase: 3 },
   ];
 }

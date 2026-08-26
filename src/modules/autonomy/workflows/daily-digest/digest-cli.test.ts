@@ -5,10 +5,7 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { buildDigestCommand } from "./digest-cli.js";
-import {
-  DAILY_DIGEST_STATE_FILENAME,
-  renderOnDemandDigest,
-} from "./on-demand.js";
+import { renderOnDemandDigest } from "./on-demand.js";
 
 vi.mock("#core/daemon/owner-question-queue.js", async () => {
   const actual =
@@ -105,7 +102,10 @@ describe("kota digest CLI", () => {
   });
 
   it("prints the same body renderOnDemandDigest produces", async () => {
-    const expected = renderOnDemandDigest({ projectDir }).text;
+    const expected = renderOnDemandDigest({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+    }).text;
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "digest"]);
@@ -115,7 +115,10 @@ describe("kota digest CLI", () => {
   });
 
   it("--json emits the structured DailyDigestData payload", async () => {
-    const expected = renderOnDemandDigest({ projectDir }).data;
+    const expected = renderOnDemandDigest({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+    }).data;
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "digest", "--json"]);
@@ -125,16 +128,16 @@ describe("kota digest CLI", () => {
     expect(parsed).toEqual(expected);
   });
 
-  it("does not write the cadence snapshot or emit workflow.daily.digest", async () => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    expect(existsSync(statePath)).toBe(false);
+  it("does not create cadence state or emit workflow.daily.digest", async () => {
+    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    expect(existsSync(databasePath)).toBe(false);
 
     await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "digest"]);
       await makeProgram().parseAsync(["node", "kota", "digest", "--json"]);
     });
 
-    expect(existsSync(statePath)).toBe(false);
+    expect(existsSync(databasePath)).toBe(false);
     expect(observed).toEqual([]);
   });
 });

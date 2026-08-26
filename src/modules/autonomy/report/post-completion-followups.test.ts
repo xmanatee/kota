@@ -5,8 +5,8 @@ import {
   MS_PER_DAY,
   NOW,
   writeRun,
-  writeRunSummary,
   writeTask,
+  writeWriterIntegration,
 } from "./post-completion-followups.test-helpers.js";
 
 describe("post-completion corrective follow-up report", () => {
@@ -33,7 +33,7 @@ describe("post-completion corrective follow-up report", () => {
       startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       status: "success",
     });
-    writeRunSummary(
+    writeWriterIntegration(
       runsDir,
       parentRunId,
       "task-completed-parent",
@@ -44,7 +44,7 @@ describe("post-completion corrective follow-up report", () => {
       startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       status: "success",
     });
-    writeRunSummary(
+    writeWriterIntegration(
       runsDir,
       sourceRunId,
       "task-source-parent",
@@ -169,7 +169,7 @@ describe("post-completion corrective follow-up report", () => {
       startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       status: "success",
     });
-    writeRunSummary(
+    writeWriterIntegration(
       runsDir,
       parentRunId,
       "task-completed-parent",

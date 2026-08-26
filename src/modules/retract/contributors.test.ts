@@ -13,6 +13,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { createNormalizedTask } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   createInboxContributor,
@@ -22,10 +26,11 @@ import {
 } from "./contributors.js";
 
 function makeProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "retract-contrib-"));
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "retract-contrib-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "retract-contributor-test",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
@@ -113,7 +118,7 @@ describe("createTasksContributor (real repo-tasks state machine)", () => {
     );
     expect(existsSync(backlogPath)).toBe(true);
 
-    const contrib = createTasksContributor(projectDir);
+    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const result = await contrib.retract({ id });
 
     expect(result.kind).toBe("removed");
@@ -141,13 +146,14 @@ describe("createTasksContributor (real repo-tasks state machine)", () => {
 
   it("returns not_found when the task id is not present in any state directory", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(projectDir);
+    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const result = await contrib.retract({ id: "task-does-not-exist" });
     expect(result).toEqual({
       kind: "not_found",
       identifier: "task-does-not-exist",
     });
   });
+
 });
 
 describe("createInboxContributor (real filesystem)", () => {
@@ -159,7 +165,7 @@ describe("createInboxContributor (real filesystem)", () => {
     execSync(`git add -- "${repoRelative}"`, { cwd: projectDir });
     expect(existsSync(filePath)).toBe(true);
 
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const result = await contrib.retract({ path: repoRelative });
 
     expect(result).toEqual({
@@ -174,7 +180,9 @@ describe("createInboxContributor (real filesystem)", () => {
     const filePath = join(projectDir, "data", "inbox", "note-untracked.md");
     writeFileSync(filePath, "rough thought\n");
 
-    const result = await createInboxContributor(projectDir).retract({
+    const result = await createInboxContributor(
+      repoTaskRuntimeSandboxTarget(projectDir),
+    ).retract({
       path: "data/inbox/note-untracked.md",
     });
 
@@ -198,7 +206,7 @@ describe("createInboxContributor (real filesystem)", () => {
     rmSync(inboxDir, { recursive: true });
     symlinkSync(outsideDir, inboxDir, "dir");
 
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await expect(
       contrib.retract({ path: "data/inbox/note-x.md" }),
     ).rejects.toThrow(/symbolic-link directory components are forbidden/);
@@ -207,7 +215,7 @@ describe("createInboxContributor (real filesystem)", () => {
 
   it("returns not_found when the path is missing", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     const result = await contrib.retract({
       path: "data/inbox/never-existed.md",
     });
@@ -219,7 +227,7 @@ describe("createInboxContributor (real filesystem)", () => {
 
   it("refuses paths outside data/inbox/", async () => {
     const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(projectDir);
+    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
     await expect(
       contrib.retract({ path: "data/tasks/backlog/something.md" }),
     ).rejects.toThrow(/outside data\/inbox/);

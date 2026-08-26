@@ -27,7 +27,15 @@ export { reduceAutonomyIssueProjection } from "./autonomy-issue-projection-reduc
 export type * from "./autonomy-issue-projection-types.js";
 export { AUTONOMY_ISSUE_PROJECTION_FILE };
 
-function assertProjection(value: AutonomyHealthJsonValue): AutonomyIssueProjection {
+export const AUTONOMY_ISSUE_PROJECTION_RESOURCE =
+  "autonomy:issue-projection";
+export const AUTONOMY_ISSUE_PROJECTION_STATE_KEY =
+  "autonomy/issues/projection";
+
+export function decodeAutonomyIssueProjection(
+  value: AutonomyHealthJsonValue | undefined,
+): AutonomyIssueProjection {
+  if (value === null || value === undefined) return emptyAutonomyIssueProjection();
   if (
     !isAutonomyHealthJsonObject(value) ||
     value.schemaVersion !== 1 ||
@@ -69,40 +77,21 @@ export function readAutonomyIssueProjection(
   const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(
     projectionPath(projectDir),
   );
-  return raw === null ? emptyAutonomyIssueProjection() : assertProjection(raw);
+  return decodeAutonomyIssueProjection(raw);
 }
 
 export function applyAutonomyIssueObservations(args: {
-  projectDir: string;
+  current: AutonomyIssueProjection;
   observations: readonly AutonomyIssueObservation[];
 }): AutonomyIssueProjectionResult {
-  const result = reduceAutonomyIssueProjection(
-    readAutonomyIssueProjection(args.projectDir),
-    args.observations,
-  );
-  if (result.transitions.some((transition) => transition.kind !== "replayed")) {
-    writeJsonFileAtomic(projectionPath(args.projectDir), result.projection);
-  }
-  return result;
-}
-
-export function rebuildAutonomyIssueProjection(args: {
-  projectDir: string;
-  observations: readonly AutonomyIssueObservation[];
-}): AutonomyIssueProjectionResult {
-  const result = reduceAutonomyIssueProjection(
-    emptyAutonomyIssueProjection(),
-    args.observations,
-  );
-  writeJsonFileAtomic(projectionPath(args.projectDir), result.projection);
-  return result;
+  return reduceAutonomyIssueProjection(args.current, args.observations);
 }
 
 export function recordAutonomyIssueDispositions(args: {
-  projectDir: string;
+  current: AutonomyIssueProjection;
   updates: readonly AutonomyIssueDispositionUpdate[];
 }): AutonomyIssueProjection {
-  const current = readAutonomyIssueProjection(args.projectDir);
+  const current = args.current;
   if (args.updates.length === 0) return current;
   const updates = new Map<string, AutonomyIssueDispositionUpdate>();
   for (const update of args.updates) {
@@ -148,48 +137,14 @@ export function recordAutonomyIssueDispositions(args: {
     ].sort().at(-1)!,
     issues,
   };
-  writeJsonFileAtomic(projectionPath(args.projectDir), projection);
   return projection;
 }
 
-export function recordAutonomyIssueRecoveryDisposition(args: {
-  projectDir: string;
-  taskId: string;
-  recoveryDispositionRef: string;
-  recordedAt: string;
-}): AutonomyIssueProjection {
-  const current = readAutonomyIssueProjection(args.projectDir);
-  let changed = false;
-  const issues = current.issues.map((issue) => {
-    if (
-      !issue.links.taskIds.includes(args.taskId) ||
-      issue.links.recoveryDispositionRefs.includes(args.recoveryDispositionRef)
-    ) {
-      return issue;
-    }
-    changed = true;
-    return {
-      ...issue,
-      links: {
-        ...issue.links,
-        recoveryDispositionRefs: uniqueAutonomyIssueStrings([
-          ...issue.links.recoveryDispositionRefs,
-          args.recoveryDispositionRef,
-        ]),
-      },
-    };
-  });
-  if (!changed) return current;
-  const projection = {
-    ...current,
-    updatedAt: [
-      ...(current.updatedAt === null ? [] : [current.updatedAt]),
-      args.recordedAt,
-    ].sort().at(-1)!,
-    issues,
-  };
-  writeJsonFileAtomic(projectionPath(args.projectDir), projection);
-  return projection;
+export function materializeAutonomyIssueProjection(
+  projectDir: string,
+  projection: AutonomyIssueProjection,
+): void {
+  writeJsonFileAtomic(projectionPath(projectDir), projection);
 }
 
 export function listAutonomyIssues(

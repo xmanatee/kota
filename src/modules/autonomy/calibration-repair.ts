@@ -24,6 +24,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
@@ -99,9 +100,10 @@ function findExistingRepairTaskState(projectDir: string): RepoTaskState | null {
  * Decide what to do about the calibration repair task. Pure: reads disk to
  * find the current state, but does not mutate.
  */
-export function proposeCalibrationRepair(
+export async function proposeCalibrationRepair(
   ctx: CalibrationRepairContext,
-): CalibrationRepairProposal {
+  runCommand: WorkflowCommandRunner,
+): Promise<CalibrationRepairProposal> {
   const existing = findExistingRepairTaskState(ctx.projectDir);
   if (existing && NOOP_STATES.has(existing)) {
     const reason = existing === "blocked"
@@ -127,10 +129,11 @@ export function proposeCalibrationRepair(
       getRepoTaskStateDir(ctx.projectDir, existing),
       `${CALIBRATION_REPAIR_TASK_ID}.md`,
     );
-    const freshness = inspectCalibrationRepairFreshness(
+    const freshness = await inspectCalibrationRepairFreshness(
       ctx.projectDir,
       previousTaskPath,
       CALIBRATION_REPAIR_TASK_ID,
+      runCommand,
     );
     if (freshness.status !== "descendant-observed") {
       const evidenceReason =

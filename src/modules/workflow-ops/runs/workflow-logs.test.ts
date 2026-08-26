@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { setTerminalTransport, TerminalTransport } from "#modules/rendering/transport.js";
@@ -165,7 +166,7 @@ describe("formatAgentMessage", () => {
 describe("followRunLogs", () => {
   let tmpDir: string;
   let runsDir: string;
-  let statePath: string;
+  let projectDir: string;
 
   const RUN_ID = "2026-01-01T00-00-00-000Z-builder-abc123";
   const STEP_ID = "build";
@@ -205,8 +206,9 @@ describe("followRunLogs", () => {
   beforeEach(() => {
     tmpDir = join(tmpdir(), `kota-follow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     runsDir = join(tmpDir, "runs");
-    statePath = join(tmpDir, "workflow-state.json");
+    projectDir = join(tmpDir, "project");
     mkdirSync(runsDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
   });
 
   afterEach(() => {
@@ -219,7 +221,12 @@ describe("followRunLogs", () => {
 
     const capture = captureTransport();
     try {
-      await followRunLogs(runsDir, statePath, RUN_ID, undefined);
+      await followRunLogs(
+        runsDir,
+        { stateDir: tmpDir, projectDir },
+        RUN_ID,
+        undefined,
+      );
       const output = capture.getLines().join("\n");
       expect(output).toContain("Hello from agent");
       expect(output).toContain(`Step: ${STEP_ID}`);
@@ -234,7 +241,14 @@ describe("followRunLogs", () => {
 
     const capture = captureTransport();
     try {
-      const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
+      const followPromise = followRunLogs(
+        runsDir,
+        { stateDir: tmpDir, projectDir },
+        RUN_ID,
+        undefined,
+        200,
+        30,
+      );
       await new Promise<void>((r) => setTimeout(r, 60));
       writeMetadata(makeMetadata("success"));
       await followPromise;
@@ -247,22 +261,43 @@ describe("followRunLogs", () => {
   it("waits for an active run when no run-id is given", async () => {
     const capture = captureTransport();
     try {
-      const followPromise = followRunLogs(runsDir, statePath, undefined, undefined, 200, 30);
+      const followPromise = followRunLogs(
+        runsDir,
+        { stateDir: tmpDir, projectDir },
+        undefined,
+        undefined,
+        200,
+        30,
+      );
 
       await new Promise<void>((r) => setTimeout(r, 50));
 
       writeMetadata(makeMetadata("running"));
       writeEvents([assistantEvent]);
-      writeFileSync(
-        statePath,
-        JSON.stringify({ activeRuns: [{ runId: RUN_ID, workflow: "builder", startedAt: new Date().toISOString() }], completedRuns: 0, pendingRuns: [], workflows: {} }),
-        "utf-8",
-      );
+      const runState = new RunStateDatabase(tmpDir);
+      runState.registerProject({
+        id: "project-follow",
+        rootPath: projectDir,
+        createdAt: new Date().toISOString(),
+      });
+      const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+      const startedAt = new Date().toISOString();
+      runState.admitRun({
+        id: RUN_ID,
+        projectId: "project-follow",
+        workflow: "builder",
+        repository: "read",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: startedAt,
+      });
+      runState.startRun(RUN_ID, epoch, startedAt);
 
       await new Promise<void>((r) => setTimeout(r, 80));
       writeMetadata(makeMetadata("success"));
 
       await followPromise;
+      runState.close();
 
       const output = capture.getLines().join("\n");
       expect(output).toContain("Waiting for an active run");
@@ -278,7 +313,14 @@ describe("followRunLogs", () => {
 
     const capture = captureTransport();
     try {
-      const followPromise = followRunLogs(runsDir, statePath, RUN_ID, undefined, 200, 30);
+      const followPromise = followRunLogs(
+        runsDir,
+        { stateDir: tmpDir, projectDir },
+        RUN_ID,
+        undefined,
+        200,
+        30,
+      );
 
       await new Promise<void>((r) => setTimeout(r, 60));
 

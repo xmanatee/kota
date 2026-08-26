@@ -1,18 +1,31 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
 import type { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { RepoTasksProjectStores } from "./project-scope.js";
+import type { RepoTaskMutationTarget } from "./repo-task-mutation-boundary.js";
+
+export type ResolvedRepoTaskRouteProject = RepoTaskMutationTarget & {
+  store: ReturnType<typeof getRepoTasksProvider> | null;
+};
 
 export function resolveRouteProject(
   projectStores: RepoTasksProjectStores | undefined,
   req: IncomingMessage,
   res: ServerResponse,
 ):
-  | { ok: true; projectDir: string; store: ReturnType<typeof getRepoTasksProvider> | null }
+  | ({ ok: true } & ResolvedRepoTaskRouteProject)
   | { ok: false } {
   if (!projectStores) {
-    return { ok: true, projectDir: process.cwd(), store: null };
+    const fallback = buildConfiguredProject({ projectDir: process.cwd() });
+    return {
+      ok: true,
+		authority: "canonical",
+      projectId: fallback.projectId,
+      projectDir: fallback.projectDir,
+      store: null,
+    };
   }
   const selectedId = readSelectedScopeSelectorIdQueryOrErrorResponse(
     req,
@@ -27,6 +40,8 @@ export function resolveRouteProject(
   }
   return {
     ok: true,
+	authority: "canonical",
+    projectId: resolved.projectId,
     projectDir: resolved.projectDir,
     store: resolved.store,
   };

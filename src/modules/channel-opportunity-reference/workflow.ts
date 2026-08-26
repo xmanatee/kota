@@ -269,6 +269,7 @@ export function buildChannelOpportunityReferenceWorkflow(
     name: CHANNEL_OPPORTUNITY_REFERENCE_WORKFLOW_NAME,
     description:
       "Reference workflow for batching channel opportunities, checking availability, asking the owner, and dry-running a provider action.",
+    repository: "none",
     tags: ["channel", "reference"],
     notify: { onFailure: true, onSuccess: false },
     triggers: [{ event: "manual.channel-opportunity-reference" }],

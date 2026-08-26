@@ -4,7 +4,7 @@ import {
   type MaterialAutonomyChangeReason,
   type MaterialAutonomyChangeRequirement,
 } from "./autonomy-change-decision-types.js";
-import { parseAddedLinesByFile } from "./staged-diff.js";
+import { parseAddedLinesByFile } from "./workflow-diff.js";
 
 const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
 

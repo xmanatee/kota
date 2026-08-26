@@ -38,6 +38,7 @@ export function makeProjectDir(): string {
     `kota-agent-capability-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
   mkdirSync(projectDir, { recursive: true });
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
   writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
   return projectDir;
 }
@@ -71,7 +72,7 @@ export function makeDefinition(
   return {
     name: "capability-artifact-test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "read",
     definitionPath: "src/modules/test/workflows/capability/workflow.ts",
     moduleRoot: projectDir,
     triggers: [],

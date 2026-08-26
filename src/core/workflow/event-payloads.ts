@@ -89,6 +89,7 @@ export function buildWorkflowCompletedPayload(
   tags: readonly string[] = [],
   failureKind?: WorkflowAgentBackoffKind,
   autonomyMode?: AutonomyMode,
+  publicationId?: string,
 ): ProjectScopedBusEventPayload<"workflow.completed"> {
   return {
     workflow: metadata.workflow,
@@ -101,5 +102,6 @@ export function buildWorkflowCompletedPayload(
     tags,
     ...(failureKind ? { failureKind } : {}),
     ...(autonomyMode !== undefined ? { autonomyMode } : {}),
+    ...(publicationId !== undefined ? { publicationId } : {}),
   };
 }

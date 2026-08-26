@@ -6,13 +6,15 @@
  * out of scope; uncertainty stays explicit as `unknown`.
  */
 
-import { join } from "node:path";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
-import type { WorkflowRunSummary } from "#modules/autonomy/run-summary.js";
+import {
+  type AutonomyRunDeliveryEvidence,
+  readAutonomyRunDeliveryEvidence,
+  taskIdentityFromRunTrigger,
+} from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   hardSuccessSignalsForRun,
@@ -88,10 +90,9 @@ function classifyRun(
   input: DecisionAttributionReportInput,
   run: WorkflowRunMetadata,
 ): DecisionAttributionRecord {
-  const runSummary = readOptionalJsonFile<WorkflowRunSummary>(
-    join(input.runsDir, run.id, "run-summary.json"),
-  );
-  const taskId = runSummary?.taskId ?? taskIdFromStepOutputs(run);
+  const delivery = readAutonomyRunDeliveryEvidence(input.runsDir, run);
+  const triggerTask = taskIdentityFromRunTrigger(run);
+  const taskId = triggerTask.taskId;
   const task = taskId ? input.taskById.get(taskId) ?? null : null;
   const taskOwnerRecords = taskId
     ? input.ownerInterventions.records.filter((record) => record.taskId === taskId)
@@ -102,7 +103,7 @@ function classifyRun(
   const ownerRecords = dedupeOwnerRecords([...taskOwnerRecords, ...runOwnerRecords]);
   const reviewRecords = input.reviewRecords.filter((record) => record.runId === run.id);
   const productEvidenceRefs = task?.taskClass === "Product"
-    ? operatorEvidenceRefs(input.runsDir, run.id, runSummary)
+    ? operatorEvidenceRefs(input.runsDir, run.id, delivery)
     : [];
   const planningContext =
     task && hasDecisionAttributionDomainContext(task) || ownerRecords.length > 0
@@ -112,7 +113,7 @@ function classifyRun(
   const hardSuccessSignals = hardSuccessSignalsForRun({
     run,
     task,
-    runSummary,
+    delivery,
     reviewRecords,
     ownerRecords,
     productEvidenceRefs,
@@ -133,36 +134,14 @@ function classifyRun(
       ? task.taskClass
       : `workflow:${run.workflow}`,
     taskId,
-    taskTitle: runSummary?.taskTitle ?? task?.title ?? null,
+    taskTitle: triggerTask.taskTitle ?? task?.title ?? null,
     planning: planningAttribution(task, ownerRecords),
     planningContext,
-    execution: executionAttribution(run, runSummary, runOwnerRecords),
+    execution: executionAttribution(run, delivery, runOwnerRecords),
     hardSuccessSignals,
     troubleSignals,
-    refs: refsForRun(run, task, runSummary, productEvidenceRefs),
+    refs: refsForRun(run, task, delivery, productEvidenceRefs),
   };
-}
-
-function taskIdFromStepOutputs(run: WorkflowRunMetadata): string | null {
-  for (const step of run.steps) {
-    const output = step.output;
-    if (hasTaskIdOutput(output) && output.taskId.trim().length > 0) {
-      return output.taskId.trim();
-    }
-  }
-  return null;
-}
-
-function hasTaskIdOutput(
-  value: WorkflowStepResult["output"],
-): value is { readonly taskId: string } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "taskId" in value &&
-    typeof value.taskId === "string"
-  );
 }
 
 function dedupeOwnerRecords(
@@ -190,12 +169,12 @@ function planningAttribution(
 
 function executionAttribution(
   run: WorkflowRunMetadata,
-  runSummary: WorkflowRunSummary | null,
+  delivery: AutonomyRunDeliveryEvidence | null,
   ownerRecords: OwnerInterventionReport["records"],
 ): DecisionAttribution {
   const owner = ownerRecords.length > 0 || run.steps.some(isOwnerExecutionStep);
   const kota =
-    runSummary?.commitSha !== undefined ||
+    delivery !== null ||
     run.steps.some((step) => step.type === "agent") ||
     AUTONOMOUS_EXECUTION_WORKFLOWS.has(run.workflow);
   if (owner && kota) return "mixed";

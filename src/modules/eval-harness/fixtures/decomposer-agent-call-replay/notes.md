@@ -7,12 +7,11 @@ eval-harness replay adapter. The fixture regression-gates the
 
 ## Shape
 
-- `initial/` seeds a failed-builder run with `errorKind: step-timeout`, its
-  durable `ready/` claim artifact, the matching authoritative
-  `pending-decomposition` claim, and that same task after the canonical
-  `ready/` → `doing/` move replaced its inode. Both claims retain the recorded
-  source snapshot, exact source-content digest, and task-contract digest that
-  survives only the lifecycle rewrite. The fixture subprocess runs
+- `initial/` seeds a failed-builder run with `errorKind: step-timeout` and the
+  immutable task identity carried by the builder's original
+  `autonomy.queue.available` trigger. The matching task remains actionable in
+  `doing/` with the same path, timestamp, and semantic digest. No workflow-owned
+  claim file participates in ownership. The fixture subprocess runs
   `kota workflow exec decomposer` with the
   builder-failure trigger payload, so `assess-failure` resolves
   `shouldDecompose: true` and the `decompose` agent step fires.
@@ -29,7 +28,7 @@ eval-harness replay adapter. The fixture regression-gates the
 ## Why this shape
 
 The replay exercises trigger routing, assessment, typed planner and semantic
-review output, deterministic task mutation, task queue validation, commit, and
-restart against the production workflow. Only the agent harness is replaced,
-so a regression from failure attribution through committed subtask state fails
-without paying for a live model call.
+review output, deterministic task mutation, task queue validation, and
+runtime-owned publication against the production workflow. Only the agent
+harness is replaced, so a regression from failure attribution through
+integrated subtask state fails without paying for a live model call.

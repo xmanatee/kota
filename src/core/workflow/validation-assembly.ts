@@ -1,7 +1,11 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { matchesFilter } from "./run-executor-utils.js";
 import type { WorkflowStep } from "./step-types.js";
-import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
+import type {
+  RegisteredWorkflowDefinitionInput,
+  WorkflowDefinition,
+  WorkflowPostReconcileInvariant,
+} from "./types.js";
 import {
   expectOptionalBoolean,
   expectOptionalInteger,
@@ -16,8 +20,7 @@ import { validateTrigger } from "./validation-trigger.js";
  * already-validated shape and step list. Owns the per-definition assembly
  * IIFEs that build `webhookRateLimit`, `notify`, `tags`, and the validated
  * `triggers` array (including the `workflow.completed` self-loop check via
- * `matchesFilter`), and enforces the `runtime.recovered` ↔ `recoveryCapable`
- * consistency rule once those derived fields are known.
+ * `matchesFilter`).
  */
 export function assembleWorkflowDefinition(
   definition: RegisteredWorkflowDefinitionInput,
@@ -27,29 +30,6 @@ export function assembleWorkflowDefinition(
   defaultAutonomyMode: AutonomyMode | undefined,
   steps: WorkflowStep[],
 ): WorkflowDefinition {
-  const maxConcurrentRuns = (() => {
-    const raw = definition.maxConcurrentRuns;
-    if (raw === undefined) return undefined;
-    if (typeof raw === "function") return raw;
-    return expectOptionalInteger(
-      raw,
-      "maxConcurrentRuns",
-      definitionPath,
-      1,
-    );
-  })();
-  const dispatchBurst = (() => {
-    const raw = definition.dispatchBurst;
-    if (raw === undefined) return undefined;
-    if (typeof raw === "function") return raw;
-    return expectOptionalInteger(
-      raw,
-      "dispatchBurst",
-      definitionPath,
-      1,
-    );
-  })();
-
   const validated: WorkflowDefinition = {
     name,
     moduleRoot,
@@ -69,19 +49,71 @@ export function assembleWorkflowDefinition(
       definitionPath,
       1,
     ),
-    recoveryCapable: expectOptionalBoolean(
-      definition.recoveryCapable,
-      "recoveryCapable",
-      definitionPath,
-    ) ?? false,
     defaultAutonomyMode,
-    concurrencyGroup: expectOptionalString(
-      definition.concurrencyGroup,
-      "concurrencyGroup",
-      definitionPath,
-    ),
-    ...(maxConcurrentRuns !== undefined ? { maxConcurrentRuns } : {}),
-    ...(dispatchBurst !== undefined ? { dispatchBurst } : {}),
+    repository: (() => {
+      const value: unknown = definition.repository;
+      if (value === undefined) {
+        throw new WorkflowDefinitionError(
+          'repository is required and must explicitly declare "none", "read", or "write"',
+          definitionPath,
+        );
+      }
+      if (value !== "none" && value !== "read" && value !== "write") {
+        throw new WorkflowDefinitionError(
+          'repository must be one of "none", "read", or "write"',
+          definitionPath,
+        );
+      }
+      return value;
+    })(),
+    integration: (() => {
+      if (definition.integration === undefined) return undefined;
+      if (
+        typeof definition.integration !== "object" ||
+        definition.integration === null ||
+        Array.isArray(definition.integration)
+      ) {
+        throw new WorkflowDefinitionError("integration must be an object", definitionPath);
+      }
+      const raw = definition.integration as Record<string, unknown>;
+      rejectUnknownKeys(
+        raw,
+        ["validationCommand", "postReconcile"],
+        "integration",
+        definitionPath,
+      );
+      const command = raw.validationCommand;
+      if (
+        !Array.isArray(command) ||
+        command.length === 0 ||
+        command.some((part) => typeof part !== "string" || part.trim() === "")
+      ) {
+        throw new WorkflowDefinitionError(
+          "integration.validationCommand must be a non-empty string array",
+          definitionPath,
+        );
+      }
+      const postReconcile = raw.postReconcile;
+      if (postReconcile !== undefined && typeof postReconcile !== "function") {
+        throw new WorkflowDefinitionError(
+          "integration.postReconcile must be a function",
+          definitionPath,
+        );
+      }
+      return {
+        validationCommand: command as [string, ...string[]],
+        ...(postReconcile === undefined
+          ? {}
+          : { postReconcile: postReconcile as WorkflowPostReconcileInvariant }),
+      };
+    })(),
+    resources: (() => {
+      if (definition.resources === undefined) return undefined;
+      if (typeof definition.resources !== "function") {
+        throw new WorkflowDefinitionError("resources must be a function", definitionPath);
+      }
+      return definition.resources;
+    })(),
     triggerAdmission: (() => {
       if (definition.triggerAdmission === undefined) return undefined;
       if (typeof definition.triggerAdmission !== "function") {
@@ -138,13 +170,6 @@ export function assembleWorkflowDefinition(
         ...(onSuccess !== undefined ? { onSuccess } : {}),
       };
     })(),
-    terminalFinalizer: (() => {
-      if (definition.terminalFinalizer === undefined) return undefined;
-      if (typeof definition.terminalFinalizer !== "function") {
-        throw new WorkflowDefinitionError("terminalFinalizer must be a function", definitionPath);
-      }
-      return definition.terminalFinalizer;
-    })(),
     tags: (() => {
       const raw = definition.tags;
       if (raw === undefined) return [];
@@ -164,7 +189,6 @@ export function assembleWorkflowDefinition(
           const selfMatches = [
             "success",
             "failed",
-            "yielded",
             "interrupted",
             "completed-with-warnings",
           ].some((status) =>
@@ -193,13 +217,15 @@ export function assembleWorkflowDefinition(
     steps,
   };
 
-  const hasRecoveredTrigger = definition.triggers.some(
-    (t) => t.event === "runtime.recovered",
-  );
-  if (hasRecoveredTrigger && !validated.recoveryCapable) {
+  if (validated.repository === "write" && validated.integration === undefined) {
     throw new WorkflowDefinitionError(
-      `workflow "${name}" listens to "runtime.recovered" but does not set recoveryCapable: true — ` +
-        `the runtime filters recovery dispatch to recovery-capable workflows, so this trigger would never fire`,
+      `workflow "${name}" requests write access but has no integration policy`,
+      definitionPath,
+    );
+  }
+  if (validated.repository !== "write" && validated.integration !== undefined) {
+    throw new WorkflowDefinitionError(
+      `workflow "${name}" declares integration but does not request write access`,
       definitionPath,
     );
   }

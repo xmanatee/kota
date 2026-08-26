@@ -147,4 +147,23 @@ describe("checkSourceFileSize", () => {
 
     expect(() => checkSourceFileSize(repoDir)).toThrow(SOURCE_FILE_SIZE_WARNING_TYPE);
   });
+
+  it("inspects a new untracked source file from workspace content", () => {
+    mkdirSync(join(repoDir, "src"), { recursive: true });
+    writeFileSync(join(repoDir, "src/untracked-large.ts"), lines(301));
+
+    expect(() => checkSourceFileSize(repoDir)).toThrow(SOURCE_FILE_SIZE_WARNING_TYPE);
+  });
+
+  it("inspects the current workspace content of a modified source file", () => {
+    mkdirSync(join(repoDir, "src"), { recursive: true });
+    writeFileSync(join(repoDir, "src/growing.ts"), lines(100));
+    execSync("git add src/growing.ts && git commit -q -m 'add growing source'", {
+      cwd: repoDir,
+      shell: "/bin/sh",
+    });
+    writeFileSync(join(repoDir, "src/growing.ts"), lines(301));
+
+    expect(() => checkSourceFileSize(repoDir)).toThrow(SOURCE_FILE_SIZE_WARNING_TYPE);
+  });
 });

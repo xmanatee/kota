@@ -2,21 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  decodeWorkflowCommitOutcome,
-  type WorkflowCommitOutcome,
-} from "#modules/autonomy/commit-result.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
-import {
-  onNormalTrigger,
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import { runCheck, stepSucceeded } from "#modules/autonomy/shared.js";
-import {
-  workflowCommitOperation,
-  workflowCommitValidationOperation,
-} from "#modules/autonomy/workflow-commit-operations.js";
+import { stepSucceeded } from "#modules/autonomy/shared.js";
+import { inboundSignalWorkflowTargeted } from "#modules/inbound-signals/events.js";
 import {
   assessMentionTrigger,
   type GithubMentionIntakeAssessment,
@@ -32,12 +20,9 @@ import {
   validatePreparedComment,
 } from "./task-support.js";
 
-const COMMENT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
-
 const assessMentionIntake = typedCodeStep<GithubMentionIntakeAssessment>({
   id: "assess-mention-intake",
   type: "code",
-  when: onNormalTrigger,
   validate: validateAssessment,
   run: ({ trigger }) => assessMentionTrigger(trigger),
 });
@@ -45,9 +30,7 @@ const assessMentionIntake = typedCodeStep<GithubMentionIntakeAssessment>({
 const createTask = typedCodeStep<CreatedTaskReference>({
   id: "create-task",
   type: "code",
-  when: (ctx) =>
-    ctx.trigger.event !== "runtime.recovered" &&
-    assessMentionIntake.outputRequired(ctx).taskEligible,
+  when: (ctx) => assessMentionIntake.outputRequired(ctx).taskEligible,
   validate: validateCreatedTaskReference,
   run: (ctx) => {
     const assessment = assessMentionIntake.outputRequired(ctx);
@@ -95,8 +78,8 @@ const writeCommitMessage = typedCodeStep<{ written: boolean; path: string }>({
   },
 });
 
-const validateBeforeCommit = typedCodeStep<{ ok: true }>({
-  id: "validate-before-commit",
+const validateChanges = typedCodeStep<{ ok: true }>({
+  id: "validate-changes",
   type: "code",
   when: stepSucceeded("write-commit-message"),
   validate: (raw) => {
@@ -107,25 +90,13 @@ const validateBeforeCommit = typedCodeStep<{ ok: true }>({
     return object;
   },
   run: async (ctx) => {
-    await runCheck("pnpm run validate-tasks", ctx.projectDir, { signal: ctx.signal });
-    await ctx.runBlocking(workflowCommitValidationOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
+    await ctx.runCommand({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: ctx.projectDir,
     });
     return { ok: true } as const;
   },
-});
-
-const commitTask = typedCodeStep<WorkflowCommitOutcome>({
-  id: "commit-task",
-  type: "code",
-  when: stepSucceeded("validate-before-commit"),
-  validate: decodeWorkflowCommitOutcome,
-  run: (ctx) =>
-    ctx.runBlocking(workflowCommitOperation, {
-      projectDir: ctx.projectDir,
-      runDirPath: ctx.workflow.runDirPath,
-    }),
 });
 
 const prepareComment = typedCodeStep<PreparedIntakeComment>({
@@ -137,7 +108,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
     if (!assessment?.commentEligible) return false;
     if (assessment.decision === "needs_detail") return true;
     const task = createTask.output(ctx);
-    return Boolean(task && (task.kind === "existing" || stepSucceeded("commit-task")(ctx)));
+    return Boolean(task && (task.kind === "existing" || stepSucceeded("validate-changes")(ctx)));
   },
   run: (ctx) => {
     const assessment = assessMentionIntake.outputRequired(ctx);
@@ -147,6 +118,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
       return {
         repo: assessment.fields.repo,
         issueNumber: assessment.fields.issueNumber,
+        isPullRequest: assessment.fields.isPullRequest,
         originalCommentId: assessment.fields.commentId,
         mode: "needs_detail",
         body,
@@ -166,6 +138,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
     return {
       repo: assessment.fields.repo,
       issueNumber: assessment.fields.issueNumber,
+      isPullRequest: assessment.fields.isPullRequest,
       originalCommentId: assessment.fields.commentId,
       mode: task.kind,
       body,
@@ -175,57 +148,28 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
 
 const githubMentionIntakeWorkflow: WorkflowDefinitionInput = {
   name: "github-mention-intake",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description: "Capture trusted GitHub implementation mentions into repo-local task intake.",
   tags: ["monitored"],
-  recoveryCapable: true,
-  triggers: [{ event: "runtime.recovered" }],
+  triggers: [{ event: inboundSignalWorkflowTargeted }],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "github-mention-intake",
-        }),
-    },
     assessMentionIntake,
     createTask,
     writeCommitMessage,
-    validateBeforeCommit,
-    commitTask,
+    validateChanges,
     prepareComment,
     {
-      id: "approve-comment",
-      type: "approval",
-      timeoutMs: COMMENT_APPROVAL_TIMEOUT_MS,
-      defaultResolution: "deny",
-      reason: "Approve posting one bounded KOTA task-intake reference comment to the originating GitHub issue or pull request.",
-      when: stepSucceeded("prepare-comment"),
-    },
-    {
-      id: "post-comment",
-      type: "tool",
-      tool: "github_comment",
-      when: stepSucceeded("approve-comment"),
-      input: (ctx) => {
-        const comment = prepareComment.outputRequired(ctx);
-        return { repo: comment.repo, number: comment.issueNumber, body: comment.body };
-      },
-    },
-    {
-      id: "emit-intake-comment-posted",
+      id: "emit-intake-comment-requested",
       type: "emit",
-      when: stepSucceeded("post-comment"),
-      event: "workflow.github-mention.intake.posted",
+      when: stepSucceeded("prepare-comment"),
+      event: "github-mention-intake.comment.requested",
       payload: (ctx) => {
         const comment = prepareComment.outputRequired(ctx);
         return {
-          repo: comment.repo,
-          issueNumber: comment.issueNumber,
-          originalCommentId: comment.originalCommentId,
-          mode: comment.mode,
+          ...comment,
+          idempotencyKey:
+            `github-mention-intake:${comment.repo}:${comment.originalCommentId}:${comment.mode}`,
         };
       },
     },

@@ -1,7 +1,9 @@
-import { spawnSync } from "node:child_process";
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import {
+  WorkflowCommandError,
+  type WorkflowCommandRunner,
+} from "#core/workflow/workflow-command.js";
 import { readBoundCalibrationArtifact } from "./calibration-repair-run-evidence.js";
 
 export type CalibrationRepairFreshness =
@@ -16,57 +18,65 @@ export type CalibrationRepairFreshness =
 
 const GIT_REVISION = /^[0-9a-f]{40}$/;
 
-function gitOutput(projectDir: string, args: readonly string[]): string | null {
-  const result = spawnSync("git", [...args], {
-    cwd: projectDir,
-    env: withProtectedGitBareRepositoryEnv(),
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0) return null;
-  const output = result.stdout.trim();
-  return output.length > 0 ? output : null;
+async function gitOutput(
+  projectDir: string,
+  args: readonly string[],
+  runCommand: WorkflowCommandRunner,
+): Promise<string | null> {
+  try {
+    const result = await runCommand({
+      command: "git",
+      args,
+      cwd: projectDir,
+    });
+    const output = result.stdout.text.trim();
+    return output.length > 0 ? output : null;
+  } catch (error) {
+    if (error instanceof WorkflowCommandError && error.kind === "failed") {
+      return null;
+    }
+    throw error;
+  }
 }
 
-function isAncestor(
+async function isAncestor(
   projectDir: string,
   ancestor: string,
   descendant: string,
-): boolean {
-  const result = spawnSync(
-    "git",
-    ["merge-base", "--is-ancestor", ancestor, descendant],
-    {
+  runCommand: WorkflowCommandRunner,
+): Promise<boolean> {
+  try {
+    await runCommand({
+      command: "git",
+      args: ["merge-base", "--is-ancestor", ancestor, descendant],
       cwd: projectDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  if (result.error !== undefined) throw result.error;
-  if (result.status === 0) return true;
-  // A retained artifact can outlive the temporary worktree commit object it
-  // names. That is unavailable lineage, not fresh post-repair evidence.
-  return false;
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof WorkflowCommandError && error.kind === "failed") {
+      // A retained artifact can outlive the temporary worktree commit object
+      // it names. That is unavailable lineage, not fresh evidence.
+      return false;
+    }
+    throw error;
+  }
 }
 
 /**
  * Distinguish post-repair evidence from artifacts written later by the same
  * pre-restart daemon or by a concurrent branch based before the repair.
  */
-export function inspectCalibrationRepairFreshness(
+export async function inspectCalibrationRepairFreshness(
   projectDir: string,
   repairedTaskPath: string,
   repairTaskId: string,
-): CalibrationRepairFreshness {
-  const repairRevision = gitOutput(projectDir, [
-    "log",
-    "-1",
-    "--format=%H",
-    "--",
-    repairedTaskPath,
-  ]);
+  runCommand: WorkflowCommandRunner,
+): Promise<CalibrationRepairFreshness> {
+  const repairRevision = await gitOutput(
+    projectDir,
+    ["log", "-1", "--format=%H", "--", repairedTaskPath],
+    runCommand,
+  );
   if (repairRevision === null || !GIT_REVISION.test(repairRevision)) {
     return { status: "untracked-repair" };
   }
@@ -91,7 +101,14 @@ export function inspectCalibrationRepairFreshness(
       ) {
         continue;
       }
-      if (isAncestor(projectDir, repairRevision, sourceRevision)) {
+      if (
+        await isAncestor(
+          projectDir,
+          repairRevision,
+          sourceRevision,
+          runCommand,
+        )
+      ) {
         return {
           status: "descendant-observed",
           repairRevision,

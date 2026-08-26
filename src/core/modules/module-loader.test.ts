@@ -228,6 +228,7 @@ describe("ModuleLoader", () => {
       ],
       workflows: [
         {
+          repository: "read",
           name: "manifest-mod/workflow",
           triggers: [{ event: "manifest.event", cooldownMs: 1000 }],
           steps: [
@@ -575,6 +576,7 @@ describe("ModuleLoader", () => {
           ],
           workflows: [
             {
+              repository: "read",
               name: "bad-installed-manifest/workflow",
               triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
               steps: [{ id: "noop", type: "code", run: () => {} }],
@@ -717,6 +719,7 @@ describe("ModuleLoader", () => {
       name: "workflow-provider",
       workflows: [
         {
+          repository: "read",
           name: "workflow-provider/my-job",
           triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
           steps: [{ id: "noop", type: "code", run: () => {} }],
@@ -752,6 +755,7 @@ describe("ModuleLoader", () => {
       name: "wf-ext",
       workflows: [
         {
+          repository: "read",
           name: "wf-ext/heartbeat",
           triggers: [{ intervalMs: 300_000 }],
           steps: [{ id: "noop", type: "code", run: () => {} }],
@@ -975,6 +979,7 @@ describe("ModuleLoader", () => {
       ],
       workflows: [
         {
+          repository: "read",
           name: "everything-mod/workflow",
           triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
           steps: [{ id: "noop", type: "code", run: () => {} }],

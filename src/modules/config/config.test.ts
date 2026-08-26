@@ -175,7 +175,7 @@ describe("kota config validate", () => {
     mkdirSync(join(projectDir, ".kota"), { recursive: true });
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "claude-sonnet-4-6", scheduler: { agentConcurrency: 2 }, webhooks: {} }),
+      JSON.stringify({ model: "claude-sonnet-4-6", scheduler: { concurrency: 2 }, webhooks: {} }),
     );
 
     const moduleKeys = new Set(["scheduler", "webhooks"]);
@@ -371,11 +371,11 @@ describe("kota config set", () => {
   it("does not warn when setting a module-registered key", async () => {
     const moduleKeys = new Set(["scheduler"]);
     const { err } = await captureOutput(async () => {
-      await makeProgram(projectDir, moduleKeys).parseAsync(["node", "kota", "config", "set", "scheduler.agentConcurrency", "2"]);
+      await makeProgram(projectDir, moduleKeys).parseAsync(["node", "kota", "config", "set", "scheduler.concurrency", "2"]);
     });
     expect(err).toBe("");
     const written = JSON.parse(readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"));
-    expect(written.scheduler.agentConcurrency).toBe(2);
+    expect(written.scheduler.concurrency).toBe(2);
   });
 });
 

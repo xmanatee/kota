@@ -2,14 +2,21 @@ import type {
   KotaJsonObject,
   KotaJsonValue,
 } from "#core/agent-harness/message-protocol.js";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { reportRunTriggerPayload } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
-export function taskFromPayload(
-  payload: KotaJsonObject,
+export function builderTaskAssociation(
+  run: WorkflowRunMetadata,
   taskById: ReadonlyMap<string, RepoTaskFullRecord>,
-): RepoTaskFullRecord | null {
+): { taskId: string; task: RepoTaskFullRecord | null } | null {
+  if (run.workflow !== "builder") return null;
+  const payload = reportRunTriggerPayload(run);
+  if (payload === null) return null;
   const taskId = stringField(payload.taskId);
-  return taskId ? taskById.get(taskId) ?? null : null;
+  return taskId
+    ? { taskId, task: taskById.get(taskId) ?? null }
+    : null;
 }
 
 export function scopeFromPayload(payload: KotaJsonObject): {

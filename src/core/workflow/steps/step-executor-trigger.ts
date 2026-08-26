@@ -18,7 +18,7 @@ export async function executeTriggerStep(
     rawPayload as Record<string, unknown>,
     context,
   );
-  return context.triggerWorkflow(step.workflow, payload, step.waitFor, signal);
+  return context.triggerWorkflow(step.workflow, payload, step.waitFor, signal, step.id);
 }
 
 function interpolatePayload(

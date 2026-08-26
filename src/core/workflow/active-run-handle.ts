@@ -3,7 +3,11 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { writeControlMonitorCoverageArtifactBestEffort } from "./control-monitor-coverage.js";
+import {
+  CONTROL_MONITOR_COVERAGE_ARTIFACT,
+  type ControlMonitorCoverageArtifact,
+  writeControlMonitorCoverageArtifactBestEffort,
+} from "./control-monitor-coverage.js";
 import { triggerPayloadLinkedRunIds } from "./control-monitor-coverage-readers.js";
 import {
   formatProjectedEvidenceText,
@@ -69,12 +73,22 @@ export function createActiveRunHandle(opts: {
   projectDir?: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
+  headSha: string | null;
   workflowName: string;
   stepOrder?: ReadonlyMap<string, number>;
   readState: () => WorkflowRuntimeState;
   writeState: (state: WorkflowRuntimeState) => void;
 }): ActiveWorkflowRunHandle {
-  const { id, runDirPath, metadata, workflowName, stepOrder, readState, writeState } = opts;
+  const {
+    id,
+    runDirPath,
+    metadata,
+    headSha,
+    workflowName,
+    stepOrder,
+    readState,
+    writeState,
+  } = opts;
   const projectDir = opts.projectDir ?? dirname(dirname(dirname(runDirPath)));
 
   const persistMetadata = () => {
@@ -104,11 +118,13 @@ export function createActiveRunHandle(opts: {
     targetRunDirPath: string,
     completed: WorkflowRunMetadata,
     errorArtifact: string,
+    targetHeadSha: string | null,
   ): void => {
     writeControlMonitorCoverageArtifactBestEffort({
       projectDir,
       runDirPath: targetRunDirPath,
       metadata: completed,
+      headSha: targetHeadSha,
       errorArtifact,
       errorRunDirPath: runDirPath,
     });
@@ -154,6 +170,9 @@ export function createActiveRunHandle(opts: {
         sourceRunDirPath,
         sourceMetadata,
         "control-monitor-coverage-refresh-error.txt",
+        readOptionalJsonFile<ControlMonitorCoverageArtifact>(
+          join(sourceRunDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+        )?.run.headSha ?? null,
       );
     }
   };
@@ -238,6 +257,7 @@ export function createActiveRunHandle(opts: {
         runDirPath,
         completed,
         "control-monitor-coverage-error.txt",
+        headSha,
       );
 
       // Re-read state immediately before writing to minimize the race window.
@@ -266,9 +286,6 @@ export function createActiveRunHandle(opts: {
           },
         };
       }
-      freshState.activeRuns = (freshState.activeRuns ?? []).filter(
-        (r) => r.runId !== id,
-      );
       writeState(freshState);
       refreshLinkedControlCoverage(completed);
 

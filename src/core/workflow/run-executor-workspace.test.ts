@@ -10,11 +10,55 @@ import type {
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep } from "./step-types.js";
+import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
+
+function makeRunContext(
+  projectDir: string,
+  trigger: RunContext["trigger"],
+  runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  workspaceDir = projectDir,
+): RunContext {
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: { id: "test-project", root: projectDir },
+    workflow: "test",
+    trigger,
+    sandbox: {
+      runId,
+      repository: "none",
+      rootDir: projectDir,
+      workspaceDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir,
+      runDir: projectDir,
+      tempDir: projectDir,
+      artifactDir: projectDir,
+      agentDir: projectDir,
+      packageCacheDir: projectDir,
+      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
+      env: {},
+    },
+    signal: new AbortController().signal,
+    processes: { register: vi.fn() },
+    effects: { execute: (effect) => effect.execute() },
+    publications: { stageEmit: vi.fn() },
+    state: createTestTransactionalRunState(),
+  };
+}
+
+
 
 const TRIGGER: WorkflowRunTrigger = {
   event: "runtime.idle",
@@ -33,7 +77,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   return {
     name: "test",
     enabled: true,
-    recoveryCapable: false,
+    repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",
     triggers: [],
@@ -97,51 +141,7 @@ describe("workflow workspaceDir execution", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("defaults workflow workspaceDir to projectDir for code, tool, and agent execution", async () => {
-    const harness = "workflow-default-workspace";
-    let agentCwd: string | undefined;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      agentCwd = options.cwd;
-      return AGENT_OK_RESULT;
-    });
-    let toolCwd: string | undefined;
-    const definition = makeDefinition({
-      moduleRoot: projectDir,
-      steps: [
-        {
-          id: "inspect",
-          type: "code",
-          run: async (ctx) => {
-            await ctx.runTool("capture", {});
-            return { projectDir: ctx.projectDir, workspaceDir: ctx.workspaceDir };
-          },
-        },
-        makeAgentStep(projectDir, harness),
-      ],
-    });
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      projectDir,
-      bus,
-      store,
-      log,
-      runTool: async (_name, _input, context) => {
-        toolCwd = context?.cwd;
-        return { content: "ok" };
-      },
-    });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(result.metadata.steps[0]?.output).toEqual({
-      projectDir,
-      workspaceDir: projectDir,
-    });
-    expect(toolCwd).toBe(projectDir);
-    expect(agentCwd).toBe(projectDir);
-  }, 10_000);
-
-  it("runs agent and tool work in workspaceDir while keeping artifacts under projectDir", async () => {
+  it("uses the run-owned workspace while keeping scope state and artifacts under the project", async () => {
     const workspaceDir = join(
       tmpdir(),
       `kota-run-executor-worktree-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -164,7 +164,8 @@ describe("workflow workspaceDir execution", () => {
             await ctx.runTool("capture", {});
             return {
               projectDir: ctx.projectDir,
-              workspaceDir: ctx.workspaceDir,
+              scopeDir: ctx.scopeDir,
+              workspaceDir: ctx.projectDir,
               runDirPath: ctx.workflow.runDirPath,
             };
           },
@@ -175,8 +176,7 @@ describe("workflow workspaceDir execution", () => {
 
     try {
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
-        workspaceDir,
+        runContext: makeRunContext(projectDir, TRIGGER, undefined, workspaceDir),
         bus,
         store,
         log,
@@ -188,13 +188,15 @@ describe("workflow workspaceDir execution", () => {
       const result = await promise;
       const output = result.metadata.steps[0]?.output as {
         projectDir: string;
+        scopeDir: string;
         workspaceDir: string;
         runDirPath: string;
       };
 
       expect(result.metadata.status).toBe("success");
       expect(output).toEqual({
-        projectDir,
+        projectDir: workspaceDir,
+        scopeDir: projectDir,
         workspaceDir,
         runDirPath: join(projectDir, result.metadata.runDir),
       });
@@ -212,78 +214,6 @@ describe("workflow workspaceDir execution", () => {
         ),
       ).toBe(true);
       expect(existsSync(join(workspaceDir, ".kota", "runs"))).toBe(false);
-    } finally {
-      rmSync(workspaceDir, { recursive: true, force: true });
-    }
-  }, 10_000);
-
-  it("updates workflow workspaceDir from an explicit top-level code step", async () => {
-    const workspaceDir = join(
-      tmpdir(),
-      `kota-run-executor-updated-worktree-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(workspaceDir, { recursive: true });
-    const harness = "workflow-dynamic-workspace";
-    let agentCwd: string | undefined;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
-      agentCwd = options.cwd;
-      return AGENT_OK_RESULT;
-    });
-    let toolCwd: string | undefined;
-    const definition = makeDefinition({
-      moduleRoot: projectDir,
-      steps: [
-        {
-          id: "prepare-workspace",
-          type: "code",
-          updatesWorkspaceDir: true,
-          run: (ctx) => ({
-            projectDir: ctx.projectDir,
-            workspaceDir,
-          }),
-        },
-        {
-          id: "inspect",
-          type: "code",
-          run: async (ctx) => {
-            await ctx.runTool("capture", {});
-            return {
-              projectDir: ctx.projectDir,
-              workspaceDir: ctx.workspaceDir,
-              runDirPath: ctx.workflow.runDirPath,
-            };
-          },
-        },
-        makeAgentStep(projectDir, harness),
-      ],
-    });
-
-    try {
-      const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        projectDir,
-        bus,
-        store,
-        log,
-        runTool: async (_name, _input, context) => {
-          toolCwd = context?.cwd;
-          return { content: "ok" };
-        },
-      });
-      const result = await promise;
-      const output = result.metadata.steps[1]?.output as {
-        projectDir: string;
-        workspaceDir: string;
-        runDirPath: string;
-      };
-
-      expect(result.metadata.status).toBe("success");
-      expect(output).toEqual({
-        projectDir,
-        workspaceDir,
-        runDirPath: join(projectDir, result.metadata.runDir),
-      });
-      expect(toolCwd).toBe(workspaceDir);
-      expect(agentCwd).toBe(workspaceDir);
     } finally {
       rmSync(workspaceDir, { recursive: true, force: true });
     }

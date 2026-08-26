@@ -55,7 +55,6 @@ export type WorkflowNode = {
   description?: string;
   enabled: boolean;
   tags: readonly string[];
-  concurrencyGroup?: string;
   triggers: TriggerSummary[];
   steps: StepSummary[];
   /** Event names this workflow listens to (derived from triggers). */

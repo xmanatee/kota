@@ -1,5 +1,8 @@
 import type { WorkflowEventBatchManager } from "./event-batches.js";
-import type { WorkflowRuntimeState } from "./run-types.js";
+import { withWorkflowFailureAlert } from "./failure-alert.js";
+import { projectStoredWorkflowOperationalState } from "./run-operational-projection.js";
+import type { RunStateDatabase } from "./run-state-database.js";
+import type { WorkflowRuntimeSnapshot } from "./run-types.js";
 import {
   loadDefinitions as loadDefinitionsViaDispatch,
   maybeStartNext,
@@ -10,6 +13,8 @@ import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./ty
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatchState {
+  projectId: string;
+  runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
   definitionSourceEnabled: Map<string, boolean>;
@@ -19,7 +24,10 @@ export function setWorkflowInputs(
   state: WorkflowRuntimeDefinitionsState,
   inputs: readonly RegisteredWorkflowDefinitionInput[],
 ): void {
-  state.workflowInputs = inputs;
+  state.workflowInputs = withWorkflowFailureAlert(
+    inputs,
+    state.config?.notifications?.alertCooldownMs,
+  );
 }
 
 export function reloadWorkflowDefinitions(
@@ -94,18 +102,24 @@ export function enableWorkflow(
 
 export function getRuntimeState(
   state: WorkflowRuntimeDefinitionsState,
-): WorkflowRuntimeState & {
+): WorkflowRuntimeSnapshot & {
   queueLength: number;
-  agentConcurrency: number;
-  codeConcurrency: number;
+  concurrency: number;
 } {
   const runtimeState = state.store.readState();
+  const operationalState = projectStoredWorkflowOperationalState(
+    state.runState.listRuns(state.projectId, [
+      "queued",
+      "running",
+      "integrating",
+    ]),
+  );
   const activeAgentBackoff = state.backoff.getActive();
   return {
     ...runtimeState,
+    ...operationalState,
     agentBackoff: activeAgentBackoff ?? undefined,
-    queueLength: state.wfQueue.length,
-    agentConcurrency: state.agentConcurrency,
-    codeConcurrency: state.codeConcurrency,
+    queueLength: operationalState.pendingRuns.length,
+    concurrency: state.runCoordinator.capacity,
   };
 }

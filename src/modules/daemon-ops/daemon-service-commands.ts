@@ -19,6 +19,15 @@ import {
   writeServiceFile,
 } from "./service-install.js";
 
+const SERVICE_COMMAND_TIMEOUT_MS = 10_000;
+
+function runServiceCommand(command: string, args: readonly string[]) {
+  return spawnSync(command, args, {
+    encoding: "utf8",
+    timeout: SERVICE_COMMAND_TIMEOUT_MS,
+  });
+}
+
 export function addDaemonServiceCommands(command: Command): void {
   command
     .command("install")
@@ -43,16 +52,14 @@ export function addDaemonServiceCommands(command: Command): void {
     .action(() => {
       if (process.platform === "darwin") {
         const plistPath = getLaunchdPlistPath();
-        spawnSync("launchctl", ["unload", plistPath], { encoding: "utf8" });
+        runServiceCommand("launchctl", ["unload", plistPath]);
         finishServiceRemoval(plistPath, removeServiceFile(plistPath));
       } else if (process.platform === "linux") {
         const servicePath = getSystemdServicePath();
-        spawnSync("systemctl", ["--user", "disable", "--now", SERVICE_NAME_SYSTEMD], {
-          encoding: "utf8",
-        });
+        runServiceCommand("systemctl", ["--user", "disable", "--now", SERVICE_NAME_SYSTEMD]);
         const removeError = removeServiceFile(servicePath);
         if (!removeError) {
-          spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+          runServiceCommand("systemctl", ["--user", "daemon-reload"]);
         }
         finishServiceRemoval(servicePath, removeError);
       } else {
@@ -75,7 +82,7 @@ function installLaunchdService(projectDir: string, dryRun: boolean): void {
     fail(String(writeError));
     return;
   }
-  const result = spawnSync("launchctl", ["load", plistPath], { encoding: "utf8" });
+  const result = runServiceCommand("launchctl", ["load", plistPath]);
   if (result.status !== 0) {
     fail(`launchctl load failed:\n${result.stderr || result.stdout}`);
     return;
@@ -101,15 +108,14 @@ function installSystemdService(projectDir: string, dryRun: boolean): void {
     fail(String(writeError));
     return;
   }
-  const daemonReload = spawnSync("systemctl", ["--user", "daemon-reload"], { encoding: "utf8" });
+  const daemonReload = runServiceCommand("systemctl", ["--user", "daemon-reload"]);
   if (daemonReload.status !== 0) {
     fail(`systemctl daemon-reload failed:\n${daemonReload.stderr || daemonReload.stdout}`);
     return;
   }
-  const enable = spawnSync(
+  const enable = runServiceCommand(
     "systemctl",
     ["--user", "enable", "--now", SERVICE_NAME_SYSTEMD],
-    { encoding: "utf8" },
   );
   if (enable.status !== 0) {
     fail(`systemctl enable failed:\n${enable.stderr || enable.stdout}`);

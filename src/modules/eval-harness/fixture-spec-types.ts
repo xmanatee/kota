@@ -88,6 +88,8 @@ export type SingleWorkflowFixtureSpecFile = FixtureSpecCommon & {
   mode: "single-workflow";
   /** The workflow name to invoke against the fixture's initial state. */
   workflowName: string;
+  /** Exact trigger event being replayed. Absence intentionally means manual. */
+  triggerEvent?: string;
   /**
    * Explicit per-run budget in milliseconds. Runs that exceed this budget are
    * recorded as `timeout`, not `fail` — a timeout is evidence the harness ran

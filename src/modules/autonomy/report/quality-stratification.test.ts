@@ -102,8 +102,20 @@ describe("quality stratification", () => {
       task("task-warning", "done", "autonomy"),
       task("task-followed", "done", "security"),
     ];
-    const cleanRun = run("clean-run", "builder", WINDOW_START + MS_PER_DAY, "harness-a");
-    const warningRun = run("warning-run", "builder", WINDOW_START + 2 * MS_PER_DAY, undefined);
+    const cleanRun = run(
+      "clean-run",
+      "builder",
+      WINDOW_START + MS_PER_DAY,
+      "harness-a",
+      "task-clean",
+    );
+    const warningRun = run(
+      "warning-run",
+      "builder",
+      WINDOW_START + 2 * MS_PER_DAY,
+      undefined,
+      "task-warning",
+    );
     writeBuilderArtifacts(runsDir, cleanRun.id, "task-clean", ["src/modules/autonomy/report/a.ts"], "ok");
     writeBuilderArtifacts(runsDir, warningRun.id, "task-warning", ["src/modules/autonomy/report/b.ts"], "warning");
 

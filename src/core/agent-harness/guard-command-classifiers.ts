@@ -47,6 +47,9 @@ export function hasPackageBootstrapAllowMarker(startDir: string): boolean {
 const GIT_COMMIT_PATTERN =
   /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*commit(?=$|\s|[;&|()`])/;
 
+const GIT_METADATA_MUTATION_PATTERN =
+  /(?:^|[\s;&|()`])(?:\S*\/)?git\s+(?:(?:(?:-C|-c|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)\s+(?:"[^"]*"|'[^']*'|[^\s;&|()`]+)|(?:--git-dir|--work-tree|--namespace|--super-prefix|--config-env)=\S+|--bare|--no-pager|--paginate|-p|-P)\s+)*(?:add|am|apply|bisect|branch|checkout|cherry-pick|clean|commit|config|gc|merge|mv|notes|push|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref|worktree)(?=$|\s|[;&|()`])/;
+
 const GIT_RESET_HARD_PATTERN =
   /(?:^|[\s;&|()`])git\s+(?:(?:-\S+|--\S+|[^\s;&|()-][^\s;&|()]*)\s+)*reset(?=$|\s|[;&|()`])(?=[^;&|()`]*\s--hard(?=$|\s|[;&|()`]))/;
 
@@ -136,6 +139,12 @@ export function isGitCommitCommand(command: string): boolean {
   const normalized = normalizeCommand(command);
   if (!normalized) return false;
   return GIT_COMMIT_PATTERN.test(normalized);
+}
+
+export function isGitMetadataMutationCommand(command: string): boolean {
+  const normalized = normalizeCommand(command);
+  if (!normalized) return false;
+  return GIT_METADATA_MUTATION_PATTERN.test(normalized);
 }
 
 export function classifyWorkflowShellTeardownCommand(

@@ -5,6 +5,7 @@ import {
   HISTORY_PROJECT_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE } from "#core/workflow/logical-resource-authority.js";
 import {
   WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
   type WorkflowDefinitionsSource,
@@ -60,11 +61,14 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     state,
     token,
     eventJournal,
+    runState,
+    runCoordinator,
     uninstallEventJournal,
     projectRegistry,
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
     projectRuntimes,
+    startupDispatchPaused,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
   const eventLoopLatency = new DaemonEventLoopLatencyMonitor();
@@ -83,13 +87,10 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       if (!ctx.running || ctx.stopping) return;
       for (const item of items) log(`Reminder: ${item.description}`);
     },
-    onLog: log,
-    alertCooldownMs: config.config?.notifications?.alertCooldownMs,
-    getWorkflowNotify: (runtime, name) =>
-      runtime.workflowRuntime.getDefinitions().find((definition) => definition.name === name)?.notify,
   });
   const scopeLifecycle = new ScopeLifecycleService({
     registry: projectRegistry,
+    runState,
     runtimes: projectRuntimes,
     runtimeHost: scopeRuntimeHost,
     bus,
@@ -179,6 +180,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       }
       return result;
     },
+    execute: (request) =>
+      projectRuntimes.get(request.projectId).workflowRuntime.execute(request),
   };
   const eventDispatcher: WorkflowEventDispatcher = {
     enqueueBatchedEvent: (input) => getDefaultWorkflows().enqueueBatchedEvent(input),
@@ -196,6 +199,11 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
   const registry = getProviderRegistry();
   if (registry) {
+    registry.register(
+      LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE,
+      "daemon",
+      runState,
+    );
     registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
       getProjectRegistryProjection: () => handle.getProjectRegistryProjection(),
       getActiveProjectId: () => handle.getActiveProjectId(),
@@ -262,6 +270,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     stateRoot,
     bus,
     eventJournal,
+    runState,
+    runCoordinator,
     uninstallEventJournal,
     runStore,
     workflows,
@@ -276,6 +286,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeLifecycle,
     scopeRuntimeHost,
     eventLoopLatency,
+    startupDispatchPaused,
     unsubscribe: null,
     sessionSweepTimer: null,
     healthCheckTimer: null,

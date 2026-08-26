@@ -284,17 +284,5 @@ export async function executeAgentStep(
     };
   };
 
-  if (!agentConfig.agentRunLimiter) {
-    return await executeWithWorkspaceAttribution();
-  }
-  return scopedAgent
-    ? await agentConfig.agentRunLimiter.runExclusive(
-        workspaceDir,
-        executeWithWorkspaceAttribution,
-        abortController.signal,
-      )
-    : await agentConfig.agentRunLimiter.run(
-        executeWithWorkspaceAttribution,
-        abortController.signal,
-      );
+  return await executeWithWorkspaceAttribution();
 }

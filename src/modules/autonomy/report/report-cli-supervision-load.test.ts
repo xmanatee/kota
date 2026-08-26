@@ -106,6 +106,34 @@ function writeRunningRun(projectDir: string, scopeId: string): void {
   );
 }
 
+function writeRunWithoutTrigger(
+  projectDir: string,
+  id: string,
+  status: "running" | "success",
+): void {
+  const dir = join(projectDir, ".kota", "runs", id);
+  mkdirSync(dir, { recursive: true });
+  const startedAt = new Date().toISOString();
+  writeFileSync(
+    join(dir, "metadata.json"),
+    `${JSON.stringify(
+      {
+        id,
+        workflow: "builder",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        startedAt,
+        ...(status === "success" ? { completedAt: startedAt } : {}),
+        status,
+        runDir: `.kota/runs/${id}`,
+        steps: [],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+}
+
 async function captureNoColorStdout(
   fn: () => Promise<void> | void,
 ): Promise<string> {
@@ -168,23 +196,22 @@ describe("kota report CLI supervision load", () => {
     });
 
     const parsed = JSON.parse(out.trim());
-    expect(parsed.supervisionLoad).toMatchObject({
-      status: "unknown",
-      counts: {
-        activeRuns: 0,
-        activeTaskClaims: null,
-        pendingApprovals: null,
-        pendingOwnerQuestions: null,
-        openDeadLetters: null,
-      },
-      thresholds: {
-        busyAt: 3,
-        overloadedAt: 6,
-      },
+    expect(parsed.supervisionLoad.status).toBe("unknown");
+    expect(parsed.supervisionLoad.counts).toEqual({
+      activeRuns: 0,
+      pendingApprovals: null,
+      pendingOwnerQuestions: null,
+      openDeadLetters: null,
+      attentionItems: 1,
+      postCompletionFollowUps: 0,
+      reviewEvidenceGaps: 0,
+    });
+    expect(parsed.supervisionLoad.thresholds).toMatchObject({
+      busyAt: 3,
+      overloadedAt: 6,
     });
     expect(parsed.supervisionLoad.evidence).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: "task-claims", status: "missing" }),
         expect.objectContaining({ source: "approvals", status: "missing" }),
         expect.objectContaining({
           source: "owner-questions",
@@ -192,6 +219,33 @@ describe("kota report CLI supervision load", () => {
         }),
         expect.objectContaining({ source: "dead-letters", status: "missing" }),
       ]),
+    );
+  });
+
+  it("keeps historical terminal runs without trigger metadata reportable", async () => {
+    writeRunWithoutTrigger(projectDir, "run-historical-no-trigger", "success");
+
+    const out = await captureStdout(async () => {
+      await makeProgram().parseAsync(["node", "kota", "report", "--json"]);
+    });
+
+    const parsed = JSON.parse(out.trim());
+    expect(parsed.decisionAttribution.records).toContainEqual(
+      expect.objectContaining({
+        runId: "run-historical-no-trigger",
+        taskId: null,
+        taskTitle: null,
+      }),
+    );
+  });
+
+  it("rejects an active run whose current metadata omits its trigger", async () => {
+    writeRunWithoutTrigger(projectDir, "run-active-no-trigger", "running");
+
+    await expect(
+      makeProgram().parseAsync(["node", "kota", "report", "--json"]),
+    ).rejects.toThrow(
+      'Malformed current workflow run "run-active-no-trigger": missing trigger',
     );
   });
 

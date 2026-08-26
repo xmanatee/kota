@@ -28,7 +28,12 @@ export type TaskAttrs = { [key: string]: string | string[] };
 export type ProgressReviewDirectorySource = {
   scopeId: string;
   displayName: string;
+  /** Repository view used for Git and task evidence. */
   projectDir: string;
+  /** Canonical configured scope root. */
+  scopeDir: string;
+  /** Canonical durable runtime-state directory. */
+  stateDir: string;
   idPrefix: string;
 };
 

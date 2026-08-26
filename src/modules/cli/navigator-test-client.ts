@@ -67,17 +67,6 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     },
     workflow: {
       listRuns: stub({ runs: [] }),
-      listStateRecoveryActions: stub({
-        ok: true as const,
-        claims: [],
-        worktrees: [],
-        deadLetters: [],
-      }),
-      resolveStateRecovery: stub({
-        ok: false as const,
-        reason: "not_found" as const,
-        message: "not found",
-      }),
       status: async () => {
         throw new Error("not implemented in test");
       },
@@ -87,7 +76,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       resume: stub({ paused: false, already: false }),
       abort: stub({ status: "applied", count: 0 }),
       reload: stub({ status: "applied", count: 0 }),
-      triggerByName: stub({ ok: true, path: "queue", queued: "x" }),
+      triggerByName: stub({ ok: true, path: "daemon", queued: "x" }),
       trial: stub({ ok: false, reason: "daemon_required", message: "stub" }),
       explain: stub(emptyExplainResult()),
       simulate: stub(emptySimulationResult()),
@@ -118,7 +107,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       move: stub({ ok: false, reason: "not_found" }),
       create: stub({ ok: false, reason: "invalid_slug" }),
       capture: stub({ ok: false, reason: "invalid_slug" }),
-      gc: stub({ archived: [], deleted: [] }),
+      gc: stub({ removed: [] }),
       search: stub({ ok: true, tasks: [] }),
       reindex: stub({ indexed: 0, failed: 0 }),
     },

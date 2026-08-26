@@ -44,8 +44,8 @@ function buildPrompt(
   const definition: WorkflowDefinition = {
     name: "test-workflow",
     enabled: true,
+    repository: "read",
     moduleRoot,
-    recoveryCapable: false,
     definitionPath: "workflow.ts",
     tags: [],
     triggers: [],

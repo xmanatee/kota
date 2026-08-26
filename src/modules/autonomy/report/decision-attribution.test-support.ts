@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { OwnerInterventionReport } from "./aggregate.js";
 import type { DecisionAttributionRecord } from "./decision-attribution-types.js";
@@ -51,31 +52,37 @@ export function run(
   };
 }
 
-export function writeRunSummary(
+export function builderTrigger(taskId: string): WorkflowRunMetadata["trigger"] {
+  const taskDigest = "0".repeat(64);
+  return {
+    event: "autonomy.queue.available",
+    schemaRef: null,
+    payload: {
+      taskId,
+      taskPath: `data/tasks/ready/${taskId}.md`,
+      taskState: "ready",
+      taskUpdatedAt: NOW,
+      taskDigest,
+      idempotencyKey: `builder:${taskId}:${taskDigest}`,
+      title: taskId,
+    },
+  };
+}
+
+export function writeWriterIntegration(
   runsDir: string,
   runId: string,
-  taskId: string,
   filesChanged: string[] = [],
 ): void {
-  const dir = join(runsDir, runId);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(
-    join(dir, "run-summary.json"),
-    JSON.stringify({
-      runId,
-      workflow: "builder",
-      taskId,
-      taskTitle: taskId,
-      outcome: "success",
-      commitSha: `sha-${runId}`,
-      commitMessage: "test commit",
-      filesChanged,
-      costUsd: null,
-      durationMs: null,
-      completedAt: NOW,
-    }),
-    "utf-8",
-  );
+  writeWriterIntegrationFixture(runsDir, {
+    runId,
+    workflow: "builder",
+    publishedHead: `sha-${runId}`,
+    commitSubject: "test commit",
+    commitMessage: "test commit",
+    changedPaths: filesChanged,
+    completedAt: NOW,
+  });
 }
 
 export function writeEvidence(runsDir: string, runId: string, name: string): void {

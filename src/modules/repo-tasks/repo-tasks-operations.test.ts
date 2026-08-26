@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -9,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   captureInboxTask,
   createNormalizedTask,
@@ -17,16 +16,6 @@ import {
   showTask,
   slugifyTaskTitle,
 } from "./repo-tasks-operations.js";
-
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execSync: vi.fn(),
-  execFileSync: vi.fn(),
-}));
-
-beforeEach(() => {
-  vi.mocked(execFileSync).mockReset();
-});
 
 function makeProjectDir(): string {
   const dir = join(
@@ -152,7 +141,7 @@ describe("createNormalizedTask", () => {
     }
   });
 
-  it("stages the task file through argv so path metacharacters stay literal", () => {
+  it("treats project path metacharacters as literal filesystem content", () => {
     const unsafeProjectDir = join(projectDir, 'repo "$(touch should-not-run)" ;');
     mkdirSync(unsafeProjectDir, { recursive: true });
 
@@ -166,30 +155,8 @@ describe("createNormalizedTask", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.path).toContain('$(touch should-not-run)');
-      expect(execFileSync).toHaveBeenCalledWith(
-        "git",
-        ["add", "-A", "--", "data/tasks/backlog/task-literal-path-task.md"],
-        expect.objectContaining({
-          cwd: unsafeProjectDir,
-          stdio: "pipe",
-        }),
-      );
+      expect(readFileSync(result.path, "utf8")).toContain("id: task-literal-path-task");
     }
-  });
-
-  it("fails the task operation when exact-path staging fails", () => {
-    vi.mocked(execFileSync).mockImplementationOnce(() => {
-      throw new Error("stage failed");
-    });
-
-    expect(() =>
-      createNormalizedTask(projectDir, {
-        title: "Cannot stage",
-        priority: "p2",
-        area: "core",
-        state: "backlog",
-      }),
-    ).toThrow("stage failed");
   });
 
   it("returns invalid_slug for empty title", () => {
@@ -277,50 +244,47 @@ describe("gcTerminalTasks", () => {
     writeFileSync(join(dir, `${id}.md`), content);
   }
 
-  it("archives tasks older than threshold", () => {
+  it("removes old terminal tasks while Git remains the archive", () => {
     writeTerminalTask("done", "task-old", "2020-01-01");
     const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(1);
-    expect(result.archived[0]).toBe("task-old.md");
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-old.md"))).toBe(true);
+    expect(result.removed).toHaveLength(1);
+    expect(result.removed[0]).toBe("task-old.md");
     expect(existsSync(join(projectDir, "data", "tasks", "done", "task-old.md"))).toBe(false);
   });
 
-  it("does not archive tasks newer than threshold", () => {
+  it("does not remove tasks newer than threshold", () => {
     const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     writeTerminalTask("done", "task-recent", recent);
     const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
     expect(existsSync(join(projectDir, "data", "tasks", "done", "task-recent.md"))).toBe(true);
   });
 
-  it("deletes instead of archiving when delete option is set", () => {
+  it("removes old dropped tasks", () => {
     writeTerminalTask("dropped", "task-drop-old", "2020-01-01");
-    const result = gcTerminalTasks(projectDir, { days: 30, delete: true });
-    expect(result.deleted).toHaveLength(1);
+    const result = gcTerminalTasks(projectDir, { days: 30 });
+    expect(result.removed).toHaveLength(1);
     expect(existsSync(join(projectDir, "data", "tasks", "dropped", "task-drop-old.md"))).toBe(false);
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-drop-old.md"))).toBe(false);
   });
 
   it("dry-run returns affected list without mutating files", () => {
     writeTerminalTask("done", "task-dry", "2020-01-01");
     const result = gcTerminalTasks(projectDir, { days: 30, dryRun: true });
-    expect(result.archived).toHaveLength(1);
+    expect(result.removed).toHaveLength(1);
     expect(existsSync(join(projectDir, "data", "tasks", "done", "task-dry.md"))).toBe(true);
-    expect(existsSync(join(projectDir, ".kota", "task-archive", "task-dry.md"))).toBe(false);
   });
 
   it("handles both done and dropped states", () => {
     writeTerminalTask("done", "task-done-old", "2020-01-01");
     writeTerminalTask("dropped", "task-dropped-old", "2020-02-01");
     const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(2);
+    expect(result.removed).toHaveLength(2);
   });
 
   it("does not touch open state tasks", () => {
     writeTaskFile(projectDir, "ready", "task-ready-skip", { updated_at: "2020-01-01" });
     const result = gcTerminalTasks(projectDir, { days: 30 });
-    expect(result.archived).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
     expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-ready-skip.md"))).toBe(true);
   });
 });

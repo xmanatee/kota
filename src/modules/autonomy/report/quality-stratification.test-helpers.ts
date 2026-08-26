@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type {
   ReviewScrutinyRecord,
   ReviewScrutinyReport,
@@ -65,12 +66,28 @@ export function run(
   workflow: string,
   startedMs: number,
   harness: string | undefined,
+  taskId?: string,
 ): WorkflowRunMetadata {
+  const taskDigest = "0".repeat(64);
   return {
     id,
     workflow,
     definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "test", schemaRef: null, payload: {} },
+    trigger: taskId === undefined
+      ? { event: "test", schemaRef: null, payload: {} }
+      : {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {
+            taskId,
+            taskPath: `data/tasks/ready/${taskId}.md`,
+            taskState: "ready",
+            taskUpdatedAt: new Date(startedMs).toISOString(),
+            taskDigest,
+            idempotencyKey: `builder:${taskId}:${taskDigest}`,
+            title: taskId,
+          },
+        },
     startedAt: new Date(startedMs).toISOString(),
     completedAt: new Date(startedMs + 1000).toISOString(),
     status: "success",
@@ -195,28 +212,21 @@ function emptyPostReport(): PostCompletionFollowUpReport {
 export function writeBuilderArtifacts(
   runsDir: string,
   runId: string,
-  taskId: string,
+  _taskId: string,
   filesChanged: string[],
   outcome: "ok" | "warning",
 ): void {
   const runDir = join(runsDir, runId);
   mkdirSync(runDir, { recursive: true });
-  writeFileSync(
-    join(runDir, "run-summary.json"),
-    JSON.stringify({
-      runId,
-      workflow: "builder",
-      taskId,
-      taskTitle: taskId,
-      outcome: "success",
-      commitSha: "abc123",
-      commitMessage: "test",
-      filesChanged,
-      costUsd: null,
-      durationMs: null,
-      completedAt: new Date(NOW).toISOString(),
-    }),
-  );
+  writeWriterIntegrationFixture(runsDir, {
+    runId,
+    workflow: "builder",
+    publishedHead: "abc123",
+    commitSubject: "test",
+    commitMessage: "test",
+    changedPaths: filesChanged,
+    completedAt: new Date(NOW).toISOString(),
+  });
   writeFileSync(
     join(runDir, "source-file-size-review.json"),
     JSON.stringify(sourceReview(outcome, filesChanged)),

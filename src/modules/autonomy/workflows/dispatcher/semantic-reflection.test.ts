@@ -9,11 +9,13 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
-  deferProgressReviewSemanticInput,
-  recordProgressReviewInputQueued,
-} from "../progress-reviewer/semantic-input.js";
-import { inspectProgressSemanticBoundary } from "./semantic-reflection.js";
+  inspectProgressSemanticBoundary,
+  type ProgressBoundaryState,
+} from "./semantic-reflection.js";
+
+const boundaryStates = new Map<string, ProgressBoundaryState>();
 
 function git(projectDir: string, args: string[]): string {
   return execFileSync("git", args, {
@@ -109,10 +111,23 @@ function commit(projectDir: string, message: string): void {
   ]);
 }
 
+async function inspect(projectDir: string, scopeDir = projectDir) {
+  const result = await inspectProgressSemanticBoundary({
+    projectDir,
+    scopeDir,
+    stateDir: join(scopeDir, ".kota"),
+    progressBoundaryState: boundaryStates.get(projectDir) ?? null,
+    runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+  });
+  if (result.nextState !== null) boundaryStates.set(projectDir, result.nextState);
+  return result;
+}
+
 describe("semantic progress reflection", () => {
   const projectDirs: string[] = [];
 
   afterEach(() => {
+    boundaryStates.clear();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
@@ -124,16 +139,32 @@ describe("semantic progress reflection", () => {
     return projectDir;
   }
 
-  it("emits one parked-queue review and ignores five later build commits", () => {
+  it("parks a clean isolated snapshot while the canonical scope is dirty", async () => {
+    const scopeDir = track("dirty-canonical");
+    write(scopeDir, "README.md", "# Canonical\n");
+    commit(scopeDir, "seed canonical scope");
+    write(scopeDir, "owner-draft.txt", "not committed\n");
+
+    const projectDir = track("clean-snapshot");
+    write(projectDir, "README.md", "# Snapshot\n");
+    commit(projectDir, "seed isolated snapshot");
+
+    await expect(inspect(projectDir, scopeDir)).resolves.toMatchObject({
+      shouldEmit: false,
+      reason: expect.stringContaining("canonical worktree is clean"),
+    });
+  });
+
+  it("emits one parked-queue review and ignores five later build commits", async () => {
     const projectDir = track("parked-build-restraint");
     writeTask(projectDir, "ready", "task-delivery");
     writeTask(projectDir, "backlog", "task-strategic-anchor", { anchor: true });
     commit(projectDir, "seed actionable queue");
-    expect(inspectProgressSemanticBoundary({ projectDir }).shouldEmit).toBe(false);
+    expect((await inspect(projectDir)).shouldEmit).toBe(false);
 
     moveTask(projectDir, "task-delivery", "ready", "done");
     commit(projectDir, "complete delivery task");
-    const parked = inspectProgressSemanticBoundary({ projectDir });
+    const parked = await inspect(projectDir);
     expect(parked).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "parked-queue", inputRevision: 1 },
@@ -142,66 +173,22 @@ describe("semantic progress reflection", () => {
     for (let index = 1; index <= 5; index += 1) {
       write(projectDir, `src/build-${index}.ts`, `export const build${index} = ${index};\n`);
       commit(projectDir, `successful build ${index}`);
-      expect(inspectProgressSemanticBoundary({ projectDir })).toMatchObject({
+      expect(await inspect(projectDir)).toMatchObject({
         shouldEmit: false,
         reason: "no accepted semantic progress boundary",
       });
     }
   });
 
-  it("redelivers a deferred progress boundary only after canonical cleanup", () => {
-    const projectDir = track("parked-cleanup-redelivery");
-    writeTask(projectDir, "ready", "task-delivery");
-    writeTask(projectDir, "backlog", "task-strategic-anchor", { anchor: true });
-    commit(projectDir, "seed actionable queue");
-    inspectProgressSemanticBoundary({ projectDir });
-
-    moveTask(projectDir, "task-delivery", "ready", "done");
-    commit(projectDir, "complete delivery task");
-    const boundary = inspectProgressSemanticBoundary({ projectDir });
-    recordProgressReviewInputQueued({
-      projectDir,
-      payload: boundary.payload!,
-    });
-    deferProgressReviewSemanticInput({
-      projectDir,
-      input: {
-        automatic: true,
-        shouldReview: true,
-        boundary: "parked-queue",
-        inputRevision: 1,
-        evidenceRefs: boundary.payload?.evidenceRefs ?? [],
-        reason: boundary.payload?.reason ?? "parked queue",
-        deliveryAttempt: 0,
-      },
-    });
-
-    write(projectDir, "scratch.txt", "uncommitted work\n");
-    expect(inspectProgressSemanticBoundary({ projectDir })).toMatchObject({
-      shouldEmit: false,
-      reason: expect.stringContaining("parked until"),
-    });
-    rmSync(join(projectDir, "scratch.txt"));
-    expect(inspectProgressSemanticBoundary({ projectDir })).toMatchObject({
-      shouldEmit: true,
-      reason: expect.stringContaining("resumed after cleanup"),
-      payload: {
-        automatic: true,
-        boundary: "parked-queue",
-        inputRevision: 1,
-      },
-    });
-  });
-
-  it("emits a task-disposition boundary when a task becomes blocked", () => {
+  it("emits a task-disposition boundary when a task becomes blocked", async () => {
     const projectDir = track("blocked");
     writeTask(projectDir, "ready", "task-needs-input");
     commit(projectDir, "seed ready task");
-    inspectProgressSemanticBoundary({ projectDir });
+    await inspect(projectDir);
 
     moveTask(projectDir, "task-needs-input", "ready", "blocked");
     commit(projectDir, "block task");
-    expect(inspectProgressSemanticBoundary({ projectDir })).toMatchObject({
+    expect(await inspect(projectDir)).toMatchObject({
       shouldEmit: true,
       payload: {
         boundary: "task-disposition",
@@ -213,11 +200,11 @@ describe("semantic progress reflection", () => {
     });
   });
 
-  it("emits once when an owner decision resolves without a Git commit", () => {
+  it("emits once when an owner decision resolves without a Git commit", async () => {
     const projectDir = track("owner-decision");
     write(projectDir, "README.md", "# Fixture\n");
     commit(projectDir, "seed fixture");
-    inspectProgressSemanticBoundary({ projectDir });
+    await inspect(projectDir);
 
     write(
       projectDir,
@@ -230,7 +217,7 @@ describe("semantic progress reflection", () => {
         updatedAt: "2026-08-15T12:00:00.000Z",
       })}\n`,
     );
-    const resolved = inspectProgressSemanticBoundary({ projectDir });
+    const resolved = await inspect(projectDir);
     expect(resolved).toMatchObject({
       shouldEmit: true,
       payload: {
@@ -239,24 +226,24 @@ describe("semantic progress reflection", () => {
         evidenceRefs: [".kota/owner-decisions/a1b2c3d4.json"],
       },
     });
-    expect(inspectProgressSemanticBoundary({ projectDir }).shouldEmit).toBe(false);
+    expect((await inspect(projectDir)).shouldEmit).toBe(false);
   });
 
-  it("emits a strategic-completion boundary for a completed P1 initiative", () => {
+  it("emits a strategic-completion boundary for a completed P1 initiative", async () => {
     const projectDir = track("strategic-completion");
     writeTask(projectDir, "ready", "task-milestone", {
       priority: "p1",
       strategic: true,
     });
     commit(projectDir, "seed strategic task");
-    inspectProgressSemanticBoundary({ projectDir });
+    await inspect(projectDir);
 
     moveTask(projectDir, "task-milestone", "ready", "done", {
       priority: "p1",
       strategic: true,
     });
     commit(projectDir, "complete strategic milestone");
-    expect(inspectProgressSemanticBoundary({ projectDir })).toMatchObject({
+    expect(await inspect(projectDir)).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "strategic-completion", inputRevision: 1 },
     });

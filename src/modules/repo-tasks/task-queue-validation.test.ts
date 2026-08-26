@@ -150,12 +150,6 @@ describe("task queue validation", () => {
     expect(result.findings.some((finding) => finding.code === "task-duplicate-state")).toBe(true);
   });
 
-  it("reports untracked task files", () => {
-    writeTask(projectDir, "ready", "task-alpha");
-    const result = validateTaskQueue(projectDir);
-    expect(result.findings.some((finding) => finding.code === "task-untracked")).toBe(true);
-  });
-
   it("reports ignored nested runtime-state directories under data", () => {
     writeFileSync(join(projectDir, ".gitignore"), "**/.kota/\n");
     writeTask(projectDir, "ready", "task-alpha");
@@ -179,18 +173,6 @@ describe("task queue validation", () => {
     expect(cleanResult.findings.some((candidate) =>
       candidate.code === "data-nested-runtime-state"
     )).toBe(false);
-  });
-
-  it("reports deleted tracked task files", () => {
-    writeTask(projectDir, "ready", "task-alpha");
-    execSync("git add data && git commit -m init", {
-      cwd: projectDir,
-      stdio: "ignore",
-    });
-    rmSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-alpha.md"));
-
-    const result = validateTaskQueue(projectDir);
-    expect(result.findings.some((finding) => finding.code === "task-deleted-unstaged")).toBe(true);
   });
 
   it("reports too many doing tasks", () => {

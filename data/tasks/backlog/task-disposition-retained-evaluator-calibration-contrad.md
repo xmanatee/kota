@@ -7,7 +7,7 @@ area: autonomy
 task_class: Meta
 summary: Preserve run-level identities for the three accepted low-sample evaluator contradictions and give each weak-evidence verdict a durable disposition.
 created_at: 2026-08-13T21:43:07.182Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T00:00:00.000Z
 ---
 
 ## Problem
@@ -16,7 +16,7 @@ The 2026-08-13 evaluator-calibration repair snapshot retained three
 `pass` verdicts that were contradicted by later overlapping terminal failure.
 Only the aggregate survived into the Git-backed repair task; the run-level
 artifacts needed to identify and re-review those verdicts were not projected
-into the builder worktree. Treating the three signals as anonymous statistical
+into the builder run. Treating the three signals as anonymous statistical
 noise leaves their weak-evidence disposition unauditable.
 
 ## Desired Outcome
@@ -41,8 +41,8 @@ with rationale, or a concrete corrective task tied to the affected code/task.
 2. The three weak-evidence passes in the cited 3-of-10 source snapshot each
    have a durable disposition, or an explicit source-unavailable record proves
    why an identity cannot be recovered from the canonical run store.
-3. Monitor/repair artifacts carry those identities and dispositions into a
-   worktree, with focused fixtures proving no unrelated overlap is included.
+3. Monitor/repair artifacts carry those identities and dispositions into the
+   isolated writer run, with focused fixtures proving no unrelated overlap is included.
 
 ## Calibration Source
 

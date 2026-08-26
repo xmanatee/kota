@@ -1,6 +1,6 @@
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { repoWorktreeStatusOperation } from "#core/util/repo-worktree-operation.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import {
   collectScopeImprovementInputsOperation,
@@ -12,6 +12,11 @@ import {
   type ScopeImprovementInputs,
   type ScopeImprovementRecommendation,
 } from "./scope-improvement.js";
+import {
+  decodeScopeImprovementState,
+  SCOPE_IMPROVEMENT_STATE_KEY,
+} from "./scope-improvement-state.js";
+import type { ScopeImprovementState } from "./scope-improvement-types.js";
 
 type WorktreeInspection = {
   available: boolean;
@@ -23,7 +28,6 @@ type WorktreeInspection = {
 export const inspectWorktree = typedCodeStep<WorktreeInspection>({
   id: "inspect-worktree",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<WorktreeInspection>(raw, [
       "available",
@@ -45,7 +49,6 @@ export const inspectWorktree = typedCodeStep<WorktreeInspection>({
 export const collectInputs = typedCodeStep<ScopeImprovementInputs>({
   id: "collect-scope-inputs",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<ScopeImprovementInputs>(raw, [
       "generatedAt",
@@ -60,14 +63,31 @@ export const collectInputs = typedCodeStep<ScopeImprovementInputs>({
       "semanticInput",
       "alreadyConsumed",
     ]),
-  run: ({ projectDir, trigger, runBlocking, scopePolicySnapshot }) => {
+  run: ({
+    projectDir,
+    scopeDir,
+    stateDir,
+    state,
+    trigger,
+    runBlocking,
+    scopePolicySnapshot,
+  }) => {
     if (!scopePolicySnapshot) {
       throw new Error(
         "scope-improver requires an authoritative resolved scope-policy snapshot",
       );
     }
+    const snapshot = state.read<ScopeImprovementState>(
+      SCOPE_IMPROVEMENT_STATE_KEY,
+    );
     return runBlocking(collectScopeImprovementInputsOperation, {
       projectDir,
+      scopeDir,
+      stateDir,
+      state: decodeScopeImprovementState(
+        snapshot.value,
+        deriveDirectoryScopeId(scopeDir),
+      ),
       trigger,
       nowIso: new Date().toISOString(),
       scopePolicySnapshot,

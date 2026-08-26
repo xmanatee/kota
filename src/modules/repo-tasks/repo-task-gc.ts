@@ -6,29 +6,21 @@ import type {
   RepoTaskGcResult,
   RepoTaskState,
 } from "./client.js";
-import {
-  moveAndStageRepoMarkdownFile,
-  readVerifiedRepoMarkdownFile,
-  removeAndStageRepoMarkdownFile,
-  stageRepoPaths,
-} from "./repo-file-mutations.js";
+import { readVerifiedRepoMarkdownFile, removeRepoMarkdownFile } from "./repo-file-mutations.js";
 import { getRepoTasksDir } from "./repo-tasks-domain.js";
 
 const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
-/** Archive or delete terminal tasks older than the requested threshold. */
+/** Remove old terminal tasks; Git history is the default archive. */
 export function gcTerminalTasks(
   projectDir: string,
   options: RepoTaskGcOptions = {},
 ): RepoTaskGcResult {
   const days = options.days ?? 30;
-  const deleteMode = options.delete ?? false;
   const dryRun = options.dryRun ?? false;
   const tasksDir = getRepoTasksDir(projectDir);
-  const archiveDir = join(projectDir, ".kota", "task-archive");
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const archived: string[] = [];
-  const deleted: string[] = [];
+  const removed: string[] = [];
 
   for (const state of TERMINAL_STATES) {
     const dir = join(tasksDir, state);
@@ -54,33 +46,16 @@ export function gcTerminalTasks(
       ) {
         continue;
       }
-      if (deleteMode) {
-        if (!dryRun) {
-          removeAndStageRepoMarkdownFile({
-            projectDir,
-            rootDir: tasksDir,
-            filePath,
-            stage: () => stageRepoPaths(projectDir, [filePath]),
-          });
-        }
-        deleted.push(file);
-        continue;
-      }
       if (!dryRun) {
-        moveAndStageRepoMarkdownFile({
+        removeRepoMarkdownFile({
           projectDir,
-          sourceRootDir: tasksDir,
-          sourcePath: filePath,
-          destinationRootDir: archiveDir,
-          destinationPath: join(archiveDir, file),
-          sourceContent: content,
-          destinationContent: content,
-          stage: () => stageRepoPaths(projectDir, [filePath]),
+          rootDir: tasksDir,
+          filePath,
         });
       }
-      archived.push(file);
+      removed.push(file);
     }
   }
 
-  return { archived, deleted };
+  return { removed };
 }

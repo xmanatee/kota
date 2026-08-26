@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalRouted,
+  inboundSignalWorkflowTargeted,
 } from "#modules/inbound-signals/events.js";
 import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import type {
@@ -399,7 +399,7 @@ describe("Telegram inbound signal adapter", () => {
           });
           return {
             ok: true,
-            path: "queue",
+            path: "daemon",
             queued: "telegram-signal-probe",
             runId: "run-telegram-9001",
           };
@@ -413,7 +413,7 @@ describe("Telegram inbound signal adapter", () => {
     expect(routed).toEqual([routeResult]);
     expect(queued).toHaveLength(1);
     expect(queued[0]).toMatchObject({
-      event: inboundSignalRouted.name,
+      event: inboundSignalWorkflowTargeted,
       payload: {
         routeId: "telegram-9001-capture",
         provider: "telegram",
@@ -446,7 +446,7 @@ describe("Telegram inbound signal adapter", () => {
     const emitted: InboundSignalRoutedPayload[] = [];
     const triggerWorkflow = vi.fn(async () => ({
       ok: true as const,
-      path: "queue" as const,
+      path: "daemon" as const,
       queued: "telegram-signal-probe",
       runId: "run-telegram-source",
     }));
@@ -603,7 +603,7 @@ describe("Telegram inbound signal adapter", () => {
           });
           return {
             ok: true,
-            path: "queue",
+            path: "daemon",
             queued: "telegram-community-intake",
             runId: "run-telegram-community-intake",
           };

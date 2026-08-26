@@ -15,10 +15,7 @@ import {
 	resetOwnerQuestionQueue,
 	setOwnerQuestionQueueInstance,
 } from "./core/daemon/owner-question-queue.js";
-import {
-	createProjectRuntime,
-	type ProjectRuntime,
-} from "./core/daemon/project-runtime.js";
+import type { ProjectRuntime } from "./core/daemon/project-runtime.js";
 import {
 	resetScheduler,
 	setSchedulerInstance,
@@ -32,6 +29,7 @@ import {
 	registerApprovalExecutionTestTools,
 } from "./modules/approval-queue/approval-execution-test-tools.integration.js";
 import { handleApproveApproval } from "./modules/approval-queue/routes.js";
+import { createTestProjectRuntime as createIsolatedProjectRuntime } from "./modules/autonomy/autonomy-runtime.test-helpers.js";
 
 const TEST_PROJECT_ID = "test-project";
 
@@ -233,12 +231,14 @@ describe("approval expiry × event bus integration", () => {
 			unsubscribe();
 			await runtimeA.workflowRuntime.stop();
 			await runtimeB.workflowRuntime.stop();
+			runtimeA.runState.close();
+			runtimeB.runState.close();
 		}
 	});
 });
 
 function createTestProjectRuntime(projectDir: string): ProjectRuntime {
-	return createProjectRuntime({
+	return createIsolatedProjectRuntime({
 		project: buildConfiguredProject({ projectDir }),
 		bus: getEventBus()!,
 		config: { approvalTtlMs: 5 },

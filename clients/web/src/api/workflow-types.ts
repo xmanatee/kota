@@ -36,8 +36,7 @@ export type WorkflowLiveStatus = {
   paused: boolean;
   dispatchWindowBlocked?: boolean;
   dispatchWindowOpensAt?: string;
-  agentConcurrency: number;
-  codeConcurrency: number;
+  concurrency: number;
   workflows: Record<string, { enabled: boolean }>;
 };
 

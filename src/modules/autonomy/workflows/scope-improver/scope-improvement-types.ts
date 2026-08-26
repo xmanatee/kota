@@ -2,13 +2,12 @@ import { join } from "node:path";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const SCOPE_IMPROVEMENT_ARTIFACT = "scope-improvement.json";
-export const SCOPE_IMPROVEMENT_STATE_PATH = join(
-  ".kota",
-  "scope-improvement",
-  "state.json",
-);
 export const SCOPE_IMPROVEMENT_CONFIG_PATH = join(
   ".kota",
+  "scope-improvement",
+  "config.json",
+);
+export const SCOPE_IMPROVEMENT_CONFIG_FILE = join(
   "scope-improvement",
   "config.json",
 );
@@ -142,6 +141,7 @@ export type ScopeImprovementAppliedAction =
       fromState: RepoTaskState;
       signature: string;
     }
+  | { kind: "owner-question-pending"; signature: string }
   | { kind: "owner-question"; questionId: string; signature: string }
   | { kind: "updated-owner-question"; questionId: string; signature: string }
   | { kind: "skipped"; signature: string; reason: string };
@@ -163,11 +163,12 @@ export type ScopeImprovementPreflight = {
 };
 
 export type ScopeImprovementConsumptionDecision = {
-  recorded: boolean;
+  disposition: "consume" | "defer" | "ignore";
   reason: string | null;
 };
 
 export type ScopeImprovementArtifact = {
+  schemaVersion: 1;
   generatedAt: string;
   preflight: ScopeImprovementPreflight;
   inputs: ScopeImprovementInputs;

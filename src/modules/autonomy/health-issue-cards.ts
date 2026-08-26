@@ -25,7 +25,6 @@ export type AutonomyHealthIssueCard = {
   taskIds: string[];
   ownerQuestionIds: string[];
   deadLetterIds: string[];
-  recoveryDispositionRefs: string[];
 };
 
 export type AutonomyHealthIssueEvidence = {
@@ -66,7 +65,6 @@ export function collectCurrentAutonomyHealthIssueCards(
       taskIds: [...issue.links.taskIds],
       ownerQuestionIds: [...issue.links.ownerQuestionIds],
       deadLetterIds: [...issue.links.deadLetterIds],
-      recoveryDispositionRefs: [...issue.links.recoveryDispositionRefs],
     }));
   return {
     generatedAt: options.nowIso ?? new Date().toISOString(),

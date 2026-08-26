@@ -1,63 +1,14 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import {
-  assertStrategicReadyCoverage,
-  hasStrategicReadyCoverageGap,
-  type StrategicReadyCoverageOptions,
-} from "#modules/repo-tasks/task-queue-validation.js";
-import {
-  type ClaimAwareRepoTaskQueueSnapshot,
-  getClaimAwareRepoTaskQueueSnapshot,
-} from "./queue-availability.js";
+import { assertStrategicReadyCoverage } from "#modules/repo-tasks/task-queue-validation.js";
 
-export function strategicReadyCoverageOptionsForClaimAwareQueue(
-  queue: Pick<ClaimAwareRepoTaskQueueSnapshot, "claimBlockedTasks">,
-): StrategicReadyCoverageOptions {
-  return {
-    excludedTaskIds: queue.claimBlockedTasks.map((task) => task.id),
-  };
-}
-
-export function hasClaimAwareStrategicReadyCoverageGapForQueue(
-  projectDir: string,
-  queue: Pick<ClaimAwareRepoTaskQueueSnapshot, "claimBlockedTasks">,
-): boolean {
-  return hasStrategicReadyCoverageGap(
-    projectDir,
-    strategicReadyCoverageOptionsForClaimAwareQueue(queue),
-  );
-}
-
-export function hasClaimAwareStrategicReadyCoverageGap(
-  projectDir: string,
-  now: Date = new Date(),
-): boolean {
-  const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir, now);
-  return hasClaimAwareStrategicReadyCoverageGapForQueue(projectDir, queue);
-}
-
-export function assertClaimAwareStrategicReadyCoverage(
-  projectDir: string,
-  now: Date = new Date(),
-): string {
-  const queue = getClaimAwareRepoTaskQueueSnapshot(projectDir, now);
-  return assertStrategicReadyCoverage(
-    projectDir,
-    strategicReadyCoverageOptionsForClaimAwareQueue(queue),
-  );
-}
-
-export function inspectClaimAwareStrategicReadyCoverage(input: {
+export function inspectStrategicReadyCoverage(input: {
   projectDir: string;
-  nowIso?: string;
 }): string {
-  return assertClaimAwareStrategicReadyCoverage(
-    input.projectDir,
-    input.nowIso === undefined ? new Date() : new Date(input.nowIso),
-  );
+  return assertStrategicReadyCoverage(input.projectDir);
 }
 
-export const claimAwareStrategicReadyCoverageOperation =
+export const strategicReadyCoverageOperation =
   defineWorkflowBlockingOperation<
-    { projectDir: string; nowIso?: string },
+    { projectDir: string },
     string
-  >(import.meta.url, "inspectClaimAwareStrategicReadyCoverage");
+  >(import.meta.url, "inspectStrategicReadyCoverage");

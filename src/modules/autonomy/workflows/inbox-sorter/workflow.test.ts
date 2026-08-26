@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
@@ -41,10 +44,6 @@ vi.mock("#core/agent-harness/index.js", async () => {
 vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   getRepoTaskQueueSnapshot: vi.fn(),
   REPO_INBOX_DIR: "data/inbox",
-}));
-
-vi.mock("#modules/autonomy/commit.js", () => ({
-  commitWorkflowChanges: vi.fn(),
 }));
 
 function makeSnapshot(inboxCount: number) {
@@ -103,7 +102,30 @@ describe("inbox-sorter workflow", () => {
       needsAttention: false,
     });
     expect(result.steps["sort-inbox"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
+  });
+
+  it("runs task validation through the supervised command rail", async () => {
+    const sorterStep = inboxSorterWorkflow.steps.find(
+      (step): step is WorkflowAgentStepInput =>
+        "id" in step && step.id === "sort-inbox" && step.type === "agent",
+    );
+    const check = sorterStep?.repairLoop?.checks.find(
+      (entry) => entry.id === "task-queue-valid",
+    );
+    if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
+    const projectDir = "/tmp/inbox-sorter-command-test";
+    const runCommand = vi.fn(successfulWorkflowCommandRun);
+
+    await check.run(
+      { projectDir, runCommand } as unknown as WorkflowStepContext,
+      {} as never,
+    );
+
+    expect(runCommand).toHaveBeenCalledWith({
+      command: "pnpm",
+      args: ["run", "validate-tasks", "--", "--min-ready", "0"],
+      cwd: projectDir,
+    });
   });
 
   it("rejects untracked files outside inbox", async () => {
@@ -181,13 +203,10 @@ describe("inbox-sorter workflow", () => {
     expect(result.steps["inspect-inbox"].status).toBe("failed");
   });
 
-  it("runs sorter and commit when inbox has entries", async () => {
+  it("runs sorter when inbox has entries", async () => {
     await mockCleanWorktree();
     const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
-
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({ committed: true, committedPaths: ["src/change.ts"], daemonRestartRequired: true } as never);
 
     const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
       trigger: { event: "autonomy.inbox.available", payload: {} },
@@ -200,6 +219,5 @@ describe("inbox-sorter workflow", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["sort-inbox"].status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
   });
 });

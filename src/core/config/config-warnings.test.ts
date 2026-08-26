@@ -156,84 +156,25 @@ describe("warnInvalidConcurrencyConfig", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("emits no warnings for valid positive integer concurrency values", () => {
+  it("accepts a positive integer override", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: 2, codeConcurrency: 8 } }),
+      JSON.stringify({ scheduler: { concurrency: 8 } }),
     );
     const warnings: string[] = [];
     warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
     expect(warnings).toHaveLength(0);
   });
 
-  it("warns for zero agentConcurrency", () => {
+  it("reports an invalid override before resolution falls back", () => {
     writeFileSync(
       join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: 0 } }),
+      JSON.stringify({ scheduler: { concurrency: 0 } }),
     );
     const warnings: string[] = [];
     warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("agentConcurrency");
-    expect(warnings[0]).toContain("positive integer");
-  });
-
-  it("warns for negative codeConcurrency", () => {
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { codeConcurrency: -1 } }),
-    );
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("codeConcurrency");
-  });
-
-  it("warns for non-integer value", () => {
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: 1.5 } }),
-    );
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("agentConcurrency");
-  });
-
-  it("warns for non-number value", () => {
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { agentConcurrency: "two" } }),
-    );
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("agentConcurrency");
-  });
-
-  it("emits no warnings when config file does not exist", () => {
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(0);
-  });
-
-  it("emits no warnings when scheduler key is absent", () => {
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ model: "test-model" }),
-    );
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(0);
-  });
-
-  it("emits no warnings when concurrency keys are absent from scheduler", () => {
-    writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ scheduler: { dispatchWindow: { start: "09:00", end: "18:00" } } }),
-    );
-    const warnings: string[] = [];
-    warnInvalidConcurrencyConfig(projectDir, (msg) => warnings.push(msg));
-    expect(warnings).toHaveLength(0);
+    expect(warnings[0]).toContain("scheduler.concurrency");
+    expect(warnings[0]).toContain("integer from 1 to");
   });
 });

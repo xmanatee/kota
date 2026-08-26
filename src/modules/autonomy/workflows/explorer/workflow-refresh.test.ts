@@ -1,9 +1,10 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
-import { readLastExplorationAt, writeLastExplorationAt } from "./explorer-state.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
@@ -40,10 +41,6 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   ),
 }));
 
-vi.mock("#modules/autonomy/commit.js", () => ({
-  commitWorkflowChanges: vi.fn(),
-}));
-
 vi.mock("#modules/repo-tasks/task-queue-validation.js", () => ({
   assertArchitectureReadyCoverage: vi.fn(),
   assertStrategicReadyCoverage: vi.fn(),
@@ -76,6 +73,12 @@ function makeSnapshot({
   };
 }
 
+function stateWithLastExplorationAt(lastExplorationAt: string) {
+  const state = createTestTransactionalRunState();
+  state.compareAndSet(EXPLORER_STATE_KEY, 0, { lastExplorationAt });
+  return state;
+}
+
 describe("explorer workflow refresh", () => {
   let tempDir: string;
 
@@ -90,13 +93,6 @@ describe("explorer workflow refresh", () => {
       "#modules/repo-tasks/repo-tasks-domain.js"
     );
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -115,32 +111,6 @@ describe("explorer workflow refresh", () => {
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");
-    expect(result.steps.commit.status).toBe("success");
-  });
-
-  it("writes lastExplorationAt only when explore step runs", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
-
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
-      trigger: { event: "autonomy.queue.empty", payload: {} },
-      stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },
-      runtimeState: { workflows: {} },
-      projectDir: tempDir,
-    });
-
-    expect(readLastExplorationAt(tempDir)).toBeUndefined();
-    await harness.run();
-    expect(readLastExplorationAt(tempDir)).toBeDefined();
   });
 
   it("does not write lastExplorationAt when explore step is skipped", async () => {
@@ -149,17 +119,18 @@ describe("explorer workflow refresh", () => {
     );
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
-    writeLastExplorationAt(tempDir);
-    const before = readLastExplorationAt(tempDir);
+    const state = stateWithLastExplorationAt(new Date().toISOString());
+    const before = state.read<ExplorerState>(EXPLORER_STATE_KEY);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
       projectDir: tempDir,
+      contextOverrides: { state },
     });
     await harness.run();
 
-    expect(readLastExplorationAt(tempDir)).toBe(before);
+    expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toEqual(before);
   });
 
   it("skips explore when worktree is dirty", async () => {
@@ -205,13 +176,6 @@ describe("explorer workflow refresh", () => {
     );
     vi.mocked(hasStrategicReadyCoverageGap).mockReturnValue(true);
 
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
-
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.thin", payload: {} },
       stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },
@@ -229,7 +193,6 @@ describe("explorer workflow refresh", () => {
 
   it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {
     for (const trigger of explorerWorkflow.triggers) {
-      if (trigger.event === "runtime.recovered") continue;
       expect(trigger.cooldownMs).toBe(EXPLORATION_REFRESH_MS);
     }
   });
@@ -238,22 +201,12 @@ describe("explorer workflow refresh", () => {
     const { getRepoTaskQueueSnapshot } = await import(
       "#modules/repo-tasks/repo-tasks-domain.js"
     );
-    const { commitWorkflowChanges } = await import("#modules/autonomy/commit.js");
-    vi.mocked(commitWorkflowChanges).mockResolvedValue({
-      committed: true,
-      committedPaths: ["src/change.ts"],
-      daemonRestartRequired: true,
-    } as never);
     vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
 
     const thirtyFiveMinutesAgo = new Date(
       Date.now() - 35 * 60 * 1000,
     ).toISOString();
-    writeFileSync(
-      join(tempDir, ".kota", "explorer-state.json"),
-      JSON.stringify({ lastExplorationAt: thirtyFiveMinutesAgo }),
-      "utf-8",
-    );
+    const state = stateWithLastExplorationAt(thirtyFiveMinutesAgo);
 
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -275,6 +228,7 @@ describe("explorer workflow refresh", () => {
       },
       stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },
       projectDir: tempDir,
+      contextOverrides: { state },
     });
 
     const result = await harness.run();

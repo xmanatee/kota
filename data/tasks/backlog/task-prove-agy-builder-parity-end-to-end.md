@@ -5,10 +5,9 @@ status: backlog
 priority: p1
 area: architecture
 task_class: Platform
-depends_on: [task-execute-agy-model-benchmark-and-document-routing-d, task-recover-agy-builder-completion-reliability-from-th]
 summary: Run a representative KOTA builder task through AGY with inspectable planning, edits, verification, commit, task transition, and cleanup evidence.
 created_at: 2026-08-07T01:04:38.779Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T00:00:00.000Z
 ---
 
 ## Problem
@@ -26,8 +25,9 @@ builder readiness for this rollout.
 Add an AGY-specific scenario to the existing harness-parity mechanism that
 executes the real KOTA builder workflow against a deterministic repository
 fixture. The artifact must show the same prompt and acceptance contract going
-through task claim, worktree preparation, AGY planning/tool use, scoped edits,
-verification, KOTA-owned commit, task completion, and recovery cleanup.
+through targeted task admission, runtime sandbox creation, AGY planning/tool
+use, scoped edits, verification, runtime-owned integration, task completion,
+and recovery cleanup.
 
 The gate evaluates observable behavior. It must not pass merely because a
 configured model string appears in a banner or source object.
@@ -39,7 +39,8 @@ configured model string appears in a banner or source object.
 - Keep the scenario isolated from the live task queue and canonical checkout.
 - Require actual successful terminal output for harness-managed authentication.
 - Record and fail on unrelated changed paths, ignored fixture instructions,
-  missing final verification, stale claims/worktrees, and silent fallback.
+  missing final verification, stranded sandboxes or run resources, and silent
+  fallback.
 - Do not require credentials for unrelated providers to run the AGY scenario.
 
 ## Done When
@@ -50,8 +51,8 @@ configured model string appears in a banner or source object.
   requested scope, skips verification, uses a different model/effort, or leaves
   recovery state behind.
 - The successful artifact records prompt, instructions/examples provided,
-  observed model/effort, event trace, diff, verification, commit, task state,
-  claim state, worktree state, and recovery projection.
+  observed model/effort, event trace, diff, verification, publication, task
+  state, run-resource state, sandbox cleanup, and recovery projection.
 - The generic parity gate reuses the same behavior assertions where applicable
   rather than maintaining weaker harness-managed-auth assertions.
 
@@ -59,11 +60,6 @@ configured model string appears in a banner or source object.
 
 Owner direction on 2026-08-07: end-to-end AGY builder parity is unproven and
 must be thoroughly checked before a continuous AGY daemon is trusted.
-
-The original routing-validation predecessor was deliberately decomposed and
-dropped. The hard edge now targets its terminal benchmark-and-routing
-successor, so future validation fails if an open task ever points at a dropped
-predecessor again.
 
 This is a focused unblocker for AGY. It complements rather than duplicates
 `task-add-cross-preset-runtime-parity-gate` and

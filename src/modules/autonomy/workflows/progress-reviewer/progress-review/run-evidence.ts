@@ -1,10 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import type {
   WorkflowQueuedRun,
   WorkflowRunMetadata,
-  WorkflowRuntimeState,
 } from "#core/workflow/run-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { PROGRESS_REVIEW_MAX_RUNS } from "./constants.js";
@@ -22,9 +22,9 @@ import type {
   ScopedRunEvidence,
 } from "./types.js";
 
-function readRunTrigger(projectDir: string, runId: string): WorkflowRunTrigger | null {
+function readRunTrigger(stateDir: string, runId: string): WorkflowRunTrigger | null {
   return readOptionalJsonFile<WorkflowRunTrigger>(
-    join(projectDir, ".kota", "runs", runId, "trigger.json"),
+    join(stateDir, "runs", runId, "trigger.json"),
   );
 }
 
@@ -42,7 +42,7 @@ function summarizeRun(
   runDirName: string,
   metadata: WorkflowRunMetadata,
 ): ProgressReviewRunEvidence {
-  const trigger = readRunTrigger(source.projectDir, runDirName);
+  const trigger = readRunTrigger(source.stateDir, runDirName);
   return {
     id: sourceEvidenceId(source, `run:${runDirName}`),
     kind: "run",
@@ -77,7 +77,7 @@ function summarizePendingRun(
     status: "pending",
     startedAt: queuedAt,
     triggerEvent: queued.trigger.event,
-    path: join(".kota", "workflow-state.json"),
+    path: join(".kota", "kota.sqlite"),
     summary: sourceSummary(
       source,
       `${queued.workflowName} pending (${runId}) from ${queued.trigger.event}${eligibleAt}`,
@@ -91,7 +91,7 @@ function readScopedRunEvidence(
   excluded: string[],
 ): ScopedRunEvidence | null {
   const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
-    join(source.projectDir, ".kota", "runs", runDirName, "metadata.json"),
+    join(source.stateDir, "runs", runDirName, "metadata.json"),
   );
   if (!metadata) return null;
   const runId = validatedMetadataRunId(metadata, runDirName);
@@ -121,7 +121,7 @@ function listRecentRuns(
   windowStartMs: number,
   excluded: string[],
 ): ScopedRunEvidence[] {
-  const runsDir = join(source.projectDir, ".kota", "runs");
+  const runsDir = join(source.stateDir, "runs");
   if (!existsSync(runsDir)) {
     excluded.push(`${source.displayName} workflow runs: .kota/runs does not exist`);
     return [];
@@ -140,9 +140,10 @@ function listPendingRuns(
   windowStartMs: number,
   excluded: string[],
 ): ScopedRunEvidence[] {
-  const statePath = join(source.projectDir, ".kota", "workflow-state.json");
-  const state = readOptionalJsonFile<WorkflowRuntimeState>(statePath);
-  if (!state || !Array.isArray(state.pendingRuns)) return [];
+  const state = readWorkflowOperationalState({
+    stateDir: source.stateDir,
+    projectDir: source.scopeDir,
+  });
 
   const pending: ScopedRunEvidence[] = [];
   for (const queued of state.pendingRuns) {
@@ -160,7 +161,7 @@ function listPendingRuns(
       );
       continue;
     }
-    if (existsSync(join(source.projectDir, ".kota", "runs", queued.runId, "metadata.json"))) {
+    if (existsSync(join(source.stateDir, "runs", queued.runId, "metadata.json"))) {
       continue;
     }
     pending.push({

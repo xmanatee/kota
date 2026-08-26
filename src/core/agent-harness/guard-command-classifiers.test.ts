@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyWorkflowShellTeardownCommand,
   isGitCommitCommand,
+  isGitMetadataMutationCommand,
   isPackageBootstrapCommand,
 } from "./guards.js";
 
@@ -48,6 +49,31 @@ describe("isGitCommitCommand", () => {
     expect(isGitCommitCommand("")).toBe(false);
     expect(isGitCommitCommand("git  commit")).toBe(true);
     expect(isGitCommitCommand("git commit\\\n -m msg")).toBe(true);
+  });
+});
+
+describe("isGitMetadataMutationCommand", () => {
+  it.each([
+    "git add -A",
+    "git switch feature",
+    "git merge topic",
+    "git rebase main",
+    "git push origin feature",
+    "git -C /tmp/project commit -m fix",
+    "/usr/bin/git worktree add ../other",
+  ])("detects runtime-owned Git mutation: %s", (command) => {
+    expect(isGitMetadataMutationCommand(command)).toBe(true);
+  });
+
+  it.each([
+    "git status",
+    "git diff --staged",
+    "git log --all",
+    "git show add",
+    "git rev-parse HEAD",
+    "git -C /tmp/project status",
+  ])("allows read-only Git inspection: %s", (command) => {
+    expect(isGitMetadataMutationCommand(command)).toBe(false);
   });
 });
 

@@ -20,7 +20,6 @@
  * without calling a real model.
  */
 
-import { execSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -59,6 +58,10 @@ import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  repoTaskRuntimeSandboxTarget,
+} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 
 /**
  * Per-target text fixtures. Each fixture's first line doubles as the
@@ -140,12 +143,11 @@ function startServer(specs: RouteSpec[]): Promise<{ server: Server; port: number
 }
 
 function makeProjectRoot(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-capture-pipeline-"));
-  // git init so the tasks contributor's `git add` does not throw on a
-  // non-repo, even though the contributor swallows that failure.
-  execSync("git init -q", { cwd: dir });
-  execSync('git config user.email "test@test"', { cwd: dir });
-  execSync('git config user.name "test"', { cwd: dir });
+  const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-pipeline-"));
+  const dir = createRepoTaskRuntimeSandbox(
+    scopeDir,
+    "capture-pipeline",
+  ).projectDir;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -206,8 +208,9 @@ describe("cross-store capture pipeline (HTTP)", () => {
     const captureProvider = new CaptureProviderImpl({ classifier });
     captureProvider.register(createMemoryContributor(memoryStore));
     captureProvider.register(createKnowledgeContributor(knowledgeStore));
-    captureProvider.register(createTasksContributor(projectRoot));
-    captureProvider.register(createInboxContributor(projectRoot));
+    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    captureProvider.register(createTasksContributor(mutationTarget));
+    captureProvider.register(createInboxContributor(mutationTarget));
     provider = captureProvider;
 
     const handler = createCaptureRouteHandler(() => provider);
@@ -437,8 +440,9 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
     };
     captureProvider.register(throwingMemory);
     captureProvider.register(createKnowledgeContributor(knowledgeStore));
-    captureProvider.register(createTasksContributor(projectRoot));
-    captureProvider.register(createInboxContributor(projectRoot));
+    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    captureProvider.register(createTasksContributor(mutationTarget));
+    captureProvider.register(createInboxContributor(mutationTarget));
     provider = captureProvider;
 
     const handler = createCaptureRouteHandler(() => provider);

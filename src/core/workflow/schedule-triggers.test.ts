@@ -14,9 +14,9 @@ function makeDefinition(
   return {
     name,
     enabled: true,
+    repository: "none",
     definitionPath: `test/${name}.ts`,
     moduleRoot: process.cwd(),
-    recoveryCapable: false,
     tags: [],
     triggers: [trigger],
     steps: [],

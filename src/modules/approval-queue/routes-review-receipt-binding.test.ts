@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ToolRunner } from "#core/tools/index.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { executeApprovalStep } from "#core/workflow/steps/step-executor-approval.js";
+import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import {
 	clearApprovalExecutionTestTools,
 	registerApprovalExecutionTestTools,
@@ -165,7 +165,7 @@ describe("approval review receipt binding", () => {
 	it("resolves a workflow approval through the operator route without dispatching a pseudo-tool", async () => {
 		const { projectDir, queue } = makeRuntimeQueue();
 		let downstreamEffects = 0;
-		const runtime = new WorkflowRuntime({
+		const runtimeFixture = createTestWorkflowRuntime({
 			bus: new EventBus(),
 			projectDir,
 			approvalQueue: queue,
@@ -175,6 +175,7 @@ describe("approval review receipt binding", () => {
 					name: "route-gated-workflow",
 					definitionPath: "src/modules/approval-queue/routes-review-receipt-binding.test.ts",
 					moduleRoot: process.cwd(),
+					repository: "none",
 					triggers: [{ event: "manual", cooldownMs: 0 }],
 					steps: [
 						{ id: "gate", type: "approval" },
@@ -190,6 +191,7 @@ describe("approval review receipt binding", () => {
 				},
 			],
 		});
+		const { runtime } = runtimeFixture;
 		runtime.start();
 		try {
 			const dispatch = runtime.enqueuePendingRun("route-gated-workflow");
@@ -239,7 +241,7 @@ describe("approval review receipt binding", () => {
 			expect(downstreamEffects).toBe(1);
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			await runtime.stop();
+			await runtimeFixture.stop();
 		}
 	});
 

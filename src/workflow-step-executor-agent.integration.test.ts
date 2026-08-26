@@ -50,7 +50,7 @@ function makeDefinition(name = "test-workflow"): WorkflowDefinition {
   return {
     name,
     enabled: true,
-    recoveryCapable: false,
+    repository: "read",
     tags: [],
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
     moduleRoot: "/test-module-root",

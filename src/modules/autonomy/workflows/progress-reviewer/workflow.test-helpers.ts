@@ -15,12 +15,14 @@ import {
 } from "#core/agent-harness/index.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { getPreset, SHIPPED_DEFAULT_PRESET_ID } from "#core/model/preset.js";
+import type { RunContext } from "#core/workflow/run-context.js";
 import type { WorkflowBatchFlushPayload } from "#core/workflow/trigger-types.js";
 import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "#core/workflow/validation.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { progressReviewRequested } from "./events.js";
 import {
   decodeProgressReviewAgentOutput,
   type ProgressReviewAgentEvidencePacket,
@@ -92,6 +94,75 @@ export function makeProgressReviewProjectDir(label = "progress-reviewer"): strin
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
   return dir;
+}
+
+export function makeProgressReviewRunContext(
+  projectDir: string,
+  runId: string,
+): RunContext {
+  const runtimeDir = join(projectDir, ".kota", "runtime", runId);
+  const tempDir = join(runtimeDir, "temp");
+  const artifactDir = join(runtimeDir, "artifacts");
+  const agentDir = join(runtimeDir, "agent");
+  const packageCacheDir = join(tempDir, "package-cache");
+  for (const dir of [tempDir, artifactDir, agentDir, packageCacheDir]) {
+    mkdirSync(dir, { recursive: true });
+  }
+  const signal = new AbortController().signal;
+  return {
+    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    project: {
+      id: deriveDirectoryScopeId(projectDir),
+      root: projectDir,
+    },
+    workflow: "progress-reviewer",
+    trigger: {
+      event: progressReviewRequested.name,
+      schemaRef: null,
+      payload: {},
+    },
+    sandbox: {
+      runId,
+      repository: "write",
+      rootDir: runtimeDir,
+      workspaceDir: projectDir,
+      tempDir,
+      artifactDir,
+      baseCommit: execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: projectDir,
+        encoding: "utf-8",
+      }).trim(),
+      branch: `test/${runId}`,
+      targetBranch: execFileSync(
+        "git",
+        ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        { cwd: projectDir, encoding: "utf-8" },
+      ).trim(),
+    },
+    resources: {
+      runId,
+      attempt: 1,
+      daemonEpoch: 1,
+      workspaceDir: projectDir,
+      runDir: runtimeDir,
+      tempDir,
+      artifactDir,
+      agentDir,
+      packageCacheDir,
+      ports: { start: 45_000, end: 45_000, size: 1, values: [45_000] },
+      env: {},
+    },
+    signal,
+    processes: { register: () => {} },
+    effects: {
+      execute: async ({ execute }) => execute(),
+    },
+    publications: { stageEmit: () => {} },
+    state: {
+      read: () => ({ revision: 0, value: null }),
+      compareAndSet: () => {},
+    },
+  };
 }
 
 export function commitProgressReviewFixture(

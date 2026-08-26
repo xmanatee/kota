@@ -2,11 +2,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { listAutonomyIssues } from "#modules/autonomy/autonomy-issue-projection.js";
-import {
-  listRecoveryClaims,
-  listRecoveryWorktrees,
-} from "#modules/autonomy/workflow-state-recovery-claims.js";
+import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
+import type { AutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
@@ -29,8 +26,8 @@ function stateRef(args: {
   };
 }
 
-function ownerDecisionCounts(projectDir: string): string {
-  const directory = join(projectDir, ".kota", "owner-decisions");
+function ownerDecisionCounts(stateDir: string): string {
+  const directory = join(stateDir, "owner-decisions");
   if (!existsSync(directory)) return "none";
   const counts = new Map<string, number>();
   for (const file of readdirSync(directory).filter((entry) => entry.endsWith(".json"))) {
@@ -47,19 +44,22 @@ function ownerDecisionCounts(projectDir: string): string {
 export function listCanonicalProgressState(args: {
   source: ProgressReviewDirectorySource;
   semanticInput: ProgressReviewSemanticInput;
+  autonomyIssueProjection: AutonomyIssueProjection;
 }): ProgressReviewEvidenceRef[] {
   const queue = getRepoTaskQueueSnapshot(args.source.projectDir);
-  const issues = listAutonomyIssues(args.source.projectDir);
+  const issues = args.autonomyIssueProjection.issues;
   const issueCounts = new Map<string, number>();
   for (const issue of issues) {
     issueCounts.set(issue.status, (issueCounts.get(issue.status) ?? 0) + 1);
   }
-  const recoveryClaims = listRecoveryClaims(args.source.projectDir);
-  const recoveryWorktrees = listRecoveryWorktrees(args.source.projectDir);
-  const staleWorktrees = recoveryWorktrees.filter(
-    (worktree) =>
-      worktree.state === "stale" || worktree.recommendedAction.kind === "cleanup",
+  const operational = readRunOperationalProjection({
+    stateDir: args.source.stateDir,
+    projectDir: args.source.scopeDir,
+  });
+  const attentionRuns = operational.runs.filter(
+    (run) => run.state === "needs_attention",
   );
+  const sandboxRuns = operational.runs.filter((run) => run.sandbox !== null);
   return [
     stateRef({
       source: args.source,
@@ -73,7 +73,7 @@ export function listCanonicalProgressState(args: {
     stateRef({
       source: args.source,
       id: "autonomy-issues",
-      path: ".kota/autonomy-issues/projection.json",
+      path: ".kota/kota.sqlite#autonomy/issues/projection",
       summary:
         "Durable autonomy issues " +
         ([...issueCounts.entries()]
@@ -84,16 +84,17 @@ export function listCanonicalProgressState(args: {
     stateRef({
       source: args.source,
       id: "recovery",
-      path: ".kota/worktrees/",
+      path: ".kota/kota.sqlite",
       summary:
-        `Recovery projection claims=${recoveryClaims.length} ` +
-        `worktrees=${recoveryWorktrees.length} staleWorktrees=${staleWorktrees.length}`,
+        `Runtime state available=${operational.available} ` +
+        `nonterminalRuns=${operational.runs.length} sandboxes=${sandboxRuns.length} ` +
+        `needsAttention=${attentionRuns.length}`,
     }),
     stateRef({
       source: args.source,
       id: "owner-decisions",
       path: ".kota/owner-decisions/",
-      summary: `Owner decisions ${ownerDecisionCounts(args.source.projectDir)}`,
+      summary: `Owner decisions ${ownerDecisionCounts(args.source.stateDir)}`,
     }),
     ...args.semanticInput.evidenceRefs.map((path, index) =>
       stateRef({

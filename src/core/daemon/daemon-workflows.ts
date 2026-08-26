@@ -14,7 +14,10 @@ export function validateDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void 
 }
 
 export function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Promise<void> {
-  return ctx.scopeRuntimeHost.startInitial(ctx.projectRuntimes);
+  return ctx.scopeRuntimeHost.startInitial(
+    ctx.projectRuntimes,
+    ctx.startupDispatchPaused ? "paused" : "active",
+  );
 }
 
 export async function stopDaemonWorkflowRuntimes(

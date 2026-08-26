@@ -12,40 +12,18 @@ import {
   renderOwnerAskMarker,
   renderOwnerResolvedMarker,
 } from "#modules/repo-tasks/blocked-precondition.js";
+import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
+import {
+  BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+  BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  type BlockedOwnerDecisionRequest,
+  type BlockedOwnerDecisionResolution,
+} from "./owner-decision-follow-up.js";
 import blockedPromoterWorkflow from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", () => ({
   getRepoWorktreeStatus: vi.fn(),
 }));
-
-vi.mock("#modules/autonomy/commit.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/commit.js")>(
-      "#modules/autonomy/commit.js",
-    );
-  return {
-    ...actual,
-    commitWorkflowChanges: vi.fn(() => ({
-      committed: true,
-      committedPaths: ["data/tasks/ready/task-unblocked.md"],
-      daemonRestartRequired: false,
-    })),
-    checkCommitStageable: vi.fn(() => "ok"),
-  };
-});
-
-vi.mock("#modules/autonomy/shared.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#modules/autonomy/shared.js")>(
-      "#modules/autonomy/shared.js",
-    );
-  return {
-    ...actual,
-    runCheck: vi.fn(() => "ok"),
-    checkNoScratchArtifacts: vi.fn(() => "ok"),
-    checkCommitMessageExists: vi.fn(() => "ok"),
-  };
-});
 
 vi.mock("#core/daemon/owner-question-queue.js", () => ({
   getOwnerQuestionQueue: vi.fn(),
@@ -120,6 +98,55 @@ function awaitAnsweredOutput(): AwaitEventStepOutput {
   };
 }
 
+async function runOwnerDecisionCycle(args: {
+  projectDir: string;
+  queue: ReturnType<typeof makeStubQueue>;
+}): Promise<{
+  requestRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
+  followUpRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
+  resolutionRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
+}> {
+  const { getOwnerQuestionQueue } = await import(
+    "#core/daemon/owner-question-queue.js"
+  );
+  vi.mocked(getOwnerQuestionQueue).mockReturnValue(
+    args.queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
+  );
+  const requestRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+    trigger: { event: "autonomy.queue.available", payload: {} },
+    projectDir: args.projectDir,
+  }).run();
+  const request = requestRun.emitted.find(
+    (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+  )?.payload as BlockedOwnerDecisionRequest | undefined;
+  if (!request) throw new Error("blocked-promoter did not emit an owner request");
+  const followUpRun = await new WorkflowTestHarness(
+    blockedPromoterOwnerDecisionWorkflow,
+    {
+      trigger: {
+        event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+        payload: request,
+      },
+      projectDir: args.projectDir,
+      stepMocks: {
+        "blocked-promoter-owner-decision-wait": awaitAnsweredOutput(),
+      },
+    },
+  ).run();
+  const resolution = followUpRun.emitted.find(
+    (event) => event.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  )?.payload as BlockedOwnerDecisionResolution | undefined;
+  if (!resolution) throw new Error("owner follow-up did not emit a resolution");
+  const resolutionRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
+    trigger: {
+      event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+      payload: resolution,
+    },
+    projectDir: args.projectDir,
+  }).run();
+  return { requestRun, followUpRun, resolutionRun };
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const TASK_TEMPLATE = (
@@ -170,6 +197,10 @@ const TASK_TEMPLATE = (
 
 function makeProjectDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "blocked-promoter-wf-"));
+  writeFileSync(
+    join(dir, "package.json"),
+    JSON.stringify({ scripts: { "validate-tasks": "true" } }),
+  );
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
@@ -393,26 +424,13 @@ describe("blocked-promoter workflow", () => {
     commitInitial(projectDir);
 
     const queue = makeStubQueue({ status: "answered", answer: "unblock" });
-    const { getOwnerQuestionQueue } = await import(
-      "#core/daemon/owner-question-queue.js"
-    );
-    vi.mocked(getOwnerQuestionQueue).mockReturnValue(
-      queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
-    );
+    const { requestRun, followUpRun, resolutionRun: result } =
+      await runOwnerDecisionCycle({ projectDir, queue });
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
-      stepMocks: {
-        "blocked-promoter-ask-wait": awaitAnsweredOutput(),
-      },
-    });
-
-    const result = await harness.run();
-
+    expect(requestRun.status).toBe("success");
+    expect(followUpRun.steps["blocked-promoter-owner-decision-ask"].status).toBe("success");
+    expect(followUpRun.steps["blocked-promoter-owner-decision-consume"].status).toBe("success");
     expect(result.status).toBe("success");
-    expect(result.steps["blocked-promoter-ask-ask"].status).toBe("success");
-    expect(result.steps["blocked-promoter-ask-consume"].status).toBe("success");
     expect(result.steps["apply-ask-outcome"].status).toBe("success");
     expect(result.steps["promote-after-approval"].status).toBe("success");
     const followups = (
@@ -451,22 +469,10 @@ describe("blocked-promoter workflow", () => {
     commitInitial(projectDir);
 
     const queue = makeStubQueue({ status: "answered", answer: "still thinking" });
-    const { getOwnerQuestionQueue } = await import(
-      "#core/daemon/owner-question-queue.js"
-    );
-    vi.mocked(getOwnerQuestionQueue).mockReturnValue(
-      queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
-    );
-
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
+    const { resolutionRun: result } = await runOwnerDecisionCycle({
       projectDir,
-      stepMocks: {
-        "blocked-promoter-ask-wait": awaitAnsweredOutput(),
-      },
+      queue,
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["promote-after-approval"].status).toBe("skipped");
@@ -512,21 +518,14 @@ describe("blocked-promoter workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.steps["blocked-promoter-ask-ask"].status).toBe("skipped");
+    expect(result.steps["emit-owner-decision-requested"].status).toBe("skipped");
     expect(result.steps["promote-after-approval"].status).toBe("skipped");
   });
 
-  it("skips all work on runtime.recovered triggers", async () => {
-    await mockCleanWorktree();
-    const projectDir = makeProjectDir();
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "runtime.recovered", payload: {} },
-      projectDir,
-    });
-    const result = await harness.run();
-    expect(result.steps["inspect-blocked"].status).toBe("skipped");
-    expect(result.steps["promote-deterministic"].status).toBe("skipped");
-    expect(result.steps.commit.status).toBe("skipped");
+  it("does not declare runtime recovery as a trigger", () => {
+    expect(blockedPromoterWorkflow.triggers).not.toContainEqual(
+      expect.objectContaining({ event: "runtime.recovered" }),
+    );
   });
 
   it("instructs an aged operator-capture blocker and writes the run artifact", async () => {
@@ -679,14 +678,7 @@ describe("blocked-promoter workflow", () => {
       queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
     );
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
-      stepMocks: {
-        "blocked-promoter-ask-wait": awaitAnsweredOutput(),
-      },
-    });
-    await harness.run();
+    await runOwnerDecisionCycle({ projectDir, queue });
 
     expect(recordedEnqueueArgs).toHaveLength(1);
     expect(recordedEnqueueArgs[0].proposedAnswers?.[0]).toBe("variant-a");

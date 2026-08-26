@@ -4,16 +4,16 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   composeCanUseTools,
-  createAgentCommitGuard,
   createWorkflowAgentGuards,
+  createWorkflowGitOwnershipGuard,
 } from "./guards.js";
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
-describe("createAgentCommitGuard", () => {
+describe("createWorkflowGitOwnershipGuard", () => {
   const options = { signal: new AbortController().signal, toolUseId: "tool-1" };
 
   it("allows non-Bash tool calls", async () => {
-    const guard = createAgentCommitGuard();
+    const guard = createWorkflowGitOwnershipGuard();
     await expect(
       guard("Read", { file_path: "src/index.ts" }, options),
     ).resolves.toEqual({
@@ -23,7 +23,7 @@ describe("createAgentCommitGuard", () => {
   });
 
   it("allows benign Bash commands", async () => {
-    const guard = createAgentCommitGuard();
+    const guard = createWorkflowGitOwnershipGuard();
     await expect(
       guard("Bash", { command: "git status" }, options),
     ).resolves.toEqual({
@@ -32,8 +32,8 @@ describe("createAgentCommitGuard", () => {
     });
   });
 
-  it("denies Bash `git commit` invocations without aborting the session", async () => {
-    const guard = createAgentCommitGuard();
+  it("denies Bash Git metadata mutations without aborting the session", async () => {
+    const guard = createWorkflowGitOwnershipGuard();
     const result = await guard(
       "Bash",
       { command: "git commit -m 'msg'" },
@@ -50,8 +50,20 @@ describe("createAgentCommitGuard", () => {
     }
   });
 
+  it.each(["git add -A", "git switch topic", "git merge topic", "git rebase main"])(
+    "denies Bash `%s`",
+    async (command) => {
+      const result = await createWorkflowGitOwnershipGuard()(
+        "Bash",
+        { command },
+        options,
+      );
+      expect(result.behavior).toBe("deny");
+    },
+  );
+
   it("denies KOTA-routed shell `git commit` invocations", async () => {
-    const guard = createAgentCommitGuard();
+    const guard = createWorkflowGitOwnershipGuard();
     const result = await guard(
       "shell",
       { command: "git commit -m 'msg'" },
@@ -61,7 +73,7 @@ describe("createAgentCommitGuard", () => {
   });
 
   it("denies when `git commit` is chained with other commands", async () => {
-    const guard = createAgentCommitGuard();
+    const guard = createWorkflowGitOwnershipGuard();
     const result = await guard(
       "Bash",
       { command: "git add -A && git commit -m fix" },
@@ -69,6 +81,26 @@ describe("createAgentCommitGuard", () => {
     );
     expect(result.behavior).toBe("deny");
   });
+
+  it.each(["add", "branch", "commit", "push"])(
+    "denies runtime-owned git tool operation %s",
+    async (op) => {
+      const guard = createWorkflowGitOwnershipGuard();
+      const result = await guard("git", { op, args: "value" }, options);
+      expect(result.behavior).toBe("deny");
+    },
+  );
+
+  it.each(["status", "diff", "log", "show"])(
+    "allows read-only git tool operation %s",
+    async (op) => {
+      const guard = createWorkflowGitOwnershipGuard();
+      await expect(guard("git", { op }, options)).resolves.toEqual({
+        behavior: "allow",
+        updatedInput: { op },
+      });
+    },
+  );
 });
 
 describe("composeCanUseTools", () => {
@@ -288,9 +320,7 @@ describe("createWorkflowAgentGuards", () => {
   it("allows benign commands", async () => {
     const guard = createWorkflowAgentGuards();
     for (const command of [
-      "git add -A",
       "git status",
-      "git checkout feature-branch",
       "git diff --staged",
       "terraform apply",
       "pnpm test",

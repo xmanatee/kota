@@ -7,10 +7,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { JsonFileError } from "#core/util/json-file.js";
 import { clearAwaitFiles, writeSuspension } from "#core/workflow/awaits-store.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { beginApprovalExecutionActivity } from "./approval-execution-activity.js";
 import { ProjectRuntimeRegistry } from "./project-runtime.js";
@@ -24,6 +26,12 @@ function projectDir(name: string): string {
   return mkdtempSync(join(tmpdir(), `kota-scope-lifecycle-${name}-`));
 }
 
+const openRunStates: RunStateDatabase[] = [];
+
+afterEach(() => {
+  for (const runState of openRunStates.splice(0)) runState.close();
+});
+
 describe("ScopeLifecycleService", () => {
   it("fails closed, reports every drain disposition, and leaves removal non-destructive", async () => {
     const scopeA = projectDir("a");
@@ -32,11 +40,32 @@ describe("ScopeLifecycleService", () => {
     const bus = new EventBus();
     const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir: scopeA }] });
     const scopeAId = deriveDirectoryScopeId(scopeA);
-    const runtimes = ProjectRuntimeRegistry.create({
+    const runState = new RunStateDatabase(join(stateDir, "run-state"));
+    openRunStates.push(runState);
+    const startedAt = new Date().toISOString();
+    const initialProject = registry.get(scopeAId);
+    if (!initialProject) throw new Error("initial scope fixture missing");
+    runState.registerProject({
+      id: initialProject.projectId,
+      rootPath: initialProject.projectDir,
+      displayName: initialProject.displayName,
+      createdAt: startedAt,
+    });
+    const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
+    let runtimes!: ProjectRuntimeRegistry;
+    const runCoordinator = new RunCoordinator({
+      store: runState,
+      daemonEpoch,
+      concurrency: 4,
+      execute: (run, signal) =>
+        runtimes.get(run.projectId).workflowRuntime.executeAdmittedRun(run, signal),
+    });
+    runtimes = ProjectRuntimeRegistry.create({
       registry,
       bus,
       workflows: [
         registerWorkflowDefinition("test/pending-scope-work.ts", {
+          repository: "read",
           name: "pending-scope-work",
           triggers: [{ event: "test.pending-scope-work" }],
           steps: [{ id: "noop", type: "code", run: () => "ok" }],
@@ -45,18 +74,21 @@ describe("ScopeLifecycleService", () => {
       idleIntervalMs: 60_000,
       onLog: () => {},
       quietHours: { start: "23:00", end: "23:01" },
+      runState,
+      runCoordinator,
+      daemonEpoch,
     });
     const host = new ScopeRuntimeHost({
       bus,
       pollIntervalMs: 60_000,
       onDueItems: () => {},
-      onLog: () => {},
     });
     await host.startInitial(runtimes);
     let sessionIds: string[] = [];
     let externalBlockers: ScopeDrainBlocker[] = [];
     const lifecycle = new ScopeLifecycleService({
       registry,
+      runState,
       runtimes,
       runtimeHost: host,
       bus,
@@ -78,6 +110,17 @@ describe("ScopeLifecycleService", () => {
       .toMatchObject({ ok: false, reason: "directory_inaccessible" });
     chmodSync(inaccessible, 0o700);
     expect(registry.list()).toHaveLength(1);
+
+    const failedRunStateRegistration = vi
+      .spyOn(runState, "registerProject")
+      .mockImplementationOnce(() => {
+        throw new Error("run-state persistence failed");
+      });
+    expect(await lifecycle.registerDirectoryScope({ directoryRoot: scopeB }))
+      .toMatchObject({ ok: false, reason: "persistence_failed" });
+    expect(registry.list()).toHaveLength(1);
+    expect(runtimes.size()).toBe(1);
+    failedRunStateRegistration.mockRestore();
 
     const registryAdd = vi.spyOn(registry, "add");
     const registryRemove = vi.spyOn(registry, "remove");
@@ -112,6 +155,7 @@ describe("ScopeLifecycleService", () => {
 
     const added = await lifecycle.registerDirectoryScope({ directoryRoot: scopeB });
     expect(added.ok).toBe(true);
+    if (!added.ok) throw new Error("scope B fixture was not registered");
     const scopeBId = deriveDirectoryScopeId(scopeB);
     const alias = join(stateDir, "scope-b-alias");
     symlinkSync(scopeB, alias, "dir");
@@ -140,12 +184,6 @@ describe("ScopeLifecycleService", () => {
       ok: false,
       reason: "scope_busy",
       blockers: expect.arrayContaining([
-        expect.objectContaining({
-          kind: "pending_work",
-          count: 1,
-          ids: ["queued:pending-scope-work:123:1"],
-          requiredDisposition: "cancel-or-complete",
-        }),
         expect.objectContaining({
           kind: "pending_work",
           source: "workflow-batch-buffer",
@@ -228,7 +266,7 @@ describe("ScopeLifecycleService", () => {
       .toBe(true);
     sessionIds = ["session-b"];
     externalBlockers = [{
-      kind: "task_claim",
+      kind: "resource_lease",
       source: "autonomy",
       count: 1,
       ids: ["task-b:run-b"],
@@ -243,7 +281,7 @@ describe("ScopeLifecycleService", () => {
         ["session", "close"],
         ["resource_lease", "wait-or-abort"],
         ["pending_work", "cancel-or-complete"],
-        ["task_claim", "release-or-supersede"],
+        ["resource_lease", "release-or-supersede"],
       ]));
     expect(blocked.blockers).toEqual(expect.arrayContaining([
       expect.objectContaining({

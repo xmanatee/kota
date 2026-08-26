@@ -20,6 +20,7 @@ import {
 import {
   nativeCliWorkspaceConfigurationReadRoots,
 } from "#core/agent-harness/native-cli-sandbox-roots.js";
+import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
 
 const CODEX_ABORT_FORCE_KILL_MS = 5_000;
@@ -108,6 +109,7 @@ type CollectTextFromCodexCliArgs = {
   abortController: AbortController | undefined;
   writer: AgentHarnessWriter | undefined;
   onMessage: AgentHarnessRunOptions["onMessage"] | undefined;
+  onProcessSpawn: AgentHarnessRunOptions["onProcessSpawn"] | undefined;
 };
 
 async function runCodexCliProcess(
@@ -120,6 +122,12 @@ async function runCodexCliProcess(
     ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
     stdio: ["pipe", "pipe", "pipe"],
   });
+  try {
+    ProcessSupervisor.notifySpawnedProcessGroup(child.pid, args.onProcessSpawn);
+  } catch (error) {
+    signalNativeCliProcessGroup(child, "SIGKILL");
+    throw error;
+  }
 
   const stderr: string[] = [];
   const streamedChunks: string[] = [];

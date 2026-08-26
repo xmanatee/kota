@@ -3,12 +3,20 @@ import { join } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
+import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { recoverInterruptedRuns } from "#core/workflow/run-restart-recovery.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { DaemonConfig } from "./daemon-config.js";
 import {
   recordEventEmitFailureDeadLetter,
   scopeLineageForId,
 } from "./daemon-event-failures.js";
 import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
+import {
+  acquireInstanceLock,
+  releaseInstanceLock,
+} from "./daemon-instance-lock.js";
 import { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk } from "./daemon-state-persistence.js";
@@ -24,10 +32,10 @@ export type DaemonRuntimeContextHooks = {
   onScopeTrustRevoked?: (scopeId: string) => void;
 };
 
-export function createDaemonRuntimeContext(
+export async function createDaemonRuntimeContext(
   config: DaemonConfig,
   hooks: DaemonRuntimeContextHooks = {},
-): DaemonRuntimeContext {
+): Promise<DaemonRuntimeContext> {
   const bus = config.runtimeModuleHost?.eventBus ?? initEventBus();
   config.runtimeModuleHost?.moduleLoader.assertEventBusAuthority(bus);
   const logger = new DaemonLogger(config.logFormat);
@@ -62,10 +70,70 @@ export function createDaemonRuntimeContext(
   state.pid = process.pid;
   state.startedAt = new Date().toISOString();
   const token = randomBytes(32).toString("hex");
+  const instanceIdentity = {
+    pid: state.pid,
+    startedAt: state.startedAt,
+    token,
+  };
+  await acquireInstanceLock(projectDir, stateRoot, instanceIdentity, log);
+  let runState: RunStateDatabase | undefined;
+  try {
   const eventJournal = new EventJournal(join(stateDir, "events"), {
     scopeLineage: (scopeId) => scopeLineageForId(scopeId, projectRegistry),
   });
-  const projectRuntimes = ProjectRuntimeRegistry.create({
+  runState = new RunStateDatabase(stateDir);
+  for (const project of projectRegistry.list()) {
+    runState.registerProject({
+      id: project.projectId,
+      rootPath: project.projectDir,
+      displayName: project.displayName,
+      createdAt: state.startedAt,
+    });
+  }
+  const session = runState.beginDaemonSession(state.startedAt);
+  const daemonEpoch = session.epoch;
+  const blockedRecovery = await recoverInterruptedRuns({
+    store: runState,
+    daemonEpoch,
+    attempts: session.recovered,
+    log,
+  });
+  let projectRuntimes!: ProjectRuntimeRegistry;
+  const runCoordinator = new RunCoordinator({
+    store: runState,
+    daemonEpoch,
+    concurrency: resolveWorkflowConcurrency(config.config?.scheduler),
+    execute: (run, signal) =>
+      projectRuntimes.get(run.projectId).workflowRuntime.executeAdmittedRun(run, signal),
+    deliverPublication: (publication) =>
+      projectRuntimes
+        .get(publication.projectId)
+        .workflowRuntime.deliverPublication(publication),
+    onPublicationError: (error, publication) => {
+      log(
+        `Deferred publication ${publication.id} after delivery failure: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    },
+    onError: (error, run) => {
+      log(
+        `Run coordinator paused after state transition failure for ${run.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    },
+  });
+  runCoordinator.pauseGlobalAdmission();
+  for (const project of projectRegistry.list()) {
+    runCoordinator.pauseProjectAdmission(project.projectId);
+  }
+  if (blockedRecovery.length > 0) {
+    log(
+      `Dispatch starts paused: ${blockedRecovery.length} interrupted run(s) require process-ownership review`,
+    );
+  }
+  projectRuntimes = ProjectRuntimeRegistry.create({
     registry: projectRegistry,
     authorityConfigPath,
     bus,
@@ -79,6 +147,9 @@ export function createDaemonRuntimeContext(
     onLog: log,
     quietHours: config.config?.notifications?.quietHours,
     scopePolicyAuthority: scopeAuthority,
+    runState,
+    runCoordinator,
+    daemonEpoch,
   });
   const uninstallEventIdempotency = installEventIdempotency(bus, {
     getDefaultScopeId: () => projectRegistry.getDefaultScopeId(),
@@ -112,10 +183,18 @@ export function createDaemonRuntimeContext(
     state,
     token,
     eventJournal,
+    runState,
+    runCoordinator,
     uninstallEventJournal,
     projectRegistry,
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
     projectRuntimes,
+    startupDispatchPaused: blockedRecovery.length > 0,
   });
+  } catch (error) {
+    runState?.close();
+    releaseInstanceLock(stateRoot, instanceIdentity);
+    throw error;
+  }
 }

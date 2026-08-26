@@ -169,18 +169,99 @@ export class EventBus {
   }
 
   /** Emit a typed event synchronously to all subscribers + wildcard listeners. */
-  emit<K extends keyof BusEvents>(event: K, payload: BusEvents[K]): void;
+  emit<K extends keyof BusEvents>(
+    event: K,
+    payload: BusEvents[K],
+    eventId?: string,
+  ): void;
   /** Emit a typed module-declared event. */
-  emit<E extends ModuleEventDef>(event: E, payload: ModuleEventPayload<E>): void;
+  emit<E extends ModuleEventDef>(
+    event: E,
+    payload: ModuleEventPayload<E>,
+    eventId?: string,
+  ): void;
   /** Emit a custom string event. */
-  emit(event: string, payload: Record<string, unknown>): void;
+  emit(event: string, payload: Record<string, unknown>, eventId?: string): void;
   emit(
     event: string | ModuleEventDef,
     payload: Record<string, unknown>,
+    eventId?: string,
   ): void {
+    this.dispatch(event, payload, eventId);
+  }
+
+  /** Deliver an event whose identity and retry lifecycle are owned by the workflow outbox. */
+  deliverOutbox(
+    event: string | ModuleEventDef,
+    payload: Record<string, unknown>,
+    eventId: string,
+  ): void {
+    if (!eventId.trim()) throw new Error("Outbox event id must not be empty");
+    this.dispatch(event, payload, eventId, "outbox");
+  }
+
+  private dispatch(
+    event: string | ModuleEventDef,
+    payload: Record<string, unknown>,
+    eventId?: string,
+    delivery?: BusEnvelope["delivery"],
+  ): void {
+    const envelope = this.validateEnvelope(event, payload, eventId, delivery);
+    const name = envelope.type;
+
+    if (this.middlewares.length === 0) {
+      try {
+        this.fanOut(envelope);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.notifyEmitFailure({ event: name, schemaRef: envelope.schemaRef, envelope, payload, error: err, stage: "fanout" });
+        throw err;
+      }
+      return;
+    }
+
+    const chain = this.middlewares.slice();
+    let i = 0;
+    let failureStage: EventEmitFailureStage = "middleware";
+    const next = (): void => {
+      if (i >= chain.length) {
+        failureStage = "fanout";
+        this.fanOut(envelope);
+        return;
+      }
+      failureStage = "middleware";
+      const mw = chain[i++]!;
+      mw(envelope, next);
+    };
+    try {
+      next();
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.notifyEmitFailure({ event: name, schemaRef: envelope.schemaRef, envelope, payload, error: err, stage: failureStage });
+      throw err;
+    }
+  }
+
+  /** Validate a dynamic event without invoking middleware or subscribers. */
+  validate(event: string, payload: Record<string, unknown>): void {
+    this.validateEnvelope(event, payload);
+  }
+
+  private validateEnvelope(
+    event: string | ModuleEventDef,
+    payload: Record<string, unknown>,
+    eventId?: string,
+    delivery?: BusEnvelope["delivery"],
+  ): BusEnvelope {
     const schemaRef = resolveEventSchemaReference(event);
     const name = typeof event === "string" ? event : event.name;
-    const envelope: BusEnvelope = { type: name, schemaRef, payload };
+    const envelope: BusEnvelope = {
+      type: name,
+      schemaRef,
+      ...(eventId !== undefined ? { eventId } : {}),
+      ...(delivery !== undefined ? { delivery } : {}),
+      payload,
+    };
     try {
       if (typeof event !== "string") {
         assertModuleEventPayload(event, payload as ModuleEventPayloadObject);
@@ -211,38 +292,7 @@ export class EventBus {
       this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: "validation" });
       throw err;
     }
-
-    if (this.middlewares.length === 0) {
-      try {
-        this.fanOut(envelope);
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error));
-        this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: "fanout" });
-        throw err;
-      }
-      return;
-    }
-
-    const chain = this.middlewares.slice();
-    let i = 0;
-    let failureStage: EventEmitFailureStage = "middleware";
-    const next = (): void => {
-      if (i >= chain.length) {
-        failureStage = "fanout";
-        this.fanOut(envelope);
-        return;
-      }
-      failureStage = "middleware";
-      const mw = chain[i++]!;
-      mw(envelope, next);
-    };
-    try {
-      next();
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.notifyEmitFailure({ event: name, schemaRef, envelope, payload, error: err, stage: failureStage });
-      throw err;
-    }
+    return envelope;
   }
 
   private notifyEmitFailure(failure: EventEmitFailure): void {
@@ -253,10 +303,18 @@ export class EventBus {
 
   private fanOut(envelope: BusEnvelope): void {
     const { type: name, payload } = envelope;
+    let firstError: unknown;
+    const invoke = (handler: BusEventHandler<never>, value: unknown): void => {
+      try {
+        handler(value as never);
+      } catch (error) {
+        firstError ??= error;
+      }
+    };
     const set = this.handlers.get(name);
     if (set) {
       for (const handler of set) {
-        (handler as BusEventHandler<Record<string, unknown>>)(payload);
+        invoke(handler, payload);
       }
     }
     // Wildcard listeners
@@ -264,10 +322,11 @@ export class EventBus {
       const wildcardSet = this.handlers.get("*");
       if (wildcardSet) {
         for (const handler of wildcardSet) {
-          (handler as BusEventHandler<BusEnvelope>)(envelope);
+          invoke(handler, envelope);
         }
       }
     }
+    if (firstError !== undefined) throw firstError;
   }
 
   /** Remove all handlers and registered middleware. */

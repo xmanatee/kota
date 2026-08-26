@@ -12,7 +12,7 @@ import type {
   UiStatusEntry,
   UiSurface,
 } from "./operator-ui-types.js";
-import { statusWorktreeItems } from "./operator-ui-worktree-status.js";
+import { statusRunSandboxItems } from "./operator-ui-worktree-status.js";
 import type { StatusSnapshot } from "./status-cli.js";
 
 export function buildStatusUiSurface(
@@ -28,7 +28,7 @@ export function buildStatusUiSurface(
       label: "Start daemon",
       effect: "write",
       operation: { kind: "client-namespace", namespace: "daemonOps", method: "start" },
-      result: resultSpec("Daemon start requested."),
+      result: resultSpec("Daemon started."),
     }),
     action({
       surfaceId: "status",
@@ -39,11 +39,11 @@ export function buildStatusUiSurface(
       result: resultSpec("Daemon status loaded."),
     }),
   ];
-  const worktreeItems = statusWorktreeItems(snapshot);
+  const runSandboxItems = statusRunSandboxItems(snapshot);
   const nodes: UiSurface["nodes"] = [
     { kind: "status-summary", entries: statusEntries(snapshot, options.explain === true) },
-    ...(worktreeItems.length > 0
-      ? [{ kind: "list" as const, title: "Automation worktrees", items: worktreeItems }]
+    ...(runSandboxItems.length > 0
+      ? [{ kind: "list" as const, title: "Run sandboxes", items: runSandboxItems }]
       : []),
     { kind: "list", title: "Warnings", items: statusWarnings(snapshot, scopeId) },
   ];

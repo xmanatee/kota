@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
@@ -6,13 +6,18 @@ import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import { getWorkflowDefinitions } from "../definitions-source.js";
 
-function runGit(args: string, cwd: string): string {
+const GIT_TIMEOUT_MS = 10_000;
+const GIT_MAX_BUFFER_BYTES = 1024 * 1024;
+
+function runGit(args: readonly string[], cwd: string): string {
   try {
-    return execSync(`git ${args}`, {
+    return execFileSync("git", args, {
       encoding: "utf-8",
       env: withProtectedGitBareRepositoryEnv(),
       stdio: "pipe",
       cwd,
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: GIT_MAX_BUFFER_BYTES,
     });
   } catch {
     return "";
@@ -20,16 +25,7 @@ function runGit(args: string, cwd: string): string {
 }
 
 function getGitRoot(cwd: string): string | null {
-  try {
-    return execSync("git rev-parse --show-toplevel", {
-      encoding: "utf-8",
-      env: withProtectedGitBareRepositoryEnv(),
-      stdio: "pipe",
-      cwd,
-    }).trim();
-  } catch {
-    return null;
-  }
+  return runGit(["rev-parse", "--show-toplevel"], cwd).trim() || null;
 }
 
 export function registerDefinitionLogCommand(
@@ -58,7 +54,7 @@ export function registerDefinitionLogCommand(
 
       const defPath = resolve(projectDir, def.definitionPath);
 
-      const checkOutput = runGit(`ls-files -- "${defPath}"`, gitRoot);
+      const checkOutput = runGit(["ls-files", "--", defPath], gitRoot);
       if (!checkOutput.trim()) {
         printWorkflowText(
           `Definition file "${def.definitionPath}" is not tracked by git. No history available.`,
@@ -68,7 +64,14 @@ export function registerDefinitionLogCommand(
 
       if (opts.diff) {
         const output = runGit(
-          `log --patch --pretty=format:"%h %ad %s" --date=short -- "${defPath}"`,
+          [
+            "log",
+            "--patch",
+            "--pretty=format:%h %ad %s",
+            "--date=short",
+            "--",
+            defPath,
+          ],
           gitRoot,
         );
         if (!output.trim()) {
@@ -78,7 +81,13 @@ export function registerDefinitionLogCommand(
         printWorkflowText(output);
       } else {
         const output = runGit(
-          `log --pretty=format:"%h %ad %s" --date=short -- "${defPath}"`,
+          [
+            "log",
+            "--pretty=format:%h %ad %s",
+            "--date=short",
+            "--",
+            defPath,
+          ],
           gitRoot,
         );
         if (!output.trim()) {

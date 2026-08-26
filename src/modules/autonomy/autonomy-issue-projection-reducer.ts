@@ -32,10 +32,6 @@ function mergeObservationLinks(
       ...links.deadLetterIds,
       ...observation.links.deadLetterIds,
     ]),
-    recoveryDispositionRefs: uniqueAutonomyIssueStrings([
-      ...links.recoveryDispositionRefs,
-      ...observation.links.recoveryDispositionRefs,
-    ]),
   };
 }
 

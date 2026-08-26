@@ -1,147 +1,120 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
-  deferProgressReviewSemanticInput,
+  completeProgressReviewSemanticInput,
+  decodeProgressReviewConsumptionState,
   inspectProgressReviewSemanticInput,
-  readPendingProgressReviewInput,
-  recordProgressReviewInputQueued,
-  recordProgressReviewSemanticInput,
+  PROGRESS_REVIEW_STATE_KEY,
+  type ProgressReviewConsumptionState,
 } from "./semantic-input.js";
 
 describe("progress review semantic consumption", () => {
-  const projectDirs: string[] = [];
+  const scopeDir = process.cwd();
+  const automaticTrigger = {
+    event: "autonomy.progress-review.requested",
+    schemaRef: null,
+    payload: {
+      automatic: true,
+      boundary: "parked-queue" as const,
+      inputRevision: 4,
+      evidenceRefs: ["data/tasks/done/task-delivery.md"],
+    },
+  };
 
-  afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
-    }
-  });
+  it("publishes the consumed watermark through compare-and-set", () => {
+    const state = createTestTransactionalRunState();
+    const input = inspectProgressReviewSemanticInput({
+      scopeDir,
+      state,
+      trigger: automaticTrigger,
+    });
+    expect(input).toMatchObject({ shouldReview: true, inputRevision: 4 });
 
-  function project(): string {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-progress-consumption-"));
-    projectDirs.push(projectDir);
-    return projectDir;
-  }
-
-  it("consumes an automatic revision once and accepts a later revision", () => {
-    const projectDir = project();
-    const trigger = {
-      event: "autonomy.progress-review.requested",
-      schemaRef: null,
-      payload: {
-        automatic: true,
-        boundary: "parked-queue" as const,
-        inputRevision: 4,
-        evidenceRefs: ["data/tasks/done/task-delivery.md"],
-      },
-    };
-
-    const first = inspectProgressReviewSemanticInput({ projectDir, trigger });
-    expect(first).toMatchObject({ shouldReview: true, inputRevision: 4 });
-    recordProgressReviewSemanticInput({
-      projectDir,
-      input: first,
+    const snapshot = state.read<ProgressReviewConsumptionState>(
+      PROGRESS_REVIEW_STATE_KEY,
+    );
+    const next = completeProgressReviewSemanticInput({
+      current: decodeProgressReviewConsumptionState(snapshot.value, scopeDir),
+      input,
       consumedAt: "2026-08-15T12:00:00.000Z",
     });
-    expect(inspectProgressReviewSemanticInput({ projectDir, trigger })).toMatchObject({
-      shouldReview: false,
-      inputRevision: 4,
-    });
+    state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, next);
 
-    expect(
-      inspectProgressReviewSemanticInput({
-        projectDir,
-        trigger: {
-          ...trigger,
-          payload: { ...trigger.payload, inputRevision: 5 },
-        },
+    expect(inspectProgressReviewSemanticInput({
+      scopeDir,
+      state,
+      trigger: automaticTrigger,
+    })).toMatchObject({ shouldReview: false, inputRevision: 4 });
+    expect(inspectProgressReviewSemanticInput({
+      scopeDir,
+      state,
+      trigger: {
+        ...automaticTrigger,
+        payload: { ...automaticTrigger.payload, inputRevision: 5 },
+      },
+    })).toMatchObject({ shouldReview: true, inputRevision: 5 });
+  });
+
+  it("rejects a stale competing publication instead of overwriting it", () => {
+    const state = createTestTransactionalRunState();
+    const first = state.read<ProgressReviewConsumptionState>(
+      PROGRESS_REVIEW_STATE_KEY,
+    );
+    state.compareAndSet(
+      PROGRESS_REVIEW_STATE_KEY,
+      first.revision,
+      completeProgressReviewSemanticInput({
+        current: decodeProgressReviewConsumptionState(first.value, scopeDir),
+        input: { automatic: true, inputRevision: 5 },
+        consumedAt: "2026-08-15T12:00:00.000Z",
       }),
-    ).toMatchObject({ shouldReview: true, inputRevision: 5 });
+    );
+    expect(() => state.compareAndSet(
+      PROGRESS_REVIEW_STATE_KEY,
+      first.revision,
+      completeProgressReviewSemanticInput({
+        current: decodeProgressReviewConsumptionState(first.value, scopeDir),
+        input: { automatic: true, inputRevision: 4 },
+        consumedAt: "2026-08-15T12:01:00.000Z",
+      }),
+    )).toThrow(/revision mismatch/);
   });
 
-  it("keeps only the latest queued revision across dirty deferral and earlier consumption", () => {
-    const projectDir = project();
-    const revisionFour = {
-      event: "autonomy.progress-review.requested",
-      schemaRef: null,
-      payload: {
-        automatic: true,
-        boundary: "parked-queue" as const,
-        inputRevision: 4,
-        evidenceRefs: ["data/tasks/done/task-delivery.md"],
-      },
-    };
-    recordProgressReviewInputQueued({
-      projectDir,
-      payload: revisionFour.payload,
-    });
-    const inspectedFour = inspectProgressReviewSemanticInput({
-      projectDir,
-      trigger: revisionFour,
-    });
-    deferProgressReviewSemanticInput({ projectDir, input: inspectedFour });
-    expect(readPendingProgressReviewInput(projectDir)).toMatchObject({
-      inputRevision: 4,
-      delivery: "deferred",
-      deliveryAttempt: 1,
-      payload: {
-        deliveryAttempt: 1,
-        idempotencyKey: expect.stringContaining(":4:1"),
-      },
-    });
-
-    recordProgressReviewInputQueued({
-      projectDir,
-      payload: { ...revisionFour.payload, inputRevision: 5 },
-    });
-    recordProgressReviewSemanticInput({
-      projectDir,
-      input: inspectedFour,
-      consumedAt: "2026-08-15T12:00:00.000Z",
-    });
-    expect(readPendingProgressReviewInput(projectDir)).toMatchObject({
-      inputRevision: 5,
-      delivery: "queued",
-      deliveryAttempt: 0,
-    });
-  });
-
-  it("keeps explicit requests reviewable without advancing the automatic watermark", () => {
-    const projectDir = project();
+  it("keeps explicit requests reviewable without advancing automatic state", () => {
+    const state = createTestTransactionalRunState();
     const trigger = {
       event: "autonomy.progress-review.requested",
       schemaRef: null,
       payload: { reason: "operator requested a review" },
     };
-    const input = inspectProgressReviewSemanticInput({ projectDir, trigger });
+    const input = inspectProgressReviewSemanticInput({ scopeDir, state, trigger });
+    const current = decodeProgressReviewConsumptionState(
+      state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
+      scopeDir,
+    );
     expect(input).toMatchObject({
       automatic: false,
       shouldReview: true,
       boundary: "explicit-request",
       inputRevision: null,
     });
-    recordProgressReviewSemanticInput({
-      projectDir,
+    expect(completeProgressReviewSemanticInput({
+      current,
       input,
       consumedAt: "2026-08-15T12:00:00.000Z",
-    });
-    expect(inspectProgressReviewSemanticInput({ projectDir, trigger }).shouldReview)
-      .toBe(true);
+    })).toBe(current);
   });
 
   it("rejects malformed automatic requests before review work starts", () => {
-    const projectDir = project();
-    expect(() =>
-      inspectProgressReviewSemanticInput({
-        projectDir,
-        trigger: {
-          event: "autonomy.progress-review.requested",
-          schemaRef: null,
-          payload: { automatic: true, boundary: "task-disposition" },
-        },
-      }),
-    ).toThrow(/inputRevision/);
+    const state = createTestTransactionalRunState();
+    expect(() => inspectProgressReviewSemanticInput({
+      scopeDir,
+      state,
+      trigger: {
+        event: "autonomy.progress-review.requested",
+        schemaRef: null,
+        payload: { automatic: true, boundary: "task-disposition" },
+      },
+    })).toThrow(/inputRevision/);
   });
 });

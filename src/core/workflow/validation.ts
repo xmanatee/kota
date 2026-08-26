@@ -6,6 +6,7 @@ import { validateWorkflowShape } from "./validation-shape.js";
 import { validateStep } from "./validation-step-dispatch.js";
 import { ensureUniqueStepIds } from "./validation-step-ids.js";
 import { validateTriggerStepReferences } from "./validation-trigger-references.js";
+import { validateWriterTransaction } from "./validation-writer-transaction.js";
 
 export type { WorkflowValidationOptions } from "./validation-primitives.js";
 export { WorkflowDefinitionError } from "./validation-primitives.js";
@@ -52,8 +53,6 @@ export function validateWorkflowDefinitions(
         defaultAutonomyMode,
         options,
         {
-          allowWorkspaceDirUpdate: true,
-          allowRuntimeResourcesUpdate: true,
           allowRerunOnRetry: true,
         },
         `steps[${stepIndex}]`,
@@ -65,7 +64,7 @@ export function validateWorkflowDefinitions(
     validateRestartConstraints(steps, definitionPath);
     validateTriggerStepReferences(name, steps, definitions, definitionPath);
 
-    return assembleWorkflowDefinition(
+    const validated = assembleWorkflowDefinition(
       definition,
       definitionPath,
       name,
@@ -73,5 +72,7 @@ export function validateWorkflowDefinitions(
       defaultAutonomyMode,
       steps,
     );
+    validateWriterTransaction(validated);
+    return validated;
   });
 }

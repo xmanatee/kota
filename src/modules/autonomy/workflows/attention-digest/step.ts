@@ -1,12 +1,10 @@
-import { join } from "node:path";
-import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import { getClaimAwareRepoTaskQueueSnapshot } from "#modules/autonomy/queue-availability.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { blockedAttentionItems } from "./blocked-attention.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
+export const ATTENTION_DIGEST_COUNTER_STATE_KEY = "attention-digest/counter";
 // KOTA_DIGEST_WARNINGS_COUNT: number of builder runs with warnings to trigger the check (default 3)
 // KOTA_DIGEST_WARNINGS_WINDOW: how many recent builder runs to inspect (default 10)
 const DEFAULT_WARNINGS_COUNT = 3;
@@ -31,6 +29,7 @@ export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
 export type AttentionDigestStepInput = {
   projectDir: string;
   runsDir: string;
+  count: number;
 };
 
 export type AttentionDigestStepResult = {
@@ -84,24 +83,6 @@ function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
   return { label: "Repeated warnings", detail };
 }
 
-function claimBlockedQueueAttentionItems(projectDir: string): AttentionItem[] {
-  const snapshot = getClaimAwareRepoTaskQueueSnapshot(projectDir);
-  if (snapshot.hasDispatchableWork) return [];
-  const pendingMergeBlocks = snapshot.claimBlockedTasks.filter(
-    (task) => task.claimStatus === "pending-merge",
-  );
-  if (pendingMergeBlocks.length === 0) return [];
-
-  const ids = pendingMergeBlocks.map((task) => task.id).join(", ");
-  const first = pendingMergeBlocks[0]!;
-  return [
-    {
-      label: "Pending-merge claim blocks queue",
-      detail: `${ids}. Run \`${first.recoveryCommand}\`, then \`${first.resolveCommand}\`.`,
-    },
-  ];
-}
-
 function detectAttentionItems(
   projectDir: string,
   recentRuns: RunSummary[],
@@ -128,7 +109,6 @@ function detectAttentionItems(
   }
 
   items.push(...blockedAttentionItems(projectDir));
-  items.push(...claimBlockedQueueAttentionItems(projectDir));
 
   const readyCount = countRepoTaskState(projectDir, "ready");
   if (readyCount === 0) {
@@ -178,25 +158,21 @@ export function renderOnDemandAttention(opts: {
 }
 
 /**
- * Run one attention digest step. Increments the persistent counter and, every
- * DIGEST_EVERY_N_RUNS invocations, checks for attention items and emits bus
- * events when any are found.
- *
- * Called directly by the attention-digest workflow code step.
+ * Inspect one cadence count. Durable counter ownership belongs to the workflow
+ * runtime; this worker only performs repository and run-history reads.
  */
 export function inspectAttentionDigestStep(
   input: AttentionDigestStepInput,
 ): AttentionDigestStepResult {
-  const { projectDir, runsDir } = input;
-  // Counter is persisted so it survives daemon restarts (which happen after every builder build).
-  const counterFile = join(runsDir, "..", "attention-digest-counter.json");
+  if (!Number.isSafeInteger(input.count) || input.count < 1) {
+    throw new Error("Attention digest count must be a positive integer");
+  }
+  if (input.count % DIGEST_EVERY_N_RUNS !== 0) return {};
 
-  const saved = readOptionalJsonFile<{ count: number }>(counterFile);
-  const count = (saved?.count ?? 0) + 1;
-  writeJsonFileAtomic(counterFile, { count });
-  if (count % DIGEST_EVERY_N_RUNS !== 0) return {};
-
-  const { items, text } = renderOnDemandAttention({ projectDir, runsDir });
+  const { items, text } = renderOnDemandAttention({
+    projectDir: input.projectDir,
+    runsDir: input.runsDir,
+  });
   if (items.length === 0) return {};
 
   return {
@@ -211,15 +187,3 @@ export const attentionDigestStepOperation = defineWorkflowBlockingOperation<
   AttentionDigestStepInput,
   AttentionDigestStepResult
 >(import.meta.url, "inspectAttentionDigestStep");
-
-export function runAttentionDigestStep(
-  projectDir: string,
-  runsDir: string,
-  _log?: (message: string) => void,
-  emit?: (event: string, payload: Record<string, unknown>) => void,
-): void {
-  const result = inspectAttentionDigestStep({ projectDir, runsDir });
-  if (!result.event) return;
-
-  emit?.(result.event.name, result.event.payload);
-}

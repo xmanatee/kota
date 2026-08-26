@@ -95,29 +95,27 @@ export async function executeToolStep(
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error(`Tool step "${step.id}" resolved to a non-object input`);
   }
-  const run = () => context.runTool(step.tool, input, { stepId: step.id });
+  const run = () =>
+    context.runTool(step.tool, input, {
+      stepId: step.id,
+      effectId: step.id,
+    });
   return step.retry ? withRetry(run, step.retry) : run();
 }
-
-/** Maps notification emit events to the notify config flag that controls them. */
-const NOTIFICATION_EMIT_EVENT_FLAGS: Partial<Record<string, keyof WorkflowNotifyConfig>> = {
-  "workflow.build.committed": "onSuccess",
-};
 
 export async function executeEmitStep(
   step: WorkflowEmitStep,
   context: WorkflowStepContext,
-  notifyConfig?: WorkflowNotifyConfig,
+  _notifyConfig?: WorkflowNotifyConfig,
 ): Promise<WorkflowStepOutput> {
-  const flag = NOTIFICATION_EMIT_EVENT_FLAGS[step.event];
-  if (flag !== undefined && notifyConfig?.[flag] === false) {
-    return { event: step.event, suppressed: true };
-  }
   const payload = await resolveValue(step.payload ?? {}, context);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error(`Emit step "${step.id}" resolved to a non-object payload`);
   }
-  context.emit(step.event, payload as Record<string, unknown>);
+  context.emit(step.event, payload as Record<string, unknown>, {
+    delivery: "on-run-success",
+    stepId: step.id,
+  });
   return { event: step.event, payload };
 }
 

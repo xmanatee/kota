@@ -4,29 +4,22 @@ import {
   defineWorkflowBlockingOperation,
   type WorkflowBlockingOperationContext,
 } from "#core/workflow/blocking-operation.js";
-import {
-  getChangedFiles,
-  getStagedDiff,
-  getStagedDiffContent,
-} from "./critic-diff.js";
-import { runProbeIfDeclared } from "./critic-runtime-probe.js";
-import {
-  checkProductOperatorEvidence,
-  type ProductOperatorEvidenceCheck,
-} from "./product-evidence.js";
 import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
-import type { TaskProbeResult } from "./task-probe.js";
 import {
+  findExpectedTaskReviewTarget,
   findTaskReviewTarget,
+  type TaskReviewContract,
   type TaskReviewTarget,
 } from "./task-review-target.js";
+import {
+  getWorkflowChangedFiles,
+  getWorkflowDiffContent,
+  getWorkflowDiffStat,
+} from "./workflow-diff.js";
 
-export type CriticReviewInspectionInput = {
-  reviewDir: string;
-  runDir: string;
-  durableEvidenceDir: string;
-  artifactWorkspaceDir?: string;
-};
+export type CriticReviewInspectionInput =
+  | { reviewDir: string; taskMutationStatus: string }
+  | { reviewDir: string; taskContract: TaskReviewContract };
 
 export type CriticReviewInspectionResult =
   | { status: "no-task" }
@@ -36,8 +29,6 @@ export type CriticReviewInspectionResult =
       diffStat: string;
       diffContent: string;
       changedFiles: string;
-      probeResult: TaskProbeResult | null;
-      productEvidence: ProductOperatorEvidenceCheck;
       fallbackFileLineCitations: string[];
     };
 
@@ -46,27 +37,14 @@ export function inspectCriticReviewInWorker(
   context?: WorkflowBlockingOperationContext,
 ): CriticReviewInspectionResult {
   context?.reportProgress("critic-task-inspection");
-  const target = findTaskReviewTarget(input.reviewDir);
+  const target = "taskContract" in input
+    ? findExpectedTaskReviewTarget(input.reviewDir, input.taskContract)
+    : findTaskReviewTarget(input.reviewDir, input.taskMutationStatus);
   if (target === null) return { status: "no-task" };
 
-  const diffStat = getStagedDiff(input.reviewDir);
-  const diffContent = getStagedDiffContent(input.reviewDir);
-  const changedFiles = getChangedFiles(input.reviewDir);
-  context?.reportProgress("critic-runtime-probe");
-  const probeResult = runProbeIfDeclared(
-    target.content,
-    target.path,
-    input.reviewDir,
-    input.runDir,
-    input.artifactWorkspaceDir,
-  );
-  const productEvidence = checkProductOperatorEvidence({
-    taskContent: target.content,
-    taskState: target.state,
-    evidenceDirPath: input.durableEvidenceDir,
-    changedFiles,
-    hasRuntimeProbeResult: probeResult !== null,
-  });
+  const diffStat = getWorkflowDiffStat(input.reviewDir);
+  const diffContent = getWorkflowDiffContent(input.reviewDir);
+  const changedFiles = getWorkflowChangedFiles(input.reviewDir);
 
   return {
     status: "ready",
@@ -74,8 +52,6 @@ export function inspectCriticReviewInWorker(
     diffStat,
     diffContent,
     changedFiles,
-    probeResult,
-    productEvidence,
     fallbackFileLineCitations: fileLineCitationsFromUnifiedDiff(diffContent),
   };
 }
@@ -105,11 +81,11 @@ export type ImproverSemanticInspectionResult =
 export function inspectImproverSemanticReviewInWorker(
   input: ImproverSemanticInspectionInput,
 ): ImproverSemanticInspectionResult {
-  const changedFiles = getChangedFiles(input.projectDir);
+  const changedFiles = getWorkflowChangedFiles(input.projectDir);
   if (!changedFiles.trim()) return { status: "no-changes" };
 
-  const diffStat = getStagedDiff(input.projectDir);
-  const diffContent = getStagedDiffContent(input.projectDir);
+  const diffStat = getWorkflowDiffStat(input.projectDir);
+  const diffContent = getWorkflowDiffContent(input.projectDir);
   const commitMessagePath = join(input.runDirPath, "commit-message.txt");
   const commitMessage = existsSync(commitMessagePath)
     ? readFileSync(commitMessagePath, "utf8").trim()

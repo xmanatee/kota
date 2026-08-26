@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateDefinitions } from "./validate.js";
 
 const VALID_DEF = {
+  repository: "read" as const,
   name: "test-workflow",
   definitionPath: "src/modules/test/workflows/test/workflow.ts",
   triggers: [{ event: "runtime.idle" }],
@@ -9,6 +10,7 @@ const VALID_DEF = {
 };
 
 const INVALID_DEF = {
+  repository: "read" as const,
   name: "",
   definitionPath: "src/modules/test/workflows/bad/workflow.ts",
   triggers: [{ event: "runtime.idle" }],
@@ -16,6 +18,7 @@ const INVALID_DEF = {
 };
 
 const AGENT_DEF = {
+  repository: "read" as const,
   name: "agent-workflow",
   definitionPath: "src/modules/test/workflows/agent/workflow.ts",
   moduleRoot: process.cwd(),

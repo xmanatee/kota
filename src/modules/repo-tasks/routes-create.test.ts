@@ -7,21 +7,19 @@ import {
   symlinkSync,
 } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   handleTaskCapture,
   handleTaskCreate,
   handleTaskCreateNormalized,
 } from "./routes.js";
-import { makeProjectDir, mockRequest, mockResponse } from "./routes-test-helpers.js";
-
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execSync: vi.fn(() => {
-    throw new Error("not a git repo");
-  }),
-  execFileSync: vi.fn(),
-}));
+import {
+  makeProjectDir,
+  mockRequest,
+  mockResponse,
+  mutationTarget,
+  resetRouteTestAuthority,
+} from "./routes-test-helpers.js";
 
 describe("task create routes", () => {
   let projectDir: string;
@@ -32,11 +30,12 @@ describe("task create routes", () => {
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
+    resetRouteTestAuthority();
   });
 
   it("creates a new inbox task file", async () => {
     const { res, result } = mockResponse();
-    await handleTaskCreate(mockRequest({ title: "My new task", summary: "A quick summary" }), res, projectDir);
+    await handleTaskCreate(mockRequest({ title: "My new task", summary: "A quick summary" }), res, mutationTarget(projectDir));
     expect(result.status).toBe(201);
     expect((result.body as Record<string, string>).id).toMatch(/^task-my-new-task-/);
 
@@ -50,7 +49,7 @@ describe("task create routes", () => {
 
   it("returns 400 when inbox title is missing", async () => {
     const { res, result } = mockResponse();
-    await handleTaskCreate(mockRequest({ summary: "No title here" }), res, projectDir);
+    await handleTaskCreate(mockRequest({ summary: "No title here" }), res, mutationTarget(projectDir));
     expect(result.status).toBe(400);
   });
 
@@ -64,7 +63,7 @@ describe("task create routes", () => {
     await handleTaskCreate(
       mockRequest({ title: "Escaping inbox", summary: "Must not be written" }),
       res,
-      projectDir,
+      mutationTarget(projectDir),
     );
 
     expect(result.status).toBe(500);
@@ -78,7 +77,7 @@ describe("task create routes", () => {
   it("creates a normalized task with full template", async () => {
     const req = mockRequest({ title: "Add dashboard", priority: "p2", area: "ui", state: "backlog", summary: "summary" });
     const { res, result } = mockResponse();
-    await handleTaskCreateNormalized(req, res, projectDir);
+    await handleTaskCreateNormalized(req, res, mutationTarget(projectDir));
     expect(result.status).toBe(201);
     const body = result.body as { id: string; path: string };
     expect(body.id).toBe("task-add-dashboard");
@@ -87,30 +86,30 @@ describe("task create routes", () => {
 
   it("rejects invalid normalized task fields and duplicate ids", async () => {
     const badPriority = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p9", area: "ui", state: "backlog" }), badPriority.res, projectDir);
+    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p9", area: "ui", state: "backlog" }), badPriority.res, mutationTarget(projectDir));
     expect(badPriority.result.status).toBe(400);
 
     const badState = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p2", area: "ui", state: "nope" }), badState.res, projectDir);
+    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p2", area: "ui", state: "nope" }), badState.res, mutationTarget(projectDir));
     expect(badState.result.status).toBe(400);
 
     const first = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), first.res, projectDir);
+    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), first.res, mutationTarget(projectDir));
     const second = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), second.res, projectDir);
+    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), second.res, mutationTarget(projectDir));
     expect(second.result.status).toBe(409);
   });
 
   it("captures deterministic inbox files and rejects duplicates", async () => {
     const first = mockResponse();
-    await handleTaskCapture(mockRequest({ title: "Quick note" }), first.res, projectDir);
+    await handleTaskCapture(mockRequest({ title: "Quick note" }), first.res, mutationTarget(projectDir));
     expect(first.result.status).toBe(201);
     expect((first.result.body as { id: string }).id).toBe("task-quick-note");
 
     const dupA = mockResponse();
-    await handleTaskCapture(mockRequest({ title: "Dup" }), dupA.res, projectDir);
+    await handleTaskCapture(mockRequest({ title: "Dup" }), dupA.res, mutationTarget(projectDir));
     const dupB = mockResponse();
-    await handleTaskCapture(mockRequest({ title: "Dup" }), dupB.res, projectDir);
+    await handleTaskCapture(mockRequest({ title: "Dup" }), dupB.res, mutationTarget(projectDir));
     expect(dupB.result.status).toBe(409);
   });
 });

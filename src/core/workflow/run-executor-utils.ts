@@ -16,8 +16,6 @@ export { getEligibleAtMs, matchesFilter } from "./run-executor-filters.js";
 /**
  * Returns the index of the first definition step that should be re-executed on retry.
  * Steps before this index are replayed from the original run's recorded results.
- * A run that established a different workspace or runtime resource profile restarts
- * from the beginning because those outputs are owned by the source run.
  * A successful step marked `rerunOnRetry` becomes the retry boundary because its
  * mutation or output is owned by the new run rather than the source run.
  *
@@ -30,8 +28,6 @@ export function findRetryFromIndex(
   definitionSteps: ReadonlyArray<{
     id: string;
     retryFailedItems?: boolean;
-    updatesWorkspaceDir?: boolean;
-    updatesRuntimeResources?: boolean;
     rerunOnRetry?: boolean;
   }>,
 ): number {
@@ -42,12 +38,6 @@ export function findRetryFromIndex(
     if (result.status === "failed" && !result.continueOnFailure) return i;
     if (result.status === "failed" && result.continueOnFailure && defStep.retryFailedItems) return i;
     if (result.status === "success" && defStep.rerunOnRetry === true) return i;
-    if (
-      result.status === "success" &&
-      (defStep.updatesWorkspaceDir === true || defStep.updatesRuntimeResources === true)
-    ) {
-      return 0;
-    }
   }
   return definitionSteps.length;
 }
@@ -69,8 +59,6 @@ export function buildRetryInitialState(
     id: string;
     type: string;
     retryFailedItems?: boolean;
-    updatesWorkspaceDir?: boolean;
-    updatesRuntimeResources?: boolean;
     rerunOnRetry?: boolean;
   }>,
   recordStep: (result: WorkflowStepResult) => void,

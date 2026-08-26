@@ -84,6 +84,7 @@ describe("progress-review daemon state evidence", () => {
 
     const evidence = collectProgressReviewEvidence({
       projectDir: projectA,
+      scopeDir: projectA,
       stateDir,
       trigger: {
         event: "autonomy.progress-review.requested",

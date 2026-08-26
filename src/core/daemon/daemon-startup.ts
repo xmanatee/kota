@@ -6,7 +6,7 @@ import {
 } from "#core/config/config-warnings.js";
 import { startChannel } from "./daemon-channel-start.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
-import { acquireInstanceLock, writeControlFile } from "./daemon-instance-lock.js";
+import { writeControlFile } from "./daemon-instance-lock.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import {
@@ -28,6 +28,8 @@ export type DaemonStartupHooks = {
   requestRestart: (reason: string) => void;
   maybeRestart: () => void;
   onSignalStop: (signal: NodeJS.Signals, gracePeriodMs: number) => void;
+  onReady: () => void;
+  waitForStop: () => Promise<void>;
 };
 
 /**
@@ -54,16 +56,6 @@ export async function runDaemonStartup(
   process.on("SIGINT", ctx.shutdownHandler);
   process.on("SIGTERM", ctx.shutdownHandler);
 
-  await acquireInstanceLock(
-    ctx.projectDir,
-    ctx.stateRoot,
-    {
-      pid: ctx.state.pid,
-      startedAt: ctx.state.startedAt,
-      token: ctx.token,
-    },
-    ctx.log,
-  );
   validateDaemonWorkflowRuntimes(ctx);
 
   ctx.log("Daemon starting...");
@@ -127,6 +119,10 @@ export async function runDaemonStartup(
   }
 
   await startDaemonWorkflowRuntimes(ctx);
+  await ctx.runCoordinator.drainPublications();
+  if (!ctx.startupDispatchPaused) {
+    ctx.runCoordinator.resumeGlobalAdmission();
+  }
 
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {
@@ -159,15 +155,6 @@ export async function runDaemonStartup(
     `Daemon ready (pid ${process.pid}): ${ctx.workflows.getDefinitionCount()} workflows, ` +
       `${getScheduler().count()} scheduled items, poll ${pollMs / 1000}s`,
   );
-
-  await new Promise<void>((resolve) => {
-    const keepAlive = setInterval(() => {
-      if (!ctx.running) {
-        clearInterval(keepAlive);
-        resolve();
-      } else {
-        hooks.maybeRestart();
-      }
-    }, 1_000);
-  });
+  hooks.onReady();
+  await hooks.waitForStop();
 }

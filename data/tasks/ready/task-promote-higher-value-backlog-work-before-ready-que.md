@@ -7,7 +7,7 @@ area: autonomy
 task_class: Meta
 summary: Make queue shaping compare ready and promotable backlog work continuously so lower-value ready review work cannot indefinitely hide higher-priority Product, Safety, or runtime work.
 created_at: 2026-08-16T08:35:42.254Z
-updated_at: 2026-08-16T08:36:30.000Z
+updated_at: 2026-08-26T00:00:00.000Z
 ---
 
 ## Problem
@@ -29,8 +29,8 @@ Make one canonical selection decision across actionable ready work and
 promotable backlog work. Queue state remains meaningful: ready is still the
 short execution queue and backlog is still the reserve. Before dispatch, queue
 shaping may promote a better candidate or decline with a recorded comparison.
-Existing priority, task-class, dependency, claim, runtime-posture, and
-Product/Safety-link policies remain the ranking inputs.
+Existing priority, task-class, dependency, runtime-admission, runtime-posture,
+and Product/Safety-link policies remain the ranking inputs.
 
 ## Constraints
 
@@ -43,8 +43,8 @@ Product/Safety-link policies remain the ranking inputs.
 - P0 runtime and Safety work must remain able to outrank Product work. Ordinary
   lower-priority Meta and review-generated work must not hide higher-priority
   Product or Safety work merely because it entered ready first.
-- Preserve dependencies, claims, blocked conditions, owner decisions, and the
-  existing runtime-posture exception.
+- Preserve dependencies, unavailable runtime resources, blocked conditions,
+  owner decisions, and the existing runtime-posture exception.
 - A repeated unchanged queue revision must be a no-op before workflow dispatch.
 
 ## Done When
@@ -53,7 +53,7 @@ Product/Safety-link policies remain the ranking inputs.
   promotable backlog candidates before emitting builder work.
 - A fixture with P2 ready review work and a promotable P1 Product task selects
   the Product task without first draining ready to zero.
-- Fixtures preserve P0 runtime/Safety precedence, dependency and claim
+- Fixtures preserve P0 runtime/Safety precedence, dependency and resource
   blocking, same-priority Product/Safety preference, and a genuinely better
   ready candidate.
 - Replaying the audited queue produces an explicit rationale for the selected

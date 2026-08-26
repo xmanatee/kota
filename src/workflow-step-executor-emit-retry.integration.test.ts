@@ -43,49 +43,54 @@ import {
 
 describe("executeEmitStep — notify config", () => {
   function makeEmitContext(): Parameters<typeof executeEmitStep>[1] {
-    const emitted: Array<{ event: string; payload: unknown }> = [];
+    const staged: Array<{ stepId: string; event: string; payload: unknown }> = [];
     return {
-      emit: (event: string, payload: Record<string, unknown>) => emitted.push({ event, payload }),
-      _emitted: emitted,
-    } as unknown as Parameters<typeof executeEmitStep>[1] & { _emitted: typeof emitted };
+      emit: vi.fn(
+        (
+          event: string,
+          payload: Record<string, unknown>,
+          options?: { delivery: "on-run-success"; stepId: string },
+        ) => {
+          if (options?.delivery === "on-run-success") {
+            staged.push({ stepId: options.stepId, event, payload });
+          }
+        },
+      ),
+      _staged: staged,
+    } as unknown as Parameters<typeof executeEmitStep>[1] & { _staged: typeof staged };
   }
 
   function makeEmitStep(event: string): WorkflowEmitStep {
     return { id: "emit-step", type: "emit", event };
   }
 
-  it("emits workflow.build.committed by default (no notify config)", async () => {
+  it("stages the event under the declarative step identity", async () => {
     const ctx = makeEmitContext();
-    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
-    await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx);
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].event).toBe("workflow.build.committed");
+    const staged = (ctx as unknown as {
+      _staged: Array<{ stepId: string; event: string; payload: unknown }>;
+    })._staged;
+    await executeEmitStep(makeEmitStep("example.completed"), ctx);
+    expect(staged).toEqual([
+      { stepId: "emit-step", event: "example.completed", payload: {} },
+    ]);
+    expect(ctx.emit).toHaveBeenCalledWith(
+      "example.completed",
+      {},
+      { delivery: "on-run-success", stepId: "emit-step" },
+    );
   });
 
-  it("suppresses workflow.build.committed when onSuccess is false", async () => {
+  it("does not apply per-event notify conditionals to declarative publications", async () => {
     const ctx = makeEmitContext();
-    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
+    const staged = (ctx as unknown as {
+      _staged: Array<{ stepId: string; event: string; payload: unknown }>;
+    })._staged;
     const notify: WorkflowNotifyConfig = { onSuccess: false };
-    const result = await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx, notify);
-    expect(emitted).toHaveLength(0);
-    expect(result).toMatchObject({ event: "workflow.build.committed", suppressed: true });
-  });
-
-  it("does not suppress workflow.build.committed when onSuccess is true", async () => {
-    const ctx = makeEmitContext();
-    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
-    const notify: WorkflowNotifyConfig = { onSuccess: true };
-    await executeEmitStep(makeEmitStep("workflow.build.committed"), ctx, notify);
-    expect(emitted).toHaveLength(1);
-  });
-
-  it("does not suppress non-notification emit events even when notify config is set", async () => {
-    const ctx = makeEmitContext();
-    const emitted = (ctx as unknown as { _emitted: Array<{ event: string }> })._emitted;
-    const notify: WorkflowNotifyConfig = { onSuccess: false };
-    await executeEmitStep(makeEmitStep("custom.event.done"), ctx, notify);
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].event).toBe("custom.event.done");
+    const result = await executeEmitStep(makeEmitStep("example.completed"), ctx, notify);
+    expect(staged).toEqual([
+      { stepId: "emit-step", event: "example.completed", payload: {} },
+    ]);
+    expect(result).toEqual({ event: "example.completed", payload: {} });
   });
 });
 

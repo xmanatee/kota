@@ -1,33 +1,31 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { promisify } from "node:util";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
-
-const execFileAsync = promisify(execFile);
+import type { WorkflowCommandRunner } from "./workflow-command.js";
+import { workflowCommandOutput } from "./workflow-command.js";
 
 export type RepairProgressSnapshot = {
   key: string;
   failureIds: string[];
 };
 
-async function gitDiffAgainstHead(workspaceDir: string): Promise<string> {
+async function readGit(
+  runCommand: WorkflowCommandRunner,
+  workspaceDir: string,
+  args: readonly string[],
+): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["diff", "--binary", "HEAD", "--"],
-      {
+    const result = await runCommand({
+      command: "git",
+      args,
       cwd: workspaceDir,
-      env: withProtectedGitBareRepositoryEnv(),
-      encoding: "utf8",
-      maxBuffer: 20 * 1024 * 1024,
-      },
-    );
-    return stdout;
+      timeoutMs: 30_000,
+      outputLimitBytes: 20 * 1024 * 1024,
+      captureLimitBytesPerStream: 20 * 1024 * 1024,
+    });
+    return workflowCommandOutput(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return `git diff unavailable: ${message}`;
+    return `git ${args[0] ?? "command"} unavailable: ${message}`;
   }
 }
 
@@ -41,29 +39,27 @@ function repairFailureIdentity(failures: RepairCheckResult[]): string {
 export async function repairProgressSnapshot(
   workspaceDir: string,
   failures: RepairCheckResult[],
+  runCommand: WorkflowCommandRunner,
 ): Promise<RepairProgressSnapshot> {
-  const status = await getRepoWorktreeStatusAsync(workspaceDir);
-  const diff = status.available ? await gitDiffAgainstHead(workspaceDir) : "";
+  const [head, status, diff] = await Promise.all([
+    readGit(runCommand, workspaceDir, ["rev-parse", "HEAD"]),
+    readGit(runCommand, workspaceDir, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]),
+    readGit(runCommand, workspaceDir, ["diff", "--binary", "HEAD", "--"]),
+  ]);
   const hash = createHash("sha256");
   hash.update(repairFailureIdentity(failures));
   hash.update("\0");
-  hash.update(status.headSha);
+  hash.update(head);
   hash.update("\0");
-  hash.update(status.fingerprint);
+  hash.update(status);
   hash.update("\0");
   hash.update(diff);
   return {
     key: hash.digest("hex"),
     failureIds: failures.map((failure) => failure.id),
   };
-}
-
-export async function stageWorkflowChangesForRepairChecks(
-  workspaceDir: string,
-): Promise<void> {
-  if (!(await getRepoWorktreeStatusAsync(workspaceDir)).available) return;
-  await execFileAsync("git", ["add", "-A"], {
-    cwd: workspaceDir,
-    env: withProtectedGitBareRepositoryEnv(),
-  });
 }

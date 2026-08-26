@@ -78,12 +78,12 @@ vi.mock("#core/modules/provider-registry.js", () => {
 vi.mock("#core/modules/module-metadata.js", () => ({
 	loadModuleMetadata: vi.fn(async () => ({
 		getContributedWorkflows: () => [
-			{ name: "builder", triggers: [], steps: [], enabled: true, definitionPath: "" },
-			{ name: "explorer", triggers: [], steps: [], enabled: true, definitionPath: "" },
-			{ name: "inbox-sorter", triggers: [], steps: [], enabled: true, definitionPath: "" },
-			{ name: "improver", triggers: [], steps: [], enabled: true, definitionPath: "" },
-			{ name: "attention-digest", triggers: [], steps: [], enabled: true, definitionPath: "" },
-			{ name: "dispatcher", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "builder", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "explorer", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "inbox-sorter", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "improver", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "attention-digest", triggers: [], steps: [], enabled: true, definitionPath: "" },
+			{ repository: "read", name: "dispatcher", triggers: [], steps: [], enabled: true, definitionPath: "" },
 		],
 	})),
 }));
@@ -5878,12 +5878,12 @@ describe("completion/complete", () => {
 
 	it("bounds completion results and reports total matches", async () => {
 		const workflowDefs: ReturnType<ModuleLoader["getContributedWorkflows"]> = Array.from({ length: 105 }, (_value, index) => ({
+			repository: "read",
 			name: `workflow-${String(index).padStart(3, "0")}`,
 			triggers: [],
 			steps: [],
 			enabled: true,
 			moduleRoot: "",
-			recoveryCapable: false,
 			tags: [],
 			definitionPath: "",
 		}));

@@ -22,6 +22,7 @@ import {
   commitProgressReviewFixture,
   compileProgressReviewerWorkflow,
   makeProgressReviewProjectDir,
+  makeProgressReviewRunContext,
   NOW,
   parseReviewInputFromAgentPrompt,
   registerProgressReviewHarness,
@@ -45,11 +46,10 @@ function executeReview(projectDir: string, runId: string) {
       payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
     },
     {
-      projectDir,
+      runContext: makeProgressReviewRunContext(projectDir, runId),
       bus: new EventBus(),
       store: new WorkflowRunStore(projectDir),
       log: vi.fn(),
-      runId,
       resolveAgentDef: (name) => name === agent.name ? agent : undefined,
     },
   ).promise;
@@ -145,8 +145,8 @@ describe("progress-reviewer evidence integrity", () => {
     expect(attempts).toBe(2);
     expect(receivedWriteScopes).toEqual(["deny-all", "deny-all"]);
     expect(receivedOutputDirs).toEqual([
-      join(projectDir, ".kota", "runs", runId, "agent-output"),
-      join(projectDir, ".kota", "runs", runId, "agent-output"),
+      join(projectDir, ".kota", "runtime", runId, "agent"),
+      join(projectDir, ".kota", "runtime", runId, "agent"),
     ]);
     expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
       .toBeUndefined();

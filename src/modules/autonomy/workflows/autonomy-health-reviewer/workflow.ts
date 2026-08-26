@@ -5,22 +5,24 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
-  onRecoveryTrigger,
-  resetWorktreeForRecoveryOperation,
-} from "#modules/autonomy/recovery.js";
-import {
-  type ApplyHealthReviewActionsOutput,
-  applyAutonomyHealthReviewActionsOperation,
+  type StageHealthReviewActionsOutput,
+  stageAutonomyHealthReviewActionsOperation,
 } from "./action-operations.js";
 import {
   type AutonomyHealthReviewActionResult,
-  buildAutonomyHealthAttentionDigest,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
-import { createHealthReviewTaskResolutionSteps } from "./health-review-task-resolution.js";
+import {
+  AUTONOMY_HEALTH_REVIEW_PUBLICATION_REQUESTED_EVENT,
+  autonomyHealthReviewPublicationKey,
+} from "./health-review-publication.js";
 import {
   AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT,
   buildReview,
@@ -45,38 +47,32 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
   },
 });
 
-const applyActions = typedCodeStep<ApplyHealthReviewActionsOutput>({
-  id: "apply-actions",
+const stageActions = typedCodeStep<StageHealthReviewActionsOutput>({
+  id: "stage-actions",
   type: "code",
   when: (ctx) =>
     buildReview.output(ctx) !== undefined &&
     inspectWorktree.output(ctx)?.dirty === false,
   validate: (raw) =>
-    expectStructuredOutput<ApplyHealthReviewActionsOutput>(raw, ["actions"]),
+    expectStructuredOutput<StageHealthReviewActionsOutput>(raw, ["actions"]),
   run: async (ctx) => {
     const review = buildReview.outputRequired(ctx).review;
+    const projection = decodeAutonomyIssueProjection(
+      ctx.state.read<AutonomyIssueProjection>(
+        AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      ).value,
+    );
     const output = await ctx.runBlocking(
-      applyAutonomyHealthReviewActionsOperation,
+      stageAutonomyHealthReviewActionsOperation,
       {
         projectDir: ctx.projectDir,
+        currentProjection: projection,
         review,
       },
     );
-    for (const action of output.actions.applied) {
-      if (action.kind !== "decision-requested") continue;
-      ctx.emit(autonomyIssueDecisionRequested.name, {
-        issueKey: action.issueKey,
-        rootCauseKey: action.dedupeKey,
-        semanticRevision: action.semanticRevision,
-        transition: action.transition,
-        observedAt: review.generatedAt,
-      });
-    }
     return output;
   },
 });
-
-const taskResolution = createHealthReviewTaskResolutionSteps(applyActions);
 
 function emptyActions(): AutonomyHealthReviewActionResult {
   return {
@@ -94,9 +90,7 @@ function emptyActions(): AutonomyHealthReviewActionResult {
 const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   id: "write-artifact",
   type: "code",
-  when: async (ctx) =>
-    buildReview.output(ctx) !== undefined &&
-    (await taskResolution.isDurable(ctx)),
+  when: (ctx) => buildReview.output(ctx) !== undefined,
   validate: (raw) =>
     expectStructuredOutput<{ written: boolean; path: string }>(raw, [
       "written",
@@ -104,7 +98,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
     ]),
   run: (ctx) => {
     const review = buildReview.outputRequired(ctx).review;
-    const actions = applyActions.output(ctx)?.actions ?? emptyActions();
+    const actions = stageActions.output(ctx)?.actions ?? emptyActions();
     const path = writeAutonomyHealthReviewArtifact(ctx.workflow.runDirPath, {
       generatedAt: new Date().toISOString(),
       review,
@@ -137,9 +131,10 @@ const writeRuntimeAuditArtifact = typedCodeStep<{
 
 const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   name: "autonomy-health-reviewer",
+  repository: "write",
+  integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Project typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
-  recoveryCapable: true,
   triggers: [
     {
       event: AUTONOMY_HEALTH_AUDIT_SCHEDULE_EVENT,
@@ -161,38 +156,29 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
         overflow: "flush-oldest",
       },
     },
-    { event: "runtime.recovered" },
   ],
   steps: [
-    {
-      id: "reset-for-recovery",
-      type: "code",
-      when: onRecoveryTrigger,
-      run: (ctx) =>
-        ctx.runBlocking(resetWorktreeForRecoveryOperation, {
-          projectDir: ctx.projectDir,
-          workflowName: "autonomy-health-reviewer",
-        }),
-    },
     inspectWorktree,
     buildRuntimeAudit,
     buildReview,
-    applyActions,
-    ...taskResolution.steps,
+    stageActions,
     writeArtifact,
     writeRuntimeAuditArtifact,
     {
-      id: "emit-attention",
+      id: "emit-health-review-publication",
       type: "emit",
-      when: async (ctx) =>
-        (applyActions.output(ctx)?.actions.applied.length ?? 0) > 0 &&
-        (await taskResolution.isDurable(ctx)),
-      event: "workflow.attention.digest",
-      payload: (ctx) =>
-        buildAutonomyHealthAttentionDigest({
-          review: buildReview.outputRequired(ctx).review,
-          actions: applyActions.output(ctx)?.actions ?? emptyActions(),
-        }),
+      when: (ctx) => writeArtifact.output(ctx)?.written === true,
+      event: AUTONOMY_HEALTH_REVIEW_PUBLICATION_REQUESTED_EVENT,
+      payload: (ctx) => {
+        const publicationKey = autonomyHealthReviewPublicationKey(
+          ctx.workflow.runId,
+        );
+        return {
+          idempotencyKey: publicationKey,
+          publicationKey,
+          sourceRunId: ctx.workflow.runId,
+        };
+      },
     },
   ],
 };

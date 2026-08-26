@@ -5,8 +5,38 @@ import { WorkflowTestHarness } from "./index.js";
 import { makeStepResult } from "./results.js";
 
 describe("WorkflowTestHarness — result evidence", () => {
+  it.skipIf(process.platform === "win32")(
+    "executes code-step commands through the conventional context runner",
+    async () => {
+      const workflow: WorkflowDefinitionInput = {
+        repository: "read",
+        name: "test",
+        triggers: [],
+        steps: [
+          {
+            id: "command",
+            type: "code",
+            run: async (ctx) => {
+              const result = await ctx.runCommand({
+                command: process.execPath,
+                args: ["-e", "process.stdout.write('harness-command')"],
+              });
+              return result.stdout.text;
+            },
+          },
+        ],
+      };
+
+      const result = await new WorkflowTestHarness(workflow).run();
+
+      expect(result.status).toBe("success");
+      expect(result.steps.command.output).toBe("harness-command");
+    },
+  );
+
   it("records code-step validation failures as explicit failed results", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -42,6 +72,7 @@ describe("WorkflowTestHarness — result evidence", () => {
 
   it("exposes emitted events and restart requests on the public harness result", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -116,6 +147,7 @@ describe("WorkflowTestHarness — result evidence", () => {
   it("records resolved runtime metadata for mocked agent steps", async () => {
     const runtime = resolveAgentRuntime(undefined);
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       defaultAutonomyMode: "autonomous",
@@ -155,6 +187,7 @@ describe("WorkflowTestHarness — result evidence", () => {
 
   it("validates mocked agent output against prior decoded step output", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       defaultAutonomyMode: "autonomous",

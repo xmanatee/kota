@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 import {
+  collectRuntimeHealthAuditForProject,
   makeRuntimeHealthAuditProjectDir,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
@@ -33,7 +33,7 @@ describe("runtime health audit interrupted runs", () => {
       });
     }
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });
@@ -80,7 +80,7 @@ describe("runtime health audit interrupted runs", () => {
       error: "Interrupted: daemon restarted while run was in progress.",
     });
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });
@@ -166,7 +166,7 @@ describe("runtime health audit interrupted runs", () => {
       });
     }
 
-    const audit = collectRuntimeHealthAudit({
+    const audit = collectRuntimeHealthAuditForProject({
       projectDir,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });

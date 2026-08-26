@@ -20,20 +20,21 @@ import type {
 import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/policy.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { scopeSelectorQuery } from "#core/server/scope-selector.js";
+import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
+import {
+  clearWorkflowPauseSignal,
+  resolveWorkflowDispatchPause,
+  writeOperatorPauseSignal,
+} from "#core/workflow/dispatch-pause.js";
 import {
   isWithinDispatchWindow,
   msUntilDispatchWindowOpens,
 } from "#core/workflow/dispatch-window.js";
 import {
-  buildOperatorQueuedRun,
   buildOperatorTriggerRequestBody,
 } from "#core/workflow/operator-trigger.js";
-import {
-  clearWorkflowPauseSignal,
-  reconcileWorkflowRecovery,
-  resolveWorkflowDispatchPause,
-  writeOperatorPauseSignal,
-} from "#core/workflow/recovery-status.js";
+import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
@@ -55,7 +56,6 @@ import { registerDeadLetterCommand } from "./execution/dead-letter.js";
 import { registerExecCommand } from "./execution/exec.js";
 import { registerGcCommand } from "./execution/gc.js";
 import { registerRunCommand } from "./execution/run.js";
-import { registerStateRecoveryCommand } from "./execution/state-recovery.js";
 import {
   registerTrialCommand,
   runLocalWorkflowTrial,
@@ -63,7 +63,6 @@ import {
 } from "./execution/trial.js";
 import { registerTriggerCommands } from "./execution/trigger.js";
 import { registerTriggersCommand } from "./execution/triggers.js";
-import { registerWorktreesCommand } from "./execution/worktrees.js";
 import { explainAutomation } from "./graph/index.js";
 import { workflowExplainControlRoutes } from "./routes/explain.js";
 import { workflowRoutes } from "./routes/routes.js";
@@ -80,13 +79,6 @@ import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 import { registerSimulationCommand } from "./simulation/cli.js";
 import { simulateAutomation } from "./simulation/engine.js";
 import { workflowSimulationControlRoutes } from "./simulation/routes.js";
-import { resolveWorkflowStateRecoveryProject } from "./state-recovery-project.js";
-import {
-  validateWorkflowStateRecoveryArtifactRunId,
-  WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE,
-  type WorkflowStateRecoveryProvider,
-} from "./state-recovery-provider.js";
-import { workflowStateRecoveryControlRoutes } from "./state-recovery-routes.js";
 import { workflowUiSurfaceSource } from "./ui-source.js";
 
 export function buildWorkflowCommand(ctx: ModuleContext): Command {
@@ -117,8 +109,6 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerTriggerCommands(wfCmd, ctx);
   registerTriggersCommand(wfCmd, ctx);
   registerDeadLetterCommand(wfCmd, ctx);
-  registerStateRecoveryCommand(wfCmd, ctx);
-  registerWorktreesCommand(wfCmd, ctx);
   registerExecCommand(wfCmd, ctx);
   registerValidateCommand(wfCmd, ctx);
   registerControlCommands(wfCmd, ctx);
@@ -128,18 +118,6 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerGcCommand(wfCmd, ctx);
 
   return wfCmd;
-}
-
-async function resolveLocalStateRecoveryProvider(
-  ctx: Pick<ModuleContext, "events" | "getProvider">,
-): Promise<WorkflowStateRecoveryProvider | null> {
-  const registered = ctx.getProvider(WORKFLOW_STATE_RECOVERY_PROVIDER_TYPE);
-  if (registered) return registered;
-  // The CLI command loader skips module onLoad hooks, so autonomy's provider
-  // is absent in offline commands mode. Keep this dynamic to avoid creating a
-  // load-time cycle: autonomy depends on workflow-ops for the command surface.
-  const loaded = await import("#modules/autonomy/workflow-state-recovery.js");
-  return loaded.createWorkflowStateRecoveryProvider(ctx.events);
 }
 
 const workflowModule: KotaModule = {
@@ -154,7 +132,6 @@ const workflowModule: KotaModule = {
     ...workflowTrialControlRoutes(ctx),
     ...workflowExplainControlRoutes(ctx),
     ...workflowSimulationControlRoutes(ctx),
-    ...workflowStateRecoveryControlRoutes(ctx),
   ],
   localClient: (ctx) => {
     const handler: WorkflowClient = {
@@ -185,70 +162,17 @@ const workflowModule: KotaModule = {
           })),
         };
       },
-      async listStateRecoveryActions(filter) {
-        const provider = await resolveLocalStateRecoveryProvider(ctx);
-        if (!provider) {
-          return {
-            ok: false,
-            reason: "provider_unavailable",
-            message: "Workflow state recovery provider is unavailable",
-          };
-        }
-        const project = resolveWorkflowStateRecoveryProject(ctx, filter);
-        if (!project.ok) {
-          return {
-            ok: false,
-            reason: "provider_unavailable",
-            message: project.message,
-          };
-        }
-        return provider.list({ ...(filter ?? {}), projectDir: project.projectDir });
-      },
-      async resolveStateRecovery(input) {
-        const artifactRunId = validateWorkflowStateRecoveryArtifactRunId(input.artifactRunId);
-        if (!artifactRunId.ok) {
-          return {
-            ok: false,
-            reason: "invalid_input",
-            message: artifactRunId.message,
-          };
-        }
-        const provider = await resolveLocalStateRecoveryProvider(ctx);
-        if (!provider) {
-          return {
-            ok: false,
-            reason: "provider_unavailable",
-            message: "Workflow state recovery provider is unavailable",
-          };
-        }
-        const project = resolveWorkflowStateRecoveryProject(ctx, input);
-        if (!project.ok) {
-          return {
-            ok: false,
-            reason: "provider_unavailable",
-            message: project.message,
-          };
-        }
-        return provider.resolve({
-          ...input,
-          projectDir: project.projectDir,
-          ...(artifactRunId.artifactRunId !== undefined
-            ? { artifactRunId: artifactRunId.artifactRunId }
-            : {}),
-        });
-      },
       ...buildLocalDeadLetterClient(ctx),
       async status() {
         const store = new WorkflowRunStore(ctx.cwd);
         const state = store.readState();
-        const recovery = reconcileWorkflowRecovery({
+        const operational = readWorkflowOperationalState({
+          stateDir: store.rootDir,
           projectDir: ctx.cwd,
-          store,
         });
         const pause = resolveWorkflowDispatchPause({
           projectDir: ctx.cwd,
           runtimePaused: false,
-          recovery,
         });
         const config = loadConfig(ctx.cwd);
         const dispatchWindow = config.scheduler?.dispatchWindow;
@@ -257,11 +181,10 @@ const workflowModule: KotaModule = {
           windowBlocked && dispatchWindow
             ? new Date(Date.now() + msUntilDispatchWindowOpens(dispatchWindow)).toISOString()
             : undefined;
-        const activeRuns = state.activeRuns ?? [];
         return {
-          activeRuns,
-          pendingRuns: state.pendingRuns,
-          queueLength: state.pendingRuns.length,
+          activeRuns: operational.activeRuns,
+          pendingRuns: operational.pendingRuns,
+          queueLength: operational.pendingRuns.length,
           completedRuns: state.completedRuns,
           ...(state.totalCostUsd !== undefined && { totalCostUsd: state.totalCostUsd }),
           ...(state.totalInputTokens !== undefined && {
@@ -275,12 +198,10 @@ const workflowModule: KotaModule = {
           workflows: state.workflows,
           paused: pause.paused,
           pause,
-          recovery,
           pendingAbort: existsSync(join(store.rootDir, ABORT_SIGNAL_FILE)),
           ...(windowBlocked && { dispatchWindowBlocked: true }),
           ...(windowOpensAt && { dispatchWindowOpensAt: windowOpensAt }),
-          agentConcurrency: config.scheduler?.agentConcurrency ?? 1,
-          codeConcurrency: config.scheduler?.codeConcurrency ?? 4,
+          concurrency: resolveWorkflowConcurrency(config.scheduler),
         };
       },
       async pause() {
@@ -292,23 +213,6 @@ const workflowModule: KotaModule = {
       },
       async resume(options) {
         const store = new WorkflowRunStore(ctx.cwd);
-        const recovery = reconcileWorkflowRecovery({
-          projectDir: ctx.cwd,
-          store,
-        });
-        const pause = resolveWorkflowDispatchPause({
-          projectDir: ctx.cwd,
-          runtimePaused: false,
-          recovery,
-        });
-        if (pause.kind === "dirty-recovery") {
-          return {
-            paused: true,
-            already: true,
-            blocked: "dirty-recovery",
-            message: pause.nextAction,
-          };
-        }
         const pausePath = join(store.rootDir, PAUSE_SIGNAL_FILE);
         const agentBackoffCleared = options?.retryAgent === true &&
           store.readState().agentBackoff !== undefined;
@@ -329,8 +233,10 @@ const workflowModule: KotaModule = {
       },
       async abort() {
         const store = new WorkflowRunStore(ctx.cwd);
-        const state = store.readState();
-        const activeRuns = state.activeRuns ?? [];
+        const activeRuns = readWorkflowOperationalState({
+          stateDir: store.rootDir,
+          projectDir: ctx.cwd,
+        }).activeRuns;
         if (activeRuns.length === 0) {
           return { status: "signaled", runs: [] };
         }
@@ -372,15 +278,8 @@ const workflowModule: KotaModule = {
           definitions: definitions.map(toDefinitionSummary),
         };
       },
-      async triggerByName(name, options) {
-        const store = new WorkflowRunStore(ctx.cwd);
-        const state = store.readState();
-        if (state.pendingRuns.some((r) => r.workflowName === name)) {
-          return { ok: false, reason: "already_queued" };
-        }
-        const queuedRun = buildOperatorQueuedRun(name, options);
-        store.setPendingRuns([...state.pendingRuns, queuedRun]);
-        return { ok: true, path: "queue", queued: name, runId: queuedRun.runId };
+      async triggerByName(_name, _options) {
+        return { ok: false, reason: "daemon_required" };
       },
       async trial(name, options) {
         return runLocalWorkflowTrial(ctx, name, options);
@@ -453,7 +352,7 @@ const workflowModule: KotaModule = {
  *    failure; success returns `{ source: "daemon", definitions }`.
  *  - `triggerByName(name, options)` → `POST /workflow/trigger` with body
  *    from `buildOperatorTriggerRequestBody`, preserving event, schema, payload, run id,
- *    tags, and dispatch eligibility across daemon-up and daemon-down paths.
+ *    tags, and dispatch eligibility in the daemon-owned admission path.
  *    Throws on transport failure; 409 → `{ ok: false, reason: "already_queued" }`;
  *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
  *    ...(result.runId !== undefined && { runId: result.runId }) }`.
@@ -500,60 +399,6 @@ export function buildWorkflowDaemonHandler(
         `/workflow/runs${query}`,
       );
       return { runs: result?.runs ?? [] };
-    },
-    listStateRecoveryActions: async (filter) => {
-      const params = new URLSearchParams();
-      if (filter?.projectId) params.set("projectId", filter.projectId);
-      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const resp = await fetchJson("GET", `/workflow/state-recovery${query}`);
-      if (!resp) {
-        throw new Error("Daemon unreachable while listing workflow state recovery actions");
-      }
-      if (!resp.ok && resp.status !== 503) {
-        throw new Error("Daemon unreachable while listing workflow state recovery actions");
-      }
-      return (await resp.json()) as Awaited<
-        ReturnType<WorkflowClient["listStateRecoveryActions"]>
-      >;
-    },
-    resolveStateRecovery: async (input) => {
-      const params = new URLSearchParams();
-      if (input.projectId) params.set("projectId", input.projectId);
-      if (input.scopeId) params.set("scopeId", input.scopeId);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      const body = {
-        action: input.action,
-        rationale: input.rationale,
-        ...(input.runId !== undefined ? { runId: input.runId } : {}),
-        ...(input.actor !== undefined ? { actor: input.actor } : {}),
-        ...(input.artifactRunId !== undefined ? { artifactRunId: input.artifactRunId } : {}),
-        ...(input.supersededByCommit !== undefined
-          ? { supersededByCommit: input.supersededByCommit }
-          : {}),
-        ...(input.cleanupWorktree !== undefined ? { cleanupWorktree: input.cleanupWorktree } : {}),
-        ...(input.discardWorktreeChanges !== undefined
-          ? { discardWorktreeChanges: input.discardWorktreeChanges }
-          : {}),
-        ...(input.dismissDeadLetters !== undefined
-          ? { dismissDeadLetters: input.dismissDeadLetters }
-          : {}),
-        ...(input.completeTask !== undefined ? { completeTask: input.completeTask } : {}),
-      };
-      const resp = await fetchJson(
-        "POST",
-        `/workflow/state-recovery/claims/${encodeURIComponent(input.taskId)}/resolve${query}`,
-        body,
-      );
-      if (!resp) {
-        throw new Error(`Daemon unreachable while resolving workflow state for "${input.taskId}"`);
-      }
-      if (!resp.ok && resp.status !== 400 && resp.status !== 404 && resp.status !== 409 && resp.status !== 503) {
-        throw new Error(`Daemon unreachable while resolving workflow state for "${input.taskId}"`);
-      }
-      return (await resp.json()) as Awaited<
-        ReturnType<WorkflowClient["resolveStateRecovery"]>
-      >;
     },
     listDeadLetters: async (filter) => {
       const params = new URLSearchParams();
@@ -642,8 +487,6 @@ export function buildWorkflowDaemonHandler(
       const result = await link.request<{
         paused: boolean;
         already?: boolean;
-        blocked?: "dirty-recovery";
-        message?: string;
         agentBackoffCleared?: true;
       }>(
         "POST",
@@ -653,8 +496,6 @@ export function buildWorkflowDaemonHandler(
       return {
         paused: result.paused,
         already: result.already ?? false,
-        ...(result.blocked && { blocked: result.blocked }),
-        ...(result.message && { message: result.message }),
         ...(result.agentBackoffCleared && {
           agentBackoffCleared: result.agentBackoffCleared,
         }),
@@ -738,17 +579,17 @@ export function buildWorkflowDaemonHandler(
       }
       return { ok: true };
     },
-    getRun: async (id) => {
+    getRun: async (id, selector) => {
       const run = await link.request<WorkflowRunDetail>(
         "GET",
-        `/workflow/runs/${encodeURIComponent(id)}`,
+		`/workflow/runs/${encodeURIComponent(id)}${scopeSelectorQuery(selector)}`,
       );
       return run ? { found: true, run } : { found: false };
     },
-    listDefinitions: async () => {
+    listDefinitions: async (selector) => {
       const result = await link.request<{
         definitions: WorkflowDefinitionSummary[];
-      }>("GET", "/workflow/definitions");
+		}>("GET", `/workflow/definitions${scopeSelectorQuery(selector)}`);
       if (!result) {
         throw new Error("Daemon unreachable while listing workflow definitions");
       }
@@ -756,7 +597,11 @@ export function buildWorkflowDaemonHandler(
     },
     triggerByName: async (name, options) => {
       const body = buildOperatorTriggerRequestBody(name, options);
-      const resp = await fetchJson("POST", "/workflow/trigger", body);
+		const resp = await fetchJson(
+			"POST",
+			`/workflow/trigger${scopeSelectorQuery(options)}`,
+			body,
+		);
       if (!resp) {
         throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
       }

@@ -37,6 +37,8 @@ export type WorkflowAgentExecutionOverride = {
 /** Input passed to a WorkflowExecutor for a single fixture run attempt. */
 export type WorkflowExecutionRequest = {
   workflowName: string;
+  /** Exact trigger event to replay. Absence intentionally means manual. */
+  triggerEvent?: string;
   /** Absolute path to the isolated fixture working directory. */
   workingDir: string;
   /** Hard budget for this attempt in ms. The executor must return by then. */

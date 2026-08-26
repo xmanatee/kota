@@ -1,11 +1,8 @@
-import { askOwnerSteps } from "#core/workflow/ask-owner-step.js";
-import { labeledPredicate } from "#core/workflow/run-types.js";
 import {
   expectArrayOutput,
   expectStructuredOutput,
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
-import { onNormalTrigger } from "#modules/autonomy/recovery.js";
 import type { MoveTaskResult } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   applyAskOutcomeOperation,
@@ -14,7 +11,12 @@ import {
   instructOperatorCaptureOperation,
   promoteSatisfiedBlockedTasksOperation,
 } from "./blocking-operations.js";
-import { answerApprovesPromotion } from "./owner-decision-authorization.js";
+import {
+  BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+  type BlockedOwnerDecisionResolution,
+  decodeBlockedOwnerDecisionResolution,
+  ownerAskCandidateForWorkspace,
+} from "./owner-decision-follow-up.js";
 import type {
   AskOutcomeApplication,
   OperatorCaptureInstruction,
@@ -24,7 +26,6 @@ import type {
 export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
   id: "inspect-blocked",
   type: "code",
-  when: onNormalTrigger,
   validate: (raw) =>
     expectStructuredOutput<InspectBlockedResult>(raw, [
       "dirty",
@@ -42,7 +43,6 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   id: "promote-deterministic",
   type: "code",
   when: (ctx) => {
-    if (ctx.trigger.event === "runtime.recovered") return false;
     const inspection = inspectBlocked.outputRequired(ctx);
     return !inspection.dirty && inspection.blockedCount > 0;
   },
@@ -52,13 +52,7 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
     runBlocking(promoteSatisfiedBlockedTasksOperation, { projectDir }),
 });
 
-const ownerAskGate = labeledPredicate("no-owner-ask-due", (ctx) => {
-  if (ctx.trigger.event === "runtime.recovered") return false;
-  const inspection = inspectBlocked.outputRequired(ctx);
-  return !inspection.dirty && inspection.ownerAsk !== null;
-});
-
-function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
+export function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
   const proposed = candidate.proposedAnswers.length > 0
     ? candidate.proposedAnswers
     : ["unblock"];
@@ -78,56 +72,35 @@ function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
     : [...reordered, "unblock"];
 }
 
-const askSteps = askOwnerSteps({
-  idPrefix: "blocked-promoter-ask",
-  awaitTimeoutMs: 10 * 60 * 1000,
-  input: (ctx) => {
-    const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;
-    if (!candidate) {
-      throw new Error("blocked-promoter ask step ran without an owner-ask candidate");
-    }
-    const recommendationLine = candidate.recommendedAnswer
-      ? `\n\nRecommended option: ${candidate.recommendedAnswer}.`
-      : "";
-    return {
-      context: candidate.context
-        ? `${candidate.context}\n\nBlocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`
-        : `Blocked task: ${candidate.taskId} (slot ${candidate.slot}).${recommendationLine}`,
-      question: candidate.question,
-      reason: candidate.recommendedAnswer
-        ? "Re-asking on the 14-day cadence. Recommended default: " +
-          `'${candidate.recommendedAnswer}'. Reply with the chosen variant or 'unblock' to promote.`
-        : "Re-asking on the 14-day cadence. Reply with the chosen variant or 'unblock' to promote.",
-      proposedAnswers: displayedOwnerAnswers(candidate),
-      source: "blocked-promoter",
-      taskId: candidate.taskId,
-    };
-  },
-});
-
-export const askStep = { ...askSteps.ask, when: ownerAskGate };
-export const waitStep = { ...askSteps.wait, when: ownerAskGate };
-export const consumeStep = { ...askSteps.consume, when: ownerAskGate };
+export const inspectOwnerDecisionResolution =
+  typedCodeStep<BlockedOwnerDecisionResolution>({
+    id: "inspect-owner-decision-resolution",
+    type: "code",
+    when: (ctx) => ctx.trigger.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
+    validate: (raw) => decodeBlockedOwnerDecisionResolution(raw as object),
+    run: ({ trigger }) => decodeBlockedOwnerDecisionResolution(trigger.payload),
+  });
 
 export const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
   id: "apply-ask-outcome",
   type: "code",
-  when: ownerAskGate,
+  when: (ctx) =>
+    inspectBlocked.output(ctx)?.dirty === false &&
+    inspectOwnerDecisionResolution.output(ctx) !== undefined,
   validate: (raw) =>
     expectArrayOutput<AskOutcomeApplication>(raw, (item) =>
       expectStructuredOutput<AskOutcomeApplication>(item, ["kind", "slot"]),
     ),
   run: async (ctx) => {
-    const candidate = inspectBlocked.outputRequired(ctx).ownerAsk;
-    if (!candidate) throw new Error("blocked-promoter outcome has no candidate");
-    const outcome = askSteps.consume.outputRequired(ctx);
-    const approved = outcome.kind === "answered" &&
-      answerApprovesPromotion(outcome.answer, displayedOwnerAnswers(candidate));
+    const resolution = inspectOwnerDecisionResolution.outputRequired(ctx);
     return await ctx.runBlocking(applyAskOutcomeOperation, {
       projectDir: ctx.projectDir,
-      candidate,
-      approved,
-      nowIso: new Date().toISOString(),
+      candidate: ownerAskCandidateForWorkspace(
+        ctx.projectDir,
+        resolution.candidate,
+      ),
+      approved: resolution.approved,
+      nowIso: resolution.decidedAt,
     });
   },
 });
@@ -136,7 +109,7 @@ export const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
   id: "promote-after-approval",
   type: "code",
   when: (ctx) =>
-    ownerAskGate(ctx) &&
+    inspectOwnerDecisionResolution.output(ctx)?.approved === true &&
     (applyOutcome.output(ctx) ?? []).some((application) => application.kind === "resolved"),
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
@@ -150,7 +123,6 @@ export const instructOperatorCapture = typedCodeStep<{
   id: "instruct-operator-capture",
   type: "code",
   when: (ctx) => {
-    if (ctx.trigger.event === "runtime.recovered") return false;
     const inspection = inspectBlocked.outputRequired(ctx);
     return !inspection.dirty &&
       inspection.actions.some((action) => action.kind === "operator-capture-due");

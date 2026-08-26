@@ -8,7 +8,7 @@
  * pure makes the cadence workflow's side-effectful glue trivially testable.
  */
 
-import type { PersistedBaseline } from "./baseline-store.js";
+import type { PersistedBaseline } from "./baseline-state.js";
 import {
   type EvalComponentAttribution,
   type EvalComponentAttributionAssessmentSummary,

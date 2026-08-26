@@ -41,26 +41,10 @@ export function describeSecurityReviewRunTests(
       ).toBe(true);
     });
 
-    it("resets recovery state without decoding skipped agent outputs", async () => {
-      fixture.writeProjectFile("src/modules/web-access/web-fetch.ts", "await fetch(url, { headers });\n");
-
-      const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
-        trigger: { event: "runtime.recovered", payload: {} },
-        stepMocks: {},
-      });
-
-      const result = await harness.run();
-
-      expect(result.status).toBe("success");
-      expect(result.steps["reset-for-recovery"].status).toBe("success");
-      expect(result.steps["scan-candidates"].status).toBe("skipped");
-      expect(result.steps["investigate-candidates"].status).toBe("skipped");
-      expect(result.steps["record-investigation-findings"].status).toBe("skipped");
-      expect(result.steps["record-no-findings"].status).toBe("skipped");
-      expect(result.steps["revalidate-findings"].status).toBe("skipped");
-      expect(result.steps["record-revalidation"].status).toBe("skipped");
-      expect(result.steps["create-follow-up-tasks"].status).toBe("skipped");
+    it("does not declare runtime recovery as a trigger", () => {
+      expect(securityReviewWorkflow.triggers).not.toContainEqual(
+        expect.objectContaining({ event: "runtime.recovered" }),
+      );
     });
 
     it("accepts due events while retaining the manual request trigger", async () => {

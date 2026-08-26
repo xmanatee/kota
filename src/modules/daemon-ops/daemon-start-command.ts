@@ -77,13 +77,15 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
     await daemon.start();
     return;
   }
+  const daemonRun = daemon.start();
+  await daemon.whenReady();
   const dashboard = new DaemonDashboard(() => ({
     ...daemon.getDashboardSnapshot(),
     taskQueue: getRepoTaskQueueSnapshot(projectDir),
   }));
   dashboard.start();
   try {
-    await daemon.start();
+    await daemonRun;
   } finally {
     dashboard.stop();
   }

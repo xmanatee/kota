@@ -2,19 +2,20 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
+  mutateRepoTask,
+  type RepoTaskMutationTarget,
+} from "./repo-task-mutation-boundary.js";
+import {
   type DaemonTaskStatusResponse,
   getRepoInboxDir,
   getRepoTasksDir,
-  moveTaskById,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
-import { updateTaskBody } from "./repo-tasks-operations.js";
 import { readRouteJsonBody } from "./route-body.js";
 import {
   COUNTED_STATES,
   countMarkdownFiles,
   DETAIL_STATES,
-  findTaskInOpenStates,
   listTaskFiles,
   readStateTasks,
 } from "./route-task-files.js";
@@ -25,7 +26,7 @@ export async function handleTaskStateChange(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -36,20 +37,24 @@ export async function handleTaskStateChange(
     return;
   }
 
-  const tasksDir = getRepoTasksDir(projectDir);
-  const found = findTaskInOpenStates(tasksDir, id);
-  if (!found) {
-    jsonResponse(res, 404, { error: "Task not found" });
-    return;
-  }
-
-  if (found.state === newState) {
-    jsonResponse(res, 200, { id, state: newState });
-    return;
-  }
-
   try {
-    moveTaskById(projectDir, id, newState as RepoTaskState);
+    const result = await mutateRepoTask(target, {
+      kind: "move",
+      id,
+      state: newState as RepoTaskState,
+    });
+    if (!result.ok) {
+      if (result.reason === "not_found") {
+        jsonResponse(res, 404, { error: "Task not found" });
+        return;
+      }
+      if (result.reason === "already_in_state") {
+        jsonResponse(res, 200, { id, state: newState });
+        return;
+      }
+      jsonResponse(res, 400, { error: "Invalid task id" });
+      return;
+    }
     jsonResponse(res, 200, { id, state: newState });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
@@ -60,7 +65,7 @@ export async function handleTaskBodyUpdate(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectDir = process.cwd(),
+  target: RepoTaskMutationTarget,
 ): Promise<void> {
   const body = await readRouteJsonBody(req, res);
   if (body === null) return;
@@ -72,7 +77,11 @@ export async function handleTaskBodyUpdate(
   }
 
   try {
-    const result = updateTaskBody(projectDir, id, bodyText);
+    const result = await mutateRepoTask(target, {
+      kind: "update-body",
+      id,
+      body: bodyText,
+    });
     if (!result.ok) {
       if (result.reason === "terminal") {
         jsonResponse(res, 409, { error: "Task is in a terminal state and cannot be edited" });

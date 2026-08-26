@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Daemon } from "#core/daemon/daemon.js";
 import {
@@ -25,6 +26,28 @@ const RUNTIME_CONFIG = {
   defaultAgentHarness: "claude-agent-sdk",
   model: "ollama/gpt-5.6-sol",
 } as const;
+
+export function initializeRuntimeRoutingProject(projectDir: string): void {
+  mkdirSync(projectDir, { recursive: true });
+  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf-8");
+  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.email=kota@example.test",
+      "-c",
+      "user.name=KOTA Test",
+      "commit",
+      "--quiet",
+      "--no-gpg-sign",
+      "-m",
+      "seed runtime routing fixture",
+    ],
+    { cwd: projectDir },
+  );
+}
 
 export type RuntimeDecision = {
   scopeId: string;
@@ -65,7 +88,8 @@ export async function startRuntimeRoutingScenario(args: {
 }): Promise<RuntimeRoutingScenario> {
   const { rootDir, projectDir, stateDir } = args;
   const projectB = join(rootDir, "project-b");
-  mkdirSync(projectB, { recursive: true });
+  initializeRuntimeRoutingProject(projectDir);
+  initializeRuntimeRoutingProject(projectB);
   const eventBus = initEventBus();
   const loader = await loadRuntimeModules({
     config: RUNTIME_CONFIG,
@@ -78,12 +102,17 @@ export async function startRuntimeRoutingScenario(args: {
       eventBus.listenerCount(event),
     ]),
   );
-  const reviewerWorkflow = loader.getContributedWorkflows().find(
-    (workflow) => workflow.name === "autonomy-health-reviewer",
-  );
-  if (!reviewerWorkflow) {
+  const issueProjectionWorkflowNames = new Set([
+    "autonomy-health-reviewer",
+    "autonomy-health-review-publication",
+    "autonomy-issue-projection-materialization",
+  ]);
+  const issueProjectionWorkflows = loader
+    .getContributedWorkflows()
+    .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name));
+  if (issueProjectionWorkflows.length !== issueProjectionWorkflowNames.size) {
     await loader.unloadAll();
-    throw new Error("runtime modules did not contribute autonomy-health-reviewer");
+    throw new Error("runtime modules did not contribute the autonomy issue publication path");
   }
 
   const healthSignals: ScopedAutonomyHealthSignal[] = [];
@@ -97,7 +126,7 @@ export async function startRuntimeRoutingScenario(args: {
     stateDir,
     idleIntervalMs: 60_000,
     pollIntervalMs: 60_000,
-    workflows: [reviewerWorkflow],
+    workflows: issueProjectionWorkflows,
     channels: [],
     controlRoutes: loader.getContributedControlRoutes(),
     routes: loader.getRoutes(),
@@ -115,16 +144,27 @@ export async function startRuntimeRoutingScenario(args: {
       () => daemon.getHostedScopeCount() === 2,
       "two-scope daemon did not host both runtimes",
     );
-    await waitFor(
-      () => !daemon.hasActiveWorkflow(),
-      "initial production health audits did not settle",
-    );
     const provider = getProviderRegistry()?.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE);
     const runtimeA = provider?.resolve(deriveDirectoryScopeId(projectDir));
     const runtimeB = provider?.resolve(deriveDirectoryScopeId(projectB));
     if (!runtimeA?.ok || !runtimeB?.ok) {
       throw new Error("production daemon did not expose both runtime scopes");
     }
+    await waitFor(
+      () => [runtimeA.runtime, runtimeB.runtime].every((runtime) => {
+        const runs = runtime.runState.listRuns(runtime.project.projectId);
+        return runs.some(
+          (run) =>
+            run.workflow === "autonomy-health-reviewer" &&
+            run.trigger.event === "autonomy.runtime-health.audit.scheduled",
+        ) && runs.every((run) =>
+          run.state !== "queued" &&
+          run.state !== "running" &&
+          run.state !== "integrating"
+        );
+      }),
+      "initial production health audits did not settle",
+    );
     return {
       eventBus,
       projectB,

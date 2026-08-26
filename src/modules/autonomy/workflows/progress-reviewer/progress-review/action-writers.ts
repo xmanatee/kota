@@ -3,10 +3,11 @@ import {
   normalizeGeneratedTaskScalar,
   renderGeneratedTaskProse,
 } from "#modules/autonomy/generated-task-text.js";
-import {
-  type GeneratedWorkProposalAction,
-  materializeGeneratedWorkProposal,
+import type {
+  GeneratedWorkProposal,
+  GeneratedWorkProposalAction,
 } from "#modules/autonomy/generated-work-proposal.js";
+import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-transaction.js";
 import {
   type ClassifiedWorkflowGeneratedTask,
   classifyWorkflowGeneratedTask,
@@ -107,7 +108,7 @@ function buildTaskBody(args: {
   ].join("\n");
 }
 
-function taskActionPath(actions: readonly GeneratedWorkProposalAction[]): string | null {
+function taskActionPath(actions: readonly object[]): string | null {
   return actions.find(
     (action): action is Extract<GeneratedWorkProposalAction, { path: string }> =>
       "path" in action,
@@ -127,24 +128,9 @@ export function writeFollowUpTask(args: {
     title: task.title,
     summary: task.summary,
   });
-  const proposalKey = progressReviewProposalKey(task.topicKey);
-  const result = materializeGeneratedWorkProposal({
+  const result = stageGeneratedWorkProposal({
     projectDir: args.projectDir,
-    proposal: {
-      kind: "task",
-      proposalKey,
-      title: task.title,
-      summary: task.summary,
-      priority: task.priority,
-      area: task.area,
-      taskClass,
-      body: buildTaskBody({ ...args, task, taskClass }),
-      provenance: {
-        source: "progress-reviewer",
-        runId: args.runId,
-        evidenceRefs: task.evidenceIds,
-      },
-    },
+    proposal: progressReviewTaskProposal({ ...args, task, taskClass }),
   });
   const created = result.actions.some((action) => action.kind === "created-task");
   const updated = result.actions.some((action) =>
@@ -178,39 +164,10 @@ export function enqueueOwnerQuestion(args: {
   runId: string;
   question: ProgressReviewOwnerQuestionOutput;
 }): ProgressReviewAppliedAction[] {
-  const proposalKey = progressReviewProposalKey(args.question.topicKey);
-  const result = materializeGeneratedWorkProposal({
+  const result = stageGeneratedWorkProposal({
     projectDir: args.projectDir,
-    proposal: {
-      kind: "owner-question",
-      proposalKey,
-      context:
-        "Progress review cited evidence ids: " +
-        args.question.evidenceIds.join(", "),
-      question: args.question.question,
-      reason: args.question.reason,
-      proposedAnswers: args.question.proposedAnswers ?? [],
-      provenance: {
-        source: "progress-reviewer",
-        runId: args.runId,
-        evidenceRefs: args.question.evidenceIds,
-      },
-      origin: {
-        kind: "workflow",
-        workflowName: "progress-reviewer",
-        runId: args.runId,
-        stepId: "apply-actions",
-        taskId: null,
-      },
-    },
+    proposal: progressReviewOwnerQuestionProposal(args),
   });
-  const created = result.actions.some((action) =>
-    action.kind === "created-owner-question"
-  );
-  const updated = result.actions.some((action) =>
-    action.kind === "updated-owner-question" ||
-    action.kind === "reopened-owner-question"
-  );
   const droppedTasks: ProgressReviewAppliedAction[] = result.actions.flatMap(
     (action) => action.kind === "dropped-task"
       ? [{
@@ -220,17 +177,9 @@ export function enqueueOwnerQuestion(args: {
       }]
       : [],
   );
-  if ((created || updated) && result.ownerQuestionId) {
-    return [...droppedTasks, {
-      kind: created ? "owner-question" : "updated-owner-question",
-      questionId: result.ownerQuestionId,
-      question: args.question.question,
-    }];
-  }
   return [...droppedTasks, {
-    kind: "skipped-owner-question",
+    kind: "owner-question-pending",
     question: args.question.question,
-    reason: "stable generated-work owner question is current",
   }];
 }
 
@@ -238,14 +187,9 @@ export function resolveGeneratedWork(args: {
   projectDir: string;
   resolution: ProgressReviewResolutionOutput;
 }): ProgressReviewAppliedAction[] {
-  const result = materializeGeneratedWorkProposal({
+  const result = stageGeneratedWorkProposal({
     projectDir: args.projectDir,
-    proposal: {
-      kind: "none",
-      proposalKey: progressReviewProposalKey(args.resolution.topicKey),
-      reason: args.resolution.reason,
-      source: "progress-reviewer",
-    },
+    proposal: progressReviewResolutionProposal(args.resolution),
   });
   return result.actions.map((action): ProgressReviewAppliedAction => {
     if (action.kind === "dropped-task") {
@@ -255,10 +199,11 @@ export function resolveGeneratedWork(args: {
         fromState: action.fromState,
       };
     }
-    if (action.kind === "dismissed-owner-question") {
+    if (action.kind === "owner-question-dismissal-pending") {
       return {
-        kind: "dismissed-owner-question",
-        questionId: action.questionId,
+        kind: "owner-question-dismissal-pending",
+        topicKey: args.resolution.topicKey,
+        reason: args.resolution.reason,
       };
     }
     return {
@@ -267,4 +212,73 @@ export function resolveGeneratedWork(args: {
       reason: args.resolution.reason,
     };
   });
+}
+
+export function progressReviewTaskProposal(args: {
+  runId: string;
+  review: ProgressReviewAgentOutput;
+  task: ProgressReviewFollowUpTaskOutput;
+  taskClass?: ClassifiedWorkflowGeneratedTask;
+}): GeneratedWorkProposal {
+  const task = normalizeFollowUpTask(args.task);
+  const taskClass = args.taskClass ?? classifyWorkflowGeneratedTask({
+    workflowName: "progress-reviewer",
+    area: task.area,
+    title: task.title,
+    summary: task.summary,
+  });
+  return {
+    kind: "task",
+    proposalKey: progressReviewProposalKey(task.topicKey),
+    title: task.title,
+    summary: task.summary,
+    priority: task.priority,
+    area: task.area,
+    taskClass,
+    body: buildTaskBody({ ...args, task, taskClass }),
+    provenance: {
+      source: "progress-reviewer",
+      runId: args.runId,
+      evidenceRefs: task.evidenceIds,
+    },
+  };
+}
+
+export function progressReviewOwnerQuestionProposal(args: {
+  runId: string;
+  question: ProgressReviewOwnerQuestionOutput;
+}): GeneratedWorkProposal {
+  return {
+    kind: "owner-question",
+    proposalKey: progressReviewProposalKey(args.question.topicKey),
+    context:
+      "Progress review cited evidence ids: " +
+      args.question.evidenceIds.join(", "),
+    question: args.question.question,
+    reason: args.question.reason,
+    proposedAnswers: args.question.proposedAnswers ?? [],
+    provenance: {
+      source: "progress-reviewer",
+      runId: args.runId,
+      evidenceRefs: args.question.evidenceIds,
+    },
+    origin: {
+      kind: "workflow",
+      workflowName: "progress-reviewer",
+      runId: args.runId,
+      stepId: "apply-actions",
+      taskId: null,
+    },
+  };
+}
+
+export function progressReviewResolutionProposal(
+  resolution: ProgressReviewResolutionOutput,
+): GeneratedWorkProposal {
+  return {
+    kind: "none",
+    proposalKey: progressReviewProposalKey(resolution.topicKey),
+    reason: resolution.reason,
+    source: "progress-reviewer",
+  };
 }

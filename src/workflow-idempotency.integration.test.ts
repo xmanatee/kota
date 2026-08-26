@@ -6,7 +6,9 @@ import { installEventIdempotency } from "#core/daemon/idempotency-events.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { WorkflowRuntime } from "#core/workflow/runtime.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { WorkflowRuntime, type WorkflowRuntimeConfig } from "#core/workflow/runtime.js";
 import { type InboundSignalReceivedPayload, inboundSignalReceived } from "#modules/inbound-signals/events.js";
 
 function wait(ms: number): Promise<void> {
@@ -61,11 +63,46 @@ function inboundPayload(receivedAt: string): InboundSignalReceivedPayload {
 describe("workflow idempotency integration", () => {
   const projectDirs: string[] = [];
   const runtimes: WorkflowRuntime[] = [];
+  const runStates: RunStateDatabase[] = [];
+
+  function createRuntime(
+    config: Omit<
+      WorkflowRuntimeConfig,
+      "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
+    > & { projectDir: string },
+  ): WorkflowRuntime {
+    const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
+    runStates.push(runState);
+    const projectId = "scope-a";
+    runState.registerProject({
+      id: projectId,
+      rootPath: config.projectDir,
+      createdAt: "2026-08-25T10:00:00.000Z",
+    });
+    const daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
+    let runtime!: WorkflowRuntime;
+    const runCoordinator = new RunCoordinator({
+      store: runState,
+      daemonEpoch,
+      concurrency: 1,
+      execute: (run, signal) => runtime.executeAdmittedRun(run, signal),
+      deliverPublication: (publication) => runtime.deliverPublication(publication),
+    });
+    runtime = new WorkflowRuntime({
+      ...config,
+      projectId,
+      runState,
+      runCoordinator,
+      daemonEpoch,
+    });
+    return runtime;
+  }
 
   afterEach(async () => {
     for (const runtime of runtimes.splice(0).reverse()) {
       await runtime.stop(0);
     }
+    for (const runState of runStates.splice(0)) runState.close();
     for (const projectDir of projectDirs.splice(0)) {
       rmSync(projectDir, { recursive: true, force: true });
     }
@@ -86,7 +123,7 @@ describe("workflow idempotency integration", () => {
     });
 
     const processed: string[] = [];
-    const runtime = new WorkflowRuntime({
+    const runtime = createRuntime({
       bus,
       pbus,
       projectDir,
@@ -98,7 +135,7 @@ describe("workflow idempotency integration", () => {
           definitionPath: "src/workflow-idempotency.integration.test.ts",
           moduleRoot: process.cwd(),
           enabled: true,
-          recoveryCapable: false,
+          repository: "none",
           tags: [],
           triggers: [{ event: inboundSignalReceived.name, cooldownMs: 0 }],
           steps: [
@@ -134,6 +171,5 @@ describe("workflow idempotency integration", () => {
         duplicateCount: 1,
       },
     ]);
-    expect(idempotencyStore.list({ operation: "workflow-dispatch" })).toHaveLength(1);
   });
 });

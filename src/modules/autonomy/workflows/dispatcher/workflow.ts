@@ -1,31 +1,32 @@
+import { isDeepStrictEqual } from "node:util";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import {
-  isThinClaimAwareDispatchableQueue,
-} from "#modules/autonomy/queue-availability.js";
-import {
-  BUILDER_RECOVERY_EVENT,
-  emitBuilderRecoveryRequest,
-} from "../builder/recovery-continuation.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import {
   scopeImprovementChanged,
   scopeImprovementRequested,
 } from "../scope-improver/events.js";
-import { SECURITY_REVIEW_DUE_EVENT } from "../security-review/due-check.js";
+import {
+  decodeScopeImprovementState,
+  SCOPE_IMPROVEMENT_STATE_KEY,
+} from "../scope-improver/scope-improvement-state.js";
+import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
+import {
+  collectSecurityReviewGitEvidence,
+  SECURITY_REVIEW_DUE_EVENT,
+} from "../security-review/due-check.js";
 import { dispatcherInspectionOperation } from "./inspection.js";
 import {
-  recordProgressSemanticBoundaryQueued,
-  recordScopeSemanticBoundaryQueued,
+  inspectProgressSemanticBoundary,
+  PROGRESS_BOUNDARY_STATE_KEY,
+  type ProgressBoundaryState,
 } from "./semantic-reflection.js";
 
-// Not recovery-capable: dispatcher only reads repo state and emits events — it
-// never mutates tracked files, so it cannot leave dirt to heal and cannot help
-// clean dirt left by others. Recovery dispatch is handled by the worktree-
-// mutating workflows (builder, inbox-sorter, decomposer, explorer, improver).
 const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",
   description:
     "Assess repo state on idle and emit condition-based events for other autonomy workflows.",
+  repository: "read",
   triggers: [
     {
       event: "runtime.idle",
@@ -36,60 +37,98 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
     {
       id: "assess-and-dispatch",
       type: "code",
-      run: async ({ projectDir, emit, runBlocking, scopePolicySnapshot }) => {
+      run: async ({
+        projectDir,
+        scopeDir,
+        stateDir,
+        state,
+        emit,
+        runBlocking,
+        runCommand,
+        scopePolicySnapshot,
+      }) => {
+        const progressState = state.read<ProgressBoundaryState>(
+          PROGRESS_BOUNDARY_STATE_KEY,
+        );
+        const scopeState = state.read<ScopeImprovementState>(
+          SCOPE_IMPROVEMENT_STATE_KEY,
+        );
+        const scopeImprovementState = decodeScopeImprovementState(
+          scopeState.value,
+          deriveDirectoryScopeId(scopeDir),
+        );
+        const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
+          projectDir,
+          stateDir,
+          runCommand,
+        });
+        const [inspection, progressBoundary] = await Promise.all([
+          runBlocking(dispatcherInspectionOperation, {
+            projectDir,
+            stateDir,
+            nowIso: new Date().toISOString(),
+            scopePolicySnapshot: scopePolicySnapshot ?? null,
+            scopeImprovementState,
+            securityReviewGitEvidence,
+          }),
+          inspectProgressSemanticBoundary({
+            projectDir,
+            scopeDir,
+            stateDir,
+            progressBoundaryState: progressState.value,
+            runCommand,
+          }),
+        ]);
         const {
           queue,
           promotionRationale,
           researchRetryAvailability,
           securityReviewDue,
-          progressBoundary,
           scopeBoundary,
-          builderRecovery,
-        } = await runBlocking(dispatcherInspectionOperation, {
-          projectDir,
-          nowIso: new Date().toISOString(),
-          scopePolicySnapshot: scopePolicySnapshot ?? null,
-        });
+          builderTasks,
+        } = inspection;
+        if (
+          progressBoundary.nextState !== null &&
+          !isDeepStrictEqual(progressBoundary.nextState, progressState.value)
+        ) {
+          state.compareAndSet(
+            PROGRESS_BOUNDARY_STATE_KEY,
+            progressState.revision,
+            progressBoundary.nextState,
+          );
+        }
         const scopeBoundaryEvent = !scopeBoundary.shouldEmit || !scopeBoundary.payload
           ? null
           : scopeBoundary.payload.boundary === "initial-onboarding"
             ? scopeImprovementRequested.name
             : scopeImprovementChanged.name;
-        for (const request of builderRecovery.requested) {
-          emitBuilderRecoveryRequest(emit, request);
-        }
         const queueBlocked =
           !queue.hasDispatchableWork &&
-          (queue.dependencyBlockedTasks.length > 0 ||
-            queue.claimBlockedTasks.length > 0);
+          queue.dependencyBlockedTasks.length > 0;
         const queueEmpty = !queue.hasDispatchableWork && !queueBlocked;
         // Builder runs only on actionable (ready+doing) work; backlog-only queues
         // route through `autonomy.queue.needs-promotion` only when the canonical
         // task snapshot says at least one backlog task can actually be promoted.
         // Strategic anchors, blocked tails, and Meta tasks missing a
         // Product/Safety link are open records, not dispatchable work.
-        const recoveryRequested = builderRecovery.requested.length > 0;
         const queueNeedsPromotion =
-          !recoveryRequested && promotionRationale.selected.length > 0;
+          promotionRationale.selected.length > 0;
         const queueActionable =
-          !recoveryRequested && !queueNeedsPromotion && queue.actionableCount > 0;
+          !queueNeedsPromotion && builderTasks.length > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
+        const dispatchableTailCount =
+          queue.actionableCount + queue.promotableBacklogCount;
         const queueThin =
-          !recoveryRequested && isThinClaimAwareDispatchableQueue(queue);
+          queue.inboxCount === 0 &&
+          dispatchableTailCount > 0 &&
+          dispatchableTailCount <= 2;
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
         }
         if (queueActionable) {
-          emit("autonomy.queue.available", {
-            pullableCount: queue.pullableCount,
-            actionableCount: queue.actionableCount,
-            dispatchableCount: queue.dispatchableCount,
-            counts: queue.counts,
-            dependencyBlockedTasks: queue.dependencyBlockedTasks,
-            claimBlockedTasks: queue.claimBlockedTasks,
-          });
+          for (const task of builderTasks) emit("autonomy.queue.available", task);
         }
         if (queueNeedsPromotion) {
           emit("autonomy.queue.needs-promotion", {
@@ -98,14 +137,12 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             dispatchableCount: queue.dispatchableCount,
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
-            claimBlockedTasks: queue.claimBlockedTasks,
           });
         }
         if (queueEmpty) {
           emit("autonomy.queue.empty", {
             counts: queue.counts,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
-            claimBlockedTasks: queue.claimBlockedTasks,
           });
         }
         if (blockedResearchAttemptable) {
@@ -119,18 +156,24 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           emit(SECURITY_REVIEW_DUE_EVENT, securityReviewDue);
         }
         if (progressBoundary.shouldEmit && progressBoundary.payload) {
-          recordProgressSemanticBoundaryQueued({
-            projectDir,
-            payload: progressBoundary.payload,
+          emit(automaticProgressReviewRequested.name, progressBoundary.payload, {
+            delivery: "on-run-success",
+            stepId: "assess-and-dispatch:progress-review",
           });
-          emit(automaticProgressReviewRequested.name, progressBoundary.payload);
         }
         if (scopeBoundary.shouldEmit && scopeBoundary.payload) {
-          recordScopeSemanticBoundaryQueued({
-            projectDir,
-            payload: scopeBoundary.payload,
+          if (scopeBoundary.nextState === null) {
+            throw new Error("scope boundary emission requires a staged state transition");
+          }
+          state.compareAndSet(
+            SCOPE_IMPROVEMENT_STATE_KEY,
+            scopeState.revision,
+            scopeBoundary.nextState,
+          );
+          emit(scopeBoundaryEvent!, scopeBoundary.payload, {
+            delivery: "on-run-success",
+            stepId: "assess-and-dispatch:scope-improvement",
           });
-          emit(scopeBoundaryEvent!, scopeBoundary.payload);
         }
         if (queueThin) {
           emit("autonomy.queue.thin", {
@@ -138,20 +181,18 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             promotableBacklogCount: queue.promotableBacklogCount,
             dispatchableCount: queue.dispatchableCount,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
-            claimBlockedTasks: queue.claimBlockedTasks,
             counts: queue.counts,
           });
         }
         const emitted = [
           queue.inboxCount > 0 && "autonomy.inbox.available",
-          queueActionable && "autonomy.queue.available",
+          ...builderTasks.map(() => queueActionable && "autonomy.queue.available"),
           queueNeedsPromotion && "autonomy.queue.needs-promotion",
           queueEmpty && "autonomy.queue.empty",
           blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
           securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
           progressBoundary.shouldEmit && automaticProgressReviewRequested.name,
           scopeBoundaryEvent,
-          builderRecovery.requested.length > 0 && BUILDER_RECOVERY_EVENT,
           queueThin && "autonomy.queue.thin",
         ].filter((event): event is string => Boolean(event));
         const quiescent = emitted.length === 0;
@@ -162,13 +203,11 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           actionableCount: queue.actionableCount,
           dispatchableCount: queue.dispatchableCount,
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
-          claimBlockedTasks: queue.claimBlockedTasks,
+          builderTaskIds: builderTasks.map((task) => task.taskId),
           promotableBacklogCount: queue.promotableBacklogCount,
           promotionFrontier: promotionRationale.frontier,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
-          builderRecoveryCandidateCount: builderRecovery.candidateCount,
-          builderRecoveryRequested: builderRecovery.requested,
           securityReviewDue,
           progressBoundary: {
             shouldEmit: progressBoundary.shouldEmit,
@@ -185,7 +224,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           quiescent,
           quiescentReason: quiescent
             ? queueBlocked
-              ? "work is dependency- or claim-blocked"
+              ? "work is dependency-blocked"
               : "no autonomy routing condition matched"
             : null,
         };

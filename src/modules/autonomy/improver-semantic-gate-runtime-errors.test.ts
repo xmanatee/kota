@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +25,6 @@ const mockResolveAgentHarness = vi.hoisted(() =>
 const mockCreateWorkflowAgentGuards = vi.hoisted(
   () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
 );
-const mockExecFileSync = vi.hoisted(() => vi.fn());
 const mockRunBlocking = vi.fn(
   async (
     operation: { exportName: string },
@@ -49,20 +49,19 @@ vi.mock("#core/agent-harness/index.js", async () => {
   };
 });
 
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual("node:child_process");
-  return {
-    ...actual,
-    execFileSync: mockExecFileSync,
-  };
-});
-
 function makeTmpDir(): string {
   const dir = join(
     tmpdir(),
     `kota-gate-errors-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
   mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
+  writeFileSync(join(dir, "seed.txt"), "seed\n");
+  execFileSync("git", ["init", "--quiet"], { cwd: dir });
+  execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: dir });
+  execFileSync("git", ["add", ".gitignore", "seed.txt"], { cwd: dir });
+  execFileSync("git", ["commit", "--quiet", "-m", "seed"], { cwd: dir });
   return dir;
 }
 
@@ -75,7 +74,7 @@ function makeContext(projectDir: string, runDirPath: string) {
       runDirPath,
       definitionPath: "src/modules/autonomy/workflows/improver/workflow.ts",
     },
-    trigger: { event: "workflow.build.committed", payload: {} },
+    trigger: { event: "autonomy.issue.decision-requested", payload: {} },
     stepOutputs: {},
     stepResults: {},
     runBlocking: mockRunBlocking,
@@ -89,13 +88,9 @@ function makeContext(projectDir: string, runDirPath: string) {
   } as never;
 }
 
-function prepareStagedChangeMock(): void {
-  mockExecFileSync.mockImplementation((_cmd: string, args?: readonly string[]) => {
-    const argStr = Array.isArray(args) ? args.join(" ") : "";
-    if (argStr.includes("--name-only")) return "file.ts\n";
-    if (argStr.includes("--stat")) return " file.ts | 1 +\n";
-    return "diff\n";
-  });
+function prepareStagedChange(projectDir: string): void {
+  writeFileSync(join(projectDir, "file.ts"), "export const changed = true;\n");
+  execFileSync("git", ["add", "file.ts"], { cwd: projectDir });
 }
 
 type CodeCheck = {
@@ -115,7 +110,7 @@ describe("createImproverSemanticCheck runtime errors", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-    prepareStagedChangeMock();
+    prepareStagedChange(dir);
 
     mockRunAgentHarness.mockResolvedValue({
       text: "Claude Code returned an error result: API Error: 500 internal",
@@ -140,7 +135,7 @@ describe("createImproverSemanticCheck runtime errors", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-    prepareStagedChangeMock();
+    prepareStagedChange(dir);
 
     mockRunAgentHarness.mockResolvedValue({
       text: "",
@@ -164,7 +159,7 @@ describe("createImproverSemanticCheck runtime errors", () => {
     const runDir = join(dir, ".kota/runs/test-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "commit-message.txt"), "Some change");
-    prepareStagedChangeMock();
+    prepareStagedChange(dir);
 
     mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: something truly unexpected"),

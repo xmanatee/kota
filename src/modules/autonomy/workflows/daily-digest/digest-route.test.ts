@@ -8,10 +8,7 @@ import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { buildRequestHandler } from "#core/server/server-routes.js";
 import { SessionPool } from "#core/server/session-pool.js";
 import { digestRoutes } from "./digest-route.js";
-import {
-  DAILY_DIGEST_STATE_FILENAME,
-  renderOnDemandDigest,
-} from "./on-demand.js";
+import { renderOnDemandDigest } from "./on-demand.js";
 
 vi.mock("#core/daemon/owner-question-queue.js", async () => {
   const actual =
@@ -93,7 +90,11 @@ describe("GET /api/digest", () => {
 
   it("returns the same body and structured payload renderOnDemandDigest produces", async () => {
     const windowEndMs = Date.parse("2026-04-26T03:30:00.000Z");
-    const expected = renderOnDemandDigest({ projectDir, windowEndMs });
+    const expected = renderOnDemandDigest({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+      windowEndMs,
+    });
 
     const res = await fetch(`${baseUrl}/api/digest?windowEndMs=${windowEndMs}`, {
       headers: { Authorization: `Bearer ${TOKEN}` },
@@ -106,16 +107,16 @@ describe("GET /api/digest", () => {
     expect(body.data.quiet).toBe(true);
   });
 
-  it("does not write the cadence snapshot or emit workflow.daily.digest", async () => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    expect(existsSync(statePath)).toBe(false);
+  it("does not create cadence state or emit workflow.daily.digest", async () => {
+    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    expect(existsSync(databasePath)).toBe(false);
 
     const res = await fetch(`${baseUrl}/api/digest`, {
       headers: { Authorization: `Bearer ${TOKEN}` },
     });
     expect(res.status).toBe(200);
 
-    expect(existsSync(statePath)).toBe(false);
+    expect(existsSync(databasePath)).toBe(false);
     expect(observed).toEqual([]);
   });
 

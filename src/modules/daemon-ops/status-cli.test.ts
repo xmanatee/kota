@@ -2,12 +2,22 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writ
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import {
+  buildStatusCommand,
   classifyDaemonControlFile,
   formatStatusOutput,
   resolveDashboardForStatus,
   type StatusSnapshot,
 } from "./status-cli.js";
+
+function emptyRunProjection(projectDir: string): StatusSnapshot["runProjection"] {
+  return {
+    available: true,
+    databasePath: join(projectDir, ".kota", "kota.sqlite"),
+    runs: [],
+  };
+}
 
 function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   return {
@@ -20,6 +30,7 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     projectDir: "/Users/op/Desktop/mono/apps/kota",
     projectName: "kota",
     controlFile: { kind: "missing" },
+    runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
     ...overrides,
   };
 }
@@ -77,30 +88,25 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("1 interactive");
   });
 
-  it("does not render live dispatch or live run counts while offline", () => {
+  it("renders durable run counts while dispatch is offline", () => {
     const out = formatStatusOutput(makeSnap({
       activeRuns: 2,
       queuedRuns: 3,
-      historicalWorkflow: {
-        activeRuns: 2,
-        queuedRuns: 3,
-        workflowPaused: true,
-      },
+      workflowPaused: true,
     }));
     expect(out).toContain("Dispatch");
     expect(out).toContain("offline");
     expect(out).not.toContain("Dispatch  running");
     expect(out).toContain("Runs");
-    expect(out).toContain("live run state unavailable");
-    expect(out).toContain("Historical run store");
-    expect(out).toContain("2 active, 3 queued from offline files");
+    expect(out).toContain("2 active, 3 queued");
+    expect(out).toContain("durable database");
     expect(out).toContain("pause signal present");
   });
 
   it("can explain whether status came from the daemon or local offline files", () => {
     const offline = formatStatusOutput(makeSnap(), { explain: true });
     expect(offline).toContain("Runtime source");
-    expect(offline).toContain("local files only");
+    expect(offline).toContain("durable run database and local files");
 
     const running = formatStatusOutput(
       makeSnap({
@@ -162,21 +168,6 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("Stranded daemon");
     expect(out).toContain("pid 4242");
     expect(out).toContain("no control API");
-  });
-
-  it("shows pending dirty-worktree recovery while the daemon is offline", () => {
-    const out = formatStatusOutput(makeSnap({
-      pendingRecovery: {
-        sourceWorkflow: "progress-reviewer",
-        sourceRunId: "2026-06-25T02-37-35-003Z-progress-reviewer-yow6wq",
-        worktreeSummary: "R data/tasks/backlog/task-a.md -> data/tasks/ready/task-a.md",
-        attempts: 0,
-      },
-    }));
-    expect(out).toContain("Pending recovery");
-    expect(out).toContain("progress-reviewer");
-    expect(out).toContain("dirty worktree");
-    expect(out).toContain("task-a.md");
   });
 
   it("reports a stale control file with the doctor hint and base URL", () => {
@@ -309,6 +300,14 @@ describe("formatStatusOutput", () => {
   });
 });
 
+describe("buildStatusCommand", () => {
+  it("does not expose removed-worktree compatibility flags", () => {
+    const command = buildStatusCommand({} as ModuleContext);
+
+    expect(command.options.map((option) => option.long)).not.toContain("--all-worktrees");
+  });
+});
+
 describe("resolveDashboardForStatus", () => {
   it("joins the daemon base URL with the advertised relative path", () => {
     expect(
@@ -410,6 +409,7 @@ describe("kota status — rendered transcript", () => {
           daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
           daemonProjectName: "kota",
           dashboard: { available: true, url: "http://127.0.0.1:8765/" },
+          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
       {
@@ -424,30 +424,22 @@ describe("kota status — rendered transcript", () => {
           projectDir: "/Users/op/Desktop/other-project",
           projectName: "other-project",
           controlFile: { kind: "missing" },
-          historicalWorkflow: {
-            activeRuns: 0,
-            queuedRuns: 0,
-            workflowPaused: false,
-          },
+          runProjection: emptyRunProjection("/Users/op/Desktop/other-project"),
         },
       },
       {
         label: "3. Stale control file — pid 99999 not alive",
         snap: {
           daemonRunning: false,
-          activeRuns: 0,
-          queuedRuns: 0,
-          workflowPaused: false,
+          activeRuns: 1,
+          queuedRuns: 2,
+          workflowPaused: true,
           sessions: 0,
           pendingApprovals: 0,
           projectDir: "/Users/op/Desktop/mono/apps/kota",
           projectName: "kota",
           controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
-          historicalWorkflow: {
-            activeRuns: 1,
-            queuedRuns: 2,
-            workflowPaused: true,
-          },
+          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
       {
@@ -468,6 +460,7 @@ describe("kota status — rendered transcript", () => {
           daemonProjectName: "kota",
           wrongProject: true,
           dashboard: { available: true, url: "http://127.0.0.1:8765/" },
+          runProjection: emptyRunProjection("/Users/op/Desktop/other-project"),
         },
       },
       {
@@ -491,6 +484,7 @@ describe("kota status — rendered transcript", () => {
             reason: "web_ui_not_built",
             message: "Run `pnpm --filter @kota/web build`.",
           },
+          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
       {
@@ -513,6 +507,7 @@ describe("kota status — rendered transcript", () => {
             available: true,
             url: "http://localhost:3000/",
           },
+          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
     ];

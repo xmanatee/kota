@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type {
   ScopePolicySnapshot,
 } from "#core/daemon/scope-policy.js";
@@ -6,6 +7,9 @@ import type {
   WorkflowBlockingOperation,
   WorkflowBlockingOperationHandler,
 } from "#core/workflow/blocking-operation.js";
+import type {
+  TransactionalRunState,
+} from "#core/workflow/run-context.js";
 import type {
   WorkflowRuntimeResources,
   WorkflowRuntimeState,
@@ -17,6 +21,7 @@ import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js"
 import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { unexpectedWorkflowAgentHarnessRun } from "./agent-harness-runner.js";
 import type {
   HarnessObjectValue,
@@ -29,6 +34,7 @@ import {
   BRANCH_ARM_NOT_TAKEN,
   makeStepResult,
 } from "./results.js";
+import { createTestTransactionalRunState } from "./run-context-fixture.js";
 
 async function runBlockingOperationInProcess<TInput, TOutput>(
   operation: WorkflowBlockingOperation<TInput, TOutput>,
@@ -80,6 +86,7 @@ export class HarnessExecutionState {
   readonly stepResultsById: Record<string, WorkflowStepResult> = {};
   readonly stepOutputList: HarnessOutputValue[] = [];
   readonly allStepResults: Record<string, HarnessStepResult> = {};
+  readonly transactionalState: TransactionalRunState;
 
   workspaceDir: string;
   runtimeResources: WorkflowRuntimeResources | undefined;
@@ -102,6 +109,8 @@ export class HarnessExecutionState {
     this.trigger = input.trigger;
     this.stepMocks = options.stepMocks ?? {};
     this.runParallel = options.parallel ?? false;
+    this.transactionalState =
+      options.contextOverrides?.state ?? createTestTransactionalRunState();
   }
 
   buildContext(overrides: BuildContextOverrides = {}): WorkflowCodeStepContext {
@@ -111,14 +120,15 @@ export class HarnessExecutionState {
         : undefined;
     const runtimeState: WorkflowRuntimeState = {
       completedRuns: this.options.runtimeState?.completedRuns ?? 0,
-      pendingRuns: this.options.runtimeState?.pendingRuns ?? [],
       workflows: this.options.runtimeState?.workflows ?? {},
     };
 
     return {
-      projectDir: this.projectDir,
+      projectDir: this.workspaceDir,
+      scopeDir: this.projectDir,
+      stateDir: join(this.projectDir, ".kota"),
+      state: this.transactionalState,
       agentRuntime: resolveAgentRuntime(undefined),
-      workspaceDir: this.workspaceDir,
       ...(this.runtimeResources !== undefined
         ? { runtimeResources: this.runtimeResources }
         : {}),
@@ -139,6 +149,14 @@ export class HarnessExecutionState {
       stepOutputList: overrides.stepOutputList ?? [...this.stepOutputList],
       ...(overrides.foreach !== undefined ? { foreach: overrides.foreach } : {}),
       runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+      runCommand:
+        this.options.contextOverrides?.runCommand ??
+        createWorkflowCommandRunner({
+          cwd: this.workspaceDir,
+          ...(this.runtimeResources !== undefined
+            ? { env: this.runtimeResources.env }
+            : {}),
+        }),
       runTool:
         this.options.contextOverrides?.runTool ??
         (() => {

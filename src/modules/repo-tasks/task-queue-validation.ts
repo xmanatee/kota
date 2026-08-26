@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import {
@@ -6,7 +5,6 @@ import {
   ROOT_ENTRYPOINT_SOURCES,
 } from "#core/root-layout.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import {
   parseBlockedPrecondition,
   readOperatorCaptureInstructedMarker,
@@ -27,7 +25,6 @@ import {
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
   REPO_TASK_STATES,
-  REPO_TASKS_DIR,
   type RepoTaskFullRecord,
   type RepoTaskState,
   TASK_INITIATIVE_PLACEHOLDER,
@@ -629,48 +626,6 @@ export function formatTaskQueueValidationSummary(
   ].join("\n");
 }
 
-function readTaskGitStatus(projectDir: string): {
-  untracked: string[];
-  deleted: string[];
-} {
-  try {
-    const output = execFileSync(
-      "git",
-      ["status", "--porcelain=v1", "--untracked-files=all", "--", REPO_TASKS_DIR],
-      {
-        cwd: projectDir,
-        env: withProtectedGitBareRepositoryEnv(),
-        encoding: "utf8",
-      },
-    );
-    const untracked: string[] = [];
-    const deleted: string[] = [];
-    for (const line of output.split("\n")) {
-      if (!line.trim()) continue;
-      const status = line.slice(0, 2);
-      const rawPath = line.slice(3).trim();
-      const path = rawPath.includes(" -> ") ? rawPath.split(" -> ")[1] : rawPath;
-      if (!path.endsWith(".md") || path.endsWith("/AGENTS.md")) {
-        continue;
-      }
-      if (status === "??") {
-        untracked.push(path);
-        continue;
-      }
-      if (status[1] === "D") {
-        deleted.push(path);
-      }
-    }
-    return { untracked, deleted };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      untracked: [`git-status-unavailable: ${message}`],
-      deleted: [],
-    };
-  }
-}
-
 function formatFindingList(findings: TaskQueueValidationFinding[]): string {
   return findings
     .map((finding) => `- [${finding.code}] ${finding.message}`)
@@ -1181,37 +1136,6 @@ export function validateTaskQueue(
       severity: "warning",
       message: `data/tasks/backlog contains ${counts.backlog} tasks; recommended minimum is ${options.recommendedMinBacklog}`,
     });
-  }
-
-  const gitStatus = readTaskGitStatus(projectDir);
-  const gitStatusUnavailable = gitStatus.untracked.find((value) =>
-    value.startsWith("git-status-unavailable: "),
-  );
-  if (gitStatusUnavailable) {
-    findings.push({
-      code: "git-status-unavailable",
-      severity: "error",
-      message: gitStatusUnavailable.replace(/^git-status-unavailable:\s*/, ""),
-    });
-  } else {
-    if (gitStatus.untracked.length > 0) {
-      findings.push({
-        code: "task-untracked",
-        severity: "error",
-        message: `Task files must be tracked before a run finishes: ${gitStatus.untracked.join(", ")}. ` +
-          `Fix: run \`git add ${gitStatus.untracked.join(" ")}\``,
-        paths: gitStatus.untracked,
-      });
-    }
-    if (gitStatus.deleted.length > 0) {
-      findings.push({
-        code: "task-deleted-unstaged",
-        severity: "error",
-        message: `Task file deletions must be staged: ${gitStatus.deleted.join(", ")}. ` +
-          `Fix: run \`git add ${gitStatus.deleted.join(" ")}\``,
-        paths: gitStatus.deleted,
-      });
-    }
   }
 
   const npmGuidancePaths = findNpmPackageManagerGuidance(projectDir);

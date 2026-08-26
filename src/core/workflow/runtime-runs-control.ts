@@ -5,46 +5,27 @@ import {
 import { buildOperatorQueuedRun, type WorkflowEnqueueOptions } from "./operator-trigger.js";
 import { formatRunId } from "./run-io.js";
 import { maybeStartNext, type WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
-import {
-  claimWorkflowDispatchIdempotency,
-  completeWorkflowDispatchIdempotency,
-  replayWorkflowDispatchIdempotency,
-} from "./runtime-webhook-idempotency.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
 
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
 
-function hasActiveWorkflow(
-  state: WorkflowRuntimeRunsControlState,
-  workflowName: string,
-): boolean {
-  for (const run of state.activeRuns.values()) {
-    if (run.workflowName === workflowName) return true;
-  }
-  return false;
-}
-
 export function abortActiveRuns(state: WorkflowRuntimeRunsControlState): { aborted: number } {
-  const count = state.activeRuns.size;
-  for (const { abortController } of state.activeRuns.values()) {
-    abortController.abort();
-  }
-  return { aborted: count };
+  return {
+    aborted: state.runCoordinator.cancelProject(state.runtimeConfig.projectId),
+  };
 }
 
 export function abortActiveRun(
   state: WorkflowRuntimeRunsControlState,
   runId: string,
 ): { ok: boolean; notFound?: boolean; queued?: boolean } {
-  const runtimeState = state.store.readState();
-  const activeEntry = (runtimeState.activeRuns ?? []).find((r) => r.runId === runId);
-  if (activeEntry) {
-    const inMemory = state.activeRuns.get(runId);
-    if (inMemory) {
-      inMemory.abortController.abort();
-      return { ok: true };
-    }
+  if (
+    state.runCoordinator
+      .activeRunIdsForProject(state.runtimeConfig.projectId)
+      .includes(runId)
+  ) {
+    return state.runCoordinator.cancel(runId) ? { ok: true } : { ok: false, notFound: true };
   }
   const isQueued = state.wfQueue.getRuns().some((r) => r.runId === runId);
   if (isQueued) return { ok: false, queued: true };
@@ -65,8 +46,10 @@ export function enqueuePendingRun(
   const definition = state.definitions.find((d) => d.name === name);
   if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
   if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
-  const runtimeState = state.store.readState();
-  if (runtimeState.pendingRuns.some((r) => r.workflowName === name)) {
+  if (
+    options.runId === undefined &&
+    state.wfQueue.getRuns().some((r) => r.workflowName === name)
+  ) {
     return { ok: false, alreadyQueued: true };
   }
   const queuedRun = buildOperatorQueuedRun(name, options);
@@ -93,44 +76,21 @@ export function enqueueWebhookRun(
     schemaRef: null,
     payload: { ...webhookPayload, _runId: runId },
   };
-  const replayedRunId = replayWorkflowDispatchIdempotency(
-    state.idempotencyStore,
-    name,
-    trigger,
-  );
-  if (replayedRunId !== null) return { ok: true, runId: replayedRunId };
-  if (hasActiveWorkflow(state, name)) return { ok: false, alreadyRunning: true };
-  const idempotency = claimWorkflowDispatchIdempotency(
-    state.idempotencyStore,
-    name,
-    trigger,
-  );
-  if (idempotency.status === "replayed") return { ok: true, runId: idempotency.runId };
-  if (idempotency.status === "ignored") {
-    return { ok: false, alreadyRunning: true, error: idempotency.error };
-  }
-  if (idempotency.status === "expired" || idempotency.status === "rejected") {
-    return { ok: false, error: idempotency.error };
-  }
-  state.wfQueue.appendRun({
+  const disposition = state.wfQueue.appendRun({
     runId,
     workflowName: name,
     trigger,
     enqueuedAtMs: now,
     notBeforeMs: now,
   });
-  if (idempotency.reservation) {
-    completeWorkflowDispatchIdempotency(
-      state.idempotencyStore,
-      idempotency.reservation,
-      name,
-      runId,
-      trigger.event,
-      now,
-    );
+  if (disposition === null) {
+    return {
+      ok: false,
+      error: `Workflow "${name}" could not be admitted because its durable resources or dispatch identity conflict`,
+    };
   }
   maybeStartNext(state);
-  return { ok: true, runId };
+  return { ok: true, runId: disposition.runId };
 }
 
 export function cancelQueuedRun(
@@ -139,8 +99,9 @@ export function cancelQueuedRun(
 ): { ok: boolean; notFound?: boolean; active?: boolean } {
   const { cancelled } = state.wfQueue.cancel(runId);
   if (cancelled) return { ok: true };
-  const runtimeState = state.store.readState();
-  const isActive = (runtimeState.activeRuns ?? []).some((r) => r.runId === runId);
+  const isActive = state.runCoordinator
+    .activeRunIdsForProject(state.runtimeConfig.projectId)
+    .includes(runId);
   if (isActive) return { ok: false, active: true };
   return { ok: false, notFound: true };
 }
@@ -152,7 +113,7 @@ export function redriveDeadLetter(
   target: "original" | "simulation",
 ): {
   ok: boolean;
-  reason?: "not_found" | "not_redrivable" | "unknown_workflow";
+  reason?: "not_found" | "not_redrivable" | "unknown_workflow" | "admission_rejected";
   runId?: string;
   workflowName?: string;
   event?: string;
@@ -213,24 +174,41 @@ export function redriveDeadLetter(
       });
       return { ok: false, reason: "not_redrivable" };
     }
-    state.wfQueue.appendRun({
+    const disposition = state.wfQueue.appendRun({
       runId,
       workflowName: redrive.workflowName,
       trigger: resolved.value,
       enqueuedAtMs: now,
       notBeforeMs: now,
     });
+    if (disposition === null || disposition.status === "duplicate") {
+      store.recordRedriveAttempt(id, {
+        target,
+        reason,
+        result: {
+          status: "failed",
+          message: disposition === null
+            ? "workflow redrive admission was rejected"
+            : `workflow redrive resolved to existing run "${disposition.runId}"`,
+        },
+      });
+      return { ok: false, reason: "admission_rejected" };
+    }
     store.recordRedriveAttempt(id, {
       target,
       reason,
       result: {
         status: "queued",
-        runId,
+        runId: disposition.runId,
         workflowName: redrive.workflowName,
       },
     });
     maybeStartNext(state);
-    return { ok: true, runId, workflowName: redrive.workflowName };
+    return {
+      ok: true,
+      runId: disposition.runId,
+      workflowName: redrive.workflowName,
+    };
   }
   if (item.redrive.kind === "event") {
     const resolved = buildDeadLetterEventEnvelope(item, item.redrive, {

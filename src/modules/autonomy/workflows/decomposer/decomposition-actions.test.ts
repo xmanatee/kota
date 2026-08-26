@@ -38,16 +38,10 @@ function plan(): DecompositionPlan {
   return {
     rationale: "Separate authority revision from harness cancellation.",
     subtasks: [
-      {
-        ...base,
-        title: "Resolve current authority at hosted tool boundaries",
-        reuseTaskId: null,
-        dependsOn: [],
-      },
+      { ...base, title: "Resolve current authority at hosted tool boundaries", dependsOn: [] },
       {
         ...base,
         title: "Cancel opaque harnesses after authority revocation",
-        reuseTaskId: null,
         dependsOn: [0],
       },
     ],
@@ -101,10 +95,6 @@ describe("applyDecompositionPlan", () => {
       "task-resolve-current-authority-at-hosted-tool-boundarie",
       "task-cancel-opaque-harnesses-after-authority-revocation",
     ]);
-    expect(result.mutatedTaskPaths).toEqual([
-      "data/tasks/ready/task-resolve-current-authority-at-hosted-tool-boundarie.md",
-      "data/tasks/ready/task-cancel-opaque-harnesses-after-authority-revocation.md",
-    ]);
     const original = showTask(projectDir, ORIGINAL_ID);
     expect(original).toMatchObject({ found: true, state: "dropped" });
     if (!original.found) throw new Error("original task missing");
@@ -119,99 +109,6 @@ describe("applyDecompositionPlan", () => {
     ]);
     expect(readFileSync(join(projectDir, "data", "tasks", "ready", `${result.subtaskIds[0]}.md`), "utf-8"))
       .toContain("Decomposed from `task-original-security-fix`");
-  });
-
-  it("reuses a semantic match and carries parent dependencies through the lifecycle", () => {
-    const originalPath = join(
-      projectDir,
-      "data",
-      "tasks",
-      "ready",
-      `${ORIGINAL_ID}.md`,
-    );
-    const parsedOriginal = parseFlatFrontMatter(
-      readFileSync(originalPath, "utf-8"),
-    );
-    writeFileSync(
-      originalPath,
-      serializeFlatFrontMatter(
-        { ...parsedOriginal.attrs, depends_on: ["task-authority-foundation"] },
-        parsedOriginal.body,
-      ),
-    );
-    const existingId = "task-existing-hosted-authority-boundary";
-    const existingPath = join(
-      projectDir,
-      "data",
-      "tasks",
-      "ready",
-      `${existingId}.md`,
-    );
-    writeFileSync(
-      existingPath,
-      serializeFlatFrontMatter(
-        {
-          id: existingId,
-          title: "Existing hosted authority boundary",
-          status: "ready",
-          priority: "p1",
-          area: "security",
-          task_class: "Safety",
-          summary: "Resolve current authority at hosted tool boundaries.",
-          created_at: "2026-08-03T00:00:00.000Z",
-          updated_at: "2026-08-03T00:00:00.000Z",
-        },
-        "\n## Problem\n\nHosted calls can retain stale authority.\n\n" +
-          "## Acceptance Evidence\n\n- A revocation regression.\n",
-      ),
-    );
-
-    const reusePlan = plan();
-    reusePlan.subtasks[0]!.reuseTaskId = existingId;
-    const result = applyDecompositionPlan({
-      projectDir,
-      taskId: ORIGINAL_ID,
-      failedRunId: "run-failed-builder",
-      plan: reusePlan,
-    });
-
-    expect(result.subtaskIds).toEqual([
-      existingId,
-      "task-cancel-opaque-harnesses-after-authority-revocation",
-    ]);
-    expect(result.mutatedTaskPaths).toEqual([
-      `data/tasks/ready/${existingId}.md`,
-      "data/tasks/ready/task-cancel-opaque-harnesses-after-authority-revocation.md",
-    ]);
-    const reused = showTask(projectDir, existingId);
-    if (!reused.found) throw new Error("reused task missing");
-    expect(parseFlatFrontMatter(reused.content).attrs.depends_on).toEqual([
-      "task-authority-foundation",
-    ]);
-    expect(reused.content).toContain(
-      "Reused for `task-original-security-fix` after builder run `run-failed-builder`.",
-    );
-    expect(reused.content).toContain("- A revocation regression.");
-    const created = showTask(projectDir, result.subtaskIds[1]!);
-    if (!created.found) throw new Error("created task missing");
-    expect(parseFlatFrontMatter(created.content).attrs.depends_on).toEqual([
-      "task-authority-foundation",
-      existingId,
-    ]);
-    expect(
-      existsSync(
-        join(
-          projectDir,
-          "data",
-          "tasks",
-          "ready",
-          "task-resolve-current-authority-at-hosted-tool-boundarie.md",
-        ),
-      ),
-    ).toBe(false);
-    const original = showTask(projectDir, ORIGINAL_ID);
-    if (!original.found) throw new Error("dropped original missing");
-    expect(original.content).toContain(`- ${existingId}`);
   });
 
   it("rejects an existing decomposition before creating subtasks", () => {

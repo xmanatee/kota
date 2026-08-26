@@ -208,4 +208,26 @@ describe("IdempotencyStore", () => {
     expect(seen).toEqual(["message-1"]);
     expect(store.list({ operation: "event-ingestion" })[0]?.status).toBe("replayed");
   });
+
+  it("does not apply ingestion deduplication to authoritative outbox delivery", () => {
+    const bus = new EventBus();
+    const seen: string[] = [];
+    installEventIdempotency(bus, {
+      getDefaultScopeId: () => "scope-a",
+      resolveStore: () => store,
+    });
+    bus.on("custom.outbox", (payload) => {
+      seen.push(String(payload.idempotencyKey));
+    });
+
+    const payload = {
+      scopeId: "scope-a",
+      idempotencyKey: "domain-operation-1",
+    };
+    bus.deliverOutbox("custom.outbox", { ...payload }, "workflow:run-a:emit:notify");
+    bus.deliverOutbox("custom.outbox", { ...payload }, "workflow:run-a:emit:notify");
+
+    expect(seen).toEqual(["domain-operation-1", "domain-operation-1"]);
+    expect(store.list({ operation: "event-ingestion" })).toEqual([]);
+  });
 });

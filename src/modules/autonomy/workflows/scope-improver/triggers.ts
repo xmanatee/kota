@@ -15,5 +15,4 @@ export const scopeImproverTriggers: WorkflowTriggerInput[] = [
     cooldownMs: 0,
     queueMode: "latest",
   },
-  { event: "runtime.recovered" },
 ];

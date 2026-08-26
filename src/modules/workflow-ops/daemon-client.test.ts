@@ -174,8 +174,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       completedRuns: 0,
       workflows: {},
       paused: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
     };
     const { transport, calls } = makeRecordingTransport({
       respondFetch: () => jsonResponse(200, live),
@@ -198,8 +197,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       completedRuns: 0,
       workflows: {},
       paused: false,
-      agentConcurrency: 1,
-      codeConcurrency: 4,
+      concurrency: 4,
     };
     const { transport, calls } = makeRecordingTransport({
       respondFetch: () => jsonResponse(200, live),
@@ -536,6 +534,17 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     }
   });
 
+	it("getRun scopes the daemon run lookup", async () => {
+		const { transport, calls } = makeRecordingTransport({
+			respondRequest: () => null,
+		});
+		const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+		await wf.getRun("run-1", { scopeId: "scope-a" });
+		expect((calls[0] as { path: string }).path).toBe(
+			"/workflow/runs/run-1?scopeId=scope-a",
+		);
+	});
+
   it("listDefinitions routes through GET /workflow/definitions and reshapes source: 'daemon'", async () => {
     const { transport, calls } = makeRecordingTransport({
       respondRequest: () => ({ definitions: [] }),
@@ -547,6 +556,17 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       "/workflow/definitions",
     );
   });
+
+	it("listDefinitions scopes the daemon definition lookup", async () => {
+		const { transport, calls } = makeRecordingTransport({
+			respondRequest: () => ({ definitions: [] }),
+		});
+		const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+		await wf.listDefinitions({ scopeId: "scope-a" });
+		expect((calls[0] as { path: string }).path).toBe(
+			"/workflow/definitions?scopeId=scope-a",
+		);
+	});
 
   it("listDefinitions throws byte-for-byte on transport failure", async () => {
     const { transport } = makeRecordingTransport({
@@ -591,6 +611,17 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       notBeforeMs: 0,
     });
   });
+
+	it("triggerByName scopes daemon admission without adding the selector to the body", async () => {
+		const { transport, calls } = makeRecordingTransport({
+			respondFetch: () => jsonResponse(200, { queued: "wf-1", runId: "r-1" }),
+		});
+		const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+		await wf.triggerByName("wf-1", { scopeId: "scope-a" });
+		const call = calls[0] as { path: string; init: RequestInit };
+		expect(call.path).toBe("/workflow/trigger?scopeId=scope-a");
+		expect(JSON.parse(String(call.init.body))).toEqual({ name: "wf-1" });
+	});
 
   it("triggerByName omits empty tags and missing payload", async () => {
     const { transport, calls } = makeRecordingTransport({

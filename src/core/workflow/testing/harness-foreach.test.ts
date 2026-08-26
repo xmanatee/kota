@@ -5,6 +5,7 @@ import { WorkflowTestHarness } from "./index.js";
 describe("WorkflowTestHarness — foreach step", () => {
   it("iterates over a single item and injects it via context.foreach", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -37,6 +38,7 @@ describe("WorkflowTestHarness — foreach step", () => {
   it("iterates over multiple items and binds each correctly", async () => {
     const collected: unknown[] = [];
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -69,6 +71,7 @@ describe("WorkflowTestHarness — foreach step", () => {
 
   it("resolves items from a function", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -97,6 +100,7 @@ describe("WorkflowTestHarness — foreach step", () => {
 
   it("skips the foreach step when when predicate returns false", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -122,6 +126,7 @@ describe("WorkflowTestHarness — foreach step", () => {
 
   it("fails the run when inner step fails and continueOnFailure is not set", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -152,6 +157,7 @@ describe("WorkflowTestHarness — foreach step", () => {
 
   it("continues across iterations when continueOnFailure is set", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [
@@ -189,6 +195,7 @@ describe("WorkflowTestHarness — foreach step", () => {
 
   it("handles an empty items array", async () => {
     const workflow: WorkflowDefinitionInput = {
+      repository: "read",
       name: "test",
       triggers: [],
       steps: [

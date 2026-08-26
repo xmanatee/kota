@@ -110,7 +110,7 @@ function recordWorkflowDispatch(args: {
   runId: string;
 }): IdempotencyStore {
   const store = idempotencyStore(args.dir);
-  const identity = workflowDispatchIdempotency(store, args.workflowName, {
+  const identity = workflowDispatchIdempotency(store.getDefaultScopeId(), args.workflowName, {
     event: args.event,
     schemaRef: { name: args.event, version: 1 },
     eventId: args.eventId,
@@ -139,11 +139,11 @@ function workflow(
     enabled: true,
     moduleRoot: "/tmp/kota-simulation",
     definitionPath: `/tmp/kota-simulation/${name}.ts`,
-    recoveryCapable: false,
     tags: [],
     triggers: [],
     steps: [],
     ...overrides,
+    repository: overrides.repository ?? "none",
   };
 }
 
@@ -593,6 +593,7 @@ describe("workflow automation simulation engine", () => {
       scopeId: "scope-a",
       projectId: "scope-a",
       requestedBy: "operator",
+      idempotencyStatus: "replayed",
     };
     const envelope = eventEnvelope({
       id: "evtj-booking-duplicate",
@@ -621,9 +622,11 @@ describe("workflow automation simulation engine", () => {
     expect(preview.inputs[0]?.reasons).toContainEqual(
       expect.objectContaining({
         code: "idempotency-duplicate",
-        workflow: "booking-workflow",
         event: "booking.requested",
       }),
+    );
+    expect(preview.inputs[0]?.explain.graph.automation.workflows).toContainEqual(
+      expect.objectContaining({ name: "booking-workflow" }),
     );
     expect(store.list({ operation: "workflow-dispatch" })).toMatchObject([
       {
@@ -675,6 +678,7 @@ describe("workflow automation simulation engine", () => {
       scopeId: "scope-a",
       projectId: "scope-a",
       requestedBy: "operator",
+      idempotencyStatus: "replayed",
     };
     const envelope = eventEnvelope({
       id: "evtj-booking-journal-duplicate",
@@ -712,8 +716,10 @@ describe("workflow automation simulation engine", () => {
     expect(replayed.inputs[0]?.reasons).toContainEqual(
       expect.objectContaining({
         code: "idempotency-duplicate",
-        workflow: "booking-workflow",
       }),
+    );
+    expect(replayed.inputs[0]?.explain.graph.automation.workflows).toContainEqual(
+      expect.objectContaining({ name: "booking-workflow" }),
     );
   });
 

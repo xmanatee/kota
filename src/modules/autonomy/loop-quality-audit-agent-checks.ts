@@ -94,7 +94,7 @@ export function mutatingRetrySafety(
     const refs = repairCheckEvidence(
       entry,
       MUTATION_SAFETY_IDS,
-      "repair check validates mutation safety before commit",
+      "repair check validates mutation safety before publication",
     );
     if (MUTATION_SAFETY_IDS.some((needle) => entry.step.id.includes(needle))) {
       refs.push({ ref: entry.ref, detail: `step id "${entry.step.id}" records retry or idempotency posture` });
@@ -107,7 +107,7 @@ export function mutatingRetrySafety(
     "mutating-retry-safety",
     "loop.mutating-retry-safety.missing",
     "warning",
-    "mutating workflow has no typed idempotency, marker, task validation, or stageability evidence",
+    "mutating workflow has no typed idempotency, marker, task validation, or publication-safety evidence",
     [],
   );
 }
@@ -128,7 +128,7 @@ export function independentVerifier(
     "independent-verifier",
     "loop.verifier.missing",
     "warning",
-    "agent loop can mark done without an independent verifier, test, validation, or critic signal",
+    "agent loop can reach a terminal result without an independent verifier, test, validation, or critic signal",
     [],
   );
 }

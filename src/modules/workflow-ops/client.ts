@@ -33,12 +33,6 @@ import type {
   WorkflowSimulationRequest,
   WorkflowSimulationResult,
 } from "./simulation/types.js";
-import type {
-  WorkflowStateRecoveryListInput,
-  WorkflowStateRecoveryListResult,
-  WorkflowStateRecoveryResolveInput,
-  WorkflowStateRecoveryResolveResult,
-} from "./state-recovery-provider.js";
 
 export type {
   WorkflowTrialAttemptReport,
@@ -81,7 +75,14 @@ export type WorkflowDeadLetterGetResult =
 
 export type WorkflowDeadLetterMutationResult =
   | { ok: true; item: DeadLetterItem; runId?: string; workflowName?: string; event?: string }
-  | { ok: false; reason: "not_found" | "not_redrivable" | "unknown_workflow" };
+  | {
+      ok: false;
+      reason:
+        | "not_found"
+        | "not_redrivable"
+        | "unknown_workflow"
+        | "daemon_required";
+    };
 
 export type WorkflowDeadLetterRedriveOptions = {
   reason: string;
@@ -107,8 +108,6 @@ export type WorkflowStatusSnapshot = WorkflowLiveStatus & {
  * call was a no-op (already paused / not paused). */
 export type WorkflowPauseResult = { paused: boolean; already: boolean };
 export type WorkflowResumeResult = WorkflowPauseResult & {
-  blocked?: "dirty-recovery";
-  message?: string;
   agentBackoffCleared?: true;
 };
 
@@ -188,22 +187,19 @@ export type WorkflowGetRunResult =
  *
  * The CLI does its own pre-validation (definition exists, enabled, cooldown,
  * already-queued) using `getValidatedWorkflowDefinitions(ctx)` and
- * `workflow.status()`; this contract carries the complete enqueue request used
- * identically by daemon-backed and local clients.
+ * `workflow.status()`; this contract carries the complete request to the
+ * daemon-owned admission path.
  */
-export type WorkflowTriggerOptions = WorkflowEnqueueOptions;
+export type WorkflowTriggerOptions = WorkflowEnqueueOptions & ScopeSelector;
 
 /**
- * Result of `workflow.triggerByName`. `path` distinguishes the daemon-applied
- * enqueue (the daemon accepted the trigger and may have started the run
- * immediately) from the daemon-down path (a pending run was appended to the
- * persisted queue and will start on the next daemon cycle). `runId` is the
- * pinned id when the caller supplied one; the daemon may also return its own
- * generated id which the CLI surfaces verbatim.
+ * Result of `workflow.triggerByName`. Admission is daemon-owned because the
+ * daemon resolves scope identity, definitions, resources, and dispatch policy
+ * against one durable run database.
  */
 export type WorkflowTriggerResult =
-  | { ok: true; path: "daemon" | "queue"; queued: string; runId?: string }
-  | { ok: false; reason: "already_queued" };
+  | { ok: true; path: "daemon"; queued: string; runId?: string }
+  | { ok: false; reason: "already_queued" | "daemon_required" };
 
 /**
  * Result of `workflow.listDefinitions`. `source` carries which side produced
@@ -220,7 +216,7 @@ export type WorkflowDefinitionsResult = {
  * Workflow runtime operations.
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
- * local implementor sources from run artifacts and persisted state. The
+ * local implementor sources from run artifacts and durable run state. The
  * daemon-up `status` path accepts `projectId` so scoped clients can read the
  * selected project's workflow runtime.
  * Dispatch-state mutations (`pause`, `resume`, `abort`, `reload`) work
@@ -232,12 +228,6 @@ export type WorkflowDefinitionsResult = {
  */
 export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
-  listStateRecoveryActions(
-    filter?: Omit<WorkflowStateRecoveryListInput, "projectDir">,
-  ): Promise<WorkflowStateRecoveryListResult>;
-  resolveStateRecovery(
-    input: Omit<WorkflowStateRecoveryResolveInput, "projectDir">,
-  ): Promise<WorkflowStateRecoveryResolveResult>;
   listDeadLetters(filter?: WorkflowDeadLetterListFilter): Promise<WorkflowDeadLetterListResult>;
   getDeadLetter(id: string, projectId?: string): Promise<WorkflowDeadLetterGetResult>;
   dismissDeadLetter(id: string, reason: string, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
@@ -248,21 +238,20 @@ export interface WorkflowClient {
    * Look up a single run. Daemon-up consults the daemon's in-memory tracker;
    * daemon-down reads the run artifact under `.kota/runs/`.
    */
-  getRun(id: string): Promise<WorkflowGetRunResult>;
+  getRun(id: string, selector?: ScopeSelector): Promise<WorkflowGetRunResult>;
   /**
    * Enumerate registered workflow definitions. Daemon-up returns the
    * daemon's runtime view (with `runtimeEnabled` overrides); daemon-down
    * reflects the static definition source as loaded from the workspace.
    */
-  listDefinitions(): Promise<WorkflowDefinitionsResult>;
+  listDefinitions(selector?: ScopeSelector): Promise<WorkflowDefinitionsResult>;
   pause(): Promise<WorkflowPauseResult>;
   resume(options?: WorkflowResumeOptions): Promise<WorkflowResumeResult>;
   abort(): Promise<WorkflowAbortResult>;
   reload(): Promise<WorkflowReloadResult>;
   /**
-   * Enqueue a manual workflow run. Daemon-up posts to the daemon's
-   * `/workflow/trigger`; daemon-down appends a pending run to the persisted
-   * queue so the next daemon cycle picks it up.
+   * Enqueue a manual workflow run through the daemon's `/workflow/trigger`.
+   * Offline clients return `daemon_required`.
    */
   triggerByName(
     name: string,

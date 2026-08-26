@@ -1,145 +1,75 @@
 # Daemon Core
 
-This directory contains the daemon host, control API, scheduler persistence,
-and live runtime state.
+This directory owns the long-lived runtime host: lifecycle, control plane,
+sessions and channels, scheduling, scope hosting, and live state.
 
-- Keep daemon ownership here: lifecycle, control plane, sessions/channels, scheduling, and state.
-- Autonomous workflow execution belongs in `src/core/workflow/`, not in ad hoc
-  daemon behavior.
-- The control API is a daemon-owned protocol. Exact routes, payload fields,
-  event names, capability scopes, and status values belong in source, typed
-  clients, and focused tests rather than durable docs.
-- Modules extend the control API through `KotaModule.controlRoutes`, not by
-  adding handlers here. Built-in and contributed routes share
-  `ControlRouteRegistration`; the server merges one table, matches once,
-  supports `:name` paths, and throws on collisions. Built-in route closures
-  bind runtime state at registration time (`daemon-control-routes.ts`) so the
-  dispatcher stays route-agnostic.
-- Clients should use daemon client wrappers for URL construction, response
-  decoding, authentication, polling, and live updates. They must not read
-  daemon runtime files directly.
-- Health reports event-loop latency as an observational lifecycle diagnostic,
-  never as workflow state or a control trigger.
-- Process-manager integration and operator CLI behavior belongs in the
-  daemon-ops module; the daemon core owns the runtime host itself.
+## Boundaries
 
-## Per-Concern Sibling Files
+- Autonomous execution belongs in `src/core/workflow/`; process-manager and
+  operator CLI behavior belongs in the daemon-ops module.
+- Modules extend the control plane through `KotaModule.controlRoutes`. Built-in
+  and contributed routes use one `ControlRouteRegistration` table, one matcher,
+  and loud collision detection.
+- Module routes obtain workflow dispatch, metrics, and definitions through the
+  registered provider seams rather than a `DaemonControlHandle`.
+- Per-request signed routes may declare `bypassAuth`; all others use daemon
+  bearer authentication.
+- Clients use typed daemon wrappers for URLs, decoding, authentication,
+  polling, and live updates. They never read daemon runtime files directly.
+- Health diagnostics are observational; they do not become workflow state or
+  control triggers.
 
-`daemon.ts` is a thin orchestrator. Lifecycle concerns live in `daemon-*.ts`
-sibling phase files. `runDaemonShutdown` is shared by normal stop and
-failed-start — do not fork it. Prefix named subsystem files consistently:
-`daemon-chat-*` for chat lifecycle, `daemon-control-*` for control-plane wiring.
+## Structure
 
-## Module Control-Plane Seams
+Keep `daemon.ts` a thin orchestrator. Lifecycle concerns live in focused
+`daemon-*` siblings. Normal stop and failed start share `runDaemonShutdown`.
+Use `daemon-chat-*` and `daemon-control-*` prefixes for those subsystems.
 
-Module-owned control routes live in their contributing module under
-`#modules/<name>/routes.ts` (or `control-routes.ts`). Routes that need to
-dispatch workflow runs, read live runtime state (counts, sessions,
-paused/active/queued status), or read pre-dispatch policy from a workflow
-definition use the `workflow-dispatcher`, `workflow-metrics-source`, and
-`workflow-definitions` provider seams. The daemon registers all three at
-startup so contributed handlers do not need a `DaemonControlHandle`.
-Routes whose auth is carried in a per-request signature header rather than
-the daemon Bearer token (today the webhook module's `/webhooks/:name`) opt
-out of bearer-token middleware via `ControlRouteRegistration.bypassAuth`,
-mirroring `RouteRegistration.bypassAuth`.
+## Capabilities And Identity
 
-## Capability Readiness
+Capability readiness comes from typed module-contributed sources. Each stable
+capability id reports ready, unavailable, or initialization failure; duplicate
+ids and probe exceptions fail loudly. Workflow triggering is daemon-owned and
+is reported by the daemon itself.
 
-Thin clients distinguish "daemon online but capability unavailable" from
-"daemon offline" through `GET /capabilities`. The route aggregates
-typed `CapabilityReadinessSource` entries that modules contribute through
-the `CAPABILITY_READINESS_PROVIDER_TYPE` token from their own
-`onLoad`. Each entry reports a stable `id` (e.g. `knowledge.search`),
-status (`ready` | `unavailable` | `init_failed`), reason code, and short
-operator-facing message. Adding a new capability is a registration in the
-owning module — there is no central catalog. Duplicate ids and probe
-exceptions surface as loud `init_failed` rows so wiring conflicts cannot
-silently win. The daemon adds a `workflow.trigger` row directly because
-workflow definitions are daemon-owned, not module-owned.
+Client identity combines project and daemon identity with dashboard readiness.
+Clients render dashboard controls only when that typed capability is available.
 
-## Client Identity
+## Scope Runtime
 
-`GET /identity` returns the `ClientIdentity` payload (project + daemon
-identity, dashboard availability). `getClientIdentity()` resolves the
-`dashboard` capability through the `/capabilities` readiness pipeline
-and collapses it into the discriminated `ClientDashboardAvailability`
-shape. Clients join `dashboard.path` onto the daemon base URL when
-`available` is true; otherwise hide the control. See
-`clients/AGENTS.md` for the contract.
+Scope ids are canonical; project ids are aliases for directory-backed scopes.
+Config seeds the registry and `ScopeLifecycleService` mutates it. Persist before
+activation, compensate on failure, and recheck live-resource blockers before
+removal. Trust and policy changes are atomic; untrust quarantines control work,
+aborts workflows, and restarts before repository authority changes.
 
-## Scope Registry Foundation
-
-Scope ids are canonical; project ids are aliases. Config seeds the registry;
-`ScopeLifecycleService` mutates it. Persist before activation and compensate on
-failure. Live resources prevent drain; removal rechecks blockers. Trust/policy
-changes are atomic; locks publish immutable monotonic tickets. Untrust
-quarantines control work, aborts workflows, and restarts before repo authority.
-Project selectors use aliases and must match.
-
-Scope-owned event handlers resolve the live `ProjectRuntime` through the
-runtime-scope provider. Invalid selectors fail without cwd/default fallback.
-The daemon owns one runtime `ModuleLoader`; sessions borrow it without
-reloading, unloading, or replacing its provider/event authority.
+Scope-owned handlers resolve the live runtime through the runtime-scope
+provider. Invalid selectors fail without cwd/default fallback. The daemon owns
+one runtime module loader; sessions borrow it without replacing its provider or
+event authority.
 
 ## Recoverability
 
-The daemon is the source of truth for live runtime state. A single question
-governs every surface listed here: *if the daemon crashes mid-turn, does this
-state reconstruct from append-only artifacts, or is it lost?*
+The daemon is authoritative for live state. New state must either reconstruct
+from a durable checkpoint after a crash or be explicitly disposable.
 
-Recoverable surfaces (append-only or file-backed; survive crash):
+Durable state includes:
 
-- **Daemon state** (`.kota/daemon-state.json`) — process lifecycle, pid, start
-  time, and explicit stop reason. Workflow summaries and counters live only in
-  the workflow run store.
-- **Workflow runtime** — run store (`.kota/runs/`), persisted queue, recovery
-  record. Interrupted recovery-capable workflows queue `runtime.recovered`
-  first on startup; a dirty active checkout broadens recovery to every
-  recovery-capable workflow.
-- **Scheduler** (`.kota/schedules-<hash>.json`) — persisted on every
-  `add`, `cancel`, and `markFired`.
-- **Approval queue** (`.kota/approvals/*.json`) — one file per approval,
-  rewritten on every status transition.
-- **Owner decisions** (`.kota/owner-decisions/*.json`) — one file per
-  decision, rewritten on answer, cancel, expire, and consumption.
-- **Owner-question queue** (`.kota/owner-questions/*.json`) — one file per
-  question, rewritten on every status transition.
-- **Task store** (`data/tasks/`) — file-backed; unaffected by daemon crash.
-- **Conversation history** (`~/.kota/history/`) — messages persist per
-  `conversationId` via `ConversationHistory.save()`; the *conversation text*
-  survives even when the daemon session that produced it is lost.
-- **Daemon chat session bindings** (`.kota/daemon-chat-bindings.json`) —
-  `sessionId → conversationId` map rewritten atomically on create/delete.
-  After restart, `POST /sessions` with the prior `session_id` or
-  `conversation_id` wakes a fresh `AgentSession` from history; the
-  in-flight turn is lost.
-- **Serve-registered session registry** — the daemon's registry is
-  in-memory and cleared on crash, but the serve process owns the
-  authoritative sessions. `DaemonLink` (`core/server/daemon-link.ts`)
-  watches `.kota/daemon-control.json`; when it observes a new daemon
-  identity (different `startedAt` or `token`), it rebuilds the daemon
-  client and re-registers every live session via
-  `POST /sessions/register`. Convergence happens within the fs-watch
-  latency, or the fallback poll interval (5 s) when fs-watch misses the
-  atomic rename.
+- daemon lifecycle state and stop reason;
+- workflow admission, attempts, resources, processes, external effects, and
+  terminal publications in `RunStateDatabase`;
+- schedules, approvals, owner decisions, owner questions, and task files;
+- conversation history plus daemon chat session bindings; and
+- serve-owned session registrations, which re-register after daemon identity
+  changes.
 
-Deliberate losses:
+Run artifacts are execution evidence, never a second queue. Startup recovery
+fences the prior daemon epoch, terminates verified owned processes, releases
+attempt resources, and requeues the same run. Ambiguous process ownership puts
+the run in `needs_attention` and pauses admission; recovery never broadcasts
+synthetic workflow inputs or repairs a shared checkout.
 
-- **Event ring buffer** (in-memory, 500 events) — clients must tolerate a
-  reconnect-window gap after daemon restart. SSE clients already reconnect;
-  durable replay lives in the event journal. The ring buffer is only the live
-  SSE reconnect window, not the audit or replay store.
-- **Notification-gate buffer** (held `workflow.attention.digest` events during
-  quiet hours) — single event type, released at window end. If the daemon
-  crashes mid-window, the held digest is lost; the next alert re-surfaces attention.
-- **Workflow metric cache** (`daemon-handle.ts` memoization) —
-  reconstructable by re-reading the run store on demand.
-- **Module health-check cache** — refreshed on the next probe cycle (30 s).
-- **SSE subscriptions and chat pool sweep timers** — transient; clients
-  reconnect.
-
-New daemon-owned runtime state must answer this question at design time. Prefer
-run artifacts or typed bus events over process-only state. Do not add
-per-event session write-through when a coarser checkpoint preserves wake-path
-guarantees.
+Disposable state includes the live SSE reconnect window, quiet-hours digest
+buffer, metric and health caches, subscriptions, and sweep timers. Clients
+reconnect, durable event replay comes from the journal, and caches rebuild on
+their next read or probe.

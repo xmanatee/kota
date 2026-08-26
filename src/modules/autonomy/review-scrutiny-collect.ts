@@ -22,6 +22,7 @@ import {
   stringArray,
   stringValue,
 } from "./review-scrutiny-types.js";
+import { taskIdentityFromRunTrigger } from "./run-delivery-evidence.js";
 
 function readJsonObject(
   path: string,
@@ -54,24 +55,8 @@ function strictStringArray(value: JsonValue | undefined): string[] | null {
   return entries;
 }
 
-function taskIdFromRunData(run: WorkflowRunMetadata, runsDir: string): string | undefined {
-  const summaryPath = join(runsDir, run.id, "run-summary.json");
-  if (existsSync(summaryPath)) {
-    const summary = readJsonObject(summaryPath);
-    if (summary.ok) {
-      const taskId = stringValue(summary.value.taskId);
-      if (taskId) return taskId;
-    }
-  }
-
-  for (const step of run.steps) {
-    const output = step.output as JsonValue | undefined;
-    if (!isJsonObject(output)) continue;
-    const taskId = stringValue(output.taskId);
-    if (taskId) return taskId;
-  }
-
-  return undefined;
+function taskIdFromRunData(run: WorkflowRunMetadata): string | undefined {
+  return taskIdentityFromRunTrigger(run).taskId ?? undefined;
 }
 
 function buildProgressReviewScrutinyRecord(args: {
@@ -174,7 +159,7 @@ function collectCriticLike(
     generatedAt: artifactGeneratedAt(run, read.value),
     artifact,
     reviewerPromptHash: stringValue(read.value.reviewerPromptHash) ?? undefined,
-    taskId: taskIdFromRunData(run, runsDir),
+    taskId: taskIdFromRunData(run),
     verdict: {
       verdict,
       critical_issues: criticalIssues,
@@ -201,7 +186,7 @@ function collectProgress(
     runId: run.id,
     workflow: run.workflow,
     generatedAt: artifactGeneratedAt(run, read.value),
-    taskId: taskIdFromRunData(run, runsDir),
+    taskId: taskIdFromRunData(run),
     artifact: read.value,
   });
   if (record) records.push(record);

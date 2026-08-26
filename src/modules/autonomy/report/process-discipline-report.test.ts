@@ -37,12 +37,28 @@ function run(
   stepId: string,
   harness: string,
   warningCount: number,
+  taskId?: string,
 ): WorkflowRunMetadata {
+  const taskDigest = "0".repeat(64);
   return {
     id: runId,
     workflow,
     definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-    trigger: { event: "schedule", payload: {}, schemaRef: null },
+    trigger: taskId === undefined
+      ? { event: "schedule", payload: {}, schemaRef: null }
+      : {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {
+            taskId,
+            taskPath: `data/tasks/ready/${taskId}.md`,
+            taskState: "ready",
+            taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+            taskDigest,
+            idempotencyKey: `builder:${taskId}:${taskDigest}`,
+            title: taskId,
+          },
+        },
     runDir: `.kota/runs/${runId}`,
     startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
     completedAt: new Date(NOW - MS_PER_DAY + 1000).toISOString(),
@@ -70,14 +86,6 @@ function run(
       },
     ],
   };
-}
-
-function writeRunSummary(runsDir: string, runId: string, taskId: string): void {
-  mkdirSync(join(runsDir, runId), { recursive: true });
-  writeFileSync(
-    join(runsDir, runId, "run-summary.json"),
-    JSON.stringify({ runId, workflow: "builder", taskId }),
-  );
 }
 
 function writeDiagnostics(
@@ -134,13 +142,12 @@ describe("buildProcessDisciplineReport", () => {
     const taskById = new Map([
       ["task-discipline", task("task-discipline", "done", "Safety", "autonomy")],
     ]);
-    writeRunSummary(runsDir, runId, "task-discipline");
     writeDiagnostics(runsDir, runId, "build", [
       "missing_final_verification_after_edit",
     ]);
 
     const report = buildProcessDisciplineReport({
-      runs: [run(runId, "builder", "build", "codex", 1)],
+      runs: [run(runId, "builder", "build", "codex", 1, "task-discipline")],
       runsDir,
       taskById,
     });
@@ -188,7 +195,6 @@ describe("buildProcessDisciplineReport", () => {
         task("task-blocked-discipline", "blocked", "Safety", "security"),
       ],
     ]);
-    writeRunSummary(runsDir, blockedRunId, "task-blocked-discipline");
     writeDiagnostics(runsDir, blockedRunId, "build", []);
     writeDiagnostics(
       runsDir,
@@ -200,7 +206,14 @@ describe("buildProcessDisciplineReport", () => {
 
     const report = buildProcessDisciplineReport({
       runs: [
-        run(blockedRunId, "builder", "build", "codex", 0),
+        run(
+          blockedRunId,
+          "builder",
+          "build",
+          "codex",
+          0,
+          "task-blocked-discipline",
+        ),
         run(unsupportedRunId, "explorer", "explore", "thin", 1),
       ],
       runsDir,

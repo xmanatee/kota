@@ -1,14 +1,10 @@
 import { join } from "node:path";
 import { loadConfig } from "#core/config/config.js";
-import { createProjectRuntime } from "#core/daemon/project-runtime.js";
-import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { deriveDirectoryScopeId, loadRegistryFileFromDisk } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import { validateWorkflowDefinitions, WorkflowDefinitionError } from "#core/workflow/validation.js";
+import { WorkflowDefinitionError } from "#core/workflow/validation.js";
 import type { WorkflowTrialOptions, WorkflowTrialResult } from "../client.js";
 import type {
   TrialProjectResolution,
@@ -28,45 +24,10 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
       eventBus,
     });
     try {
-      const runtime = resolveAgentRuntime(runtimeConfig);
-      const definitions = validateWorkflowDefinitions(
-        runtimeLoader.getContributedWorkflows(),
-        trialProjectDir,
-        {
-          defaultAgentHarness: runtime.harness,
-          preset: runtime.preset,
-          modelTiers: runtime.tiers,
-          agentModels: runtimeConfig.agentModels,
-          resolveAgentDef: (name) => runtimeLoader.getAgentDef(name),
-        },
-      );
-      const scopeId = deriveDirectoryScopeId(trialProjectDir);
-      const projectRuntime = createProjectRuntime({
-        project: {
-          projectId: scopeId,
-          projectDir: trialProjectDir,
-          displayName: scopeId,
-        },
-        bus: eventBus,
-        config: runtimeConfig,
-        workflows: definitions,
-        onLog: () => {},
-        installSingletons: false,
-      });
-      const registry = getProviderRegistry();
-      if (registry === null) {
-        throw new Error("Workflow trial runtime provider registry is unavailable");
-      }
-      registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
-        resolve: (selectedId) => selectedId === scopeId
-          ? { ok: true, runtime: projectRuntime }
-          : { ok: false, projectId: selectedId },
-      });
       return {
         config: runtimeConfig,
         eventBus,
-        projectRuntime,
-        definitions,
+        workflows: runtimeLoader.getContributedWorkflows(),
         resolveAgentDef: (name) => runtimeLoader.getAgentDef(name),
         resolveSkillsPrompt: (names, agentName) =>
           runtimeLoader.getSkillsPromptFor(names, agentName),

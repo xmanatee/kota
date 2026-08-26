@@ -1,14 +1,17 @@
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
 import { installAwaitResumers } from "./awaits-resume.js";
 import {
   type AwaitSuspension,
   scanSuspensions,
 } from "./awaits-store.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
+import {
+  clearWorkflowPauseSignal,
+  hasPersistentDispatchPause,
+  writeOperatorPauseSignal,
+} from "./dispatch-pause.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
-import { writeOperatorPauseSignal } from "./recovery-status.js";
+import type { RunStateDatabase } from "./run-state-database.js";
 import {
   emitIdleEvent,
   loadDefinitions as loadDefinitionsViaDispatch,
@@ -16,8 +19,6 @@ import {
   type WorkflowRuntimeDispatchState,
 } from "./runtime-dispatch.js";
 import { handleRuntimeEvent } from "./runtime-events.js";
-import { queueInterruptedRunRecovery, queueRecovery } from "./runtime-recovery.js";
-import { PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export const WORKFLOW_STOP_ABORT_WAIT_MS = 15_000;
@@ -25,6 +26,8 @@ export type WorkflowDispatchPauseMode = "runtime" | "persistent";
 export type WorkflowRuntimeInitialDispatch = "active" | "paused";
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
+  projectId: string;
+  runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
   awaitResumeDisposers: Array<() => void>;
@@ -39,37 +42,32 @@ export function startRuntime(
 ): void {
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
-  state.dispatchPaused = initialDispatch === "paused";
+  state.dispatchPaused =
+    initialDispatch === "paused" || hasPersistentDispatchPause(state.projectDir);
+  // Keep this scope closed until definitions, triggers, and durable resumers
+  // are ready. Other projects may continue filling shared capacity.
+  state.runCoordinator.pauseProjectAdmission(state.projectId);
   state.lastIdleEventSignature = undefined;
   state.lastIdleEventEmittedAtMs = undefined;
 
   try {
-    state.store.pruneRuns();
+    state.store.pruneRuns({
+      protectedRunIds: new Set(
+        state.runState
+          .listRuns(state.projectId, [
+            "queued",
+            "running",
+            "waiting",
+            "integrating",
+            "needs_attention",
+          ])
+          .map((run) => run.id),
+      ),
+    });
   } catch (error) {
     state.log(
       `Workflow run pruning failed: ${error instanceof Error ? error.message : String(error)}`,
     );
-  }
-
-  const interrupted = state.store.recoverInterruptedRuns();
-  for (const run of interrupted) {
-    state.log(`Recovered interrupted workflow run ${run.id} for "${run.workflow}"`);
-  }
-  if (interrupted.length > 0) {
-    state.log(
-      `${interrupted.length} run${interrupted.length === 1 ? "" : "s"} marked interrupted from previous session.`,
-    );
-    const reason = "Interrupted: daemon restarted while run was in progress.";
-    for (const run of interrupted) {
-      const text = `Workflow interrupted: *${run.workflow}*\nRun: \`${run.id}\`\nReason: ${reason}`;
-      state.pbus.emit("workflow.interrupted.alert", {
-        workflow: run.workflow,
-        runId: run.id,
-        durationMs: run.durationMs ?? 0,
-        reason,
-        text,
-      });
-    }
   }
 
   state.definitions = loadDefinitionsViaDispatch(state);
@@ -81,8 +79,6 @@ export function startRuntime(
     });
   }
   state.wfQueue.restorePending();
-  queueInterruptedRunRecovery(state, interrupted);
-  queueRecovery(state);
   const activeAgentBackoff = state.backoff.getActive();
   if (activeAgentBackoff) {
     state.log(
@@ -119,6 +115,9 @@ export function startRuntime(
     disposers: state.awaitResumeDisposers,
   });
 
+  if (!state.dispatchPaused) {
+    state.runCoordinator.resumeProjectAdmission(state.projectId);
+  }
   maybeStartNext(state);
 
   state.idleTimer = setInterval(() => {
@@ -142,6 +141,8 @@ export async function stopRuntime(
   abortWaitMs: number,
 ): Promise<void> {
   state.stopping = true;
+  state.dispatchPaused = true;
+  state.runCoordinator.pauseProjectAdmission(state.projectId);
 
   if (state.idleTimer) {
     clearInterval(state.idleTimer);
@@ -168,10 +169,11 @@ export async function stopRuntime(
     await state.idleSignatureCheck;
   }
 
-  if (state.activeRuns.size === 0) return;
+  if (!state.runCoordinator.isProjectBusy(state.projectId)) return;
 
-  const promises = [...state.activeRuns.values()].map((r) => r.promise);
-  const waitForActiveRuns = Promise.all(promises).then(() => "completed" as const);
+  const waitForActiveRuns = state.runCoordinator
+    .whenProjectIdle(state.projectId)
+    .then(() => "completed" as const);
 
   if (gracePeriodMs === 0) {
     await waitForActiveRuns;
@@ -185,9 +187,7 @@ export async function stopRuntime(
   });
 
   const graceTimer = setTimeout(() => {
-    for (const { abortController } of state.activeRuns.values()) {
-      abortController.abort();
-    }
+    state.runCoordinator.cancelProject(state.projectId);
   }, gracePeriodMs);
   graceTimer.unref();
 
@@ -195,7 +195,7 @@ export async function stopRuntime(
     const result = await Promise.race([waitForActiveRuns, abortWaitExpired]);
     if (result === "abort-timeout") {
       state.log(
-        `Workflow runtime stop gave up waiting for ${state.activeRuns.size} active run(s) after abort`,
+        `Workflow runtime stop gave up waiting for ${state.runCoordinator.activeRunIdsForProject(state.projectId).length} active run(s) after abort`,
       );
     }
   } finally {
@@ -205,13 +205,15 @@ export async function stopRuntime(
 }
 
 export function isBusy(state: WorkflowRuntimeLifecycleState): boolean {
-  return state.activeRuns.size > 0;
+  return state.runCoordinator.isProjectBusy(state.projectId);
 }
 
 export function isDispatchPaused(state: WorkflowRuntimeLifecycleState): boolean {
   return (
     state.dispatchPaused ||
-    existsSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE))
+    state.runCoordinator.isGlobalAdmissionPaused() ||
+    state.runCoordinator.isProjectAdmissionPaused(state.projectId) ||
+    hasPersistentDispatchPause(state.projectDir)
   );
 }
 
@@ -221,16 +223,15 @@ export function setDispatchPaused(
   mode: WorkflowDispatchPauseMode,
 ): void {
   if (mode === "persistent") {
-    const stateDir = join(state.projectDir, ".kota");
-    const pausePath = join(stateDir, PAUSE_SIGNAL_FILE);
     if (paused) {
       writeOperatorPauseSignal(state.projectDir);
     } else {
-      rmSync(pausePath, { force: true });
+      clearWorkflowPauseSignal(state.projectDir);
     }
   }
   state.dispatchPaused = paused;
-  if (!paused) maybeStartNext(state);
+  if (paused) state.runCoordinator.pauseProjectAdmission(state.projectId);
+  else state.runCoordinator.resumeProjectAdmission(state.projectId);
 }
 
 export function getDispatchWindowStatus(

@@ -29,7 +29,6 @@ import type {
 
 const JOURNAL_BACKFILL_EVENT_NAMES = new Set([
   "workflow.completed",
-  "workflow.build.committed",
   "inbound.signal.received",
 ]);
 

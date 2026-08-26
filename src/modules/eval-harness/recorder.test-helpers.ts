@@ -1,6 +1,7 @@
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import type { FixtureJsonValue } from "./fixture-common-types.js";
 
 export type AgentStepArtifact = {
@@ -55,23 +56,34 @@ export function seedSourceRun(
   return runDir;
 }
 
-export function writeCommitArtifact(
-  runDir: string,
-  params: { committed: boolean; sha?: string; message?: string },
+export function seedWriterIntegration(
+  projectDir: string,
+  runId: string,
+  params: { publishedHead: string; message: string },
 ): void {
-  const output =
-    params.committed && params.sha && params.message
-      ? { committed: true, sha: params.sha, message: params.message }
-      : { committed: params.committed };
-  writeFileSync(
-    join(runDir, "steps", "commit.json"),
-    JSON.stringify({
-      id: "commit",
-      type: "code",
-      status: "success",
-      output,
-    }),
-  );
+  const integratedFromHead = execFileSync(
+    "git",
+    ["rev-parse", `${params.publishedHead}^`],
+    { cwd: projectDir, encoding: "utf-8" },
+  ).trim();
+  const changedPaths = execFileSync(
+    "git",
+    ["diff", "--name-only", integratedFromHead, params.publishedHead],
+    { cwd: projectDir, encoding: "utf-8" },
+  )
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  writeWriterIntegrationFixture(join(projectDir, ".kota", "runs"), {
+    runId,
+    workflow: "fixture-workflow",
+    baseHead: integratedFromHead,
+    integratedFromHead,
+    publishedHead: params.publishedHead,
+    commitSubject: params.message,
+    commitMessage: params.message,
+    changedPaths,
+  });
 }
 
 export function defaultAgentStep(stepId: string): AgentStepArtifact {

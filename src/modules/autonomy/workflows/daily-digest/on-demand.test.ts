@@ -1,10 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { digestStateFromCounts, type QueueCounts } from "./aggregate.js";
 import {
-  DAILY_DIGEST_STATE_FILENAME,
+  DAILY_DIGEST_STATE_KEY,
   renderOnDemandDigest,
 } from "./on-demand.js";
 
@@ -57,51 +60,79 @@ describe("renderOnDemandDigest", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("returns the rendered digest body and underlying data without writing the cadence snapshot", () => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    expect(existsSync(statePath)).toBe(false);
+  function persistCadenceState(counts: QueueCounts): void {
+    const stateDir = join(projectDir, ".kota");
+    const projectId = deriveDirectoryScopeId(projectDir);
+    const store = new RunStateDatabase(stateDir);
+    try {
+      store.registerProject({
+        id: projectId,
+        rootPath: projectDir,
+        createdAt: "2026-04-25T07:59:00.000Z",
+      });
+      const { epoch } = store.beginDaemonSession("2026-04-25T07:59:00.000Z");
+      store.admitRun({
+        id: "daily-digest-state-fixture",
+        projectId,
+        workflow: "daily-digest",
+        repository: "read",
+        trigger: { event: "schedule", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: "2026-04-25T07:59:01.000Z",
+      });
+      store.startRun(
+        "daily-digest-state-fixture",
+        epoch,
+        "2026-04-25T07:59:02.000Z",
+      );
+      store.stageProjectStateMutation({
+        runId: "daily-digest-state-fixture",
+        key: DAILY_DIGEST_STATE_KEY,
+        expectedRevision: 0,
+        value: digestStateFromCounts(counts, Date.parse("2026-04-25T08:00:00.000Z")),
+        stagedAt: "2026-04-25T07:59:03.000Z",
+      });
+      store.finishRun(
+        "daily-digest-state-fixture",
+        epoch,
+        "succeeded",
+        "2026-04-25T08:00:00.000Z",
+      );
+    } finally {
+      store.close();
+    }
+  }
 
-    const result = renderOnDemandDigest({ projectDir });
+  it("returns the rendered digest body without creating cadence state", () => {
+    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    expect(existsSync(databasePath)).toBe(false);
+
+    const result = renderOnDemandDigest({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+    });
 
     expect(result.text).toContain("Daily digest");
     expect(result.data.quiet).toBe(true);
-    expect(existsSync(statePath)).toBe(false);
-  });
-
-  it("does not modify a pre-existing snapshot file", () => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    const baseline = JSON.stringify({
-      capturedAt: "2026-04-25T08:00:00.000Z",
-      counts: { backlog: 7, ready: 1, doing: 0, blocked: 4 },
-    });
-    writeFileSync(statePath, baseline, "utf-8");
-
-    renderOnDemandDigest({ projectDir });
-
-    expect(readFileSync(statePath, "utf-8")).toBe(baseline);
+    expect(existsSync(databasePath)).toBe(false);
   });
 
   it("does not emit workflow.daily.digest", () => {
-    renderOnDemandDigest({ projectDir });
+    renderOnDemandDigest({ projectDir, stateDir: join(projectDir, ".kota") });
     expect(observed).toEqual([]);
   });
 
   it("uses the persisted cadence snapshot for the queue delta baseline", () => {
-    const statePath = join(projectDir, ".kota", DAILY_DIGEST_STATE_FILENAME);
-    writeFileSync(
-      statePath,
-      JSON.stringify({
-        capturedAt: "2026-04-25T08:00:00.000Z",
-        counts: { backlog: 0, ready: 0, doing: 0, blocked: 2 },
-      }),
-      "utf-8",
-    );
+    persistCadenceState({ backlog: 0, ready: 0, doing: 0, blocked: 2 });
     writeFileSync(
       join(projectDir, "data", "tasks", "ready", "task-x.md"),
       "---\nid: task-x\n---\n",
     );
 
-    const result = renderOnDemandDigest({ projectDir });
+    const result = renderOnDemandDigest({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+    });
     expect(result.data.queueDelta.previous).toEqual({
       backlog: 0,
       ready: 0,
@@ -140,6 +171,7 @@ describe("renderOnDemandDigest", () => {
 
     const result = renderOnDemandDigest({
       projectDir,
+      stateDir: join(projectDir, ".kota"),
       windowEndMs: Date.parse("2026-04-26T08:00:00.000Z"),
     });
 

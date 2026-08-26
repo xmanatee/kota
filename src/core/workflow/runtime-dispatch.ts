@@ -1,33 +1,35 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import { resolveEventSchemaReference } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
+import { buildWorkflowCompletedPayload } from "./event-payloads.js";
+import { readRunCommitMessage } from "./run-commit-message.js";
+import type { RunContext } from "./run-context.js";
+import type { RunCoordinator } from "./run-coordinator.js";
+import { recordEmittedEventEvidence } from "./run-event-evidence.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { runHasSuccessfulAgentExecution } from "./run-executor-utils.js";
-import { formatRunId } from "./run-io.js";
+import { validateWorkflowRunId } from "./run-io.js";
+import type { WorkflowExecutionOutcome } from "./run-lifecycle.js";
+import type { StoredRun } from "./run-state-database.js";
+import type { PendingRunPublication, RunPublication } from "./run-state-types.js";
 import type { WorkflowRunStore } from "./run-store.js";
-import type { WorkflowRunExecutionResult } from "./run-types.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
-import { canDispatchDefinition } from "./runtime-dispatch-concurrency.js";
 import { recordFailedWorkflowDispatchDeadLetter } from "./runtime-dispatch-dead-letter.js";
 import { loadDefinitions } from "./runtime-dispatch-definitions.js";
-import { handleDirtyCompletion } from "./runtime-dispatch-dirty-recovery.js";
 import { triggerWorkflowFromStep } from "./runtime-dispatch-trigger.js";
 import { getIdleEventSignature } from "./runtime-idle-signature.js";
-import { checkAbortSignal, checkReloadSignal, PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
-import { runTerminalFinalizer } from "./runtime-terminal-finalizer.js";
+import { checkAbortSignal, checkReloadSignal } from "./runtime-signals.js";
+import type { WorkflowRunStatus } from "./runtime-state-types.js";
 import type { ScheduleTriggerManager } from "./schedule-triggers.js";
-import type { AgentRunLimiter } from "./steps/agent-run-limiter.js";
-import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowQueueManager } from "./workflow-queue.js";
 
@@ -35,16 +37,8 @@ export { loadDefinitions, resolveDefinitions } from "./runtime-dispatch-definiti
 
 export const IDLE_UNCHANGED_REEMIT_MS = 30 * 60 * 1000;
 
-export type WorkflowActiveRunReservation = {
-  runId: string;
-  workflowName: string;
-  promise: Promise<WorkflowRunExecutionResult>;
-  abortController: AbortController;
-};
-
 export interface WorkflowRuntimeDispatchState {
   projectDir: string;
-  workspaceDir?: string;
   stopping: boolean;
   dispatchPaused: boolean;
   config?: KotaConfig;
@@ -57,13 +51,8 @@ export interface WorkflowRuntimeDispatchState {
   definitions: WorkflowDefinition[];
   scheduleTriggers: ScheduleTriggerManager;
   pbus: ProjectScopedEventBus;
-  activeRuns: Map<string, WorkflowActiveRunReservation>;
   backoff: AgentBackoffManager;
-  /** Max concurrent agent-step workflow runs. Default 1. */
-  agentConcurrency: number;
-  agentRunLimiter: AgentRunLimiter;
-  /** Max concurrent code-only workflow runs. Default 4. */
-  codeConcurrency: number;
+  runCoordinator: RunCoordinator;
   runtimeConfig: WorkflowRuntimeConfig;
   model?: string;
   idleIntervalMs: number;
@@ -76,14 +65,14 @@ export interface WorkflowRuntimeDispatchState {
   log(message: string): void;
 }
 
-function workspaceDirFor(state: WorkflowRuntimeDispatchState): string {
-  return state.workspaceDir ?? state.runtimeConfig.workspaceDir ?? state.projectDir;
-}
-
 export async function emitIdleEvent(
   state: WorkflowRuntimeDispatchState,
 ): Promise<void> {
-  checkAbortSignal(state.projectDir, state.activeRuns, (msg) => state.log(msg));
+  checkAbortSignal(
+    state.projectDir,
+    () => state.runCoordinator.cancelProject(state.runtimeConfig.projectId),
+    (msg) => state.log(msg),
+  );
   checkReloadSignal(
     state.projectDir,
     () => loadDefinitions(state),
@@ -97,7 +86,11 @@ export async function emitIdleEvent(
   const idleTriggerAlreadyQueued = state.wfQueue
     .getRuns()
     .some((run) => run.trigger.event === "runtime.idle");
-  if (state.stopping || state.activeRuns.size > 0 || idleTriggerAlreadyQueued) return;
+  if (
+    state.stopping ||
+    state.runCoordinator.isProjectBusy(state.runtimeConfig.projectId) ||
+    idleTriggerAlreadyQueued
+  ) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
   if (dispatchWindow && !isWithinDispatchWindow(dispatchWindow)) return;
   if (state.idleSignatureCheck !== undefined) return;
@@ -109,8 +102,7 @@ export async function emitIdleEvent(
       idleIntervalMs: state.idleIntervalMs,
     });
   }
-  const workspaceDir = workspaceDirFor(state);
-  const idleSignatureCheck = getIdleEventSignature(state.projectDir, workspaceDir);
+  const idleSignatureCheck = getIdleEventSignature(state.projectDir);
   state.idleSignatureCheck = idleSignatureCheck;
   let signature: string;
   try {
@@ -125,7 +117,11 @@ export async function emitIdleEvent(
   const triggerQueuedDuringInspection = state.wfQueue
     .getRuns()
     .some((run) => run.trigger.event === "runtime.idle");
-  if (state.stopping || state.activeRuns.size > 0 || triggerQueuedDuringInspection) {
+  if (
+    state.stopping ||
+    state.runCoordinator.isProjectBusy(state.runtimeConfig.projectId) ||
+    triggerQueuedDuringInspection
+  ) {
     return;
   }
   const now = Date.now();
@@ -144,64 +140,33 @@ export async function emitIdleEvent(
 
 export function maybeStartNext(
   state: WorkflowRuntimeDispatchState,
-  immediatePreRunFingerprint?: string,
 ): void {
   if (state.stopping || state.dispatchPaused) return;
-  if (existsSync(join(state.projectDir, ".kota", PAUSE_SIGNAL_FILE))) return;
-
-  let queued: ReturnType<typeof state.wfQueue.pick>;
-  while ((queued = state.wfQueue.pick((def) => canDispatchDefinition(state, def)))) {
-    const definition = state.definitions.find((d) => d.name === queued!.workflowName);
-    if (!definition) continue;
-
-    state.log(`Dispatching workflow "${queued!.workflowName}"`);
-    void runWorkflow(
-      state,
-      definition,
-      queued!.trigger,
-      queued!.runId,
-      immediatePreRunFingerprint,
-    );
-    immediatePreRunFingerprint = undefined;
-  }
+  state.runCoordinator.refill();
 }
 
-export async function runWorkflow(
+export async function executeAdmittedWorkflowRun(
   state: WorkflowRuntimeDispatchState,
-  definition: WorkflowDefinition,
-  trigger: WorkflowRunTrigger,
-  runId?: string,
-  immediatePreRunFingerprint?: string,
-): Promise<void> {
-  const workspaceDir = workspaceDirFor(state);
+  admitted: StoredRun,
+  context: RunContext,
+): Promise<WorkflowExecutionOutcome> {
+  const definition = state.definitions.find((candidate) => candidate.name === admitted.workflow);
+  if (!definition) {
+    return {
+      kind: "terminal",
+      state: "failed",
+      error: `Workflow definition "${admitted.workflow}" is not loaded`,
+    };
+  }
   const abortController = new AbortController();
-  const reservedRunId = runId ?? formatRunId(definition.name);
-  let resolveReservation!: (value: WorkflowRunExecutionResult) => void;
-  let rejectReservation!: (reason?: Error) => void;
-  const reservationPromise = new Promise<WorkflowRunExecutionResult>((resolve, reject) => {
-    resolveReservation = resolve;
-    rejectReservation = reject;
-  });
-  const reservation: WorkflowActiveRunReservation = {
-    runId: reservedRunId,
-    workflowName: definition.name,
-    promise: reservationPromise,
-    abortController,
-  };
-  state.activeRuns.set(reservedRunId, reservation);
-  const preRunFingerprint =
-    immediatePreRunFingerprint ??
-    (await getRepoWorktreeStatusAsync(workspaceDir)).fingerprint;
-  let nextPreRunFingerprint: string | undefined;
-  const releaseReservation = () => {
-    state.activeRuns.delete(reservedRunId);
-  };
+  const forwardAbort = () => abortController.abort(context.signal.reason);
+  if (context.signal.aborted) forwardAbort();
+  else context.signal.addEventListener("abort", forwardAbort, { once: true });
   const { promise } = executeWorkflowRun(
     definition,
-    trigger,
+    admitted.trigger,
     {
-      projectDir: state.projectDir,
-      workspaceDir,
+      runContext: context,
       authorityConfigPath: state.runtimeConfig.authorityConfigPath,
       bus: state.runtimeConfig.bus,
       pbus: state.pbus,
@@ -215,36 +180,36 @@ export async function runWorkflow(
       model: state.model,
       config: state.config,
       log: (message) => state.log(message),
-      triggerWorkflow: (workflowName, payload, waitFor, signal) =>
+      triggerWorkflow: (workflowName, payload, waitFor, signal, triggerId) =>
         triggerWorkflowFromStep(
           state,
-          () => maybeStartNext(state),
+          admitted.id,
           workflowName,
           payload,
           waitFor,
           signal,
+          triggerId,
         ),
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       scopePolicyAuthority: state.runtimeConfig.scopePolicyAuthority,
-      agentRunLimiter: state.agentRunLimiter,
-      runId: reservedRunId,
     },
     abortController,
   );
   try {
     const result = await promise;
-    if (result.agentBackoff) {
-      state.backoff.apply(result.agentBackoff);
-    }
+    const appliedBackoff = result.agentBackoff
+      ? state.backoff.apply(result.agentBackoff)
+      : undefined;
     recordFailedWorkflowDispatchDeadLetter(
       state,
       definition,
-      trigger,
+      admitted.trigger,
       result.metadata,
       result.agentBackoff?.kind,
     );
     if (
+      definition.repository !== "write" &&
       state.deadLetterQueue !== undefined &&
       (result.metadata.status === "success" ||
         result.metadata.status === "completed-with-warnings")
@@ -256,41 +221,116 @@ export async function runWorkflow(
         log: state.log,
       });
     }
-    const completedWorktree = await handleDirtyCompletion(
-      state,
-      definition,
-      result.metadata,
-      preRunFingerprint,
-    );
-    if (
-      completedWorktree.available &&
-      !completedWorktree.dirty &&
-      state.activeRuns.size === 1 &&
-      definition.terminalFinalizer === undefined
-    ) {
-      nextPreRunFingerprint = completedWorktree.fingerprint;
-    }
-    resolveReservation(result);
-    releaseReservation();
-    await runTerminalFinalizer(
-      state,
-      definition,
-      trigger,
-      result.metadata,
-      workspaceDir,
-      result.agentBackoff?.kind,
-    );
     if (
       !result.agentBackoff &&
       runHasSuccessfulAgentExecution(result.metadata.steps)
     ) {
       state.backoff.clear();
     }
+    const successful =
+      result.metadata.status === "success" ||
+      result.metadata.status === "completed-with-warnings";
+    if (!successful && appliedBackoff !== undefined) {
+      return {
+        kind: "suspended",
+        state: "waiting",
+        wait: {
+          reason: "agent-backoff",
+          kind: appliedBackoff.kind,
+        },
+        error: appliedBackoff.reason,
+        resumeAt: appliedBackoff.until,
+      };
+    }
+    const commitMessage = successful && definition.repository === "write"
+      ? readRunCommitMessage([
+          context.resources.agentDir,
+          join(
+            state.store.runsDir,
+            validateWorkflowRunId(admitted.id, "Admitted workflow run"),
+          ),
+        ])
+      : undefined;
+    return successful
+      ? {
+          kind: "completed",
+          ...(commitMessage === undefined ? {} : { commitMessage }),
+        }
+      : {
+          kind: "terminal",
+          state: context.signal.aborted ? "cancelled" : "failed",
+          ...([...result.metadata.steps].reverse().find((step) => step.error)?.error
+            ? {
+                error: [...result.metadata.steps]
+                  .reverse()
+                  .find((step) => step.error)!.error,
+              }
+            : {}),
+        };
   } catch (error) {
-    rejectReservation(error instanceof Error ? error : new Error(String(error)));
-    throw error;
+    return {
+      kind: "terminal",
+      state: context.signal.aborted ? "cancelled" : "failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
   } finally {
-    releaseReservation();
-    maybeStartNext(state, nextPreRunFingerprint);
+    context.signal.removeEventListener("abort", forwardAbort);
+  }
+}
+
+export function createIntegratedWorkflowPublication(
+  state: WorkflowRuntimeDispatchState,
+  run: StoredRun,
+  status: WorkflowRunStatus,
+): Omit<RunPublication, "createdAt" | "deliveredAt"> {
+  const definition = state.definitions.find((candidate) => candidate.name === run.workflow);
+  const metadata = state.store.getRun(run.id);
+  if (!definition || !metadata) {
+    throw new Error(`Cannot publish integrated completion for run "${run.id}"`);
+  }
+  if (metadata.status === "running") {
+    throw new Error(`Cannot publish completion for running workflow "${run.id}"`);
+  }
+  const publicationId = `workflow:${run.id}:completed`;
+  return {
+    id: publicationId,
+    runId: run.id,
+    projectId: run.projectId,
+    event: "workflow.completed",
+    payload: buildWorkflowCompletedPayload(
+      metadata,
+      status,
+      definition.tags,
+      undefined,
+      definition.defaultAutonomyMode,
+      publicationId,
+    ),
+  };
+}
+
+export function deliverIntegratedWorkflowPublication(
+  state: WorkflowRuntimeDispatchState,
+  publication: PendingRunPublication,
+): void {
+  state.pbus.deliverOutbox(publication.event, publication.payload, publication.id);
+  recordEmittedEventEvidence(join(state.store.runsDir, publication.runId), {
+    publicationId: publication.id,
+    event: publication.event,
+    schemaRef: resolveEventSchemaReference(publication.event),
+    payload: publication.payload,
+    emittedAt: new Date().toISOString(),
+  });
+  if (publication.event !== "workflow.completed") return;
+  const metadata = state.store.getRun(publication.runId);
+  if (!metadata) {
+    throw new Error(`Cannot reconcile publication for missing run "${publication.runId}"`);
+  }
+  if (state.deadLetterQueue !== undefined) {
+    dismissSupersededWorkflowDeadLetters({
+      deadLetterQueue: state.deadLetterQueue,
+      runStore: state.store,
+      successfulRun: metadata,
+      log: state.log,
+    });
   }
 }
