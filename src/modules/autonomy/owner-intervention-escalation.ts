@@ -14,13 +14,9 @@ export {
 export {
   buildOwnerInterventionEscalationReport,
 } from "./owner-intervention-escalation-report.js";
-export {
-  proposeOwnerInterventionEscalation,
-} from "./owner-intervention-escalation-tasks.js";
 export type {
   OwnerInterventionEscalationConfig,
   OwnerInterventionEscalationDetection,
-  OwnerInterventionEscalationProposal,
   OwnerInterventionEscalationReport,
   OwnerInterventionEscalationThresholds,
   OwnerInterventionEvidenceRef,
@@ -35,8 +31,6 @@ export {
   DEFAULT_OWNER_INTERVENTION_MIN_QUESTIONS,
   DEFAULT_OWNER_INTERVENTION_REPORT_LIMIT,
   DEFAULT_OWNER_INTERVENTION_WINDOW_MS,
-  OWNER_INTERVENTION_EVIDENCE_FINGERPRINT_RE,
-  OWNER_INTERVENTION_TASK_ID_PREFIX,
 } from "./owner-intervention-escalation-types.js";
 
 export function detectRecurringOwnerInterventionPatterns(

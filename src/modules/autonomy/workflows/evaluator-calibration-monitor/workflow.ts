@@ -1,9 +1,10 @@
 /**
  * Live-run evaluator calibration monitor.
  *
- * Aggregates calibration artifacts after successful builder completions, materializes a
- * deterministic repair action when drift crosses the active threshold, and
- * emits typed regression and health signals for operators and automation.
+ * Aggregates production calibration outcomes after successful builder runs and
+ * publishes drift as evidence. It deliberately does not manufacture repair
+ * work: repeated warning evidence is grouped and dispositioned by the autonomy
+ * health reviewer and improver.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -13,30 +14,18 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import type {
-  CalibrationRepairApplied,
-  CalibrationRepairArtifact,
-  CalibrationRepairProposal,
-} from "#modules/autonomy/calibration-repair.js";
-import { proposeCalibrationRepair } from "#modules/autonomy/calibration-repair.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import { buildEvaluatorCalibrationDriftHealthSignal } from "#modules/autonomy/health-signal-emitters.js";
 import {
   type EvaluatorCalibrationInspection,
   inspectEvaluatorCalibrationOperation,
 } from "./inspection.js";
-import {
-  applyCalibrationRepairOperation,
-} from "./repair-operations.js";
 
-type GateInspection = EvaluatorCalibrationInspection;
-
-const inspectGate = typedCodeStep<GateInspection>({
+const inspectGate = typedCodeStep<EvaluatorCalibrationInspection>({
   id: "evaluate-calibration",
   type: "code",
   validate: (raw) =>
-    expectStructuredOutput<GateInspection>(raw, [
-      "dirty",
+    expectStructuredOutput<EvaluatorCalibrationInspection>(raw, [
       "status",
       "reason",
       "driftKinds",
@@ -47,70 +36,29 @@ const inspectGate = typedCodeStep<GateInspection>({
       "passWithWarningsMinSample",
       "aggregate",
     ]),
-  run: ({ workspaceRoot, stateDir, runBlocking }) =>
-    runBlocking(inspectEvaluatorCalibrationOperation, { workspaceRoot, stateDir }),
+  run: ({ stateDir, runBlocking }) =>
+    runBlocking(inspectEvaluatorCalibrationOperation, { stateDir }),
 });
 
-type ProposeResult = { proposal: CalibrationRepairProposal };
+type CalibrationObservationArtifact = {
+  runId: string;
+  workflow: string;
+  triggerEvent: string;
+  sourceRunId: string | null;
+  criticPromptHash: string;
+  status: EvaluatorCalibrationInspection["status"];
+  reason: string;
+  driftKinds: EvaluatorCalibrationInspection["driftKinds"];
+  aggregate: EvaluatorCalibrationInspection["aggregate"];
+  thresholdRate: number;
+  minSample: number;
+  passWithWarningsThresholdRate: number;
+  passWithWarningsMinSample: number;
+  generatedAt: string;
+};
 
-const proposeRepair = typedCodeStep<ProposeResult>({
-  id: "propose-repair",
-  type: "code",
-  when: (ctx) => {
-    const inspection = inspectGate.output(ctx);
-    return inspection?.status === "gated" && !inspection.dirty;
-  },
-  validate: (raw) =>
-    expectStructuredOutput<ProposeResult>(raw, ["proposal"]),
-  run: async (ctx) => {
-    const inspection = inspectGate.outputRequired(ctx);
-    const proposal = await proposeCalibrationRepair(
-      {
-        workspaceRoot: ctx.workspaceRoot,
-        stateDir: ctx.stateDir,
-        decisionReason: inspection.reason,
-        driftKinds: inspection.driftKinds,
-        aggregate: inspection.aggregate,
-        thresholdRate: inspection.thresholdRate,
-        passWithWarningsThresholdRate:
-          inspection.passWithWarningsThresholdRate,
-        nowIso: new Date().toISOString(),
-      },
-      ctx.runCommand,
-    );
-    return { proposal };
-  },
-});
-
-type ApplyResult = { applied: CalibrationRepairApplied };
-
-const applyRepair = typedCodeStep<ApplyResult>({
-  id: "apply-repair",
-  type: "code",
-  when: (ctx) => proposeRepair.output(ctx) !== undefined,
-  validate: (raw) => expectStructuredOutput<ApplyResult>(raw, ["applied"]),
-  run: async (ctx) => {
-    const inspection = inspectGate.outputRequired(ctx);
-    const applied = await ctx.runBlocking(applyCalibrationRepairOperation, {
-      proposal: proposeRepair.outputRequired(ctx).proposal,
-      context: {
-        workspaceRoot: ctx.workspaceRoot,
-        stateDir: ctx.stateDir,
-        decisionReason: inspection.reason,
-        driftKinds: inspection.driftKinds,
-        aggregate: inspection.aggregate,
-        thresholdRate: inspection.thresholdRate,
-        passWithWarningsThresholdRate:
-          inspection.passWithWarningsThresholdRate,
-        nowIso: new Date().toISOString(),
-      },
-    });
-    return { applied };
-  },
-});
-
-const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
-  id: "write-artifact",
+const writeObservation = typedCodeStep<{ written: boolean; path: string }>({
+  id: "write-observation",
   type: "code",
   when: (ctx) => inspectGate.output(ctx) !== undefined,
   validate: (raw) =>
@@ -121,17 +69,15 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   run: async (ctx) => {
     const inspection = inspectGate.outputRequired(ctx);
     const sourceRunId = ctx.trigger.payload.runId;
-    const artifact: CalibrationRepairArtifact = {
+    const artifact: CalibrationObservationArtifact = {
       runId: ctx.workflow.runId,
       workflow: ctx.workflow.name,
       triggerEvent: ctx.trigger.event,
       sourceRunId: typeof sourceRunId === "string" ? sourceRunId : null,
       criticPromptHash: inspection.criticPromptHash,
-      gateStatus: inspection.status,
-      decisionReason: inspection.reason,
+      status: inspection.status,
+      reason: inspection.reason,
       driftKinds: inspection.driftKinds,
-      proposal: proposeRepair.output(ctx)?.proposal ?? null,
-      applied: applyRepair.output(ctx)?.applied ?? null,
       aggregate: inspection.aggregate,
       thresholdRate: inspection.thresholdRate,
       minSample: inspection.minSample,
@@ -140,92 +86,34 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
       generatedAt: new Date().toISOString(),
     };
     await mkdir(ctx.workflow.runDirPath, { recursive: true });
-    const artifactPath = join(ctx.workflow.runDirPath, "calibration-repair.json");
+    const artifactPath = join(
+      ctx.workflow.runDirPath,
+      "evaluator-calibration-observation.json",
+    );
     await writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
     return { written: true, path: artifactPath };
   },
 });
 
-const writeCommitMessage = typedCodeStep<{ written: boolean }>({
-  id: "write-commit-message",
-  type: "code",
-  when: (ctx) => {
-    const applied = applyRepair.output(ctx)?.applied;
-    return applied !== undefined && applied.kind !== "noop";
-  },
-  validate: (raw) =>
-    expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
-  run: async (ctx) => {
-    const inspection = inspectGate.outputRequired(ctx);
-    const applied = applyRepair.outputRequired(ctx).applied;
-    const headline = (() => {
-      switch (applied.kind) {
-        case "created":
-          return `evaluator-calibration-monitor: open repair task ${applied.taskId}`;
-        case "recreated":
-          return `evaluator-calibration-monitor: re-open repair task ${applied.taskId} (was ${applied.previousState})`;
-        case "promoted":
-          return `evaluator-calibration-monitor: promote repair task ${applied.taskId} ${applied.move.fromState} -> ${applied.move.toState}`;
-        case "noop":
-          throw new Error("write-commit-message ran for a noop applied action");
-      }
-    })();
-    await mkdir(ctx.workflow.runDirPath, { recursive: true });
-    await writeFile(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${[
-        headline,
-        "",
-        `Calibration gate fired: ${inspection.driftKinds.join(", ")}.`,
-        inspection.reason,
-      ].join("\n")}\n`,
-    );
-    return { written: true };
-  },
-});
-
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (obj.ok !== true) {
-      throw new Error(`expected ok: true, got ${String(obj.ok)}`);
-    }
-    return obj;
-  },
-  run: async (ctx) => {
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
   name: "evaluator-calibration-monitor",
-  repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  repository: "none",
   description:
-    "After each successful builder completion, aggregate evaluator calibration. When the gate fires, open or promote a calibration repair task and emit a typed regression event for the attention bridge.",
+    "Measure live evaluator calibration after successful builder runs and publish drift evidence for grouped AI disposition.",
   tags: ["monitored"],
   triggers: [
     {
       event: "workflow.completed",
-      filter: { workflow: ["builder"], status: ["success", "completed-with-warnings"] },
+      filter: {
+        workflow: ["builder"],
+        status: ["success", "completed-with-warnings"],
+      },
       queueMode: "all",
     },
   ],
   steps: [
     inspectGate,
-    proposeRepair,
-    applyRepair,
-    writeArtifact,
-    writeCommitMessage,
-    validateChanges,
+    writeObservation,
     {
       id: "emit-regression",
       type: "emit",
@@ -233,7 +121,6 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
       event: "evaluator-calibration.regression.detected",
       payload: (ctx) => {
         const inspection = inspectGate.outputRequired(ctx);
-        const applied = applyRepair.output(ctx)?.applied ?? null;
         const aggregate = inspection.aggregate;
         return {
           windowStartMs: aggregate.windowStartMs,
@@ -251,7 +138,6 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
           passWithWarningsThresholdRate:
             inspection.passWithWarningsThresholdRate,
           driftKinds: inspection.driftKinds,
-          repairAction: applied ? applied.kind : "skipped",
           reason: inspection.reason,
         };
       },

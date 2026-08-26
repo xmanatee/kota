@@ -115,11 +115,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     records: [],
     unsupported: [],
   },
-  reviewScrutinyEscalation: {
-    activePatterns: [],
-    cooldownPatterns: [],
-    belowThresholdPatterns: [],
-  },
   shadowSemanticReviews: {
     totalArtifacts: 0,
     reviewed: 0,

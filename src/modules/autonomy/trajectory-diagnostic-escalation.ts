@@ -19,7 +19,6 @@ export const DEFAULT_TRAJECTORY_DIAGNOSTIC_WINDOW_MS = 7 * MS_PER_DAY;
 export const DEFAULT_TRAJECTORY_DIAGNOSTIC_PATTERN_RUNS = 3;
 export const DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT = 5;
 
-const TASK_ID_PREFIX = "task-repair-trajectory-diagnostic-pattern-";
 const MAX_DETAIL_LINES = 6;
 const MAX_DETAIL_LENGTH = 180;
 
@@ -36,7 +35,6 @@ export type TrajectoryDiagnosticPattern = {
   detailFingerprint: string;
   fingerprint: string;
   evidenceFingerprint: string;
-  taskId: string;
   runIds: string[];
   runCount: number;
   artifactPaths: string[];
@@ -230,7 +228,6 @@ function buildPattern(
     detailFingerprint: first.detailFingerprint,
     fingerprint,
     evidenceFingerprint,
-    taskId: `${TASK_ID_PREFIX}${shortHash(fingerprint)}`,
     runIds,
     runCount: runIds.length,
     artifactPaths,

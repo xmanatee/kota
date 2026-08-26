@@ -584,9 +584,6 @@ describe("aggregateAutonomyReport", () => {
       runCount: 3,
     });
     expect(
-      report.trajectoryDiagnostics.activePatterns[0]?.repairTaskId,
-    ).toMatch(/^task-repair-trajectory-diagnostic-pattern-/);
-    expect(
       JSON.stringify(report.trajectoryDiagnostics.activePatterns[0]),
     ).not.toMatch(/cost|throughput/i);
   });

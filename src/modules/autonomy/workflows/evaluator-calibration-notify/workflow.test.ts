@@ -18,7 +18,6 @@ const samplePayload = {
   thresholdRate: 0.25,
   passWithWarningsThresholdRate: 0.4,
   driftKinds: ["pass-contradiction"] as ("pass-contradiction" | "pass-with-warnings-escalation")[],
-  repairAction: "created" as "noop" | "created" | "recreated" | "promoted" | "skipped",
   reason:
     "Pass-verdict contradiction rate 41.7% exceeds threshold 25.0% (5 of 12 pass verdicts).",
 };
@@ -60,7 +59,7 @@ describe("evaluator-calibration-notify workflow", () => {
     expect(digest.items[0].detail).toContain("5/12");
     expect(digest.items[0].detail).toContain("pass-contradiction");
     expect(digest.text).toContain(samplePayload.reason);
-    expect(digest.text).toContain("Corrective action:");
+    expect(digest.text).toContain("recorded as evidence");
   });
 });
 
@@ -71,14 +70,6 @@ describe("buildAttentionItemFromCalibration", () => {
     expect(item.detail).toContain("25.0%");
     expect(item.detail).toContain("(5/12)");
     expect(item.detail).toContain("pass-contradiction");
-    expect(item.text).toContain("opened a new repair task");
-  });
-
-  it("describes a noop corrective action when the repair task is already in flight", () => {
-    const item = buildAttentionItemFromCalibration({
-      ...samplePayload,
-      repairAction: "noop",
-    });
-    expect(item.text).toContain("already in flight");
+    expect(item.text).not.toContain("repair task");
   });
 });

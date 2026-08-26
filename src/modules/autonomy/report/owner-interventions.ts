@@ -57,7 +57,6 @@ export function buildOwnerInterventionReport(
   return {
     ...report,
     recurringPatterns: buildOwnerInterventionEscalationReport({
-      workspaceRoot: input.workspaceRoot,
       patterns: detection.patterns,
       ignoredPatterns: detection.ignoredPatterns,
       belowThresholdPatterns: detection.belowThresholdPatterns,

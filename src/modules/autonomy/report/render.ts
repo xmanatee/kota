@@ -32,7 +32,6 @@ import {
   renderBuilderBreakdown,
   renderExplorerBalance,
   renderReviewScrutiny,
-  renderReviewScrutinyEscalation,
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
 import { renderShadowSemanticReviews } from "./render-shadow-semantic-reviews.js";
@@ -74,9 +73,6 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Review scrutiny", 2),
     ...renderReviewScrutiny(data.reviewScrutiny),
-    blank(),
-    heading("Review scrutiny escalation", 2),
-    ...renderReviewScrutinyEscalation(data.reviewScrutinyEscalation),
     blank(),
     heading("Shadow semantic reviews", 2),
     ...renderShadowSemanticReviews(data.shadowSemanticReviews),

@@ -1,23 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
 import { NO_COLOR_THEME, renderToString } from "#modules/rendering/index.js";
 import { stack } from "#modules/rendering/primitives.js";
-import {
-  renderReviewScrutiny,
-  renderReviewScrutinyEscalation,
-} from "./render-run-sections.js";
+import { renderReviewScrutiny } from "./render-run-sections.js";
 import { emptyAutonomyReportData } from "./report-test-fixtures.js";
 
 function render(report: ReviewScrutinyReport): string {
   return renderToString(stack(...renderReviewScrutiny(report)), {
-    width: 100,
-    theme: NO_COLOR_THEME,
-  });
-}
-
-function renderEscalation(report: ReviewScrutinyEscalationReport): string {
-  return renderToString(stack(...renderReviewScrutinyEscalation(report)), {
     width: 100,
     theme: NO_COLOR_THEME,
   });
@@ -84,44 +73,5 @@ describe("renderReviewScrutiny", () => {
     expect(text).toContain("Absent metric refs");
     expect(text).toContain("Thin acceptance refs");
     expect(text).toContain("builder-run");
-  });
-});
-
-describe("renderReviewScrutinyEscalation", () => {
-  it("renders active, cooldown, and below-threshold escalation state", () => {
-    const base = {
-      surface: "critic" as const,
-      workflow: "builder",
-      taskArea: "autonomy",
-      taskClass: "Meta" as const,
-      approvalLikeDecisions: 10,
-      thinAcceptances: 8,
-      thinAcceptanceRatio: 0.8,
-      repairTaskId: "task-repair-review-scrutiny-pattern-abc123def456",
-      patternFingerprint: "review-scrutiny:critic:builder:autonomy:Meta",
-      action: "create" as const,
-      reason: "threshold crossed",
-      runIds: ["run-a", "run-b"],
-    };
-    const text = renderEscalation({
-      activePatterns: [base],
-      cooldownPatterns: [{ ...base, action: "noop", reason: "cooldown" }],
-      belowThresholdPatterns: [
-        {
-          ...base,
-          action: "below-threshold",
-          thinAcceptances: 1,
-          approvalLikeDecisions: 2,
-          thinAcceptanceRatio: 0.5,
-          reason: "below threshold",
-        },
-      ],
-    });
-
-    expect(text).toContain("Active patterns");
-    expect(text).toContain("Cooldown-suppressed patterns");
-    expect(text).toContain("Below-threshold patterns");
-    expect(text).toContain("task-repair-review-scrutiny-pattern");
-    expect(text).not.toMatch(/\bcost\b/i);
   });
 });

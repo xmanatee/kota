@@ -1,5 +1,4 @@
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
 import type {
   TrajectoryDiagnosticPattern,
 } from "#modules/autonomy/trajectory-diagnostic-escalation.js";
@@ -148,7 +147,6 @@ export type TrajectoryDiagnosticPatternSummary = {
   stepId: string;
   code: TrajectoryDiagnosticPattern["code"];
   runCount: number;
-  repairTaskId: string;
   evidenceArtifactPaths: string[];
 };
 
@@ -219,7 +217,6 @@ export type AutonomyReportData = {
   decisionAttribution: DecisionAttributionReport;
   diffSummaryConsistency: DiffSummaryConsistencyReport;
   reviewScrutiny: ReviewScrutinyReport;
-  reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   shadowSemanticReviews: ShadowSemanticReviewReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   processDiscipline: ProcessDisciplineReport;

@@ -19,7 +19,7 @@ describe("owner intervention escalation report", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("surfaces active recurring patterns and generated task ids in the operator report", () => {
+  it("surfaces active recurring corrections as observation-only patterns", () => {
     writeQuestion(workspaceRoot, {
       id: "correct1",
       status: "answered",
@@ -42,18 +42,17 @@ describe("owner intervention escalation report", () => {
     expect(data.recurringPatterns.activePatterns).toHaveLength(1);
     expect(data.recurringPatterns.activePatterns[0]).toMatchObject({
       kind: "repeated-freeform-correction",
-      action: "create",
+      questionIds: ["correct1", "correct2"],
     });
-    expect(data.recurringPatterns.activePatterns[0]?.repairTaskId).toMatch(
-      /^task-repair-owner-intervention-pattern-/,
-    );
     const serialized = JSON.stringify(data);
+    expect(serialized).not.toContain("repairTaskId");
+    expect(serialized).not.toContain('"action"');
     expect(serialized).not.toContain("Private prompt context");
     expect(serialized).not.toContain("blocked-promoter path instead");
     expect(serialized).not.toMatch(/\bcost\b/i);
   });
 
-  it("reports stale record-only health-reviewer recurrence without opening an active repair task", () => {
+  it("reports ignored stale record-only health-reviewer recurrence", () => {
     writeQuestion(workspaceRoot, {
       id: "health-stale-a",
       status: "pending",
@@ -81,10 +80,6 @@ describe("owner intervention escalation report", () => {
     expect(data.recurringPatterns.ignoredPatterns).toHaveLength(1);
     expect(data.recurringPatterns.ignoredPatterns[0]).toMatchObject({
       kind: "repeated-stale-or-expired",
-      action: "ignored",
-      repairTaskId: expect.stringMatching(
-        /^task-repair-owner-intervention-pattern-/,
-      ),
       questionIds: ["health-stale-a", "health-stale-b"],
       runIds: ["health-run-a", "health-run-b"],
     });

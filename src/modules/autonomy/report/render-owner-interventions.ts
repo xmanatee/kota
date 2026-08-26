@@ -96,8 +96,7 @@ function appendRecurringPatterns(
   for (const pattern of patterns.slice(0, 5)) {
     lines.push(line(plain(
       `  ${pattern.kind.padEnd(28)} ${pattern.dimension.kind}:${pattern.dimension.value} ` +
-      `${String(pattern.questionCount).padStart(2)} questions   ` +
-      `task ${pattern.repairTaskId}   action ${pattern.action}`,
+      `${String(pattern.questionCount).padStart(2)} questions`,
     )));
   }
 }

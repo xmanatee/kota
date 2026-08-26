@@ -27,29 +27,11 @@ type CalibrationRegressionPayload = {
   thresholdRate: number;
   passWithWarningsThresholdRate: number;
   driftKinds: ("pass-contradiction" | "pass-with-warnings-escalation")[];
-  repairAction: "noop" | "created" | "recreated" | "promoted" | "skipped";
   reason: string;
 };
 
 function pct(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
-}
-
-function describeRepairAction(
-  action: CalibrationRegressionPayload["repairAction"],
-): string {
-  switch (action) {
-    case "created":
-      return "opened a new repair task in ready/";
-    case "recreated":
-      return "re-opened the calibration repair task in ready/";
-    case "promoted":
-      return "promoted the repair task from backlog/ to ready/";
-    case "noop":
-      return "an existing repair task is already in flight — no new task created";
-    case "skipped":
-      return "corrective task creation was skipped (worktree dirty or recovery trigger)";
-  }
 }
 
 export function buildAttentionItemFromCalibration(
@@ -68,7 +50,7 @@ export function buildAttentionItemFromCalibration(
     `${pct(payload.passWithWarningsThresholdRate)}`;
   const text =
     `Attention digest (1 item):\n• *${label}*: ${detail}\n` +
-    `Corrective action: ${describeRepairAction(payload.repairAction)}.\n` +
+    "Review status: recorded as evidence; repeated signals are grouped for AI disposition.\n" +
     `Reason: ${payload.reason}`;
   return { label, detail, text };
 }

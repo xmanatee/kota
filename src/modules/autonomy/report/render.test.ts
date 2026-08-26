@@ -15,7 +15,6 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Diff-summary consistency");
     expect(text).toContain("Owner interventions");
     expect(text).toContain("Review scrutiny");
-    expect(text).toContain("Review scrutiny escalation");
     expect(text).toContain("Trajectory diagnostics");
     expect(text).toContain("Process discipline");
     expect(text).toContain("Autonomy change decisions");
@@ -38,7 +37,6 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no builder runs inspected for diff-summary consistency)");
     expect(text).toContain("(no owner-question pressure)");
     expect(text).toContain("(no reviewer artifacts)");
-    expect(text).toContain("(no recurring thin-acceptance patterns)");
     expect(text).toContain("(no recurring trajectory diagnostic patterns)");
     expect(text).toContain("(no process-discipline records)");
     expect(text).toContain("(no autonomy change decisions)");
@@ -51,7 +49,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no finished runs in window)");
   });
 
-  it("renders trajectory repair task ids without cost fields in that section", () => {
+  it("renders trajectory observations without prescribing repair work", () => {
     const text = renderReport({
       ...empty,
       trajectoryDiagnostics: {
@@ -61,7 +59,6 @@ describe("renderAutonomyReport", () => {
             stepId: "explore",
             code: "missing_final_verification_after_edit",
             runCount: 3,
-            repairTaskId: "task-repair-trajectory-diagnostic-pattern-abc123def456",
             evidenceArtifactPaths: [
               ".kota/runs/r1/steps/explore.trajectory-diagnostics.json",
             ],
@@ -72,7 +69,7 @@ describe("renderAutonomyReport", () => {
 
     const trajectorySection = section(text, "Trajectory diagnostics", "Process discipline");
     expect(trajectorySection).toContain("explorer/explore");
-    expect(trajectorySection).toContain("task-repair-trajectory-diagnostic-pattern");
+    expect(trajectorySection).not.toContain("repair");
     expect(trajectorySection).not.toMatch(/\$|cost|throughput/i);
   });
 

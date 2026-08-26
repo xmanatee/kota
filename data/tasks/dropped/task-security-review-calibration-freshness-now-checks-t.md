@@ -1,14 +1,14 @@
 ---
 id: task-security-review-calibration-freshness-now-checks-t
 title: Authenticate calibration freshness through daemon-owned provenance
-status: backlog
+status: dropped
 priority: p1
 area: security
 task_class: Safety
 depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
 summary: Require daemon-authored run provenance for calibration freshness so mutually consistent agent files cannot recreate repair work.
 created_at: 2026-08-16T10:05:44.234Z
-updated_at: 2026-08-24T02:20:03.179Z
+updated_at: 2026-08-26T17:30:00.000Z
 ---
 
 ## Problem
@@ -168,3 +168,12 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Disposition
+
+Dropped because the calibration-repair mechanism was removed. The evaluator
+calibration monitor is now observation-only: it writes a run artifact and emits
+typed regression and health evidence, but it cannot create, reopen, or promote
+a task. The untrusted provenance described here therefore no longer controls a
+repository mutation, so the proposed authentication layer would protect an
+obsolete authority path.

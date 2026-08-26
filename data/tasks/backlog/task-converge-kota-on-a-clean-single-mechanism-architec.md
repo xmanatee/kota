@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T16:47:00.000Z
+updated_at: 2026-08-26T17:35:00.000Z
 ---
 
 ## Problem
@@ -73,7 +73,7 @@ dropped with dispositions.
 - [x] Stage 12 — normalize persistence and typed projections.
 - [x] Stage 13 — decompose remaining mixed owners by responsibility.
 - [x] Stage 14 — consolidate tests and fixtures by behavior owner.
-- [ ] Stage 15 — reconnect self-improvement to real feedback.
+- [x] Stage 15 — reconnect self-improvement to real feedback.
 - [ ] Stage 16 — remove migration residue and verify the program.
 
 Mark a stage complete only after its exit observation is true and its changes
@@ -449,6 +449,33 @@ net 1,795 lines. Both TypeScript projects passed, the 49-file affected-owner run
 passed 572 tests, and the additional narrow-client/Telegram/UI owner run passed
 159 tests. Protocol and resilience project discovery assigns their named
 scenarios without returning them to ordinary owner cadence.
+
+## Stage 15 Result
+
+Self-improvement now receives durable work candidates from owned outcomes:
+workflow and publication failures, dead letters, builder interruptions, owner
+corrections, evaluator-calibration drift, and eval-harness regressions.
+Trajectory diagnostics and review-shape heuristics remain optional diagnostic
+context and no longer emit autonomy issues or repair-task recommendations.
+Repeated warning signals are grouped before one issue decision; concrete
+errors and critical failures remain immediate.
+
+The evaluator-calibration monitor is observation-only. It writes a typed run
+artifact and emits regression/health events, but no longer creates, reopens, or
+promotes a task, writes a commit message, or depends on worktree cleanliness.
+The calibration repair/freshness/provenance stack and its mutation worker were
+deleted, and the now-obsolete security task was moved to dropped with the
+authority-removal disposition. Owner-intervention reports retain repeated
+outcome patterns without synthesizing task IDs or queue actions.
+
+The improver is still a capable AI decision layer with `create-task`,
+`ask-owner`, `observe`, `accept`, `duplicate`, and `no-action` outcomes. Its
+guidance now asks it to inspect the current owner, code, evidence, and related
+queue work and states explicitly that static metrics cannot establish repair
+work by themselves. The stage removed more than 3,000 net lines. Both
+TypeScript projects, repository lint, task validation, diff validation, and 66
+focused outcome, disposition, monitor, report, and blocking-worker behaviors
+passed.
 
 ## Finding Ownership
 

@@ -7,11 +7,6 @@ export const DEFAULT_OWNER_INTERVENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 export const DEFAULT_OWNER_INTERVENTION_MIN_QUESTIONS = 2;
 export const DEFAULT_OWNER_INTERVENTION_MIN_DISTINCT_RUNS = 2;
 export const DEFAULT_OWNER_INTERVENTION_REPORT_LIMIT = 5;
-export const OWNER_INTERVENTION_TASK_ID_PREFIX =
-  "task-repair-owner-intervention-pattern-";
-export const OWNER_INTERVENTION_EVIDENCE_FINGERPRINT_RE =
-  /<!-- owner-intervention-evidence-fingerprint: ([a-f0-9]+) -->/;
-
 export type OwnerInterventionPatternKind =
   | "repeated-freeform-correction"
   | "repeated-stale-or-expired";
@@ -50,7 +45,6 @@ export type OwnerInterventionPattern = {
   actionability: OwnerInterventionPatternActionability;
   fingerprint: string;
   evidenceFingerprint: string;
-  taskId: string;
   dimension: OwnerInterventionPatternDimension;
   questionCount: number;
   distinctRunCount: number;
@@ -88,56 +82,13 @@ export type OwnerInterventionEscalationDetection = {
   belowThresholdPatterns: OwnerInterventionPattern[];
 };
 
-export type ExistingOwnerInterventionTask = {
-  state: "backlog" | "ready" | "doing" | "blocked" | "done" | "dropped";
-  path: string;
-  content: string;
-  evidenceFingerprint: string | null;
-  createdAt: string | null;
-};
-
-export type OwnerInterventionEscalationProposal =
-  | {
-      action: "noop";
-      pattern: OwnerInterventionPattern;
-      reason: string;
-      existingState?: ExistingOwnerInterventionTask["state"];
-    }
-  | {
-      action: "create";
-      pattern: OwnerInterventionPattern;
-      target: "ready";
-    }
-  | {
-      action: "refresh";
-      pattern: OwnerInterventionPattern;
-      target: "ready";
-      previousEvidenceFingerprint: string | null;
-    }
-  | {
-      action: "promote";
-      pattern: OwnerInterventionPattern;
-      fromState: "backlog";
-      target: "ready";
-      previousEvidenceFingerprint: string | null;
-    }
-  | {
-      action: "recreate";
-      pattern: OwnerInterventionPattern;
-      previousState: "done" | "dropped";
-      target: "ready";
-      previousEvidenceFingerprint: string | null;
-    };
-
 export type OwnerInterventionPatternSummary = {
   kind: OwnerInterventionPatternKind;
   dimension: OwnerInterventionPatternDimension;
   questionCount: number;
   distinctRunCount: number;
   outcomeBuckets: OwnerInterventionOutcomeBucket[];
-  repairTaskId: string;
   patternFingerprint: string;
-  action: OwnerInterventionEscalationProposal["action"] | "below-threshold" | "ignored";
   reason: string;
   questionIds: string[];
   runIds: string[];

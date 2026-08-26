@@ -8,10 +8,6 @@
  */
 
 import { collectReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import {
-  buildReviewScrutinyEscalationReport,
-  detectRecurringReviewScrutinyPatternsFromReport,
-} from "#modules/autonomy/review-scrutiny-escalation.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   listFullRepoTasks,
@@ -138,12 +134,6 @@ export function aggregateAutonomyReport(
     windowStartMs,
     windowEndMs: input.windowEndMs,
   });
-  const reviewScrutinyEscalationDetection =
-    detectRecurringReviewScrutinyPatternsFromReport({
-      report: reviewScrutiny,
-      tasks: allTasks,
-      config: { nowMs: input.windowEndMs, windowMs },
-    });
   const postCompletionFollowUpLinks = buildPostCompletionCorrectiveLinks({
     tasks: allTasks,
     runs,
@@ -195,11 +185,6 @@ export function aggregateAutonomyReport(
       runsDir: input.runsDir,
     }),
     reviewScrutiny,
-    reviewScrutinyEscalation: buildReviewScrutinyEscalationReport({
-      workspaceRoot: input.workspaceRoot,
-      detection: reviewScrutinyEscalationDetection,
-      config: { nowMs: input.windowEndMs, windowMs },
-    }),
     shadowSemanticReviews: buildShadowSemanticReviewReport({
       runs,
       runsDir: input.runsDir,

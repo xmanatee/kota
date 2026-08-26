@@ -1,4 +1,3 @@
-import { proposeOwnerInterventionEscalation } from "./owner-intervention-escalation-tasks.js";
 import {
   DEFAULT_OWNER_INTERVENTION_REPORT_LIMIT,
   type OwnerInterventionEscalationReport,
@@ -8,7 +7,6 @@ import {
 
 function summarizePattern(
   pattern: OwnerInterventionPattern,
-  action: OwnerInterventionPatternSummary["action"],
   reason: string,
 ): OwnerInterventionPatternSummary {
   return {
@@ -17,9 +15,7 @@ function summarizePattern(
     questionCount: pattern.questionCount,
     distinctRunCount: pattern.distinctRunCount,
     outcomeBuckets: pattern.outcomeBuckets,
-    repairTaskId: pattern.taskId,
     patternFingerprint: pattern.fingerprint,
-    action,
     reason,
     questionIds: pattern.questionIds,
     runIds: pattern.runIds,
@@ -27,7 +23,6 @@ function summarizePattern(
 }
 
 export function buildOwnerInterventionEscalationReport(args: {
-  workspaceRoot: string;
   patterns: readonly OwnerInterventionPattern[];
   ignoredPatterns: readonly OwnerInterventionPattern[];
   belowThresholdPatterns: readonly OwnerInterventionPattern[];
@@ -36,17 +31,17 @@ export function buildOwnerInterventionEscalationReport(args: {
   const limit = args.limit ?? DEFAULT_OWNER_INTERVENTION_REPORT_LIMIT;
   return {
     activePatterns: args.patterns
-      .map((pattern) => {
-        const proposal = proposeOwnerInterventionEscalation(args.workspaceRoot, pattern);
-        const reason = "reason" in proposal ? proposal.reason : pattern.codeActionableReason ?? pattern.kind;
-        return summarizePattern(pattern, proposal.action, reason);
-      })
+      .map((pattern) =>
+        summarizePattern(
+          pattern,
+          pattern.codeActionableReason ?? pattern.kind,
+        )
+      )
       .slice(0, limit),
     ignoredPatterns: args.ignoredPatterns
       .map((pattern) =>
         summarizePattern(
           pattern,
-          "ignored",
           pattern.ignoredReason ?? "ignored owner-intervention pattern",
         )
       )
@@ -55,7 +50,6 @@ export function buildOwnerInterventionEscalationReport(args: {
       .map((pattern) =>
         summarizePattern(
           pattern,
-          "below-threshold",
           pattern.belowThresholdReason ?? pattern.kind,
         )
       )

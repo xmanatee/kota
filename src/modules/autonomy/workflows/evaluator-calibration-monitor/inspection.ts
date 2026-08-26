@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
@@ -11,7 +10,6 @@ import {
 } from "#modules/autonomy/evaluator-calibration.js";
 
 export type EvaluatorCalibrationInspection = {
-  dirty: boolean;
   status: "insufficient-sample" | "under-threshold" | "gated";
   reason: string;
   driftKinds: CalibrationDriftKind[];
@@ -24,11 +22,8 @@ export type EvaluatorCalibrationInspection = {
 };
 
 export function inspectEvaluatorCalibrationInWorker(input: {
-  workspaceRoot: string;
   stateDir: string;
 }): EvaluatorCalibrationInspection {
-  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
-  const dirty = worktree.available && worktree.dirty;
   const config = resolveCalibrationGateConfig();
   const criticPromptHash = getCriticPromptHash();
   const aggregate = aggregateCalibration(
@@ -37,7 +32,6 @@ export function inspectEvaluatorCalibrationInWorker(input: {
   );
   const decision = evaluateCalibrationGate(aggregate, config);
   return {
-    dirty,
     status: decision.status,
     reason: decision.reason,
     driftKinds: decision.status === "gated" ? decision.kinds : [],
@@ -52,6 +46,6 @@ export function inspectEvaluatorCalibrationInWorker(input: {
 
 export const inspectEvaluatorCalibrationOperation =
   defineWorkflowBlockingOperation<
-    { workspaceRoot: string; stateDir: string },
+    { stateDir: string },
     EvaluatorCalibrationInspection
   >(import.meta.url, "inspectEvaluatorCalibrationInWorker");

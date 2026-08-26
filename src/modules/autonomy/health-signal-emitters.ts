@@ -26,8 +26,8 @@ export function buildEvaluatorCalibrationDriftHealthSignal(args: {
     evidenceRefs: [
       {
         kind: "artifact",
-        ref: `${args.runDir}/calibration-repair.json`,
-        summary: "calibration repair artifact",
+        ref: `${args.runDir}/evaluator-calibration-observation.json`,
+        summary: "evaluator calibration observation",
       },
     ],
     actionability: "informational",
