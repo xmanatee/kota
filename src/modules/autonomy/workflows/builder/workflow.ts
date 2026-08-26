@@ -21,7 +21,7 @@ export const agent: AgentDef = {
   role: "Ship the one immutable task contract assigned to this isolated run.",
   promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  skills: "all",
+  skills: ["tool-cache", "working-memory"],
   writeScope: [],
 };
 

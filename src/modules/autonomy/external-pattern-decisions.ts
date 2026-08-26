@@ -1,19 +1,11 @@
-// Source/date/primitives/revisit metadata for the "External Pattern
-// Decisions" catalog in src/modules/autonomy/AGENTS.md. The verdict bullet
-// stays in AGENTS.md (concise label + decision + reasoning); this module
-// holds the operational fields needed to revisit a decision later. The
-// catalog test enforces 1:1 correspondence between the AGENTS.md bullets
-// and the entries here.
+// Source, rationale inputs, and revisit metadata for external pattern
+// decisions. This typed store is the single catalog; instructions describe
+// how the decisions are used without copying its entries.
 
 export type ExternalPatternVerdict = "adopt" | "reject" | "read" | "defer";
 
 export type ExternalPatternDecision = {
-  /**
-   * Pattern label as it appears as the bold lead-in (between the leading
-   * `**` and the trailing `.**`) on the bullet in
-   * `src/modules/autonomy/AGENTS.md` under "## External Pattern Decisions".
-   * The catalog test asserts 1:1 correspondence by this label.
-   */
+  /** Stable human-readable pattern label. */
   pattern: string;
   verdict: ExternalPatternVerdict;
   /** Human-readable citation: vendor docs, blog post, paper, or repo. */

@@ -27,10 +27,10 @@ per CLI invocation and stores it in `client-holder.ts`. CLI subcommands
 read it through `ModuleContext.client` and never re-decide the
 daemon-vs-local policy.
 
-`KotaClient.forProject(projectId)` is the compatibility project-scoping
-primitive. `KotaClient.forScope(scopeId)` is the canonical directory-scope
-primitive. Both return scoped clients that inject the selected scope into
-project-aware namespaces and normalize unknown ids to the typed client error.
+`KotaClient.forScope(scopeId)` is the canonical scoping primitive. Legacy
+project-shaped input is translated once at the outer compatibility boundary;
+new namespaces, handlers, and callers use scope terminology and do not extend
+the project-shaped path.
 
 ## Conventions
 
@@ -73,19 +73,12 @@ project-aware namespaces and normalize unknown ids to the typed client error.
 
 ## Adding a new namespace
 
-1. Add the namespace interface to `kota-client.ts` and append its name
-   to `KOTA_CLIENT_NAMESPACES`. Keep types small and explicit. Per-
-   namespace request/response/options types live in `kota-client.ts` or
-   the owning module — never in adjacent core-server files
-   (`kota-client-namespace-types-guard.test.ts` enforces this).
-2. Expose the daemon-side implementation through the owning module's
-   top-level `daemonClient(link)` factory. Return
-   `{ <namespace>: impl }`. The factory receives a typed
-   `DaemonTransport`; reuse an existing HTTP route or contribute a new
-   one from the owning module.
-3. Expose the local-side implementation through the owning module's
-   top-level `localClient(ctx)` factory. Return `{ <namespace>: impl }`.
-4. Migrate the CLI subcommand to consume `ctx.client.<namespace>.<m>()`.
+Define one small typed namespace at the client contract, contribute its daemon
+and local handlers from the owning module, and migrate callers to that
+namespace. Keep request and response types with the contract or domain owner.
+Use package boundaries and type completeness as the conformance mechanism;
+tests cover distinct daemon/local observable behavior rather than file
+placement or namespace catalogs.
 
 ## Anti-patterns
 
@@ -97,25 +90,9 @@ project-aware namespaces and normalize unknown ids to the typed client error.
   shapes — both implementors share one type per method.
 
 ## Non-namespace transport surface
-`DaemonControlClient` may keep a non-namespace method only when every
-condition holds:
 
-- The caller already holds a `DaemonControlClient`, not a
-  `DaemonTransport`. Module CLI code does not — it consumes
-  `getDaemonTransport()` directly through `daemon-transport.ts` (the
-  `kota-client-guard.test.ts` boundary check enforces this).
-- No operator-facing CLI invokes the method. Anything reachable from
-  `kota <subcommand>` must go through a `KotaClient` namespace so the
-  daemon-up and daemon-down branches share one typed result.
-- The daemon RPC has no natural namespace home, or wrapping it in a
-  discriminated namespace result would distort the wire shape the
-  caller needs (e.g. an SSE proxy or a dashboard payload that must
-  re-emit the raw daemon body).
-
-The current set is `registerSession`, `unregisterSession`,
-`getDaemonStatus`, and `events()` — all consumed by the in-process
-`kota serve` HTTP server when it bridges its sessions, status page,
-and event stream to the running daemon. Adding a method here is a
-"prove no namespace fits" decision, not a default. If a CLI ever
-needs the same RPC, promote it to a `KotaClient` namespace and remove
-the non-namespace method in the same change.
+Keep raw transport methods private to server bridging that genuinely must
+preserve streaming or body semantics. Operator-facing commands and module code
+use typed namespaces. Before adding a raw method, prove that it cannot have a
+coherent domain owner; if a typed caller later needs it, promote it and remove
+the raw path.

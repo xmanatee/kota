@@ -268,7 +268,7 @@ function localDecision(args: {
     sourceRefs: args.sourceRefs,
     disposition: args.disposition,
     summary: args.summary,
-    refs: ["src/modules/autonomy/AGENTS.md#external-pattern-decisions"],
+    refs: ["src/modules/autonomy/external-pattern-decisions.ts"],
   };
 }
 

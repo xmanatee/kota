@@ -123,8 +123,8 @@ function buildFindingTaskBody(args: {
     "## Done When",
     "",
     "- The cited vulnerability is fixed or proven impossible with code-level evidence.",
-    "- Focused regression coverage guards the fixed boundary.",
-    "- The task records the final verification command or artifact.",
+    "- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.",
+    "- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.",
     "",
     "## Source / Intent",
     "",
@@ -151,7 +151,7 @@ function buildFindingTaskBody(args: {
     "",
     "## Acceptance Evidence",
     "",
-    "- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.",
+    "- Proportionate boundary proof, such as a focused behavior check, runtime probe, or review transcript showing the cited security claim no longer holds.",
     "",
   ].join("\n");
 }

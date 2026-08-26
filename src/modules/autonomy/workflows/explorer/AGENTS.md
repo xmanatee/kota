@@ -19,14 +19,6 @@ This directory contains the explorer workflow definition and prompt.
   advanced only by the staged `explorer-publication` `repository: none`
   follow-up through the runtime state compare-and-set contract; do not add a
   cooldown JSON file.
-- The `External Pattern Decisions` catalog in `src/modules/autonomy/AGENTS.md`
-  is out of scope for explorer. When a watchlist entry yields a clear
-  reject/read/adopt verdict against KOTA's primitives, record it in the
-  watchlist `summary` field for that entry — that is explorer's only
-  verdict-recording surface. The autonomy AGENTS.md catalog is curated by
-  owner distillation or by improver from repeated run evidence; explorer's
-  writeScope intentionally excludes it. Two recent occurrences
-  (`2026-04-24T14-04-37-931Z-explorer-5qwsga`,
-  `2026-04-26T02-06-31-519Z-explorer-0nterp`) burned ~13 min of agent time
-  each because the writeScope guard rejected the AGENTS.md edit and aborted
-  the whole step with no commit.
+- Record a watchlist source's local disposition and rationale in its summary.
+  The typed external-decision store is curated separately from repeated
+  evidence; explorer's data-only write scope intentionally excludes it.

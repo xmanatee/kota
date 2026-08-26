@@ -24,7 +24,7 @@ export const agent: AgentDef = {
     "Retry one blocked research task's inaccessible sources using authenticated-browser and rendered-browser tools, then update task state honestly.",
   promptPath: "src/modules/autonomy/workflows/research-retry/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
-  skills: "all",
+  skills: [],
   writeScope: ["data/tasks/", "data/inbox/"],
 };
 

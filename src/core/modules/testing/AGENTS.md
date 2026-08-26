@@ -1,10 +1,14 @@
 # Module Testing
 
-This directory contains the `ModuleTestHarness` — a lightweight in-process harness for unit-testing `KotaModule` definitions without a running daemon, real config, or network.
+Module behavior is owned by the production loader and host modes.
 
-- Use the harness to test tool schemas, runners, route handlers, and event subscriptions in isolation.
-- Keep the harness implementation self-contained in `index.ts`; tests belong alongside the harness code.
-- The harness exposes `callTool`, `callRoute`, `emit`, and `teardown`. Add new harness capabilities here only when co-located module tests repeatedly need the same setup pattern.
-- Export only stable types and the `ModuleTestHarness` class through `src/core/workflow/testing/testing-api.ts`; keep internal utilities unexported.
-- Do not add production flags or hooks to modules just to make harness testing easier. Design modules with explicit inputs, outputs, and dependency injection so they are naturally testable.
-
+- Load modules through the production loader in the narrowest applicable mode,
+  then call their public tool, route, command, event, or lifecycle surface.
+- Fake only typed external ports. Do not duplicate module registration,
+  dependency resolution, initialization, subscription, or teardown semantics in
+  a test interpreter.
+- `ModuleTestHarness` is legacy migration surface. Do not add capabilities or
+  new consumers. Replace its scenarios with production-loader scenarios and
+  delete migrated harness behavior.
+- Pure schemas, parsers, and domain decisions may be tested directly when the
+  test owns a distinct accepted, rejected, or transformed behavior.

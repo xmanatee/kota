@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T04:05:16.000Z
+updated_at: 2026-08-26T04:16:30.000Z
 ---
 
 ## Problem
@@ -55,7 +55,7 @@ nineteen open tracked tasks.
 ## Stage Progress
 
 - [x] Stage 0 — establish the baseline and owner/rule ledger.
-- [ ] Stage 1 — remove misleading instructions and context bias.
+- [x] Stage 1 — remove misleading instructions and context bias.
 - [ ] Stage 2 — make builder validation and critic review proportional.
 - [ ] Stage 3 — make exploration and health improvement outcome-driven.
 - [ ] Stage 4 — reduce the task system to objective integrity.
@@ -76,6 +76,31 @@ Mark a stage complete only after its exit observation is true and its changes
 are committed. A stage summary records the owner changed, the obsolete
 mechanism removed, the proof selected, and the observed result in ordinary
 prose; no additional evidence schema is required.
+
+## Stage 1 Result
+
+Central standards now distinguish authoritative contract mechanisms from the
+tests that observe them. Scoped source, core, workflow, module, client, task,
+server, autonomy, script, and test-infrastructure instructions no longer
+prescribe copied catalogs, byte-identical fixtures, universal conformance arms,
+parallel test interpreters, fixed evidence files, filename inventories, or
+project-shaped extension paths.
+
+The obsolete autonomy instruction catalog and its prose-synchronization test
+were removed; the typed external-decision store is the sole catalog. Builder
+now receives only its two role-local skills, and research retry receives no
+unrelated skill bundle. Security proposals request the smallest proof that
+distinguishes the vulnerable and fixed boundary instead of mandatory regression
+coverage.
+
+The stage removed a net 278 lines before this result record. Exit verification
+observed no shipped autonomy workflow using `skills: "all"` and no scoped
+instruction retaining the retired mandates. TypeScript, Biome on changed
+sources, task validation, diff whitespace validation, the 21 security-review
+workflow tests, and 18 documentation/external-decision/report tests passed.
+The pre-change full-suite baseline remains independently red: 12,691 tests
+passed and 25 skipped, while seven replay/eval smoke files failed because their
+subprocess runs produced no terminal artifact.
 
 ## Finding Ownership
 

@@ -20,35 +20,16 @@ Guidelines:
 
 ## Root Layout
 
-The `src/` root holds only:
+Keep public entrypoints and genuinely cross-subsystem integration scenarios at
+the `src/` root. Unit tests and component fixtures belong beside their owning
+core area or module. Cross-cutting fixtures are exceptional: prefer an owned
+typed builder or semantic scenario over a root-level data catalog.
 
-- Entrypoint sources (`cli.ts`, `init.ts`, `module-api.ts`,
-  `validate-queue.ts`) and their paired unit tests (`cli.test.ts`,
-  `init.test.ts`).
-- Cross-subsystem integration, e2e, and repo-wide tests:
-  `*.integration.test.ts`, `e2e*.test.ts`, `integration.test.ts`,
-  `module-e2e.test.ts`, `distributable-surfaces.test.ts`,
-  `docs-surface.test.ts`, `task-files.test.ts`.
-- Shared fixtures co-located with cross-cutting integration tests when
-  they span multiple subsystems and have no single owning module
-  (e.g. `conversational-cross-store-fixture.integration.ts`). The fixture name must
-  also be added to the `ROOT_CROSS_CUTTING_FIXTURES` set in
-  `src/core/root-layout.ts`, the single source of truth that the layout
-  guard, the queue validator, and the autonomy module-boundary check all
-  import.
-- `root-layout.test.ts`, the guard test that enforces the layout. Its
-  whitelist data lives at `src/core/root-layout.ts` so non-test code can
-  import it without depending on a test file or on a `#root/*` import.
-
-Every other unit test lives next to the code it exercises under
-`src/core/<area>/` or `src/modules/<module>/`. `src/root-layout.test.ts`
-enforces this mechanically: adding a new non-whitelisted `src/*.test.ts`
-fails the guard. If a test legitimately spans multiple subsystems, rename
-it to `*.integration.test.ts`; otherwise move it to the owning subsystem.
-
-Core tests may not use `#modules/*` imports (`src/core/agent-harness/no-module-imports-in-core.test.ts`
-enforces this). A test that genuinely needs to load or reference project
-modules therefore belongs at the root integration tier, not under `src/core/`.
+Core code and core-only tests do not import project modules. Scenarios that
+assemble both layers belong at the integration boundary. Enforce these
+boundaries with package structure and the smallest structural check that cannot
+be expressed by TypeScript or module visibility; do not maintain filename
+catalogs in instructions.
 
 ## Strict Types Policy
 

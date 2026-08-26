@@ -1,45 +1,24 @@
 # Thin-Client Contract Conformance
 
-Pinned canonical artifacts for the cross-client conformance gate.
+This directory owns cross-language semantic conformance examples and binding
+generation entrypoints.
 
-The mechanism is a single shared fixture corpus plus a shared decoder catalog
-and case table. Handwritten route decoders remain here, while the UI surface
-schema and bindings are generated from the daemon-owned `UiSurfaceBundle`
-contract. Every thin-client decoder suite consumes the same fixture through
-equivalent typed decoders. Negative fixtures exercise unknown discriminators
-so strict decoding stays intentional rather than accidentally lax.
+- Structural wire contracts have one daemon-owned machine-readable source.
+  Generated bindings are build products; clients do not maintain handwritten or
+  byte-identical mirrors of the same structure.
+- Authored vectors exist only for behavior the structural contract cannot
+  express, such as cross-field rules, version handling, ordering, redaction,
+  and shared operator meaning.
+- Each vector names the contract or capability it exercises. A client runs the
+  vectors for the capabilities it declares, not a universal fixture corpus.
+- A malformed example is added only when it protects a meaningful boundary
+  decision. Unknown-field policy belongs in the versioned decoder contract,
+  not in a mandatory negative arm for every enum.
+- Render examples test stable product meaning. They do not freeze incidental
+  wording, score formatting, private view layout, or copied files across every
+  platform.
 
-## Boundary
-
-- The fixture is a frozen contract, not a wishlist — only add a
-  top-level key once a corresponding daemon route or field exists.
-- Negative cases are the contract's lower bound; they make strict
-  decoding load-bearing and must reject on unknown discriminators.
-- Web and core import the canonical TypeScript catalog directly. The mobile
-  workspace cannot resolve helpers outside its tree (expo babel transform),
-  so the generator emits its TypeScript UI binding inside the mobile tree and
-  the cross-client integration test enforces byte identity. Other decoder
-  copies remain in the production tree so the same strict parsers back both
-  conformance and mobile runtime paths.
-- The macOS suite consumes a `Bundle.module` resource copy declared in
-  the Swift package manifest; the same cross-client guard asserts the
-  copy parses to the same JSON tree as the canonical file.
-- `recall-render-fixture.json` is the golden cross-surface render contract for
-  recall hits: per-source description text, normalized score precision, the
-  module-owned plain-text layout, empty results, and the
-  `semantic_unavailable` envelope. Web imports it directly; mobile and Apple
-  consume embedded copies that the cross-client guard compares to this file.
-
-## Adding a new surface
-
-1. Add a positive arm and at least one negative arm
-   (`negative_unknownReason` / `negative_unknownSource` /
-   `negative_unknownTarget`) to the canonical fixture.
-2. For `ui.surface.v1`, change only the daemon-owned TypeScript contract and
-   run `pnpm build:ui-bindings`; for other surfaces, update the owned typed
-   decoders and shared case table.
-3. Add positive and negative Swift `XCTestCase` coverage for the generated
-   Codable binding.
-4. Refresh the embedded mobile and macOS fixture copies in the same change.
-5. Run the generated-binding check, cross-client guard, four conformance
-   suites, and Apple test target.
+When a contract changes, update its canonical schema, regenerate bindings, add
+or revise only the affected semantic vectors, and verify the declaring clients.
+Freshness checks compare generated output with its source; runtime suites do not
+need separate source-absence or copy-identity tests.
