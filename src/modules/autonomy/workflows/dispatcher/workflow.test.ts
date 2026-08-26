@@ -361,26 +361,6 @@ describe("dispatcher workflow", () => {
     expect(output.quiescentReason).toBe(null);
   });
 
-  it("treats target-invalid Meta backlog as empty dispatchable work", async () => {
-    writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-meta-no-link.md"),
-      taskFixture("task-meta-no-link", "backlog", { taskClass: "Meta" }),
-    );
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
-    const result = await harness.run();
-
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(0);
-    expect(output.actionableCount).toBe(0);
-    expect(output.promotableBacklogCount).toBe(0);
-    expect(output.dispatchableCount).toBe(0);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
-    expect(output.quiescent).toBe(false);
-  });
-
   it("does not emit needs-promotion when only blocked work remains", async () => {
     writeFileSync(
       join(projectDir, "data", "tasks", "blocked", "task-foo.md"),

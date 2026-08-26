@@ -1,0 +1,75 @@
+name: Server confidence
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'clients/**'
+      - '.github/workflows/apple-client.yml'
+      - '.github/workflows/mobile-client.yml'
+      - '.github/workflows/web-client.yml'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'clients/**'
+      - '.github/workflows/apple-client.yml'
+      - '.github/workflows/mobile-client.yml'
+      - '.github/workflows/web-client.yml'
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  affected-owner-confidence:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fast deterministic checks
+        run: pnpm check:fast
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Tests related to this change
+        env:
+          NODE_OPTIONS: --conditions=source
+        run: pnpm exec vitest run --configLoader runner --silent=true --changed '${{ github.event.pull_request.base.sha }}'
+
+  broad-confidence:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and broad confidence
+        run: pnpm check

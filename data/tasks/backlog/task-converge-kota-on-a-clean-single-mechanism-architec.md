@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T05:30:27.287Z
+updated_at: 2026-08-26T05:59:57.000Z
 ---
 
 ## Problem
@@ -60,7 +60,7 @@ findings against the retired proof executor are dropped with dispositions.
 - [x] Stage 2 — make builder validation and critic review proportional.
 - [x] Stage 3 — make exploration and health improvement outcome-driven.
 - [x] Stage 4 — reduce the task system to objective integrity.
-- [ ] Stage 5 — separate shipping, validation, and confidence cadences.
+- [x] Stage 5 — separate shipping, validation, and confidence cadences.
 - [ ] Stage 6 — complete the terminal project-to-scope migration.
 - [ ] Stage 7 — establish one authored daemon/client contract graph.
 - [ ] Stage 8 — narrow client ports and client-side owners.
@@ -192,6 +192,37 @@ Biome over all source, task validation, diff whitespace validation, 348 focused
 tests across 54 files, and all four standard replay smoke scenarios passed. A
 source audit found no retired proof implementation, validator option, task
 governance parser, or deprecated generated-task outcome field remaining.
+
+## Stage 5 Result
+
+Production compilation now has its own TypeScript project and excludes tests,
+test support, integration scenarios, and eval fixtures. Test and support code
+retains a separate no-emit typecheck. The npm package has an explicit shipped
+surface rather than inheriting the repository tree; a clean build contains
+6,090 files and no internal test-shaped artifact, while the package dry run
+contains 6,117 files and no `.kota/` state, task data, eval fixture, or internal
+test/support entry.
+
+Validation now exposes fast deterministic checks, owner behavior, integration,
+eval, changed-surface, and broad-confidence cadences. Vitest assigns every test
+file to exactly one owner: 1,104 owner files, 137 integration files, 81 eval
+files, and two serialized CLI files. Central standards describe selection by
+affected behavior and risk as command discovery, not a universal checklist.
+Server pull requests run fast checks, a production build, and changed-surface
+tests; main, scheduled, and manually dispatched runs retain the broad-confidence
+path. Web, Apple, and mobile clients own separate path-scoped build/conformance
+workflows, with generated UI binding freshness at their shared boundary.
+
+Fast checks, production and test typechecks, Biome over all source, task
+validation, generated-binding freshness, production build, workflow YAML
+parsing, suite partition enumeration, package inspection, and 22 focused
+dispatcher/scope-routing tests passed. The first owner-suite exercise passed
+11,245 tests and skipped one, but exposed one pre-existing self-mutation defect:
+workflow/Git fixtures changed the worktree during the run and restored a stale
+assertion before it executed. Those mutations were removed; Stage 9 owns the
+host/shared-state defect and Stage 10 owns production-driver fixture isolation.
+The cadence is therefore explicit and observable without misrepresenting that
+known baseline defect as confidence.
 
 ## Finding Ownership
 

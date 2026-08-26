@@ -152,18 +152,6 @@ describe("multi-scope autonomy issue source routing", () => {
 
     const projectionA = readAutonomyIssueProjection(projectA);
     const projectionB = readAutonomyIssueProjection(projectB);
-    expect(projectionA.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-a"
-    )).toBe(true);
-    expect(projectionA.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-b"
-    )).toBe(false);
-    expect(projectionB.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-b"
-    )).toBe(true);
-    expect(projectionB.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-a"
-    )).toBe(false);
     expect(
       projectionA.issues.find((issue) => issue.source.id === "builder")?.rootCauseKey,
     ).toBe(

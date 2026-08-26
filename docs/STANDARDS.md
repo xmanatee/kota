@@ -136,6 +136,32 @@
   runtime probe, or equivalent artifact. Passing unit tests alone does not
   prove that a CLI, Mac, Web, channel, setup, or daemon-control path improved.
 
+## Validation Cadence
+
+Validation is selected from the behavior and owner affected by a change. These
+commands are discovery surfaces, not a checklist that every edit must run.
+
+| Cadence | Command | Use |
+| --- | --- | --- |
+| deterministic | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. |
+| owner behavior | `pnpm test <owner paths>` or `pnpm test:changed` | Exercise the decisions and observable behavior owned by the changed component. |
+| component integration | `pnpm test:integration` | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
+| evaluation | `pnpm test:eval` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
+| broad confidence | `pnpm check` | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
+
+Tests without an integration declaration stay with their behavior owner.
+Security, restart, protocol, and resilience scenarios stay beside that owner
+and are selected when the boundary changes; they do not need parallel global
+copies. Vitest's changed-file selection is useful feedback, but changes to
+schemas, configuration, generated data, or runtime reach still require
+engineering judgment about affected owners.
+
+The production TypeScript build excludes repository tests, internal test
+support, and eval fixture projects. A separate test TypeScript project keeps
+those sources type-safe. Generated-binding freshness runs as part of the owner
+build; each native client builds and tests only when its own source or a shared
+generated contract changes.
+
 ## AGENTS.md Files
 
 - Every meaningful repo directory should have a local `AGENTS.md`.

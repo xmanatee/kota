@@ -5,10 +5,22 @@ on:
     branches: [main]
     paths:
       - 'clients/apple/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/apple-client.yml'
   pull_request:
     paths:
       - 'clients/apple/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/apple-client.yml'
 
 defaults:
@@ -26,6 +38,10 @@ jobs:
 
       - name: Show Swift version
         run: swift --version
+
+      - name: Check generated contract bindings
+        working-directory: .
+        run: node scripts/generate-ui-surface-bindings.mjs --check
 
       - name: Cache Swift build
         uses: actions/cache@v4

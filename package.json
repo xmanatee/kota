@@ -28,17 +28,29 @@
       "default": "./dist/module-api.js"
     },
     "./testing": {
-      "types": "./dist/testing-api.d.ts",
-      "default": "./dist/testing-api.js"
+      "types": "./dist/core/workflow/testing/testing-api.d.ts",
+      "default": "./dist/core/workflow/testing/testing-api.js"
     }
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "schema/",
+    "src/modules/**/*.md"
+  ],
   "scripts": {
     "dev": "node --conditions=source --import tsx src/cli.ts",
-    "build": "rm -rf dist && tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm validate-tasks",
+    "build": "pnpm check:ui-bindings && rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "pnpm typecheck:production && pnpm typecheck:tests",
+    "typecheck:production": "tsc --noEmit -p tsconfig.build.json",
+    "typecheck:tests": "tsc -p tsconfig.test.json",
+    "check": "pnpm check:fast && pnpm build && pnpm test",
+    "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks",
     "test": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true",
-    "test:workflow-critical": "NODE_OPTIONS=--conditions=source vitest run src/modules/claude-agent-harness/executor.test.ts src/core/events/event-bus.test.ts src/core/loop/instruction-files.test.ts src/modules/daemon-ops/index.test.ts src/daemon-startup.integration.test.ts src/task-files.test.ts src/core/workflow/run-coordinator.test.ts src/core/workflow/run-lifecycle.test.ts src/core/workflow/integration-queue.test.ts src/workflow-validation.integration.test.ts",
+    "test:owner": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner --project=cli",
+    "test:integration": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=integration",
+    "test:eval": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=eval",
+    "test:changed": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --changed",
     "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run src/preset-parity-model-sweep.integration.test.ts src/preset-parity.integration.test.ts",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",

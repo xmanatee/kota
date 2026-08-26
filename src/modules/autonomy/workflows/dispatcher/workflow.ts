@@ -109,8 +109,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         // Builder runs only on actionable (ready+doing) work; backlog-only queues
         // route through `autonomy.queue.needs-promotion` only when the canonical
         // task snapshot says at least one backlog task can actually be promoted.
-        // Strategic anchors, blocked tails, and Meta tasks missing a
-        // Product/Safety link are open records, not dispatchable work.
+        // Strategic anchors and blocked tails are open records, not
+        // dispatchable work.
         const queueNeedsPromotion =
           promotionRationale.selected.length > 0;
         const queueActionable =
