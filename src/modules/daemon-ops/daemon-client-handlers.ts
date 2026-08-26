@@ -1,7 +1,6 @@
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import type { DaemonLiveStatus, InteractiveSession } from "#core/daemon/daemon-control.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
-import { daemonManagedHttp } from "#core/server/daemon-client.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { scopeSelectorQuery } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -12,6 +11,7 @@ import type {
 } from "./client.js";
 import { recordDaemonStopAttempt, stopDaemonPid } from "./daemon-ops-operations.js";
 import { daemonResponseError } from "./daemon-response-error.js";
+import { isServiceUnitInstalled } from "./service-install.js";
 
 export function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsClient {
   return {
@@ -21,7 +21,7 @@ export function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsCli
         `/status${scopeSelectorQuery(filter)}`,
       );
       if (!status) throw new Error("Daemon unreachable while reading daemon status");
-      return { state: "running", managed: await daemonManagedHttp(), status };
+      return { state: "running", serviceInstalled: isServiceUnitInstalled(), status };
     },
     pid: async () => {
       const status = await link.request<DaemonLiveStatus>("GET", "/status");

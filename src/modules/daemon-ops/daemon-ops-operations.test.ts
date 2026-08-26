@@ -4,10 +4,16 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
-import { localDaemonStop } from "./daemon-ops-operations.js";
+import { localDaemonStatus, localDaemonStop } from "./daemon-ops-operations.js";
+
+const isServiceUnitInstalledMock = vi.hoisted(() => vi.fn());
 
 vi.mock("#core/util/process-alive.js", () => ({
   isProcessAlive: vi.fn(),
+}));
+
+vi.mock("./service-install.js", () => ({
+  isServiceUnitInstalled: isServiceUnitInstalledMock,
 }));
 
 const mockedIsProcessAlive = vi.mocked(isProcessAlive);
@@ -57,6 +63,7 @@ describe("localDaemonStop", () => {
     mkdirSync(projectDir, { recursive: true });
     originalFetch = globalThis.fetch;
     killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    isServiceUnitInstalledMock.mockReset().mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -123,5 +130,47 @@ describe("localDaemonStop", () => {
       ok: true,
     });
     expect(killSpy).toHaveBeenCalledWith(pid, "SIGTERM");
+  });
+});
+
+describe("localDaemonStatus", () => {
+  let projectDir: string;
+
+  beforeEach(() => {
+    projectDir = join(
+      tmpdir(),
+      `kota-local-daemon-status-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(projectDir, { recursive: true });
+    isServiceUnitInstalledMock.mockReset().mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("reports an installed service when no daemon control file exists", () => {
+    expect(localDaemonStatus({ projectDir })).toEqual({
+      state: "not_running",
+      serviceInstalled: true,
+    });
+  });
+
+  it("distinguishes a dead stale pid from a live unreachable daemon", () => {
+    writeControlFile(projectDir, 4321);
+    mockedIsProcessAlive.mockReturnValue(false);
+    expect(localDaemonStatus({ projectDir })).toEqual({
+      state: "stale",
+      serviceInstalled: true,
+      pid: 4321,
+    });
+
+    mockedIsProcessAlive.mockReturnValue(true);
+    expect(localDaemonStatus({ projectDir })).toEqual({
+      state: "unreachable",
+      serviceInstalled: true,
+      pid: 4321,
+    });
   });
 });

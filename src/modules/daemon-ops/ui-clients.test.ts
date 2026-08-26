@@ -10,8 +10,7 @@ import type { UiSurface } from "./operator-ui.js";
 import { buildLocalUiClient } from "./ui-clients.js";
 
 const spawnMock = vi.hoisted(() => vi.fn());
-const readLiveDaemonControlAddressMock = vi.hoisted(() => vi.fn());
-const isDaemonControlAddressReachableMock = vi.hoisted(() => vi.fn());
+const waitForDaemonControlPlaneMock = vi.hoisted(() => vi.fn());
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>(
@@ -20,15 +19,8 @@ vi.mock("node:child_process", async () => {
   return { ...actual, spawn: spawnMock };
 });
 
-vi.mock("#core/server/daemon-control-address.js", async () => {
-  const actual = await vi.importActual<
-    typeof import("#core/server/daemon-control-address.js")
-  >("#core/server/daemon-control-address.js");
-  return {
-    ...actual,
-    readLiveDaemonControlAddress: readLiveDaemonControlAddressMock,
-    isDaemonControlAddressReachable: isDaemonControlAddressReachableMock,
-  };
+vi.mock("./daemon-readiness.js", () => {
+  return { waitForDaemonControlPlane: waitForDaemonControlPlaneMock };
 });
 
 type MockChild = EventEmitter & { unref: ReturnType<typeof vi.fn> };
@@ -97,8 +89,7 @@ let projectDir: string;
 beforeEach(() => {
   projectDir = mkdtempSync(join(tmpdir(), "kota-ui-daemon-start-"));
   spawnMock.mockReset();
-  readLiveDaemonControlAddressMock.mockReset();
-  isDaemonControlAddressReachableMock.mockReset();
+  waitForDaemonControlPlaneMock.mockReset().mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -125,10 +116,8 @@ describe("local UI daemon start", () => {
 
   it("does not report success until the spawned daemon control plane is reachable", async () => {
     const child = mockChild();
-    const address = { pid: 1234, port: 4312, token: "test-token" };
-    readLiveDaemonControlAddressMock.mockReturnValue(address);
     let resolveReadiness!: (ready: boolean) => void;
-    isDaemonControlAddressReachableMock.mockReturnValue(
+    waitForDaemonControlPlaneMock.mockReturnValue(
       new Promise<boolean>((resolve) => {
         resolveReadiness = resolve;
       }),
@@ -143,7 +132,7 @@ describe("local UI daemon start", () => {
 
     child.emit("spawn");
     await vi.waitFor(() => {
-      expect(isDaemonControlAddressReachableMock).toHaveBeenCalledWith(address);
+      expect(waitForDaemonControlPlaneMock).toHaveBeenCalledWith(projectDir);
     });
     expect(settled).toBe(false);
 
@@ -157,15 +146,13 @@ describe("local UI daemon start", () => {
   });
 
   it("reports unavailable when the spawned daemon never publishes a ready control plane", async () => {
-    vi.useFakeTimers();
     const child = mockChild();
-    readLiveDaemonControlAddressMock.mockReturnValue(null);
+    waitForDaemonControlPlaneMock.mockResolvedValue(false);
     const { client, input } = localClient(projectDir);
     const resultPromise = client.executeAction(input);
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
 
     child.emit("spawn");
-    await vi.advanceTimersByTimeAsync(10_000);
 
     await expect(resultPromise).resolves.toEqual({
       ok: false,

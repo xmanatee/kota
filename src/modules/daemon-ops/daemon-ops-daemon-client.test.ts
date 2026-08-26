@@ -11,9 +11,8 @@
  *     `reload` methods.
  *  2. `status()` routes through `link.request("GET", "/status")` and decodes
  *     the success arm correctly: a `200 + { pid, startedAt, workflow,
- *     sessions, ... }` response collapses to `{ state: "running", managed:
- *     false, status: <the same body> }` (managed defaults to `false` on the
- *     daemon-up branch by construction).
+ *     sessions, ... }` response combines the remote status with the local
+ *     service-unit probe.
  *  3. `status()` throws on `null` (transport failure or non-ok response)
  *     with a message containing `"Daemon unreachable"`.
  *  4. `pid()` routes through `link.request("GET", "/status")` and decodes
@@ -41,13 +40,22 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { DAEMON_STOP_ATTEMPTS_RELATIVE_PATH } from "./daemon-ops-operations.js";
 import daemonOpsModule from "./index.js";
+
+const isServiceUnitInstalledMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./service-install.js", async () => {
+  const actual = await vi.importActual<typeof import("./service-install.js")>(
+    "./service-install.js",
+  );
+  return { ...actual, isServiceUnitInstalled: isServiceUnitInstalledMock };
+});
 
 type RecordedRequest = {
   method: string;
@@ -104,6 +112,10 @@ const SAMPLE_DAEMON_STATUS: DaemonLiveStatus = {
 };
 
 describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
+  beforeEach(() => {
+    isServiceUnitInstalledMock.mockReset().mockReturnValue(false);
+  });
+
   it("contributes a daemonOps namespace handler alongside sessions", () => {
     expect(daemonOpsModule.daemonClient).toBeTypeOf("function");
     const { transport } = makeRecordingTransport(() => null);
@@ -124,13 +136,24 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
     const result = await contributed.daemonOps!.status();
     expect(result).toEqual({
       state: "running",
-      managed: false,
+      serviceInstalled: false,
       status: SAMPLE_DAEMON_STATUS,
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.method).toBe("GET");
     expect(calls[0]!.path).toBe("/status");
     expect(calls[0]!.body).toBeUndefined();
+  });
+
+  it("combines remote daemon status with the caller's local service-unit probe", async () => {
+    isServiceUnitInstalledMock.mockReturnValue(true);
+    const { transport } = makeRecordingTransport(() => SAMPLE_DAEMON_STATUS);
+    const result = await daemonOpsModule.daemonClient!(transport).daemonOps!.status();
+    expect(result).toEqual({
+      state: "running",
+      serviceInstalled: true,
+      status: SAMPLE_DAEMON_STATUS,
+    });
   });
 
   it("status() throws on null (transport failure or non-ok response)", async () => {

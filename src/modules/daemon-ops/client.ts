@@ -106,13 +106,15 @@ export interface SessionsClient {
  * `DaemonLiveStatus`); `not_running` surfaces when no daemon is
  * reachable; `stale` surfaces when a control file points at a pid that
  * is no longer alive. The operator CLI maps each variant to its
- * existing exit-code path. `managed` reflects whether an OS service
- * unit is installed for the daemon.
+ * existing exit-code path. `serviceInstalled` reflects whether an OS service
+ * unit is installed on the operator host; it does not claim that the current
+ * daemon process was launched by that unit.
  */
 export type DaemonOpsStatusResult =
-  | { state: "running"; managed: boolean; status: DaemonLiveStatus }
-  | { state: "not_running"; managed: boolean }
-  | { state: "stale"; managed: boolean; pid: number };
+  | { state: "running"; serviceInstalled: boolean; status: DaemonLiveStatus }
+  | { state: "not_running"; serviceInstalled: boolean }
+  | { state: "stale"; serviceInstalled: boolean; pid: number }
+  | { state: "unreachable"; serviceInstalled: boolean; pid: number };
 
 /** Result of `daemonOps.pid()`. */
 export type DaemonOpsPidResult =

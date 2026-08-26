@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildLaunchdPlist,
   buildSystemdUnit,
+  getLaunchdLogDirectory,
   getLaunchdPlistPath,
   getSystemdServicePath,
   removeServiceFile,
@@ -82,27 +83,21 @@ describe("buildLaunchdPlist structural assertions", () => {
     expect(content).not.toContain("<key>NODE_OPTIONS</key>");
   });
 
-  it("contains StandardOutPath pointing to .kota/daemon.log", () => {
+  it("writes service logs to the user Library logs directory", () => {
     const content = buildLaunchdPlist("/my/project");
+    const logDirectory = join(homedir(), "Library", "Logs", "com.kota.daemon");
+    expect(getLaunchdLogDirectory()).toBe(logDirectory);
     expect(content).toContain("<key>StandardOutPath</key>");
-    expect(content).toContain("<string>/my/project/.kota/daemon.log</string>");
-  });
-
-  it("contains StandardErrorPath pointing to .kota/daemon.err", () => {
-    const content = buildLaunchdPlist("/my/project");
+    expect(content).toContain(`<string>${logDirectory}/daemon.log</string>`);
     expect(content).toContain("<key>StandardErrorPath</key>");
-    expect(content).toContain("<string>/my/project/.kota/daemon.err</string>");
-  });
-
-  it("contains RunAtLoad set to true", () => {
-    const content = buildLaunchdPlist("/my/project");
-    expect(content).toContain("<key>RunAtLoad</key>");
-    expect(content).toContain("<true/>");
+    expect(content).toContain(`<string>${logDirectory}/daemon.err</string>`);
+    expect(content).not.toContain("/my/project/.kota/daemon");
   });
 
   it("contains KeepAlive set to true", () => {
     const content = buildLaunchdPlist("/my/project");
     expect(content).toContain("<key>KeepAlive</key>");
+    expect(content).not.toContain("<key>RunAtLoad</key>");
   });
 
   it("contains WorkingDirectory set to project dir", () => {

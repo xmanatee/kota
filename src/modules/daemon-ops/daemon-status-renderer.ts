@@ -16,7 +16,7 @@ import { abbreviateRunId, formatDuration, formatTimeAgo, formatUptime } from "./
 
 export function buildDaemonStatusNode(
   status: DaemonLiveStatus,
-  managed: boolean,
+  serviceInstalled: boolean,
 ): RenderNode {
   const uptime = status.startedAt ? formatUptime(status.startedAt) : "unknown";
   const started = status.startedAt ? formatTimeAgo(status.startedAt) : "unknown";
@@ -34,9 +34,9 @@ export function buildDaemonStatusNode(
       role: workflow.paused ? "warn" : "muted",
     },
     {
-      label: "Managed",
-      value: managed ? "yes (OS service installed)" : "no",
-      role: managed ? "info" : "muted",
+      label: "Service",
+      value: serviceInstalled ? "yes (OS service installed)" : "not installed",
+      role: serviceInstalled ? "info" : "muted",
     },
   ];
   if (workflow.totalCostUsd != null && workflow.totalCostUsd > 0) {
@@ -104,6 +104,6 @@ export function buildDaemonStatusNode(
   return dashboard(sections);
 }
 
-export function formatDaemonStatus(status: DaemonLiveStatus, managed: boolean): string {
-  return renderToString(buildDaemonStatusNode(status, managed));
+export function formatDaemonStatus(status: DaemonLiveStatus, serviceInstalled: boolean): string {
+  return renderToString(buildDaemonStatusNode(status, serviceInstalled));
 }

@@ -101,10 +101,10 @@ describe("formatDaemonStatus", () => {
     expect(output).toContain("0 active · 8 pending");
   });
 
-  it("shows managed status", () => {
+  it("shows whether the OS service unit is installed", () => {
     const status = makeLiveStatus();
     expect(formatDaemonStatus(status, true)).toContain("yes (OS service installed)");
-    expect(formatDaemonStatus(status, false)).toMatch(/Managed:\s+no/);
+    expect(formatDaemonStatus(status, false)).toMatch(/Service:\s+not installed/);
   });
 
   it("shows cost when available", () => {

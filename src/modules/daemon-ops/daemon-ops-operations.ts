@@ -28,7 +28,7 @@ import type {
   DaemonOpsStatusResult,
   DaemonOpsStopResult,
 } from "./client.js";
-import { isServiceInstalled } from "./service-install.js";
+import { isServiceUnitInstalled } from "./service-install.js";
 
 type DaemonOpsProjectOptions = {
   projectDir?: string;
@@ -72,20 +72,19 @@ function readControlAddress(options: DaemonOpsProjectOptions = {}): DaemonContro
 }
 
 export function localDaemonStatus(options: DaemonOpsProjectOptions = {}): DaemonOpsStatusResult {
-  const managed = isServiceInstalled();
+  const serviceInstalled = isServiceUnitInstalled();
   const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") {
-    return { state: "not_running", managed };
+    return { state: "not_running", serviceInstalled };
   }
   if (!isProcessAlive(address.pid)) {
-    return { state: "stale", managed, pid: address.pid };
+    return { state: "stale", serviceInstalled, pid: address.pid };
   }
   // The selector would have picked the daemon transport when it could
   // actually reach the daemon. Reaching here means the control file is
-  // present but the daemon HTTP probe failed; surface that as stale-ish
-  // by reporting not_running with the live pid recorded so the operator
-  // can investigate.
-  return { state: "stale", managed, pid: address.pid };
+  // present but the daemon HTTP probe failed; preserve the live pid and
+  // distinguish an unreachable daemon from a stale process.
+  return { state: "unreachable", serviceInstalled, pid: address.pid };
 }
 
 export function localDaemonPid(options: DaemonOpsProjectOptions = {}): DaemonOpsPidResult {

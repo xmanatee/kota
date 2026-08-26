@@ -192,7 +192,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       reload: stub({ ok: false, reason: "daemon_required" }),
     },
     daemonOps: {
-      status: stub({ state: "not_running", managed: false }),
+      status: stub({ state: "not_running", serviceInstalled: false }),
       pid: stub({ state: "not_running" }),
       stop: stub({ ok: false, reason: "not_running" }),
       reload: stub({ ok: false, reason: "not_running" }),

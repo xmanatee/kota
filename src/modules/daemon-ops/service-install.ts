@@ -23,7 +23,15 @@ export function getSystemdServicePath(): string {
   return join(homedir(), ".config", "systemd", "user", SYSTEMD_SERVICE);
 }
 
-export function isServiceInstalled(): boolean {
+export function getLaunchdLogDirectory(): string {
+  return join(homedir(), "Library", "Logs", LAUNCHD_LABEL);
+}
+
+export function ensureLaunchdLogDirectory(): void {
+  mkdirSync(getLaunchdLogDirectory(), { recursive: true });
+}
+
+export function isServiceUnitInstalled(): boolean {
   if (process.platform === "darwin") {
     return existsSync(getLaunchdPlistPath());
   }
@@ -77,7 +85,7 @@ export function buildLaunchdPlist(
   environment: ServiceUnitEnvironment = currentServiceUnitEnvironment(),
 ): string {
   const kotaBin = process.argv[1]!;
-  const logDir = join(projectDir, ".kota");
+  const logDir = getLaunchdLogDirectory();
   const nodeOptions = serviceNodeOptions(environment);
   const path = servicePath(environment);
   return [
@@ -115,8 +123,6 @@ export function buildLaunchdPlist(
     `  </dict>`,
     `  <key>WorkingDirectory</key>`,
     `  <string>${plistString(projectDir)}</string>`,
-    `  <key>RunAtLoad</key>`,
-    `  <true/>`,
     `  <key>KeepAlive</key>`,
     `  <true/>`,
     `  <key>StandardOutPath</key>`,

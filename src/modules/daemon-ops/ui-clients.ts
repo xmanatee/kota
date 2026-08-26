@@ -1,18 +1,14 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
 import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
-import {
-  isDaemonControlAddressReachable,
-  readLiveDaemonControlAddress,
-} from "#core/server/daemon-control-address.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { normalizeScopeSelector, scopeSelectorQuery, selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { UiClient } from "./client.js";
 import { localDaemonStatus } from "./daemon-ops-operations.js";
+import { waitForDaemonControlPlane } from "./daemon-readiness.js";
 import type { UiActionExecutionResult, UiClientNamespaceExecutor, UiJsonValue, UiSurfaceBundle } from "./operator-ui.js";
 import { daemonUiNamespaceExecutor, executeActionFromBundle } from "./ui-action-execution.js";
 import {
@@ -24,7 +20,6 @@ import {
 const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
 const DAEMON_SPAWN_TIMEOUT_MS = 2_000;
 const DAEMON_START_READY_TIMEOUT_MS = 10_000;
-const DAEMON_START_READY_POLL_MS = 100;
 
 export function buildSharedUiSurfaceBundle(
   ctx: ModuleContext,
@@ -67,21 +62,6 @@ function waitForChildSpawn(child: ReturnType<typeof spawn>): Promise<void> {
     child.once("error", onError);
     child.once("spawn", onSpawn);
   });
-}
-
-async function waitForDaemonControlPlane(projectDir: string): Promise<boolean> {
-  const deadline = Date.now() + DAEMON_START_READY_TIMEOUT_MS;
-  const stateDir = join(projectDir, ".kota");
-  while (Date.now() < deadline) {
-    const address = readLiveDaemonControlAddress(stateDir);
-    if (address && await isDaemonControlAddressReachable(address)) return true;
-    const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) break;
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, Math.min(DAEMON_START_READY_POLL_MS, remainingMs));
-    });
-  }
-  return false;
 }
 
 async function requestDetachedDaemonStart(

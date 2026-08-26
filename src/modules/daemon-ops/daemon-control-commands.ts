@@ -23,19 +23,30 @@ export function addDaemonControlCommands(command: Command): void {
       const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
       const result = await client.status();
       if (result.state === "running") {
-        if (opts.json) writeJson({ ...result.status, managed: result.managed });
-        else print(buildDaemonStatusNode(result.status, result.managed));
+        if (opts.json) writeJson({
+          ...result.status,
+          serviceInstalled: result.serviceInstalled,
+        });
+        else print(buildDaemonStatusNode(result.status, result.serviceInstalled));
         return;
       }
       if (opts.json) {
-        writeJson(result.state === "stale"
-          ? { running: false, managed: result.managed, staleControlFile: true }
-          : { running: false, managed: result.managed });
+        writeJson({
+          running: false,
+          serviceInstalled: result.serviceInstalled,
+          ...(result.state === "stale" ? { staleControlFile: true, pid: result.pid } : {}),
+          ...(result.state === "unreachable" ? { unreachable: true, pid: result.pid } : {}),
+        });
       } else {
-        printDaemonError(result.state === "stale"
+        const message = result.state === "stale"
           ? `Stale control file (pid ${result.pid} is not alive). Run 'kota doctor --fix' to clean up.`
-          : "Daemon is not running.");
-        if (result.managed) print(line(plain("managed:  yes (OS service installed)")));
+          : result.state === "unreachable"
+            ? `Daemon process ${result.pid} is alive but its control endpoint is unreachable.`
+            : "Daemon is not running.";
+        printDaemonError(message);
+        if (result.serviceInstalled) {
+          print(line(plain("service:  installed (OS service unit present)")));
+        }
       }
       process.exitCode = 1;
     });

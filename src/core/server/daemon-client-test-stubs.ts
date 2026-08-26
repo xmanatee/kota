@@ -263,7 +263,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     daemonOps: {
       status: async () => ({
         state: "not_running" as const,
-        managed: false,
+        serviceInstalled: false,
       }),
       pid: async () => ({ state: "not_running" as const }),
       stop: async () => ({ ok: false as const, reason: "not_running" as const }),

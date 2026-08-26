@@ -121,9 +121,11 @@ export {
 export {
   buildLaunchdPlist,
   buildSystemdUnit,
+  ensureLaunchdLogDirectory,
+  getLaunchdLogDirectory,
   getLaunchdPlistPath,
   getSystemdServicePath,
-  isServiceInstalled,
+  isServiceUnitInstalled,
   removeServiceFile,
   writeServiceFile,
 } from "./service-install.js";

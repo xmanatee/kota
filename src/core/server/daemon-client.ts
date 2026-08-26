@@ -14,19 +14,6 @@ import {
 } from "./project-scoped-kota-client.js";
 import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
 
-/**
- * The OS-managed daemon flag is filesystem-scoped (it checks for a
- * launchd plist or systemd unit on the operator host). The daemon
- * cannot answer that for the calling host, so the daemon-up branch
- * always reports `false`; the local handler is the one that probes
- * the operator filesystem. Exported because the daemon-ops module's
- * `daemonClient(link)` factory consumes the same stub when it composes
- * the `daemonOps.status()` arm.
- */
-export async function daemonManagedHttp(): Promise<boolean> {
-  return false;
-}
-
 // ---------------------------------------------------------------------------
 // Core stub: empty after every namespace migrated to its owning module's
 // `daemonClient(link)` factory. The function exists so the assembly path
