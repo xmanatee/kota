@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Pending approvals: `ApprovalRow` is mounted by `AttentionInboxView`
-// (`OperatorSections.swift`).
-
 struct ApprovalRow: View {
     @EnvironmentObject var appState: AppState
     let approval: ApprovalRequest

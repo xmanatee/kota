@@ -1,9 +1,5 @@
 import SwiftUI
 
-// Cross-store recall surface: the body, hit list, source badge, and
-// error view are mounted inside `AskUnifiedView`
-// (`OperatorSections.swift`).
-
 /// Active-vs-inactive label, driven by the typed `RecallSearchResponse`
 /// branch — never inferred from the rendered text body.
 struct RecallStateBadge: View {

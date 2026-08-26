@@ -1,6 +1,6 @@
-[KotaMenuBar.RecallView · empty-query state]
+[KotaShared.RecallBodyView · empty-query state]
 
-surface:    AskUnifiedView → mode=recall → RecallBodyView
+component:  RecallBodyView
 shown when: appState.recallError == nil
             && !appState.isLoadingRecall
             && appState.recallQuery.trimmed.isEmpty

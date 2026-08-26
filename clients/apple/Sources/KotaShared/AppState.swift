@@ -20,6 +20,49 @@ private func keychainSave(token: String) {
     SecItemAdd(query as CFDictionary, nil)
 }
 
+private struct UiSurfaceSubscription {
+    var eventTypes: Set<String> = []
+    var streamIdsByEvent: [String: Set<String>] = [:]
+}
+
+private func uiSurfaceSubscription(_ bundle: UiSurfaceBundle) -> UiSurfaceSubscription {
+    var subscription = UiSurfaceSubscription()
+    for surface in bundle.surfaces {
+        subscription.eventTypes.formUnion(surface.refreshEvents ?? [])
+        collectUiSurfaceStreams(surface.nodes, subscription: &subscription)
+    }
+    return subscription
+}
+
+private func collectUiSurfaceStreams(
+    _ nodes: [UiNode],
+    subscription: inout UiSurfaceSubscription
+) {
+    for node in nodes {
+        switch node {
+        case .tabs(_, let tabs, _):
+            for tab in tabs {
+                collectUiSurfaceStreams(tab.nodes, subscription: &subscription)
+            }
+        case .logStream(_, let source, let streamId, _):
+            subscription.eventTypes.formUnion(source.eventTypes)
+            for eventType in source.eventTypes {
+                subscription.streamIdsByEvent[eventType, default: []].insert(streamId)
+            }
+        case .navigation, .statusSummary, .metrics, .text, .link, .list,
+             .table, .detail, .progress, .log, .form, .actionList, .command,
+             .empty, .error:
+            break
+        }
+    }
+}
+
+private extension Array {
+    func appending(_ element: Element) -> [Element] {
+        self + [element]
+    }
+}
+
 private func keychainRead() -> String? {
     let query: [CFString: Any] = [
         kSecClass: kSecClassGenericPassword,
@@ -136,6 +179,15 @@ public final class AppState: ObservableObject {
     @Published var capabilities: CapabilityReadinessResponse?
     @Published var workflowDefinitions: [WorkflowDefinitionSummary] = []
 
+    // Canonical daemon-owned operator UI. Both Apple shells render this exact
+    // generated bundle; capability-specific view state above remains available
+    // to legacy leaf views but no longer defines the production inventory.
+    @Published var uiSurfaceBundle: UiSurfaceBundle?
+    @Published var uiSurfaceError: String?
+    @Published var isLoadingUiSurfaces = false
+    @Published var uiSurfaceEventsConnected = false
+    @Published var liveUiLogEntries: [String: [UiLogEntry]] = [:]
+
     /// Active project id used to scope every project-scoped daemon route
     /// (`/status`, `/workflow/runs`, `/workflow/trigger`, `/sessions`,
     /// …). `nil` until the first identity refresh resolves the registry's
@@ -179,6 +231,9 @@ public final class AppState: ObservableObject {
     public let notifications: NotificationManaging
     public let platform: PlatformAffordances
     private var pollTask: Task<Void, Never>?
+    private var uiSurfaceEventTask: Task<Void, Never>?
+    private var uiSurfaceSubscriptionKey = ""
+    private let liveUiUpdatesEnabled: Bool
 
     private var knownFailedRunIDs: Set<String> = []
     private var knownApprovalIDs: Set<String> = []
@@ -204,6 +259,7 @@ public final class AppState: ObservableObject {
         self.client = client ?? DaemonClient()
         self.notifications = notifications
         self.platform = platform
+        self.liveUiUpdatesEnabled = startPollingOnInit
         if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
             projectDir = URL(fileURLWithPath: stored)
         }
@@ -286,6 +342,9 @@ public final class AppState: ObservableObject {
             identity = nil
             capabilities = nil
             workflowDefinitions = []
+            uiSurfaceBundle = nil
+            uiSurfaceError = "Invalid remote URL"
+            stopUiSurfaceEventStream()
             return
         }
         let token = keychainRead() ?? ""
@@ -353,6 +412,11 @@ public final class AppState: ObservableObject {
         identity = nil
         capabilities = nil
         workflowDefinitions = []
+        uiSurfaceBundle = nil
+        uiSurfaceError = nil
+        isLoadingUiSurfaces = false
+        liveUiLogEntries = [:]
+        stopUiSurfaceEventStream()
         activeProjectId = nil
         lastIdentityProbe = nil
         clearOnDemandForOffline()
@@ -377,6 +441,10 @@ public final class AppState: ObservableObject {
         taskQueue = nil
         activeSessions = []
         recentRuns = []
+        uiSurfaceBundle = nil
+        uiSurfaceError = nil
+        liveUiLogEntries = [:]
+        stopUiSurfaceEventStream()
         Task { await refresh() }
     }
 
@@ -848,9 +916,13 @@ public final class AppState: ObservableObject {
             do { return .success(try await client.fetchWorkflowDefinitions(projectId: scopedId)) }
             catch { return .failure(error) }
         }()
+        async let surfacesResult: Result<UiSurfaceBundle, Error> = {
+            do { return .success(try await client.fetchUiSurfaceBundle(scopeId: scopedId)) }
+            catch { return .failure(error) }
+        }()
 
         let (sr, ar, oqr, tr, sesr, rrr) = await (statusResult, approvalsResult, ownerQuestionsResult, tasksResult, sessionsResult, recentRunsResult)
-        let (capr, defsr) = await (capabilitiesResult, definitionsResult)
+        let (capr, defsr, uisr) = await (capabilitiesResult, definitionsResult, surfacesResult)
         switch capr {
         case .success(let caps): capabilities = caps
         case .failure: capabilities = nil
@@ -858,6 +930,14 @@ public final class AppState: ObservableObject {
         switch defsr {
         case .success(let resp): workflowDefinitions = resp.definitions
         case .failure: workflowDefinitions = []
+        }
+        switch uisr {
+        case .success(let bundle):
+            applyUiSurfaceBundle(bundle)
+        case .failure(let error):
+            uiSurfaceBundle = nil
+            uiSurfaceError = DaemonErrorPresenter.message(for: error)
+            stopUiSurfaceEventStream()
         }
 
         switch sr {
@@ -912,6 +992,121 @@ public final class AppState: ObservableObject {
         }
 
         checkForNotifications()
+    }
+
+    // MARK: - Shared UI surface runtime
+
+    func refreshUiSurfaceBundle() async {
+        isLoadingUiSurfaces = true
+        do {
+            let bundle = try await client.fetchUiSurfaceBundle(scopeId: activeProjectId)
+            applyUiSurfaceBundle(bundle)
+        } catch {
+            uiSurfaceError = DaemonErrorPresenter.message(for: error)
+            isLoadingUiSurfaces = false
+        }
+    }
+
+    func executeUiAction(
+        _ action: UiAction,
+        parameters: [String: UiJsonValue]? = nil
+    ) async -> UiActionExecutionResult {
+        let result: UiActionExecutionResult
+        do {
+            result = try await client.executeUiAction(action, parameters: parameters)
+        } catch {
+            result = UiActionExecutionResult(
+                ok: false,
+                reason: "transport-error",
+                message: DaemonErrorPresenter.message(for: error)
+            )
+        }
+        if result.ok {
+            await refreshUiSurfaceBundle()
+        }
+        return result
+    }
+
+    @discardableResult
+    func openUiLinkTarget(_ target: UiLinkTarget) -> Bool {
+        let url: URL?
+        switch target {
+        case .daemonRoute(let path):
+            url = client.absoluteUiURL(path: path)
+        case .externalUrl(let rawURL):
+            url = URL(string: rawURL)
+        case .surface, .session:
+            url = nil
+        }
+        return url.map(platform.openURL) ?? false
+    }
+
+    func pickUiPath() async -> URL? {
+        await platform.pickProjectDirectory()
+    }
+
+    private func applyUiSurfaceBundle(_ bundle: UiSurfaceBundle) {
+        uiSurfaceBundle = bundle
+        uiSurfaceError = nil
+        isLoadingUiSurfaces = false
+        reconcileUiSurfaceEventStream(bundle: bundle)
+    }
+
+    private func reconcileUiSurfaceEventStream(bundle: UiSurfaceBundle) {
+        guard liveUiUpdatesEnabled else { return }
+        let subscription = uiSurfaceSubscription(bundle)
+        let key = subscription.eventTypes.sorted().joined(separator: "\u{1f}")
+        guard !subscription.eventTypes.isEmpty else {
+            stopUiSurfaceEventStream()
+            return
+        }
+        guard key != uiSurfaceSubscriptionKey else { return }
+        stopUiSurfaceEventStream()
+        uiSurfaceSubscriptionKey = key
+        uiSurfaceEventTask = Task { [weak self] in
+            guard let self else { return }
+            self.uiSurfaceEventsConnected = true
+            do {
+                try await self.client.watchUiSurfaceEvents(
+                    eventTypes: subscription.eventTypes
+                ) { [weak self] event in
+                    await self?.consumeUiSurfaceEvent(event)
+                }
+            } catch is CancellationError {
+                // A scope or subscription change owns cancellation.
+            } catch {
+                // Polling remains the reconnect fallback. Keep the decoded
+                // bundle visible and expose disconnected live state natively.
+            }
+            if self.uiSurfaceSubscriptionKey == key {
+                self.uiSurfaceSubscriptionKey = ""
+                self.uiSurfaceEventsConnected = false
+            }
+        }
+    }
+
+    private func consumeUiSurfaceEvent(_ event: UiSurfaceLiveEvent) async {
+        guard let bundle = uiSurfaceBundle else { return }
+        let subscription = uiSurfaceSubscription(bundle)
+        for streamId in subscription.streamIdsByEvent[event.type] ?? [] {
+            let entry = UiLogEntry(
+                level: event.level,
+                message: event.message,
+                source: event.type,
+                timestamp: event.timestamp
+            )
+            liveUiLogEntries[streamId] = Array(
+                (liveUiLogEntries[streamId] ?? []).appending(entry).suffix(100)
+            )
+        }
+        await refreshUiSurfaceBundle()
+    }
+
+    private func stopUiSurfaceEventStream() {
+        uiSurfaceEventTask?.cancel()
+        uiSurfaceEventTask = nil
+        uiSurfaceSubscriptionKey = ""
+        uiSurfaceEventsConnected = false
     }
 
     func checkForNotifications() {

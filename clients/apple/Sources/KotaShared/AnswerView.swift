@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Cited-answer surface: the body, result switch, and citations list are
-// mounted inside `AskUnifiedView` (`OperatorSections.swift`).
-
 /// Active-vs-inactive label, driven by the typed `AnswerResult` branch —
 /// never inferred from the rendered text body.
 struct AnswerStateBadge: View {

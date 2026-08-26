@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Pending owner questions: `OwnerQuestionRow` is mounted by
-// `AttentionInboxView` (`OperatorSections.swift`).
-
 struct OwnerQuestionRow: View {
     @EnvironmentObject var appState: AppState
     let question: OwnerQuestion

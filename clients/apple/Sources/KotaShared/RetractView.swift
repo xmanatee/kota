@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Cross-store retract surface: `RetractExpandedContent` is mounted by
-// `ComposeSection` (`OperatorSections.swift`).
-
 /// Per-target tint reused by every retract badge. Knowledge / memory /
 /// tasks match `captureTargetTint`; inbox uses `teal` (introduced for
 /// `CaptureView`).

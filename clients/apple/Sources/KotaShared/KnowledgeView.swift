@@ -1,9 +1,5 @@
 import SwiftUI
 
-// Knowledge surface: the body, the state badge, and the error view are
-// mounted inside `AskUnifiedView` (`OperatorSections.swift`) rather than
-// as a top-level disclosure section.
-
 /// Active-vs-inactive label, driven by the typed `KnowledgeSearchResponse`
 /// branch — never inferred from the rendered text body.
 struct KnowledgeStateBadge: View {

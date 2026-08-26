@@ -6,10 +6,7 @@ import SwiftUI
 /// Telegram `/answer-log` and `/answer-show <id>`, CLI `kota answer
 /// log` — by consuming the same `GET /answers` and `GET /answers/:id`
 /// daemon-control routes through `DaemonClient.answerLog` and
-/// `DaemonClient.answerShow`. Lives inside the existing operator
-/// `WorkSection` group, alongside DigestView and AttentionView, so
-/// it follows the same collapsed-by-default browse IA the popover
-/// already uses for passive read surfaces.
+/// `DaemonClient.answerShow`.
 struct AnswerHistoryView: View {
     @EnvironmentObject var appState: AppState
     @State private var isExpanded = false

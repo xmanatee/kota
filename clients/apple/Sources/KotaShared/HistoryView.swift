@@ -1,8 +1,5 @@
 import SwiftUI
 
-// History surface: the body and helpers are mounted inside
-// `AskUnifiedView` (`OperatorSections.swift`).
-
 /// Active-vs-inactive label, driven by the typed `HistorySearchResponse`
 /// branch — never inferred from the rendered text body.
 struct HistoryStateBadge: View {

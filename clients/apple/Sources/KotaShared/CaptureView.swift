@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Cross-store capture surface: `CaptureExpandedContent` is mounted by
-// `ComposeSection` (`OperatorSections.swift`).
-
 /// Per-target tint reused across the success, ambiguous suggestion chip,
 /// and contributor-failed badges. Knowledge / memory / tasks match
 /// `RecallSourceBadge`; inbox is the only target absent from the recall
