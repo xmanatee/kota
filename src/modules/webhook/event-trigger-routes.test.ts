@@ -129,13 +129,13 @@ describe("eventTriggerRoutes inbound signal path", () => {
     expect(JSON.parse(response.body!)).toMatchObject({
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       actorTrust: "trusted",
       listeners: 1,
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       provider: "webhook",
       channel: "http",
       actor: { trust: "trusted" },

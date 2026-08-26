@@ -43,7 +43,7 @@ vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
 	}),
 }));
 
-// Tests write files to /tmp which is outside the project directory.
+// Tests write files to /tmp which is outside the scope directory.
 // Skip confirmations so the confirm gate doesn't auto-reject those writes.
 beforeEach(() => setSkipConfirmations(true));
 afterEach(() => setSkipConfirmations(false));

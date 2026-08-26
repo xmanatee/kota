@@ -252,11 +252,11 @@ describe("classifyRisk", () => {
 
   it("classifies KOTA control environment overrides as dangerous", () => {
     const result = classifyRisk("shell", {
-      command: "KOTA_PROJECT_DIR=/private/tmp/other pnpm test",
+      command: "KOTA_SCOPE_ROOT=/private/tmp/other pnpm test",
     });
     expect(result.risk).toBe("dangerous");
     expect(result.reason).toContain("KOTA control");
-    expect(result.reason).toContain("KOTA_PROJECT_DIR");
+    expect(result.reason).toContain("KOTA_SCOPE_ROOT");
     expect(result.reason).not.toContain("/private/tmp/other");
   });
 
@@ -350,23 +350,23 @@ describe("classifyRisk", () => {
     expect(result.reason).toContain("local filesystem write");
   });
 
-  it("classifies http_request GET with outside-project save_to as dangerous", () => {
+  it("classifies http_request GET with outside-scope save_to as dangerous", () => {
     const result = classifyRisk("http_request", {
       url: "https://example.com",
       method: "GET",
       save_to: "/tmp/http-response.txt",
     });
     expect(result.risk).toBe("dangerous");
-    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).toContain("outside scope directory");
     expect(result.reason).not.toContain("/tmp");
   });
 
-  it("classifies http_request GET with dangling outside-project save_to symlink as dangerous", () => {
+  it("classifies http_request GET with dangling outside-scope save_to symlink as dangerous", () => {
     const baseDir = join(process.cwd(), ".kota", "test-tmp");
     mkdirSync(baseDir, { recursive: true });
-    const projectDir = mkdtempSync(join(baseDir, "guardrails-save-to-link-"));
+    const scopeRoot = mkdtempSync(join(baseDir, "guardrails-save-to-link-"));
     const outsideDir = mkdtempSync(join(tmpdir(), "guardrails-save-to-outside-"));
-    const link = join(projectDir, "response.txt");
+    const link = join(scopeRoot, "response.txt");
     symlinkSync(join(outsideDir, "response.txt"), link);
 
     try {
@@ -377,9 +377,9 @@ describe("classifyRisk", () => {
       });
 
       expect(result.risk).toBe("dangerous");
-      expect(result.reason).toContain("outside project directory");
+      expect(result.reason).toContain("outside scope directory");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
       rmSync(outsideDir, { recursive: true, force: true });
     }
   });
@@ -393,13 +393,13 @@ describe("classifyRisk", () => {
     expect(result.reason).toContain("local filesystem write");
   });
 
-  it("classifies web_fetch with outside-project save_to as dangerous", () => {
+  it("classifies web_fetch with outside-scope save_to as dangerous", () => {
     const result = classifyRisk("web_fetch", {
       url: "https://example.com",
       save_to: "/tmp/page.md",
     });
     expect(result.risk).toBe("dangerous");
-    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).toContain("outside scope directory");
     expect(result.reason).not.toContain("/tmp");
   });
 

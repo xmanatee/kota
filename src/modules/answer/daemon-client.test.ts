@@ -178,15 +178,15 @@ describe("answer module daemonClient(link)", () => {
     ]);
   });
 
-  it("routes show with projectId as a query parameter when supplied", async () => {
+  it("routes show with scopeId as a query parameter when supplied", async () => {
     const expected = { ok: false, reason: "not_found" } as const;
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = answerModule.daemonClient!(transport);
-    await contributed.answer!.show("answer-1", { projectId: "project-a" });
+    await contributed.answer!.show("answer-1", { scopeId: "scope-a" });
     expect(calls).toEqual([
       {
         method: "GET",
-        path: "/answers/answer-1?projectId=project-a",
+        path: "/answers/answer-1?scopeId=scope-a",
         body: undefined,
       },
     ]);

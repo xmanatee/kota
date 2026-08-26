@@ -26,18 +26,18 @@ import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import type { RetractClient, RetractRequest, RetractResult } from "./client.js";
 import {
-  createProjectInboxContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeInboxContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "./contributors.js";
-import { createRetractProjectContextResolver } from "./project-context.js";
 import { RetractProviderImpl } from "./retract-provider.js";
 import {
   RETRACT_PROVIDER_TOKEN,
   type RetractProvider,
 } from "./retract-types.js";
 import { retractApiRoutes, retractControlRoutes } from "./routes.js";
+import { createRetractScopeContextResolver } from "./scope-context.js";
 import {
   buildRetractDynamicStateProvider,
   RETRACT_DYNAMIC_STATE_NAME,
@@ -88,13 +88,13 @@ const retractModule: KotaModule = {
       {
         id: "retract.cross-store",
         description: "Remove a named prior capture from memory, knowledge, tasks, or inbox stores.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["owner-confirmation", "writes", "retention"],
       },
       {
         id: "retract.operator-surface",
         description: "Expose retract through CLI, daemon-control, API, Telegram, Slack, web, mobile, and macOS clients.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["owner-confirmation", "channels"],
       },
     ],
@@ -124,12 +124,12 @@ const retractModule: KotaModule = {
 
   onLoad(ctx: ModuleRuntimeContext) {
     const provider = new RetractProviderImpl({
-      resolveProjectContext: createRetractProjectContextResolver(ctx.cwd),
+      resolveScopeContext: createRetractScopeContextResolver(ctx.cwd),
     });
-    provider.register(createProjectMemoryContributor());
-    provider.register(createProjectKnowledgeContributor());
-    provider.register(createProjectTasksContributor());
-    provider.register(createProjectInboxContributor());
+    provider.register(createScopeMemoryContributor());
+    provider.register(createScopeKnowledgeContributor());
+    provider.register(createScopeTasksContributor());
+    provider.register(createScopeInboxContributor());
     activeProvider = provider;
     ctx.registerProvider(RETRACT_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
@@ -156,23 +156,23 @@ const retractModule: KotaModule = {
   controlRoutes: (ctx) =>
     retractControlRoutes(
       resolveActiveProvider,
-      createRetractProjectContextResolver(ctx.cwd),
+      createRetractScopeContextResolver(ctx.cwd),
     ),
 
   routes: (ctx) =>
     retractApiRoutes(
       resolveActiveProvider,
-      createRetractProjectContextResolver(ctx.cwd),
+      createRetractScopeContextResolver(ctx.cwd),
     ),
 
   localClient: (ctx) => {
     const handler: RetractClient = {
       async retract(request) {
-        const project = createRetractProjectContextResolver(ctx.cwd)(
+        const scope = createRetractScopeContextResolver(ctx.cwd)(
           selectedScopeSelectorId(request),
         );
-        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
-        return resolveActiveProvider().retract(request, project);
+        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
+        return resolveActiveProvider().retract(request, scope);
       },
     };
     return { retract: handler };

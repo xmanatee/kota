@@ -14,7 +14,7 @@
  */
 
 import type { EmitMiddleware, EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 
 export type QuietHoursConfig = {
   /** Quiet period start in local time, "HH:MM" (24-hour). */
@@ -139,10 +139,10 @@ export class NotificationGate {
   private unsubscribeMiddleware: () => void;
   private disposed = false;
   private releasing = false;
-  private pbus: ProjectScopedEventBus;
+  private pbus: ScopedEventBus;
 
   constructor(
-    pbus: ProjectScopedEventBus,
+    pbus: ScopedEventBus,
     private config: QuietHoursConfig,
   ) {
     this.pbus = pbus;
@@ -157,11 +157,11 @@ export class NotificationGate {
         next();
         return;
       }
-      // Only buffer events that belong to this gate's project. Multi-project
+      // Only buffer events that belong to this gate's scope. Multi-scope
       // daemons wire one gate per project; cross-project payloads should
       // pass through to other gates and subscribers.
-      const payload = envelope.payload as { projectId?: string };
-      if (payload.projectId !== pbus.getProjectId()) {
+      const payload = envelope.payload as { scopeId?: string };
+      if (payload.scopeId !== pbus.getScopeId()) {
         next();
         return;
       }

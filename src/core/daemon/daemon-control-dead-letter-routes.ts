@@ -1,7 +1,7 @@
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import type { ModuleSetupJsonValue } from "#core/modules/setup-requirements.js";
 import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
-import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
+import { jsonResponse, readBody, resolveScopeIdParam } from "./daemon-control-utils.js";
 import type { DeadLetterRedriveTarget } from "./dead-letter-queue.js";
 
 type ParsedBody<T> =
@@ -95,14 +95,14 @@ export function buildDaemonDeadLetterControlRoutes(
       capabilityScope: "read",
       handler: (req, res) => {
         const url = new URL(req.url ?? "/", "http://127.0.0.1");
-        const scope = resolveProjectIdParam(h, url);
+        const scope = resolveScopeIdParam(h, url);
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
         jsonResponse(res, 200, h.listDeadLetters({
           ...parseDeadLetterListQuery(url),
-          projectId: scope.projectId,
+          scopeId: scope.scopeId,
         }));
       },
     },
@@ -111,12 +111,12 @@ export function buildDaemonDeadLetterControlRoutes(
       path: "/workflow/dead-letter/:id",
       capabilityScope: "read",
       handler: (req, res, params) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
-        const item = h.getDeadLetter(params.id, scope.projectId);
+        const item = h.getDeadLetter(params.id, scope.scopeId);
         if (!item) {
           jsonResponse(res, 404, { error: "Dead-letter item not found" });
           return;
@@ -129,12 +129,12 @@ export function buildDaemonDeadLetterControlRoutes(
       path: "/workflow/dead-letter/:id/diagnostics",
       capabilityScope: "read",
       handler: (req, res, params) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
-        const diagnostics = h.exportDeadLetterDiagnostics(params.id, scope.projectId);
+        const diagnostics = h.exportDeadLetterDiagnostics(params.id, scope.scopeId);
         if (!diagnostics) {
           jsonResponse(res, 404, { error: "Dead-letter item not found" });
           return;
@@ -147,7 +147,7 @@ export function buildDaemonDeadLetterControlRoutes(
       path: "/workflow/dead-letter/:id/dismiss",
       capabilityScope: "control",
       handler: async (req, res, params) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
@@ -157,7 +157,7 @@ export function buildDaemonDeadLetterControlRoutes(
           jsonResponse(res, 400, { error: body.message });
           return;
         }
-        const result = h.dismissDeadLetter(params.id, body.value, scope.projectId);
+        const result = h.dismissDeadLetter(params.id, body.value, scope.scopeId);
         if (!result.ok) {
           jsonResponse(res, 404, { error: "Dead-letter item not found" });
           return;
@@ -170,7 +170,7 @@ export function buildDaemonDeadLetterControlRoutes(
       path: "/workflow/dead-letter/:id/redrive",
       capabilityScope: "control",
       handler: async (req, res, params) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
@@ -184,7 +184,7 @@ export function buildDaemonDeadLetterControlRoutes(
           params.id,
           body.value.reason,
           body.value.target,
-          scope.projectId,
+          scope.scopeId,
         );
         if (!result.ok) {
           const status = result.reason === "not_found" ? 404 : 409;

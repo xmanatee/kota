@@ -126,7 +126,7 @@ function buildKnowledgeUiSurface(
 
 export const knowledgeUiSurfaceSource: UiSurfaceSource = {
   sourceId: "knowledge-store",
-  project: async (context) => {
+  scope: async (context) => {
     const knowledge = await context.read("knowledge", () => context.client.knowledge.list());
     return [buildKnowledgeUiSurface(context.scopeId, knowledge)];
   },

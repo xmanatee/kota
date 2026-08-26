@@ -2,15 +2,15 @@
 
 Kernel-owned configuration and secrets management.
 
-- `config.ts` — KOTA configuration schema, layered loading (global < project < overrides), and sanitization.
-- `project-config-writer.ts` — no-follow, atomic project configuration mutation inside the verified real project root.
+- `config.ts` — KOTA configuration schema, layered loading (global < scope < overrides), and sanitization.
+- `scope-config-writer.ts` — no-follow, atomic scope configuration mutation inside the verified real scope root.
 - `config-warnings.ts` — validation of unknown config keys and invalid concurrency settings.
-- `project-dir.ts` — single source of truth for resolving the project directory
-  the daemon and operator CLI act on. Operator surfaces that need a project
-  root must go through `resolveProjectDir` rather than reaching for
-  `process.cwd()` directly, so the `KOTA_PROJECT_DIR` env var and the
-  `--project-dir` CLI flag are honored consistently.
-- `secrets.ts` — canonical-project secret-store registry, provider-based resolution, and output masking.
+- `scope-root.ts` — single source of truth for resolving the scope root
+  the daemon and operator CLI act on. Operator surfaces that need a scope
+  root must go through `resolveScopeRoot` rather than reaching for
+  `process.cwd()` directly, so the `KOTA_SCOPE_ROOT` env var and the
+  `--scope-root` CLI flag are honored consistently.
+- `secrets.ts` — canonical-scope secret-store registry, provider-based resolution, and output masking.
 - `secret-providers.ts` — secret provider implementations (env file, JSON file, macOS keychain).
 
 These are core primitives. Do not add module-specific configuration logic here.
@@ -23,8 +23,8 @@ boundaries, and downstream propagation. Do not assert a handwritten inventory
 of config keys or copy shipped default values merely to freeze the registry;
 inspect declarative values in their canonical source.
 
-Machine authority keys (`trustedProjects`, `scopePolicies`, `scopeAuthority`)
-are global-config only. Always strip them from project config and caller
-overrides, including for an otherwise trusted project; daemon mutations go
+Machine authority keys (`trustedScopes`, `scopePolicies`, `scopeAuthority`)
+are global-config only. Always strip them from scope config and caller
+overrides, including for an otherwise trusted scope; daemon mutations go
 through `ScopeAuthorityStore` so trust, policy, revision, and audit remain one
 atomic transaction.

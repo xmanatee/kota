@@ -43,7 +43,7 @@ export function projectModuleSetupStatusForClient(
       secretRefs: status.secretRefs.map(projectSecretStatus),
     }),
     ...(status.configFields !== undefined && {
-      configFields: status.configFields.map(projectConfigField),
+      configFields: status.configFields.map(scopeConfigField),
     }),
     ...(status.capabilities !== undefined && {
       capabilities: status.capabilities.map((capability) =>
@@ -124,7 +124,7 @@ function projectSecretStatus(status: ModuleSetupSecretStatus): ModuleSetupSecret
   };
 }
 
-function projectConfigField(field: ModuleSetupConfigFieldStatus): ModuleSetupConfigFieldStatus {
+function scopeConfigField(field: ModuleSetupConfigFieldStatus): ModuleSetupConfigFieldStatus {
   return {
     id: field.id,
     label: field.label,

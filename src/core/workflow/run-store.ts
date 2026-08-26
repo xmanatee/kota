@@ -31,8 +31,8 @@ export class WorkflowRunStore {
   readonly runsDir: string;
   readonly statePath: string;
 
-  constructor(private readonly projectDir = process.cwd()) {
-    this.rootDir = join(projectDir, ".kota");
+  constructor(private readonly scopeRoot = process.cwd()) {
+    this.rootDir = join(scopeRoot, ".kota");
     this.runsDir = join(this.rootDir, "runs");
     this.statePath = join(this.rootDir, STATE_FILE);
     ensureDir(this.rootDir);
@@ -117,7 +117,7 @@ export class WorkflowRunStore {
     protectedRunIds?: Set<string>;
   }): string[] {
     return pruneWorkflowRuns({
-      projectDir: this.projectDir,
+      scopeRoot: this.scopeRoot,
       runsDir: this.runsDir,
       retentionDays: opts?.retentionDays,
       minKeepPerWorkflow: opts?.minKeepPerWorkflow,
@@ -185,7 +185,7 @@ export class WorkflowRunStore {
     headSha: string | null = null,
   ): ActiveWorkflowRunHandle {
     return createWorkflowRun({
-      projectDir: this.projectDir,
+      scopeRoot: this.scopeRoot,
       runsDir: this.runsDir,
       workflow,
       trigger,

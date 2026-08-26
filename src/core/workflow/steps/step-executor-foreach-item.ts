@@ -1,5 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepStartedPayload } from "../event-payloads.js";
 import {
@@ -25,7 +25,7 @@ export type ForeachExecutionDeps = {
   agentConfig: AgentStepConfig;
   acc: StepAccumulators;
   bus: EventBus;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   log: (message: string) => void;
 };
 

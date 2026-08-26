@@ -33,15 +33,15 @@ export type MemoryListResult = {
 };
 
 /**
- * Optional project boundary for callers that already hold an explicit
- * project id, such as `KotaClient.forProject(...)` wrappers. When
- * absent, the implementation resolves the active/default project once at the
+ * Optional scopeSelector boundary for callers that already hold an explicit
+ * scopeSelector id, such as `KotaClient.forScope(...)` wrappers. When
+ * absent, the implementation resolves the active/default scopeSelector once at the
  * client or route boundary.
  */
-export type MemoryProjectSelection = ScopeSelector;
+export type MemoryScopeSelection = ScopeSelector;
 
 /** Filter for `memory.list`. */
-export type MemoryListFilter = MemoryProjectSelection & {
+export type MemoryListFilter = MemoryScopeSelection & {
   limit?: number;
 };
 
@@ -54,7 +54,7 @@ export type MemoryDeleteResult =
   | { ok: false; reason: "not_found" };
 
 /** Filter for `memory.search`. */
-export type MemorySearchFilter = MemoryProjectSelection & {
+export type MemorySearchFilter = MemoryScopeSelection & {
   tag?: string;
   since?: string;
   semantic?: boolean;
@@ -89,9 +89,9 @@ export interface MemoryClient {
   add(
     content: string,
     tags?: string[],
-    project?: MemoryProjectSelection,
+    scopeSelector?: MemoryScopeSelection,
   ): Promise<MemoryAddResult>;
-  delete(id: string, project?: MemoryProjectSelection): Promise<MemoryDeleteResult>;
+  delete(id: string, scopeSelector?: MemoryScopeSelection): Promise<MemoryDeleteResult>;
   search(query: string, filter?: MemorySearchFilter): Promise<MemorySearchResult>;
-  reindex(project?: MemoryProjectSelection): Promise<MemoryReindexResult>;
+  reindex(scopeSelector?: MemoryScopeSelection): Promise<MemoryReindexResult>;
 }

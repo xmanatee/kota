@@ -7,7 +7,7 @@
  * diverge on what gets written into `.kota/config.json`.
  */
 import { randomBytes } from "node:crypto";
-import { loadConfig, updateProjectConfig } from "#core/config/config.js";
+import { loadConfig, updateScopeConfig } from "#core/config/config.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type {
   WebhookListResult,
@@ -48,7 +48,7 @@ export function generateWebhookSecret(
   const existing = loadConfig(ctx.cwd).webhooks?.[workflow]?.secret;
   const secret = randomBytes(32).toString("hex");
 
-  updateProjectConfig(ctx.cwd, (raw) => ({
+  updateScopeConfig(ctx.cwd, (raw) => ({
     ...raw,
     webhooks: {
       ...(raw.webhooks ?? {}),
@@ -77,7 +77,7 @@ export function removeWebhookSecret(
     return { ok: true, workflow, removed: false };
   }
 
-  updateProjectConfig(ctx.cwd, (raw) => {
+  updateScopeConfig(ctx.cwd, (raw) => {
     const webhooks = { ...(raw.webhooks ?? {}) };
     delete webhooks[workflow];
     if (Object.keys(webhooks).length === 0) {

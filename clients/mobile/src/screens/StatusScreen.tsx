@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ProjectSelector } from '../components/ProjectSelector';
+import { ScopeSelector } from '../components/ScopeSelector';
 import { useDaemon } from '../context/DaemonContext';
 import type { ActiveRun } from '../types';
 
@@ -124,7 +124,7 @@ export function StatusScreen({
         </View>
       )}
 
-      <ProjectSelector />
+      <ScopeSelector />
 
       <View style={styles.section}>
         <View style={styles.statusRow}>

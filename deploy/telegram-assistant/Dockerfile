@@ -35,7 +35,7 @@ RUN mkdir -p /runtime-assets \
 
 FROM node:${NODE_VERSION} AS runtime
 ENV NODE_ENV=production \
-    KOTA_PROJECT_DIR=/var/lib/kota \
+    KOTA_SCOPE_ROOT=/var/lib/kota \
     KOTA_DAEMON_LOG_FORMAT=json
 WORKDIR /opt/kota
 
@@ -63,7 +63,7 @@ VOLUME ["/var/lib/kota"]
 # The daemon owns its own supervision/restart loop (RESTART_EXIT_CODE).
 # Docker's restart policy supervises the outer process.
 ENTRYPOINT ["/opt/kota/entrypoint.sh"]
-CMD ["daemon", "--project-dir", "/var/lib/kota"]
+CMD ["daemon", "--scope-root", "/var/lib/kota"]
 
 FROM runtime AS eval
 ENTRYPOINT []

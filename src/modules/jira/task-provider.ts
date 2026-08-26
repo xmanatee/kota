@@ -152,7 +152,7 @@ export class JiraTaskProvider implements TaskProvider {
 
     const body: Record<string, unknown> = {
       fields: {
-        project: { key: this.config.projectKey },
+        scope: { key: this.config.projectKey },
         summary: taskText,
         issuetype: { name: "Task" },
       },

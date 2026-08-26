@@ -27,7 +27,7 @@ export type RenderedAttention = {
 export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
 
 export type AttentionDigestStepInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   count: number;
 };
@@ -84,7 +84,7 @@ function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
 }
 
 function detectAttentionItems(
-  projectDir: string,
+  workspaceRoot: string,
   recentRuns: RunSummary[],
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
@@ -100,7 +100,7 @@ function detectAttentionItems(
   const warningsItem = builderWarningsCheck(recentRuns);
   if (warningsItem) items.push(warningsItem);
 
-  const doingCount = countRepoTaskState(projectDir, "doing");
+  const doingCount = countRepoTaskState(workspaceRoot, "doing");
   if (doingCount >= 2) {
     items.push({
       label: "Stalled work",
@@ -108,9 +108,9 @@ function detectAttentionItems(
     });
   }
 
-  items.push(...blockedAttentionItems(projectDir));
+  items.push(...blockedAttentionItems(workspaceRoot));
 
-  const readyCount = countRepoTaskState(projectDir, "ready");
+  const readyCount = countRepoTaskState(workspaceRoot, "ready");
   if (readyCount === 0) {
     items.push({
       label: "Empty ready queue",
@@ -118,7 +118,7 @@ function detectAttentionItems(
     });
   }
 
-  const backlogCount = countRepoTaskState(projectDir, "backlog");
+  const backlogCount = countRepoTaskState(workspaceRoot, "backlog");
   if (backlogCount === 0) {
     items.push({
       label: "Empty backlog",
@@ -147,11 +147,11 @@ function buildDigestText(items: AttentionItem[]): string {
  * in any prompt path.
  */
 export function renderOnDemandAttention(opts: {
-  projectDir: string;
+  scopeRoot: string;
   runsDir: string;
 }): RenderedAttention {
   const recentRuns = loadRecentRuns(opts.runsDir);
-  const items = detectAttentionItems(opts.projectDir, recentRuns);
+  const items = detectAttentionItems(opts.scopeRoot, recentRuns);
   const text =
     items.length === 0 ? NO_ATTENTION_ITEMS_TEXT : buildDigestText(items);
   return { items, text };
@@ -170,7 +170,7 @@ export function inspectAttentionDigestStep(
   if (input.count % DIGEST_EVERY_N_RUNS !== 0) return {};
 
   const { items, text } = renderOnDemandAttention({
-    projectDir: input.projectDir,
+    scopeRoot: input.workspaceRoot,
     runsDir: input.runsDir,
   });
   if (items.length === 0) return {};

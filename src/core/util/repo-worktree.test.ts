@@ -8,57 +8,57 @@ import {
   getRepoWorktreeStatusAsync,
 } from "./repo-worktree.js";
 
-function createNestedBareRepoWithHookConfig(projectDir: string): {
+function createNestedBareRepoWithHookConfig(scopeRoot: string): {
   bareDir: string;
   markerPath: string;
 } {
-  const bareDir = join(projectDir, "nested.git");
-  const hooksDir = join(projectDir, "malicious-hooks");
-  const markerPath = join(projectDir, "hook-marker");
+  const bareDir = join(scopeRoot, "nested.git");
+  const hooksDir = join(scopeRoot, "malicious-hooks");
+  const markerPath = join(scopeRoot, "hook-marker");
   mkdirSync(hooksDir, { recursive: true });
-  execFileSync("git", ["init", "--bare", bareDir], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["init", "--bare", bareDir], { cwd: scopeRoot, stdio: "ignore" });
   const hookPath = join(hooksDir, "pre-commit");
   writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
   chmodSync(hookPath, 0o755);
   execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     stdio: "ignore",
   });
   return { bareDir, markerPath };
 }
 
 describe("repo worktree validation", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-worktree-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
-    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: projectDir, stdio: "ignore" });
-    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: projectDir, stdio: "ignore" });
-    writeFileSync(join(projectDir, "README.md"), "test\n");
-    execFileSync("git", ["add", "README.md"], { cwd: projectDir, stdio: "ignore" });
-    execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+    mkdirSync(scopeRoot, { recursive: true });
+    execFileSync("git", ["init"], { cwd: scopeRoot, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "Kota Tests"], { cwd: scopeRoot, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "kota@example.com"], { cwd: scopeRoot, stdio: "ignore" });
+    writeFileSync(join(scopeRoot, "README.md"), "test\n");
+    execFileSync("git", ["add", "README.md"], { cwd: scopeRoot, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "init"], { cwd: scopeRoot, stdio: "ignore" });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("reports a clean tracked repository as clean", () => {
-    const status = getRepoWorktreeStatus(projectDir);
+    const status = getRepoWorktreeStatus(scopeRoot);
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(false);
     expect(status.trackedDirty).toBe(false);
   });
 
   it("reports staged and unstaged changes as dirty", () => {
-    writeFileSync(join(projectDir, "README.md"), "changed\n");
+    writeFileSync(join(scopeRoot, "README.md"), "changed\n");
 
-    const status = getRepoWorktreeStatus(projectDir);
+    const status = getRepoWorktreeStatus(scopeRoot);
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(true);
     expect(status.trackedDirty).toBe(true);
@@ -66,18 +66,18 @@ describe("repo worktree validation", () => {
   });
 
   it("distinguishes untracked-only dirty from tracked dirty", () => {
-    writeFileSync(join(projectDir, "untracked.txt"), "new file\n");
+    writeFileSync(join(scopeRoot, "untracked.txt"), "new file\n");
 
-    const status = getRepoWorktreeStatus(projectDir);
+    const status = getRepoWorktreeStatus(scopeRoot);
     expect(status.dirty).toBe(true);
     expect(status.trackedDirty).toBe(false);
   });
 
   it("reports the same tracked and untracked state asynchronously", async () => {
-    writeFileSync(join(projectDir, "README.md"), "changed\n");
-    writeFileSync(join(projectDir, "untracked.txt"), "new file\n");
+    writeFileSync(join(scopeRoot, "README.md"), "changed\n");
+    writeFileSync(join(scopeRoot, "untracked.txt"), "new file\n");
 
-    const status = await getRepoWorktreeStatusAsync(projectDir);
+    const status = await getRepoWorktreeStatusAsync(scopeRoot);
 
     expect(status.available).toBe(true);
     expect(status.dirty).toBe(true);
@@ -91,7 +91,7 @@ describe("repo worktree validation", () => {
   });
 
   it("rejects implicit nested bare repository discovery before hook-capable config can run", () => {
-    const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(projectDir);
+    const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(scopeRoot);
 
     const status = getRepoWorktreeStatus(bareDir);
 

@@ -24,10 +24,10 @@ import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 async function startForeignModule(
   config: ForeignModuleConfig,
-  projectCwd: string,
+  scopeRoot: string,
   moduleConfig?: Record<string, unknown>,
 ): Promise<KotaModule> {
-  const resolvedCwd = resolve(projectCwd);
+  const resolvedCwd = resolve(scopeRoot);
 
   if (config.transport === "stdio" && (config.maxRestarts ?? DEFAULT_MAX_RESTARTS) > 0) {
     return startResilientStdioModule(config, resolvedCwd, moduleConfig);
@@ -54,7 +54,7 @@ async function startForeignModule(
 
 export async function loadForeignModules(
   configs: ForeignModuleConfig[],
-  projectCwd: string,
+  scopeRoot: string,
   moduleConfigs?: Record<string, Record<string, unknown>>,
 ): Promise<KotaModule[]> {
   const results: KotaModule[] = [];
@@ -62,7 +62,7 @@ export async function loadForeignModules(
     const label = config.transport === "http" ? config.url : config.command;
     try {
       const moduleConfig = moduleConfigs?.[label];
-      const module = await startForeignModule(config, resolve(projectCwd), moduleConfig);
+      const module = await startForeignModule(config, resolve(scopeRoot), moduleConfig);
       results.push(module);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

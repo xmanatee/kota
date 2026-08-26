@@ -13,34 +13,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -115,29 +115,29 @@ describe("findRetryFromIndex", () => {
 });
 
 describe("retry execution", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   async function runDefinition(definition: WorkflowDefinition, trigger = TRIGGER) {
     const { promise } = executeWorkflowRun(definition, trigger, {
-      runContext: makeRunContext(projectDir, trigger),
+      runContext: makeRunContext(workspaceRoot, trigger),
       bus,
       store,
       log,
@@ -147,7 +147,7 @@ describe("retry execution", () => {
 
   function readRunMetadata(runId: string): WorkflowRunMetadata {
     return JSON.parse(
-      readFileSync(join(projectDir, ".kota", "runs", runId, "metadata.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "runs", runId, "metadata.json"), "utf-8"),
     ) as WorkflowRunMetadata;
   }
 
@@ -270,7 +270,7 @@ describe("retry execution", () => {
           ],
         }),
       ],
-      projectDir,
+      workspaceRoot,
     );
     if (!definition) throw new Error("validated workflow definition is missing");
 
@@ -445,7 +445,7 @@ describe("retry execution", () => {
     expect(retried.metadata.retryOf).toBe(originalId);
 
     // Verify persisted metadata has retryOf
-    const dirs = readdirSync(join(projectDir, ".kota", "runs")).sort().reverse();
+    const dirs = readdirSync(join(workspaceRoot, ".kota", "runs")).sort().reverse();
     const retryRunId = dirs[0]; // most recent
     const persisted = readRunMetadata(retryRunId);
     expect(persisted.retryOf).toBe(originalId);

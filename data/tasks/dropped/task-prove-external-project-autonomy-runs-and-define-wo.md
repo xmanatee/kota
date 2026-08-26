@@ -12,7 +12,7 @@ updated_at: 2026-04-18T15:49:10.198Z
 ## Problem
 
 The just-completed external-project task landed the core pieces —
-`DaemonConfig.projectDir`, `resolveProjectDir()`, per-module install
+`DaemonConfig.projectDir`, `resolveScopeRoot()`, per-module install
 root for workflow prompts — but explicitly leaves two follow-ups
 unresolved in its `## Remaining Architectural Work` section:
 

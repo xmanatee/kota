@@ -46,7 +46,7 @@ export function shadowSemanticReviewPromptHash(
 }
 
 export function validateShadowSemanticReviewerDeclaration(
-  projectDir: string,
+  workspaceRoot: string,
   declaration: ShadowSemanticReviewerDeclaration,
 ): void {
   if (!/^[a-z0-9-]+$/.test(declaration.id)) {
@@ -60,7 +60,7 @@ export function validateShadowSemanticReviewerDeclaration(
   }
   const decisionPath = isAbsolute(declaration.blockingDecisionArtifact)
     ? declaration.blockingDecisionArtifact
-    : join(projectDir, declaration.blockingDecisionArtifact);
+    : join(workspaceRoot, declaration.blockingDecisionArtifact);
   const decision = readAutonomyChangeDecisionArtifact(decisionPath);
   if (decision.kind !== "valid") {
     throw new Error(

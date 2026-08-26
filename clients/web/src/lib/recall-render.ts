@@ -52,7 +52,9 @@ function formatRecallMetadata(hit: RecallHit): string {
 }
 
 function formatProvenanceLocator(
-  provenance: NonNullable<Extract<RecallHit, { source: "knowledge" }>["provenance"]>,
+  provenance: NonNullable<
+    Extract<RecallHit, { source: "knowledge" }>["provenance"]
+  >,
 ): string {
   switch (provenance.sourceKind) {
     case "run":

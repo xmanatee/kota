@@ -13,7 +13,7 @@ import type {
   ModuleSetupStatusState,
 } from "./setup-requirements.js";
 
-export type ModuleManifestScope = "global" | "project" | "daemon" | "external";
+export type ModuleManifestScope = "global" | "scope" | "daemon" | "external";
 export type ModuleManifestScopePolicyHook =
   | "autonomy"
   | "channels"
@@ -34,7 +34,7 @@ export type ModuleManifestDataSensitivity =
 
 export type ModuleManifestRetentionPosture =
   | "ephemeral"
-  | "project-durable"
+  | "scope-durable"
   | "run-artifact"
   | "external-provider"
   | "operator-visible";
@@ -246,7 +246,7 @@ export type ModuleManifestEffectLookup = ModuleManifestEffectProjection & {
 };
 
 const MANIFEST_ID_PATTERN = /^[a-z][a-z0-9.-]*$/;
-const MANIFEST_SCOPES = ["global", "project", "daemon", "external"] as const;
+const MANIFEST_SCOPES = ["global", "scope", "daemon", "external"] as const;
 const MANIFEST_SCOPE_POLICY_HOOKS = [
   "autonomy",
   "channels",
@@ -267,7 +267,7 @@ const MANIFEST_DATA_SENSITIVITIES = [
 ] as const;
 const MANIFEST_RETENTION_POSTURES = [
   "ephemeral",
-  "project-durable",
+  "scope-durable",
   "run-artifact",
   "external-provider",
   "operator-visible",
@@ -834,7 +834,7 @@ export function simulationBlockReasonFromEffect(
     return "tool would produce a live external or operator-visible side effect in trial mode";
   }
   if (effect.scope === "daemon-state" && effect.kind !== "read") {
-    return "tool would mutate daemon state outside the isolated trial project";
+    return "tool would mutate daemon state outside the isolated trial scope";
   }
   if (effect.scope === "process-env" && effect.kind !== "read") {
     return "tool would inject values into an execution environment in trial mode";
@@ -844,7 +844,7 @@ export function simulationBlockReasonFromEffect(
     effect.kind !== "read" &&
     !opts.canScopeLocalFs
   ) {
-    return `tool "${tool}" has local filesystem side effects that trial mode cannot root in the isolated project`;
+    return `tool "${tool}" has local filesystem side effects that trial mode cannot root in the isolated scope`;
   }
   return undefined;
 }
@@ -956,7 +956,7 @@ export function buildModuleManifestSetupStatusLinks(args: {
   };
 }
 
-function projectSetupAvailability(
+function scopeSetupAvailability(
   status: ModuleSetupRequirementStatus,
 ): ModuleManifestSetupAvailabilitySnapshot {
   return {
@@ -975,7 +975,7 @@ function projectSetupAvailability(
   };
 }
 
-export function projectSetupStatusOntoManifest(
+export function scopeSetupStatusOntoManifest(
   manifest: ModuleCapabilityManifestProjection,
   statuses: readonly ModuleSetupRequirementStatus[],
 ): ModuleCapabilityManifestProjection {
@@ -993,7 +993,7 @@ export function projectSetupStatusOntoManifest(
         if (status === undefined) return requirement;
         return {
           ...requirement,
-          availability: projectSetupAvailability(status),
+          availability: scopeSetupAvailability(status),
         };
       }),
     },

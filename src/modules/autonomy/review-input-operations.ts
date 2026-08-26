@@ -60,7 +60,7 @@ export const criticReviewInspectionOperation =
   >(import.meta.url, "inspectCriticReviewInWorker");
 
 export type ImproverSemanticInspectionInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runDirPath: string;
 };
 
@@ -77,11 +77,11 @@ export type ImproverSemanticInspectionResult =
 export function inspectImproverSemanticReviewInWorker(
   input: ImproverSemanticInspectionInput,
 ): ImproverSemanticInspectionResult {
-  const changedFiles = getWorkflowChangedFiles(input.projectDir);
+  const changedFiles = getWorkflowChangedFiles(input.workspaceRoot);
   if (!changedFiles.trim()) return { status: "no-changes" };
 
-  const diffStat = getWorkflowDiffStat(input.projectDir);
-  const diffContent = getWorkflowDiffContent(input.projectDir);
+  const diffStat = getWorkflowDiffStat(input.workspaceRoot);
+  const diffContent = getWorkflowDiffContent(input.workspaceRoot);
   const commitMessagePath = join(input.runDirPath, "commit-message.txt");
   const commitMessage = existsSync(commitMessagePath)
     ? readFileSync(commitMessagePath, "utf8").trim()

@@ -20,33 +20,33 @@ export type PromotionMoves = {
 };
 
 export function inspectBacklogInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
 }): BacklogInspection {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
-  const rationale = buildPromotionRationale(input.projectDir, {
+  const rationale = buildPromotionRationale(input.workspaceRoot, {
     batchLimit: PROMOTION_BATCH_LIMIT,
   });
   return { dirty, rationale };
 }
 
 export function applyBacklogPromotionInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   taskIds: string[];
 }): PromotionMoves {
   return {
     promotions: input.taskIds.map((taskId) =>
-      moveTaskById(input.projectDir, taskId, "ready"),
+      moveTaskById(input.workspaceRoot, taskId, "ready"),
     ),
   };
 }
 
 export const inspectBacklogOperation = defineWorkflowBlockingOperation<
-  { projectDir: string },
+  { workspaceRoot: string },
   BacklogInspection
 >(import.meta.url, "inspectBacklogInWorker");
 
 export const applyBacklogPromotionOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; taskIds: string[] },
+  { workspaceRoot: string; taskIds: string[] },
   PromotionMoves
 >(import.meta.url, "applyBacklogPromotionInWorker");

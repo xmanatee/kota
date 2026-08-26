@@ -54,15 +54,15 @@ function fixture(label: string, repository: RepositoryAccess): Fixture {
   commit(root, "base");
 
   const store = new RunStateDatabase(join(root, ".kota", "state"));
-  store.registerProject({
-    id: `project-${label}`,
+  store.registerScope({
+    id: `scope-${label}`,
     rootPath: root,
     createdAt: "2026-08-25T09:00:00.000Z",
   });
   const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
   store.admitRun({
     id: `run-${label}`,
-    projectId: `project-${label}`,
+    scopeId: `scope-${label}`,
     workflow: "example",
     repository,
     trigger: { event: "example.ready", schemaRef: null, payload: { label } },
@@ -105,7 +105,7 @@ describe("RunLifecycle", () => {
     const outcome = await lifecycle(value, async (context) => {
       workspace = context.sandbox.workspaceDir;
       expect(context.run).toEqual({ id: value.run.id, attempt: 1, daemonEpoch: 1 });
-      expect(context.project.root).toBe(value.root);
+      expect(context.scope.root).toBe(value.root);
       const invoke = () =>
         context.effects.execute({
           key: "lookup",
@@ -166,7 +166,7 @@ describe("RunLifecycle", () => {
       version: 1,
       runId: value.run.id,
       workflow: "example",
-      projectId: value.run.projectId,
+      scopeId: value.run.scopeId,
       targetBranch: "main",
       publishedHead: git(value.root, "rev-parse", "HEAD"),
       commitSubject: "deliver feature",

@@ -29,7 +29,7 @@ export type SkillDef = {
   name: string;
   /** Short description of what this skill teaches. */
   description?: string;
-  /** Path to the markdown file containing this skill's guidance (relative to project root). */
+  /** Path to the markdown file containing this skill's guidance (relative to scope root). */
   promptPath: string;
   /** Agent names this skill is scoped to. Omit for universal availability. */
   roles?: string[];
@@ -57,7 +57,7 @@ export type AgentDef = {
   name: string;
   /** Short description of this agent's role and purpose. */
   role: string;
-  /** Path to this agent's main instruction file (relative to project root). */
+  /** Path to this agent's main instruction file (relative to scope root). */
   promptPath: string;
   /** Model to use when running this agent. */
   model: string;

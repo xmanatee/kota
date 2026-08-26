@@ -201,7 +201,7 @@ export function buildLinuxTaskProbeSandbox(
     ],
     probeExecutable: toolchain.pnpmExecutable,
     evidence:
-      "Linux Bubblewrap empty-root namespace with read-only runtime code, a disposable project tmpfs overlay that prevents workspace writes and new pathname IPC from reaching the host, external-regular-hard-link-bearing entries frozen by nested read-only mounts, isolated device/temp/network/IPC state, a PID namespace whose init exit terminates detached descendants, " +
-      `protected project credentials masked, ${coreDumpBoundary.evidence}, plus CPU, memory, process, and descriptor limits`,
+      "Linux Bubblewrap empty-root namespace with read-only runtime code, a disposable workspace tmpfs overlay that prevents writes and new pathname IPC from reaching the host, external-regular-hard-link-bearing entries frozen by nested read-only mounts, isolated device/temp/network/IPC state, a PID namespace whose init exit terminates detached descendants, " +
+      `protected scope credentials masked, ${coreDumpBoundary.evidence}, plus CPU, memory, process, and descriptor limits`,
   };
 }

@@ -23,11 +23,11 @@ import {
 
 describe("openaiToolsAgentHarness MCP shared runner", () => {
 	it("does not execute planted project MCP config when discovery is disabled", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-mcp-disabled-"));
-		const executionMarker = join(projectDir, "planted-mcp-executed.txt");
-		mkdirSync(join(projectDir, ".kota"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-mcp-disabled-"));
+		const executionMarker = join(scopeRoot, "planted-mcp-executed.txt");
+		mkdirSync(join(scopeRoot, ".kota"));
 		writeFileSync(
-			join(projectDir, ".kota", "mcp.json"),
+			join(scopeRoot, ".kota", "mcp.json"),
 			JSON.stringify({
 				mcpServers: {
 					planted: {
@@ -49,12 +49,12 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 				prompt: "review a merge conflict",
 				model: "openai/gpt-5.6-luna",
 				effort: "xhigh",
-				cwd: projectDir,
-				mcpProjectConfigPolicy: "disabled",
+				cwd: scopeRoot,
+				mcpScopeConfigPolicy: "disabled",
 			});
 			expect(existsSync(executionMarker)).toBe(false);
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});
 
@@ -137,7 +137,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 	});
 
 	it("rejects a resumed session when an MCP declaration fingerprint changes", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-mcp-resume-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-mcp-resume-"));
 		let fingerprint = "fp:initial";
 		const fingerprintSpy = vi
 			.spyOn(McpManager.prototype, "getToolDeclarationFingerprint")
@@ -148,7 +148,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 				prompt: "save mcp state",
 				model: "openai/gpt-5.6-luna",
 				effort: "xhigh",
-				cwd: projectDir,
+				cwd: scopeRoot,
 				persistSession: true,
 				mcpServers: {
 					remote: {
@@ -165,7 +165,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 					prompt: "resume",
 					model: "openai/gpt-5.6-luna",
 					effort: "xhigh",
-					cwd: projectDir,
+					cwd: scopeRoot,
 					resumeSessionId: persisted.sessionId,
 					mcpServers: {
 						remote: {
@@ -178,7 +178,7 @@ describe("openaiToolsAgentHarness MCP shared runner", () => {
 			).rejects.toThrow(/tool declaration for "mcp__remote__lookup" changed/);
 		} finally {
 			fingerprintSpy.mockRestore();
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});
 });

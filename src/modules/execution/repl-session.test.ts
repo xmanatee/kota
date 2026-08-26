@@ -41,8 +41,8 @@ describe("REPLSession", () => {
 
 describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () => {
   let session: REPLSession;
-  const sessionA = { sessionId: "repl-session-a", scopeId: "repl-project-a" };
-  const sessionB = { sessionId: "repl-session-b", scopeId: "repl-project-a" };
+  const sessionA = { sessionId: "repl-session-a", scopeId: "repl-scope-a" };
+  const sessionB = { sessionId: "repl-session-b", scopeId: "repl-scope-a" };
 
   afterEach(() => {
     session?.kill();

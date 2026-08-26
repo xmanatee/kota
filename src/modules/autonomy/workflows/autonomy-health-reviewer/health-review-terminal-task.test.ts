@@ -43,7 +43,6 @@ function signal(
 function batchPayload(signals: ReturnType<typeof signal>[]): WorkflowBatchFlushPayload {
   return {
     scopeId: "scope-a",
-    projectId: "scope-a",
     sourceEventName: "autonomy.health.signal",
     groupingKey: "scopeId=scope-a|labelsKey=runtime",
     reason: "count",
@@ -71,23 +70,23 @@ function batchPayload(signals: ReturnType<typeof signal>[]): WorkflowBatchFlushP
 }
 
 describe("autonomy health review terminal task handling", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-health-review-terminal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("leaves completed tasks untouched when an issue recurs", () => {
-    const doneDir = join(projectDir, "data", "tasks", "done");
+    const doneDir = join(workspaceRoot, "data", "tasks", "done");
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(
       join(
@@ -150,9 +149,9 @@ describe("autonomy health review terminal task handling", () => {
       "task-health-dead-letter-execution-workflow-runtime-progress-reviewer";
 
     const actions = stageAutonomyHealthReviewActions({
-      projectDir,
+      workspaceRoot,
       currentProjection: emptyAutonomyIssueProjection(),
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       review,
     });
 
@@ -164,7 +163,7 @@ describe("autonomy health review terminal task handling", () => {
       }),
     ]);
     const task = readFileSync(
-      join(projectDir, "data", "tasks", "done", `${expectedTaskId}.md`),
+      join(workspaceRoot, "data", "tasks", "done", `${expectedTaskId}.md`),
       "utf-8",
     );
     expect(task).toContain(

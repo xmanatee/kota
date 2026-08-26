@@ -21,11 +21,9 @@ export function builderTaskAssociation(
 
 export function scopeFromPayload(payload: KotaJsonObject): {
   scopeId: string | null;
-  projectId: string | null;
 } {
   return {
     scopeId: stringField(payload.scopeId),
-    projectId: stringField(payload.projectId),
   };
 }
 

@@ -79,7 +79,7 @@ function makeAgentSummary(name: string): AgentSummary {
   return {
     name,
     source: "agent-ops",
-    moduleSource: "project",
+    moduleSource: "bundled",
     sourcePath: "src/modules/agent-ops",
     sourcePaths: [
       "src/modules/agent-ops",

@@ -21,7 +21,7 @@ import { jsonResponse } from "#core/server/session-pool.js";
 import { renderOnDemandAttention } from "./step.js";
 
 export function attentionRoutes(opts: {
-  projectDir: string;
+  workspaceRoot: string;
 }): RouteRegistration[] {
   return [
     {
@@ -29,9 +29,9 @@ export function attentionRoutes(opts: {
       path: "/api/attention",
       handler: (_req: IncomingMessage, res: ServerResponse) => {
         try {
-          const runsDir = join(opts.projectDir, ".kota", "runs");
+          const runsDir = join(opts.workspaceRoot, ".kota", "runs");
           const result = renderOnDemandAttention({
-            projectDir: opts.projectDir,
+            scopeRoot: opts.workspaceRoot,
             runsDir,
           });
           jsonResponse(res, 200, {

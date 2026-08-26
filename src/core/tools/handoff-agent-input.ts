@@ -168,24 +168,12 @@ export function readScope(
   if (!isObject(value)) return errorResult("scope.scope_id is required");
   const scopeId = readOptionalString(value.scope_id);
   if (!scopeId) return errorResult("scope.scope_id is required");
-  const projectId = readOptionalString(value.project_id);
-  if (projectId && projectId !== scopeId) {
-    return errorResult("scope.project_id must match scope.scope_id for directory-backed handoffs");
-  }
   if (scopeId !== current.scopeId) {
     return errorResult(
       `requested scope.scope_id "${scopeId}" does not match current scope "${current.scopeId}"`,
     );
   }
-  if (projectId && projectId !== current.projectId) {
-    return errorResult(
-      `requested scope.project_id "${projectId}" does not match current project "${current.projectId}"`,
-    );
-  }
-  return {
-    scopeId,
-    projectId: projectId ?? current.projectId,
-  };
+  return { scopeId };
 }
 
 export function readParent(

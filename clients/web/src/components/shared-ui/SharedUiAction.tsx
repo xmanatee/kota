@@ -2,7 +2,7 @@ import { api } from "@/api/client";
 import { queryKeys } from "@/api/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useProjectId } from "@/lib/project-context";
+import { useScopeId } from "@/lib/scope-context";
 import { cn } from "@/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useId, useState } from "react";
@@ -80,7 +80,7 @@ function ActionForm({
   initialParameters: Readonly<Record<string, UiJsonValue>>;
 }) {
   const formId = useId();
-  const projectId = useProjectId();
+  const scopeId = useScopeId();
   const queryClient = useQueryClient();
   const [confirmationParameters, setConfirmationParameters] =
     useState<Parameters | null>(null);
@@ -93,7 +93,7 @@ function ActionForm({
       setConfirmationParameters(null);
       if (result.ok) {
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.uiSurfaces(projectId),
+          queryKey: queryKeys.uiSurfaces(scopeId),
         });
       }
     },

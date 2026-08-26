@@ -1,13 +1,13 @@
 import type { Command } from "commander";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { checkPresetAuth, PRESET_ENV_VAR, resolvePreset } from "#core/model/preset.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
 export const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
-export const DAEMON_PROJECT_DIR_OPTION_DESCRIPTION =
-  "Project directory the daemon operates on (overrides KOTA_PROJECT_DIR env and cwd)";
+export const DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION =
+  "Directory-backed scope root the daemon operates on (overrides KOTA_SCOPE_ROOT and cwd)";
 const DAEMON_HOST_HELP = [
   "Foreground daemon mode:",
   "  This command hosts and monitors the daemon. It is not the interactive operator console.",
@@ -26,8 +26,8 @@ export const DAEMON_START_DESCRIPTION = [
   DAEMON_HOST_HELP,
 ].join("\n");
 
-export type DaemonProjectDirOptions = { projectDir?: string };
-export type DaemonStartOptions = DaemonProjectDirOptions & {
+export type DaemonScopeRootOptions = { scopeRoot?: string };
+export type DaemonStartOptions = DaemonScopeRootOptions & {
   verbose?: boolean;
   preset?: string;
   pollInterval?: string;
@@ -71,7 +71,7 @@ export function addDaemonStartOptions(command: Command): Command {
       "Preset bundle (claude | codex | openrouter | openrouter-lab | gemini | gemini-cli | antigravity-cli). Overrides KOTA_PRESET and config.defaultPreset for this daemon process",
     )
     .option("--poll-interval <seconds>", "Scheduler poll interval in seconds", "30")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
     .option("--log-format <format>", "Log format: text (default) or json", parseLogFormatOption);
 }
 
@@ -84,7 +84,7 @@ export function resolveDaemonStartOptions(
     verbose: opts.verbose ?? parentOpts.verbose,
     preset: opts.preset ?? parentOpts.preset,
     pollInterval: opts.pollInterval ?? parentOpts.pollInterval ?? "30",
-    projectDir: opts.projectDir ?? parentOpts.projectDir,
+    scopeRoot: opts.scopeRoot ?? parentOpts.scopeRoot,
     logFormat: opts.logFormat ?? parentOpts.logFormat,
   };
 }
@@ -121,11 +121,11 @@ export function preflightDaemonPresetAuth(
   process.exit(1);
 }
 
-export function resolveDaemonCommandProjectDir(
-  opts: DaemonProjectDirOptions,
+export function resolveDaemonCommandScopeRoot(
+  opts: DaemonScopeRootOptions,
   command?: Command,
 ): string {
-  return resolveProjectDir(opts.projectDir ?? command?.parent?.opts<DaemonProjectDirOptions>().projectDir);
+  return resolveScopeRoot(opts.scopeRoot ?? command?.parent?.opts<DaemonScopeRootOptions>().scopeRoot);
 }
 
 export function resolveDaemonHarness(

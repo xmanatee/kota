@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  getProjectSecretStore,
+  getScopeSecretStore,
   resetSecretStores,
   SecretStore,
 } from "./secrets.js";
@@ -52,9 +52,9 @@ describe("SecretStore", () => {
     delete process.env.KOTA_ENV_SECRET;
   });
 
-  it("stores and retrieves project-scoped secrets", () => {
+  it("stores and retrieves scope-scoped secrets", () => {
     const store = new SecretStore(dir);
-    store.set("MY_KEY", "my-value", "project");
+    store.set("MY_KEY", "my-value", "scope");
     expect(store.get("MY_KEY")).toBe("my-value");
 
     const data = JSON.parse(readFileSync(join(dir, ".kota", "secrets.json"), "utf-8"));
@@ -68,7 +68,7 @@ describe("SecretStore", () => {
     const store = new SecretStore(dir);
     try {
       store.set(key, "val");
-      expect(store.remove(key, "project")).toBe(true);
+      expect(store.remove(key, "scope")).toBe(true);
       expect(store.get(key)).toBeNull();
     } finally {
       if (previous === undefined) delete process.env[key];
@@ -131,7 +131,7 @@ describe("SecretStore", () => {
     expect(masked).toBe("the secret is <secret:REGEX_KEY> okay");
   });
 
-  it("project file takes priority over process.env", () => {
+  it("scope file takes priority over process.env", () => {
     writeFileSync(
       join(dir, ".kota", "secrets.json"),
       JSON.stringify({ SHARED_KEY: "from-project" }),
@@ -146,7 +146,7 @@ describe("SecretStore", () => {
     const store = new SecretStore(dir);
     store.set("TEMP_SECRET", "super-secret-value-999");
     expect(store.mask("has super-secret-value-999 inside")).toContain("<secret:TEMP_SECRET>");
-    store.remove("TEMP_SECRET", "project");
+    store.remove("TEMP_SECRET", "scope");
     expect(store.mask("has super-secret-value-999 inside")).toBe("has super-secret-value-999 inside");
   });
 
@@ -194,7 +194,7 @@ describe("SecretStore", () => {
     const store = new SecretStore(dir);
     const names = store.list().filter((s) => s.name === "DUP_KEY");
     expect(names).toHaveLength(1);
-    expect(names[0].source).toBe("project-file");
+    expect(names[0].source).toBe("scope-file");
   });
 
   it("masks secrets with pipe and bracket characters", () => {
@@ -236,17 +236,17 @@ describe("SecretStore", () => {
   });
 });
 
-describe("project store registry", () => {
-  it("returns one stable store per canonical project directory", () => {
+describe("scope store registry", () => {
+  it("returns one stable store per canonical scope directory", () => {
     const dir = makeTmpDir();
     const otherDir = makeTmpDir();
-    const store = getProjectSecretStore(dir);
+    const store = getScopeSecretStore(dir);
     expect(store).toBeInstanceOf(SecretStore);
-    expect(getProjectSecretStore(dir)).toBe(store);
-    expect(getProjectSecretStore(otherDir)).not.toBe(store);
+    expect(getScopeSecretStore(dir)).toBe(store);
+    expect(getScopeSecretStore(otherDir)).not.toBe(store);
 
     resetSecretStores();
-    expect(getProjectSecretStore(dir)).not.toBe(store);
+    expect(getScopeSecretStore(dir)).not.toBe(store);
     rmSync(dir, { recursive: true });
     rmSync(otherDir, { recursive: true });
   });

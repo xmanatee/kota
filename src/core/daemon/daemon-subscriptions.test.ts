@@ -17,15 +17,15 @@ import {
 import { resetScheduler } from "./scheduler.js";
 
 describe("subscribeDaemon", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
     resetApprovalQueue();
     resetOwnerQuestionQueue();
     resetScheduler();
     vi.useRealTimers();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const scopeRoot of scopeRoots.splice(0)) {
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
@@ -34,7 +34,7 @@ describe("subscribeDaemon", () => {
     vi.setSystemTime(new Date("2026-07-31T00:00:00.000Z"));
     const approvalDir = mkdtempSync(join(tmpdir(), "approval-subscription-test-"));
     const questionDir = mkdtempSync(join(tmpdir(), "question-subscription-test-"));
-    projectDirs.push(approvalDir, questionDir);
+    scopeRoots.push(approvalDir, questionDir);
 
     const originalQueue = new ApprovalQueue(approvalDir);
     const priorDaemon = originalQueue.enqueue(

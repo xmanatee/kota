@@ -6,13 +6,13 @@ import type {
 } from "./channel.js";
 
 const STUB_START_CTX: ChannelStartContext = {
-  getDefaultProjectRuntime: () =>
+  getDefaultScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp/test", displayName: "test" },
     }) as never,
-  getProjectRuntime: () =>
+  getScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp/test", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp/test", displayName: "test" },
     }) as never,
   log: () => {},
   reportFailure: () => {},
@@ -43,7 +43,7 @@ describe("ChannelStartResult discriminated union", () => {
     if (result.status === "started") {
       expect(typeof result.adapter.start).toBe("function");
       expect(typeof result.adapter.stop).toBe("function");
-      expect(result.adapter.listScopeSessionIds("test-project")).toEqual([]);
+      expect(result.adapter.listScopeSessionIds("test-scope")).toEqual([]);
     }
   });
 

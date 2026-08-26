@@ -598,7 +598,7 @@ describe("githubWebhookModule handler — event emission", () => {
     expect(legacyMentions).toHaveLength(0);
     expect(inboundSignals).toHaveLength(1);
     expect(inboundSignals[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       provider: "github",
       channel: "github.issue_comment",
       accountId: "github:owner/repo",

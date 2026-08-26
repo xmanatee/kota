@@ -17,33 +17,33 @@ import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 export const CONTROL_COVERAGE_NOW = "2026-06-19T12:00:00.000Z";
 
-export function makeControlCoverageProjectDir(): string {
-  const projectDir = join(
+export function makeControlCoverageScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-runtime-health-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
+  mkdirSync(workspaceRoot, { recursive: true });
   execFileSync("git", ["init", "-q", "-b", "main"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     stdio: "ignore",
   });
-  return projectDir;
+  return workspaceRoot;
 }
 
 export function collectControlCoverageAudit(args: {
-  projectDir: string;
+  workspaceRoot: string;
   options?: Parameters<typeof collectRuntimeHealthAudit>[0]["options"];
 }) {
   return collectRuntimeHealthAudit({
-    projectDir: args.projectDir,
-    scopeDir: args.projectDir,
-    stateDir: join(args.projectDir, ".kota"),
+    workspaceRoot: args.workspaceRoot,
+    scopeRoot: args.workspaceRoot,
+    stateDir: join(args.workspaceRoot, ".kota"),
     ...(args.options !== undefined ? { options: args.options } : {}),
   });
 }
 
 export function reviewAndApplyControlCoverage(
-  projectDir: string,
+  workspaceRoot: string,
   audit: ReturnType<typeof collectRuntimeHealthAudit>,
 ) {
   const review = buildAutonomyHealthReviewFromSignals({
@@ -52,23 +52,23 @@ export function reviewAndApplyControlCoverage(
     sourceEventName: "autonomy.runtime-health.audit",
     reason: "test",
   });
-  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
   const repositoryActions = stageAutonomyHealthReviewActions({
-    projectDir,
+    workspaceRoot,
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     review,
   });
   const finalized = finalizeAutonomyHealthReviewActions({
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     ),
     review,
     repositoryActions,
   });
-  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
   return finalized;
 }
 

@@ -139,7 +139,7 @@ enum SetupRequirementState: String, Codable, Equatable {
 }
 
 enum SetupScope: String, Codable, Equatable {
-    case project
+    case scope
     case globalScope = "global"
 }
 
@@ -361,68 +361,13 @@ enum ClientDashboardAvailability: Codable, Equatable {
 
 /// Mirror of the daemon's `ClientIdentity` payload from `GET /identity`.
 struct ClientIdentity: Codable, Equatable {
-    let projectName: String
-    let projectDir: String
-    let projects: ProjectRegistryProjection
+    let scopeName: String
+    let scopeRoot: String
+    let scopeRegistry: ScopeRegistryProjection
     let daemonVersion: String
     let pid: Int
     let startedAt: String
     let dashboard: ClientDashboardAvailability
-}
-
-/// Mirror of the daemon's `ConfiguredProject` shape exposed through
-/// `ClientIdentity.projects.projects` and the cross-project
-/// `GET /projects` route.
-struct ConfiguredProjectEntry: Codable, Equatable {
-    let projectId: String
-    let projectDir: String
-    let displayName: String
-}
-
-/// Mirror of the daemon's `ProjectRegistryProjection` shape. Clients
-/// render a project selector against this projection rather than parsing
-/// `.kota/` files. Strict decode: an empty `projects` array or a
-/// `defaultProjectId` that does not match any entry fails the suite.
-struct ProjectRegistryProjection: Codable, Equatable {
-    let defaultProjectId: String
-    let projects: [ConfiguredProjectEntry]
-
-    init(defaultProjectId: String, projects: [ConfiguredProjectEntry]) {
-        self.defaultProjectId = defaultProjectId
-        self.projects = projects
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let defaultProjectId = try container.decode(String.self, forKey: .defaultProjectId)
-        let projects = try container.decode([ConfiguredProjectEntry].self, forKey: .projects)
-        if projects.isEmpty {
-            throw DecodingError.dataCorruptedError(
-                forKey: .projects,
-                in: container,
-                debugDescription: "projects must declare at least one entry"
-            )
-        }
-        if !projects.contains(where: { $0.projectId == defaultProjectId }) {
-            throw DecodingError.dataCorruptedError(
-                forKey: .defaultProjectId,
-                in: container,
-                debugDescription: "defaultProjectId \(defaultProjectId) does not match any registered project"
-            )
-        }
-        self.defaultProjectId = defaultProjectId
-        self.projects = projects
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(defaultProjectId, forKey: .defaultProjectId)
-        try container.encode(projects, forKey: .projects)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case defaultProjectId, projects
-    }
 }
 
 /// Mirror of the daemon's canonical `ScopeRegistryProjection` shape.
@@ -667,27 +612,27 @@ struct ScopePolicyRouteResponse: Codable, Equatable {
     let decisionExamples: [ScopePolicyDecisionProjection]
 }
 
-/// Mirror of the daemon's typed `unknown_project` rejection that
-/// project-scoped routes emit when `?projectId=` is set to an
+/// Mirror of the daemon's typed `unknown_scope` rejection that
+/// scope-aware routes emit when `?scopeId=` is set to an
 /// unconfigured id. Strict decode: any other `reason` value fails.
-struct UnknownProjectError: Codable, Equatable {
+struct UnknownScopeError: Codable, Equatable {
     let error: String
     let reason: String
-    let projectId: String
+    let scopeId: String
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let error = try container.decode(String.self, forKey: .error)
         let reason = try container.decode(String.self, forKey: .reason)
-        let projectId = try container.decode(String.self, forKey: .projectId)
-        if reason != "unknown_project" {
+        let scopeId = try container.decode(String.self, forKey: .scopeId)
+        if reason != "unknown_scope" {
             throw DecodingError.dataCorruptedError(
                 forKey: .reason,
                 in: container,
                 debugDescription: "unknown reason: \(reason)"
             )
         }
-        if error != "Unknown project" {
+        if error != "Unknown scope" {
             throw DecodingError.dataCorruptedError(
                 forKey: .error,
                 in: container,
@@ -696,18 +641,18 @@ struct UnknownProjectError: Codable, Equatable {
         }
         self.error = error
         self.reason = reason
-        self.projectId = projectId
+        self.scopeId = scopeId
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(error, forKey: .error)
         try container.encode(reason, forKey: .reason)
-        try container.encode(projectId, forKey: .projectId)
+        try container.encode(scopeId, forKey: .scopeId)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case error, reason, projectId
+        case error, reason, scopeId
     }
 }
 

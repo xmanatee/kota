@@ -38,7 +38,7 @@ export function admitScopeImprovementTrigger(
       payload.deliveryAttempt! >= 0
     ? payload.deliveryAttempt!
     : 0;
-  const scopeId = deriveDirectoryScopeId(input.projectDir);
+  const scopeId = deriveDirectoryScopeId(input.scopeRoot);
   const expected = scopeImprovementDispatchKey(
     scopeId,
     payload.fingerprint,

@@ -83,7 +83,7 @@ export function reserveDaemonInstanceLockFile(
   contents: string,
 ): boolean {
   const lockPath = join(stateRoot.path, filename);
-  if (stateRoot.kind === "project-owned") {
+  if (stateRoot.kind === "scope-owned") {
     try {
       return createAnchoredDaemonOwnershipFile(stateRoot, filename, contents);
     } catch (error) {
@@ -134,7 +134,7 @@ export function publishDaemonControlFile(
   contents: string,
 ): void {
   const controlPath = join(stateRoot.path, filename);
-  if (stateRoot.kind === "project-owned") {
+  if (stateRoot.kind === "scope-owned") {
     try {
       if (!createAnchoredDaemonOwnershipFile(stateRoot, filename, contents)) {
         throw new Error("daemon control file appeared during secure publication");

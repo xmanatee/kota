@@ -39,7 +39,7 @@ The default container policy remains `offline` and continues to use
   execution-profile artifact;
 - fail or mark the run non-gating when the backend cannot enforce the requested
   policy; and
-- preserve existing replay, external-call shim, HOME/KOTA_PROJECT_DIR remap,
+- preserve existing replay, external-call shim, HOME/KOTA_SCOPE_ROOT remap,
   resource-profile, timeout, and artifact copy-back behavior.
 
 ## Constraints

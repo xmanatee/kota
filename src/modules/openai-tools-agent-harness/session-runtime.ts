@@ -31,7 +31,7 @@ export type OpenaiToolsSessionRuntime = {
 
 export function createOpenaiToolsSessionRuntime(input: {
   options: AgentHarnessRunOptions;
-  projectDir: string;
+  scopeRoot: string;
   resolved: ResolvedProvider;
   outputTokenLimit: ResolvedModelOutputTokenLimit;
 }): OpenaiToolsSessionRuntime {
@@ -39,7 +39,7 @@ export function createOpenaiToolsSessionRuntime(input: {
   let persistedSession: OpenaiToolsSessionRecord | undefined;
   if (input.options.resumeSessionId !== undefined) {
     persistedSession = loadOpenaiToolsSession(
-      input.projectDir,
+      input.scopeRoot,
       input.options.resumeSessionId,
     );
     validateOpenaiToolsSessionContext(persistedSession, context);
@@ -74,7 +74,7 @@ export function createOpenaiToolsSessionRuntime(input: {
         return result;
       }
       const nextSession = persistOpenaiToolsSession({
-        projectDir: input.projectDir,
+        scopeRoot: input.scopeRoot,
         existing: persistedSession,
         context,
         toolDeclarations: latestToolDeclarations,

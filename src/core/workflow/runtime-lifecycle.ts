@@ -26,7 +26,7 @@ export type WorkflowDispatchPauseMode = "runtime" | "persistent";
 export type WorkflowRuntimeInitialDispatch = "active" | "paused";
 
 export interface WorkflowRuntimeLifecycleState extends WorkflowRuntimeDispatchState {
-  projectId: string;
+  scopeId: string;
   runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
@@ -43,10 +43,10 @@ export function startRuntime(
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
   state.dispatchPaused =
-    initialDispatch === "paused" || hasPersistentDispatchPause(state.projectDir);
+    initialDispatch === "paused" || hasPersistentDispatchPause(state.scopeRoot);
   // Keep this scope closed until definitions, triggers, and durable resumers
-  // are ready. Other projects may continue filling shared capacity.
-  state.runCoordinator.pauseProjectAdmission(state.projectId);
+  // are ready. Other scopes may continue filling shared capacity.
+  state.runCoordinator.pauseScopeAdmission(state.scopeId);
   state.lastIdleEventSignature = undefined;
   state.lastIdleEventEmittedAtMs = undefined;
 
@@ -54,7 +54,7 @@ export function startRuntime(
     state.store.pruneRuns({
       protectedRunIds: new Set(
         state.runState
-          .listRuns(state.projectId, [
+          .listRuns(state.scopeId, [
             "queued",
             "running",
             "waiting",
@@ -86,8 +86,8 @@ export function startRuntime(
     );
   }
 
-  // Filtered wildcard so each per-project workflow runtime only handles its
-  // own events (and daemon-wide events that have no `projectId`). Without
+  // Filtered wildcard so each per-scope workflow runtime only handles its
+  // own events (and daemon-wide events that have no `scopeId`). Without
   // this filter, project A's `workflow.completed` would queue any
   // `workflow.completed`-triggered workflow in project B too.
   state.stopBus = state.pbus.onAny((envelope) => {
@@ -116,7 +116,7 @@ export function startRuntime(
   });
 
   if (!state.dispatchPaused) {
-    state.runCoordinator.resumeProjectAdmission(state.projectId);
+    state.runCoordinator.resumeScopeAdmission(state.scopeId);
   }
   maybeStartNext(state);
 
@@ -142,7 +142,7 @@ export async function stopRuntime(
 ): Promise<void> {
   state.stopping = true;
   state.dispatchPaused = true;
-  state.runCoordinator.pauseProjectAdmission(state.projectId);
+  state.runCoordinator.pauseScopeAdmission(state.scopeId);
 
   if (state.idleTimer) {
     clearInterval(state.idleTimer);
@@ -169,10 +169,10 @@ export async function stopRuntime(
     await state.idleSignatureCheck;
   }
 
-  if (!state.runCoordinator.isProjectBusy(state.projectId)) return;
+  if (!state.runCoordinator.isScopeBusy(state.scopeId)) return;
 
   const waitForActiveRuns = state.runCoordinator
-    .whenProjectIdle(state.projectId)
+    .whenScopeIdle(state.scopeId)
     .then(() => "completed" as const);
 
   if (gracePeriodMs === 0) {
@@ -187,7 +187,7 @@ export async function stopRuntime(
   });
 
   const graceTimer = setTimeout(() => {
-    state.runCoordinator.cancelProject(state.projectId);
+    state.runCoordinator.cancelScope(state.scopeId);
   }, gracePeriodMs);
   graceTimer.unref();
 
@@ -195,7 +195,7 @@ export async function stopRuntime(
     const result = await Promise.race([waitForActiveRuns, abortWaitExpired]);
     if (result === "abort-timeout") {
       state.log(
-        `Workflow runtime stop gave up waiting for ${state.runCoordinator.activeRunIdsForProject(state.projectId).length} active run(s) after abort`,
+        `Workflow runtime stop gave up waiting for ${state.runCoordinator.activeRunIdsForScope(state.scopeId).length} active run(s) after abort`,
       );
     }
   } finally {
@@ -205,15 +205,15 @@ export async function stopRuntime(
 }
 
 export function isBusy(state: WorkflowRuntimeLifecycleState): boolean {
-  return state.runCoordinator.isProjectBusy(state.projectId);
+  return state.runCoordinator.isScopeBusy(state.scopeId);
 }
 
 export function isDispatchPaused(state: WorkflowRuntimeLifecycleState): boolean {
   return (
     state.dispatchPaused ||
     state.runCoordinator.isGlobalAdmissionPaused() ||
-    state.runCoordinator.isProjectAdmissionPaused(state.projectId) ||
-    hasPersistentDispatchPause(state.projectDir)
+    state.runCoordinator.isScopeAdmissionPaused(state.scopeId) ||
+    hasPersistentDispatchPause(state.scopeRoot)
   );
 }
 
@@ -224,14 +224,14 @@ export function setDispatchPaused(
 ): void {
   if (mode === "persistent") {
     if (paused) {
-      writeOperatorPauseSignal(state.projectDir);
+      writeOperatorPauseSignal(state.scopeRoot);
     } else {
-      clearWorkflowPauseSignal(state.projectDir);
+      clearWorkflowPauseSignal(state.scopeRoot);
     }
   }
   state.dispatchPaused = paused;
-  if (paused) state.runCoordinator.pauseProjectAdmission(state.projectId);
-  else state.runCoordinator.resumeProjectAdmission(state.projectId);
+  if (paused) state.runCoordinator.pauseScopeAdmission(state.scopeId);
+  else state.runCoordinator.resumeScopeAdmission(state.scopeId);
 }
 
 export function getDispatchWindowStatus(

@@ -137,17 +137,17 @@ final class CaptureViewTests: XCTestCase {
     func testCaptureResultDecodesContributorFailedWithTargetAndMessage() throws {
         let json = #"""
         {"ok": false, "reason": "contributor_failed",
-         "target": "inbox", "message": "inbox writer cannot reach project root"}
+         "target": "inbox", "message": "inbox writer cannot reach scope root"}
         """#.data(using: .utf8)!
         let result = try decoder.decode(CaptureResult.self, from: json)
         guard case let .contributorFailed(target, message) = result else {
             XCTFail("expected contributorFailed arm, got \(result)"); return
         }
         XCTAssertEqual(target, .inbox)
-        XCTAssertEqual(message, "inbox writer cannot reach project root")
+        XCTAssertEqual(message, "inbox writer cannot reach scope root")
         XCTAssertEqual(
             renderCaptureResultPlain(result),
-            "Capture into inbox failed: inbox writer cannot reach project root"
+            "Capture into inbox failed: inbox writer cannot reach scope root"
         )
     }
 

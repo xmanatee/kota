@@ -7,10 +7,9 @@
  * are checked against the declared shape. The `fields` array records the
  * declared payload field names at runtime so workflow trigger validation can
  * reject filters that reference nonexistent fields. The `scope` field
- * separates scope-scoped events (whose payloads carry `scopeId` plus the
- * directory-scope compatibility `projectId`) from daemon-wide events
+ * separates scope-scoped events (whose payloads carry `scopeId`) from daemon-wide events
  * (registry change, daemon lifecycle, session-bound
- * tool-call events that stay daemon-default until session-projectId
+ * tool-call events that stay daemon-default until session-scopeId
  * attribution lands).
  *
  * Module-owned events live next to the module that emits them; consumers in
@@ -20,7 +19,7 @@
  * `ctx.events` and validate at the boundary.
  *
  * Module authors declare the scope explicitly through the helper they choose:
- * - {@link defineProjectScopedModuleEvent} for directory-scope events.
+ * - the scope-event helper for directory-scope events.
  * - {@link defineDaemonWideModuleEvent} for daemon-wide events.
  *
  * The lower-level {@link defineModuleEvent} primitive both helpers wrap takes
@@ -59,13 +58,10 @@ export type {
 } from "./module-event-schema.js";
 
 /**
- * Scope discriminator for {@link ModuleEventDef}. `project` is retained as
- * the compatibility discriminator for directory-scope events: payloads carry
- * canonical `scopeId` plus compatibility `projectId`, and the runtime rejects
- * emits that lack both. `daemon` events are delivered without scope
- * attribution.
+ * Scope discriminator for {@link ModuleEventDef}. Scope events require a
+ * canonical `scopeId`; daemon events are delivered without scope attribution.
  */
-export type ModuleEventScope = "project" | "daemon";
+export type ModuleEventScope = "scope" | "daemon";
 
 export type ModuleEventDef<TPayload extends object = object> = {
   readonly name: string;
@@ -119,11 +115,11 @@ export function defineModuleEvent<TPayload extends object>(
 
 /**
  * Declare a daemon-wide module event. Use for module-owned events that have
- * no project attribution (daemon-process lifecycle, registry/loader signals)
+ * no scope attribution (daemon-process lifecycle, registry/loader signals)
  * or that are still session-bound at the boundary and will migrate to a
- * project-scoped declaration once session-projectId attribution lands.
+ * scope declaration once session attribution lands.
  *
- * Daemon-wide module events bypass the `ProjectScopedEventBus` filter — every
+ * Daemon-wide module events bypass the `ScopedEventBus` filter — every
  * subscriber receives every emit. Document the rationale next to the
  * declaration so a future migration knows what changes.
  */
@@ -136,36 +132,21 @@ export function defineDaemonWideModuleEvent<TPayload extends object>(
 }
 
 /**
- * Throws if `def` is project-scoped and `payload` does not carry a non-empty
+ * Throws if `def` is scope-scoped and `payload` does not carry a non-empty
  * scope selector. Used by the lowest-level emit paths
  * (`EventBus.emit(def, payload)`, `ModuleEventProxy.emit(def, payload)`,
  * `tryEmit(def, payload)`) so callers cannot accidentally leak a
- * project-scoped module event onto the bus without identity. Callers that
- * still provide only `projectId` remain valid compatibility callers; callers
- * that provide both selectors must make them agree.
+ * scope-scoped module event onto the bus without identity.
  */
 export function assertModuleEventPayloadScope(
   def: ModuleEventDef,
   payload: ModuleEventPayloadObject,
 ): void {
-  if (def.scope !== "project") return;
-  const scopeId =
-    typeof payload.scopeId === "string" && payload.scopeId.length > 0
-      ? payload.scopeId
-      : undefined;
-  const projectId =
-    typeof payload.projectId === "string" && payload.projectId.length > 0
-      ? payload.projectId
-      : undefined;
-  if (!scopeId && !projectId) {
+  if (def.scope !== "scope") return;
+  if (typeof payload.scopeId !== "string" || payload.scopeId.length === 0) {
     throw new Error(
-      `Module event "${def.name}" is project-scoped; emit payload must include a non-empty string scopeId or projectId. ` +
-        `Emit through a ProjectScopedEventBus to inject scope attribution automatically.`,
-    );
-  }
-  if (scopeId && projectId && scopeId !== projectId) {
-    throw new Error(
-      `Module event "${def.name}" has conflicting scope selectors: scopeId=${scopeId}, projectId=${projectId}.`,
+      `Module event "${def.name}" is scope-scoped; emit payload must include a non-empty string scopeId. ` +
+        `Emit through a ScopedEventBus to inject scope attribution automatically.`,
     );
   }
 }

@@ -23,12 +23,12 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function writeProjectLocalModule(
-  projectDir: string,
+function writeInstalledModule(
+  scopeRoot: string,
   name: string,
   code: string,
 ): void {
-  const moduleDir = join(projectDir, ".kota", "modules", name);
+  const moduleDir = join(scopeRoot, ".kota", "modules", name);
   mkdirSync(moduleDir, { recursive: true });
   writeFileSync(join(moduleDir, "index.mjs"), code);
 }
@@ -44,40 +44,40 @@ function shippedModule(
 }
 
 describe("workflow contribution precedence", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let globalConfigPath: string;
   const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-precedence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    globalConfigPath = join(projectDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
+    mkdirSync(scopeRoot, { recursive: true });
+    globalConfigPath = join(scopeRoot, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [scopeRoot] }));
   });
 
   afterEach(async () => {
     for (const runState of runStates.splice(0)) runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it(
-    "loads and runs a non-colliding project-local workflow contribution",
+    "loads and runs a non-colliding installed workflow contribution",
     async () => {
-      // A project-local module ships one workflow under the target project's
+      // An installed module ships one workflow under the target scope's
       // .kota/modules/ tree. Its name does not collide with anything KOTA
       // ships, so the loader accepts it and the runtime executes it.
-      writeProjectLocalModule(
-        projectDir,
-        "project-heartbeat",
+      writeInstalledModule(
+        scopeRoot,
+        "scope-heartbeat",
         `
 export default {
-  name: "project-heartbeat",
+  name: "scope-heartbeat",
   workflows: [
     {
-      name: "project-heartbeat-run",
+      name: "scope-heartbeat-run",
       repository: "none",
       triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
       steps: [
@@ -94,8 +94,8 @@ export default {
       );
 
       const loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
-      loader.setCwd(projectDir);
-      const installed = await discoverModules(projectDir, false, {
+      loader.setCwd(scopeRoot);
+      const installed = await discoverModules(scopeRoot, false, {
         globalConfigPath,
       });
       await loader.loadAll([], installed);
@@ -103,16 +103,16 @@ export default {
       const contributed = loader.getContributedWorkflows();
       expect(contributed).toHaveLength(1);
       const [wf] = contributed;
-      expect(wf.name).toBe("project-heartbeat-run");
-      expect(wf.contributingModule).toBe("project-heartbeat");
+      expect(wf.name).toBe("scope-heartbeat-run");
+      expect(wf.contributingModule).toBe("scope-heartbeat");
       expect(wf.moduleSource).toBe("installed");
-      // Project-local modules inherit the daemon's projectDir as their
+      // Installed modules inherit the daemon's scopeRoot as their
       // moduleRoot by default.
-      expect(wf.moduleRoot).toBe(projectDir);
+      expect(wf.moduleRoot).toBe(scopeRoot);
 
       const { runtime, runState } = createTestWorkflowRuntime({
         bus: new EventBus(),
-        projectDir,
+        scopeRoot,
         idleIntervalMs: 10,
         workflows: contributed,
       });
@@ -121,7 +121,7 @@ export default {
       runtime.start();
       const deadline = Date.now() + 3000;
       while (Date.now() < deadline) {
-        const runsDir = join(projectDir, ".kota", "runs");
+        const runsDir = join(scopeRoot, ".kota", "runs");
         if (
           existsSync(runsDir) &&
           readdirSync(runsDir).some((runId) => {
@@ -135,27 +135,27 @@ export default {
       await runtime.stop();
       await loader.unloadAll();
 
-      const runsDir = join(projectDir, ".kota", "runs");
+      const runsDir = join(scopeRoot, ".kota", "runs");
       expect(existsSync(runsDir)).toBe(true);
       const runIds = readdirSync(runsDir);
       expect(runIds.length).toBeGreaterThanOrEqual(1);
       const meta = JSON.parse(
         readFileSync(join(runsDir, runIds[0], "metadata.json"), "utf-8"),
       );
-      expect(meta.workflow).toBe("project-heartbeat-run");
+      expect(meta.workflow).toBe("scope-heartbeat-run");
       expect(meta.status).toBe("success");
       expect(meta.steps[0]?.output).toEqual({ beat: true });
     },
   );
 
   it(
-    "rejects a name collision between a KOTA-shipped and a project-local workflow",
+    "rejects a name collision between a KOTA-shipped and an installed workflow",
     async () => {
       // Two modules contribute workflows under the same name. Both are
       // routed through the same loader and should fail validation at
       // runtime load time with a message that names both sides.
-      writeProjectLocalModule(
-        projectDir,
+      writeInstalledModule(
+        scopeRoot,
         "colliding-local",
         `
 export default {
@@ -165,7 +165,7 @@ export default {
       name: "shared-workflow",
       triggers: [{ event: "runtime.idle", cooldownMs: 30_000 }],
       steps: [
-        { id: "noop", type: "code", run: () => ({ from: "project-local" }) },
+        { id: "noop", type: "code", run: () => ({ from: "installed" }) },
       ],
     },
   ],
@@ -183,8 +183,8 @@ export default {
       };
 
       const loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
-      loader.setCwd(projectDir);
-      const installed = await discoverModules(projectDir, false, {
+      loader.setCwd(scopeRoot);
+      const installed = await discoverModules(scopeRoot, false, {
         globalConfigPath,
       });
       await loader.loadAll(
@@ -204,14 +204,14 @@ export default {
       );
       expect(sources).toEqual(
         expect.arrayContaining([
-          { mod: "colliding-shipped", src: "project" },
+          { mod: "colliding-shipped", src: "bundled" },
           { mod: "colliding-local", src: "installed" },
         ]),
       );
 
       let thrown: unknown = null;
       try {
-        validateWorkflowDefinitions(contributed, projectDir);
+        validateWorkflowDefinitions(contributed, scopeRoot);
       } catch (err) {
         thrown = err;
       }
@@ -220,7 +220,7 @@ export default {
       const msg = (thrown as Error).message;
       expect(msg).toContain('duplicate workflow name "shared-workflow"');
       expect(msg).toContain("colliding-shipped");
-      expect(msg).toContain("project");
+      expect(msg).toContain("bundled");
       expect(msg).toContain("colliding-local");
       expect(msg).toContain("installed");
 

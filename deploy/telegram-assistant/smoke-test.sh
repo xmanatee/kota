@@ -27,7 +27,7 @@ case "$MODE" in
     docker exec kota-telegram node /opt/kota/bin/kota.mjs daemon status
     ;;
   systemd)
-    sudo -u kota /usr/local/bin/kota daemon status --project-dir /var/lib/kota
+    sudo -u kota /usr/local/bin/kota daemon status --scope-root /var/lib/kota
     ;;
   *)
     echo "smoke-test.sh: unsupported mode: $MODE (docker|systemd)" >&2

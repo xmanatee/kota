@@ -61,13 +61,13 @@ export const buildRuntimeAudit = typedCodeStep<RuntimeAuditStepOutput>({
       "patternCount",
       "evidenceGapCount",
     ]),
-  run: async ({ projectDir, stateDir, scopeDir, workflow, runBlocking }) => {
+  run: async ({ workspaceRoot, stateDir, scopeRoot, workflow, runBlocking }) => {
     const { audit, artifactPath } = await runBlocking(
       collectRuntimeHealthAuditOperation,
       {
-        projectDir,
+        workspaceRoot,
         stateDir,
-        scopeDir,
+        scopeRoot,
         runDirPath: workflow.runDirPath,
         nowIso: new Date().toISOString(),
       },
@@ -93,6 +93,7 @@ export const buildReview = typedCodeStep<ReviewOutput>({
           generatedAt,
           sourceEventName: "autonomy.runtime-health.audit",
           reason: ctx.trigger.event,
+          scopeId: ctx.scopeId,
         }),
       };
     }

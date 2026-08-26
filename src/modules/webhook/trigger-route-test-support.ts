@@ -102,24 +102,27 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({
-      defaultProjectId: "test-project-id",
-      projects: [
+    getScopeRegistryProjection: vi.fn(() => ({
+      rootScopeId: "global",
+      defaultScopeId: "test-scope-id",
+      scopes: [
+        { scopeId: "global", displayName: "Global" },
         {
-          projectId: "test-project-id",
-          projectDir: "/tmp/test-project",
-          displayName: "test-project",
+          scopeId: "test-scope-id",
+          parentScopeId: "global",
+          directoryRoot: "/tmp/test-scope",
+          displayName: "test-scope",
         },
       ],
     })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) =>
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) =>
       id === null
-        ? { ok: true as const, activeProjectId: null }
-        : id === "test-project-id"
-          ? { ok: true as const, activeProjectId: id }
-          : { ok: false as const, reason: "not_found" as const, projectId: id },
+        ? { ok: true as const, activeScopeId: null }
+        : id === "test-scope-id"
+          ? { ok: true as const, activeScopeId: id }
+          : { ok: false as const, reason: "not_found" as const, scopeId: id },
     ),
     reloadConfig: vi.fn(async () => ({
       workflows: 0,
@@ -131,15 +134,18 @@ function makeHandle(): DaemonControlHandle {
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
     })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: {
-        defaultProjectId: "test-project-id",
-        projects: [
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: {
+        rootScopeId: "global",
+        defaultScopeId: "test-scope-id",
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
           {
-            projectId: "test-project-id",
-            projectDir: "/tmp/test-project",
-            displayName: "test-project",
+            scopeId: "test-scope-id",
+            parentScopeId: "global",
+            directoryRoot: "/tmp/test-scope",
+            displayName: "test-scope",
           },
         ],
       },

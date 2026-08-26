@@ -25,12 +25,12 @@ Operators configure a persistent login session via `modules.browser`
 
 - `storageStatePath` points at a Playwright [`storageState`](https://playwright.dev/docs/auth)
   JSON file containing cookies and localStorage for an authenticated session.
-  Relative paths resolve against the invoking scope's project directory. If
+  Relative paths resolve against the invoking scope's scope directory. If
   the file exists, that session's browser context is created with it loaded;
   if it does not, the module falls back to an ephemeral context.
-- Absolute, project-escaping, or symlink-escaping `storageStatePath` values belong
+- Absolute, scope-escaping, or symlink-escaping `storageStatePath` values belong
   only to their configuring scope. Other scopes stay ephemeral and never persist
-  there; prefer project-local paths for per-scope profiles.
+  there; prefer scope-local paths for per-scope profiles.
 - `persistProfile: true` writes the current context's state back to the same
   path on idle close. Operators use this to capture a fresh login (run once
   with `persistProfile: true`, log in interactively, then pin the file in

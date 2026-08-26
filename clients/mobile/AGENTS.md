@@ -11,7 +11,7 @@ explicitly changed.
 - Consume generated daemon bindings and group operations by domain capability.
   Do not copy conformance decoders, fixture catalogs, or source files into the
   mobile tree.
-- Maintain one connection-level event stream and project events into view
+- Maintain one connection-level event stream and scope events into view
   state. Use centralized polling only where the platform requires it.
 - Navigation and push deep links consume typed daemon payloads. Test navigation
   outcomes at the reducer/router boundary rather than freezing payload tables.

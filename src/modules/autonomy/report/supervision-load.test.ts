@@ -15,28 +15,28 @@ import {
 } from "./supervision-load.test-helpers.js";
 
 describe("buildSupervisionLoadReport", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-supervision-load-"));
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-supervision-load-"));
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("reports normal load when every store is present and quiet", () => {
-    createKnownStores(projectDir);
+    createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(projectDir, "ready", "task-ready", "Product", "p1"),
-      writeTask(projectDir, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
+      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
     ];
 
     const report = buildSupervisionLoadReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       runs: [],
       tasks,
@@ -66,36 +66,34 @@ describe("buildSupervisionLoadReport", () => {
   });
 
   it("reports overloaded load with human-action stores and multi-scope workstreams", () => {
-    createKnownStores(projectDir);
+    createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(projectDir, "doing", "task-alpha", "Product", "p1"),
-      writeTask(projectDir, "doing", "task-beta", "Safety", "p0"),
-      writeTask(projectDir, "ready", "task-ready", "Product", "p1"),
-      writeTask(projectDir, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "doing", "task-alpha", "Product", "p1"),
+      writeTask(workspaceRoot, "doing", "task-beta", "Safety", "p0"),
+      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
+      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
     ];
-    writeApproval(projectDir, "approval-1", "pending");
-    writeOwnerQuestion(projectDir, "question-1", "pending", "task-alpha");
-    writeDeadLetters(projectDir, [
+    writeApproval(workspaceRoot, "approval-1", "pending");
+    writeOwnerQuestion(workspaceRoot, "question-1", "pending", "task-alpha");
+    writeDeadLetters(workspaceRoot, [
       {
         id: "dlq-1",
         status: "open",
         scopeId: "scope-a",
-        projectId: "project-a",
       },
     ]);
     const runs = [
       runningRun(
-        projectDir,
+        workspaceRoot,
         "run-active",
         "builder",
         "task-alpha",
         "scope-a",
-        "project-a",
       ),
     ];
 
     const report = buildSupervisionLoadReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       runs,
       tasks,
@@ -121,7 +119,6 @@ describe("buildSupervisionLoadReport", () => {
         taskClass: "Product",
         priority: "p1",
         scopeId: "scope-a",
-        projectId: "project-a",
         activeRuns: 1,
       }),
     );
@@ -141,25 +138,24 @@ describe("buildSupervisionLoadReport", () => {
   });
 
   it("uses builder trigger metadata as the task association boundary", () => {
-    createKnownStores(projectDir);
+    createKnownStores(workspaceRoot);
     const task = writeTask(
-      projectDir,
+      workspaceRoot,
       "ready",
       "task-target",
       "Product",
       "p1",
     );
     const run = runningRun(
-      projectDir,
+      workspaceRoot,
       "run-explorer",
       "explorer",
       task.id,
       "scope-a",
-      "project-a",
     );
 
     const report = buildSupervisionLoadReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       runs: [run],
       tasks: [task],
@@ -186,14 +182,14 @@ describe("buildSupervisionLoadReport", () => {
   });
 
   it("weights review evidence gaps as supervision pressure", () => {
-    createKnownStores(projectDir);
+    createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(projectDir, "ready", "task-ready", "Product", "p1"),
-      writeTask(projectDir, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
+      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
     ];
 
     const report = buildSupervisionLoadReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       runs: [],
       tasks,
@@ -213,16 +209,16 @@ describe("buildSupervisionLoadReport", () => {
   });
 
   it("renders missing and unreadable stores as unknown evidence instead of zero load", () => {
-    writeTask(projectDir, "ready", "task-ready", "Product", "p1");
-    mkdirSync(join(projectDir, ".kota", "approvals"), { recursive: true });
+    writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1");
+    mkdirSync(join(workspaceRoot, ".kota", "approvals"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "approvals", "broken.json"),
+      join(workspaceRoot, ".kota", "approvals", "broken.json"),
       "{",
       "utf-8",
     );
 
     const report = buildSupervisionLoadReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       runs: [],
       tasks: [],

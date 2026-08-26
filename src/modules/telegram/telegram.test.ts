@@ -4,7 +4,7 @@ import {
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { CapabilityReadinessSource } from "#core/daemon/capability-readiness.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -64,9 +64,9 @@ vi.mock("#core/daemon/owner-question-queue.js", () => ({
 
 const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
 
-const TEST_PROJECT: ConfiguredProject = {
-  projectId: "test-project",
-  projectDir: "/tmp/test",
+const TEST_SCOPE: DirectoryScope = {
+  scopeId: "test-scope",
+  scopeRoot: "/tmp/test",
   displayName: "KOTA",
 };
 
@@ -74,12 +74,12 @@ function makeStubClient(
   overrides: Partial<KotaClient> = {},
 ): KotaClient {
   const client = {
-    projects: {
+    scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
-        defaultProjectId: TEST_PROJECT.projectId,
-        activeProjectId: null,
-        projects: [TEST_PROJECT],
+        defaultScopeId: TEST_SCOPE.scopeId,
+        activeScopeId: null,
+        scopes: [TEST_SCOPE],
       })),
       use: vi.fn(),
     },
@@ -89,7 +89,7 @@ function makeStubClient(
       dismiss: vi.fn(),
     },
   } as Partial<KotaClient>;
-  client.forProject = vi.fn(() => client as KotaClient);
+  client.forScope = vi.fn(() => client as KotaClient);
   Object.assign(client, overrides);
   return client as KotaClient;
 }

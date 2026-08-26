@@ -41,7 +41,7 @@ import {
   formatWorkingDirectoryReasons,
 } from "./guardrails-shell-authority.js";
 import { getToolEffect } from "./index.js";
-import { isOutsideProject } from "./project-path-policy.js";
+import { isPathOutsideRoot } from "./path-containment.js";
 
 export type RiskLevel = RiskTier;
 export type { McpToolAnnotations };
@@ -90,11 +90,11 @@ function classifySaveToLocalWrite(
 ): ToolCallInputEffectOverride | null {
   const saveTo = input.save_to;
   if (typeof saveTo !== "string" || saveTo.length === 0) return null;
-  if (isOutsideProject(saveTo)) {
+  if (isPathOutsideRoot(saveTo)) {
     return {
       kind: "write",
       risk: "dangerous",
-      reason: "save_to file operation outside project directory",
+      reason: "save_to file operation outside scope directory",
     };
   }
   return {
@@ -193,7 +193,7 @@ export function classifyRisk(
     return { risk: "moderate", reason: "shell execution" };
   }
 
-  // File write/edit family: escalate when the path leaves the project root.
+  // File write/edit family: escalate when the path leaves the scope root.
   if (
     name === "file_write" ||
     name === "file_edit" ||
@@ -203,13 +203,13 @@ export function classifyRisk(
     const path = name === "find_replace"
       ? input.files
       : input.path || input.file_path || input.file;
-    if (typeof path === "string" && isOutsideProject(path)) {
-      return { risk: "dangerous", reason: "file operation outside project directory" };
+    if (typeof path === "string" && isPathOutsideRoot(path)) {
+      return { risk: "dangerous", reason: "file operation outside scope directory" };
     }
     if (name === "multi_edit" && Array.isArray(input.edits)) {
       for (const edit of input.edits as { path?: string }[]) {
-        if (edit.path && isOutsideProject(edit.path)) {
-          return { risk: "dangerous", reason: "multi_edit targets file outside project directory" };
+        if (edit.path && isPathOutsideRoot(edit.path)) {
+          return { risk: "dangerous", reason: "multi_edit targets file outside scope directory" };
         }
       }
     }

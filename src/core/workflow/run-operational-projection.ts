@@ -9,7 +9,7 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 export type OperationalRun = {
   runId: string;
-  projectId: string;
+  scopeId: string;
   workflow: string;
   state: DurableRunState;
   resources: string[];
@@ -27,7 +27,7 @@ export type RunOperationalProjection = {
 
 type RunProjectionRow = {
   id: string;
-  project_id: string;
+  scope_id: string;
   workflow: string;
   state: DurableRunState;
   sandbox_json: string | null;
@@ -129,7 +129,7 @@ export function projectStoredWorkflowOperationalState(
 /** Read queued and active workflow status without mutating the durable database. */
 export function readWorkflowOperationalState(input: {
   stateDir: string;
-  projectDir: string;
+  scopeRoot: string;
 }): ReadWorkflowOperationalState {
   const databasePath = join(input.stateDir, "kota.sqlite");
   if (!existsSync(databasePath)) {
@@ -146,10 +146,10 @@ export function readWorkflowOperationalState(input: {
     fileMustExist: true,
   });
   try {
-    const project = database
-      .prepare("SELECT id FROM projects WHERE root_path = ?")
-      .get(canonicalPath(input.projectDir)) as { id: string } | undefined;
-    if (project === undefined) {
+    const scope = database
+      .prepare("SELECT id FROM scopes WHERE root_path = ?")
+      .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
+    if (scope === undefined) {
       return {
         available: true,
         databasePath,
@@ -162,10 +162,10 @@ export function readWorkflowOperationalState(input: {
         `SELECT id, workflow, state, trigger_json, admitted_at,
                 not_before_at, started_at
          FROM runs
-         WHERE project_id = ? AND state IN ('queued', 'running', 'integrating')
+         WHERE scope_id = ? AND state IN ('queued', 'running', 'integrating')
          ORDER BY admitted_at, rowid`,
       )
-      .all(project.id) as Array<{
+      .all(scope.id) as Array<{
         id: string;
         workflow: string;
         state: WorkflowOperationalRow["state"];
@@ -199,7 +199,7 @@ export function readWorkflowOperationalState(input: {
 /** Read operational state without creating or migrating the authoritative database. */
 export function readRunOperationalProjection(input: {
   stateDir: string;
-  projectDir: string;
+  scopeRoot: string;
   states?: readonly DurableRunState[];
 }): RunOperationalProjection {
   const databasePath = join(input.stateDir, "kota.sqlite");
@@ -212,10 +212,10 @@ export function readRunOperationalProjection(input: {
     fileMustExist: true,
   });
   try {
-    const project = database
-      .prepare("SELECT id FROM projects WHERE root_path = ?")
-      .get(canonicalPath(input.projectDir)) as { id: string } | undefined;
-    if (project === undefined) {
+    const scope = database
+      .prepare("SELECT id FROM scopes WHERE root_path = ?")
+      .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
+    if (scope === undefined) {
       return { available: true, databasePath, runs: [] };
     }
     const states = input.states ?? [
@@ -230,12 +230,12 @@ export function readRunOperationalProjection(input: {
     }
     const rows = database
       .prepare(
-        `SELECT id, project_id, workflow, state, sandbox_json, wait_json, last_error
+        `SELECT id, scope_id, workflow, state, sandbox_json, wait_json, last_error
          FROM runs
-         WHERE project_id = ? AND state IN (${states.map(() => "?").join(",")})
+         WHERE scope_id = ? AND state IN (${states.map(() => "?").join(",")})
          ORDER BY admitted_at, rowid`,
       )
-      .all(project.id, ...states) as RunProjectionRow[];
+      .all(scope.id, ...states) as RunProjectionRow[];
     const resourceQuery = database.prepare(
       `SELECT resource_key FROM run_resource_requests WHERE run_id = ?
        UNION
@@ -254,10 +254,10 @@ export function readRunOperationalProjection(input: {
       available: true,
       databasePath,
       runs: rows.map((row) => {
-        const resourcePrefix = `project:${row.project_id}:`;
+        const resourcePrefix = `scope:${row.scope_id}:`;
         return {
           runId: row.id,
-          projectId: row.project_id,
+          scopeId: row.scope_id,
           workflow: row.workflow,
           state: row.state,
           resources: resourceQuery

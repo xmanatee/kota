@@ -31,13 +31,13 @@ import {
   runEvalHarness,
 } from "./eval-operations.js";
 
-export function makeFakeCtx(projectDir: string): ModuleContext {
+export function makeFakeCtx(workspaceRoot: string): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
-      return listEvalFixtures(projectDir);
+      return listEvalFixtures(workspaceRoot);
     },
     async run(options) {
-      return runEvalHarness(projectDir, options ?? {});
+      return runEvalHarness(workspaceRoot, options ?? {});
     },
     async runAgyModels() {
       return {
@@ -48,11 +48,11 @@ export function makeFakeCtx(projectDir: string): ModuleContext {
       };
     },
     async calibration(options) {
-      return runEvalCalibration(projectDir, options ?? {});
+      return runEvalCalibration(workspaceRoot, options ?? {});
     },
   };
   const client = { evalHarness } as KotaClient;
-  return { cwd: projectDir, client } as ModuleContext;
+  return { cwd: workspaceRoot, client } as ModuleContext;
 }
 
 export function makeListCtx(result: EvalListResult): ModuleContext {

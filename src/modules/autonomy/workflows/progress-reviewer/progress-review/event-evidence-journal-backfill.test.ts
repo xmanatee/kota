@@ -7,7 +7,7 @@ import {
   collectFromBatch,
   DROPPED_AT,
   LIVE_AT,
-  makeProjectDir,
+  makeScopeRoot,
   reviewBatchCases,
 } from "./event-evidence-test-support.js";
 
@@ -17,26 +17,26 @@ describe("progress-review event journal evidence", () => {
   });
 
   it("backfills dropped run, task, and message batch context from the journal", () => {
-    const projectDir = makeProjectDir("progress-reviewer-journal-backfill");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = makeScopeRoot("progress-reviewer-journal-backfill");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
 
     for (const item of reviewBatchCases(scopeId)) {
       const droppedEnvelope = appendJournalEvent({
-        projectDir,
+        workspaceRoot,
         event: item.sourceEventName,
         receivedAt: DROPPED_AT,
         payload: item.droppedPayload,
       });
       const liveEnvelope = appendJournalEvent({
-        projectDir,
+        workspaceRoot,
         event: item.sourceEventName,
         receivedAt: LIVE_AT,
         payload: item.livePayload,
       });
       const evidence = collectFromBatch(
-        projectDir,
+        workspaceRoot,
         batchPayload({
-          projectDir,
+          workspaceRoot,
           sourceEventName: item.sourceEventName,
           triggerIndex: item.triggerIndex,
           liveEnvelope,
@@ -84,9 +84,9 @@ describe("progress-review event journal evidence", () => {
   });
 
   it("records explicit exclusions when dropped inputs cannot be backfilled", () => {
-    const missingProject = makeProjectDir("progress-reviewer-missing-journal");
+    const missingProject = makeScopeRoot("progress-reviewer-missing-journal");
     const missingEvidence = collectFromBatch(missingProject, batchPayload({
-      projectDir: missingProject,
+      workspaceRoot: missingProject,
     }));
 
     expect(missingEvidence.events).toHaveLength(0);
@@ -101,15 +101,14 @@ describe("progress-review event journal evidence", () => {
       expect.arrayContaining([expect.stringContaining("event journal: missing")]),
     );
 
-    const expiredProject = makeProjectDir("progress-reviewer-expired-journal");
+    const expiredProject = makeScopeRoot("progress-reviewer-expired-journal");
     const expiredScopeId = deriveDirectoryScopeId(expiredProject);
     appendJournalEvent({
-      projectDir: expiredProject,
+      workspaceRoot: expiredProject,
       event: "workflow.completed",
       receivedAt: "2026-06-04T11:55:00.000Z",
       payload: {
         scopeId: expiredScopeId,
-        projectId: expiredScopeId,
         workflow: "builder",
         runId: "expired-builder-run",
         status: "success",
@@ -117,7 +116,7 @@ describe("progress-review event journal evidence", () => {
       retention: { kind: "expire-after-ms", durationMs: 1 },
     });
     const expiredEvidence = collectFromBatch(expiredProject, batchPayload({
-      projectDir: expiredProject,
+      workspaceRoot: expiredProject,
     }));
 
     expect(expiredEvidence.events).toEqual([

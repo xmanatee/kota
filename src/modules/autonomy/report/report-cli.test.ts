@@ -31,7 +31,7 @@ function makeProgram(): Command {
 }
 
 function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: string,
   id: string,
   attrs: {
@@ -42,7 +42,7 @@ function writeTask(
     body?: string;
   },
 ): void {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const updatedAt = attrs.updatedAt ?? new Date().toISOString();
   const body = attrs.body ?? "## Problem\n\nTest body.\n";
@@ -54,10 +54,10 @@ function writeTask(
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
-function writeWatchlist(projectDir: string, entries: readonly string[]): void {
-  mkdirSync(join(projectDir, "data"), { recursive: true });
+function writeWatchlist(workspaceRoot: string, entries: readonly string[]): void {
+  mkdirSync(join(workspaceRoot, "data"), { recursive: true });
   writeFileSync(
-    join(projectDir, "data", "watchlist.yaml"),
+    join(workspaceRoot, "data", "watchlist.yaml"),
     ["resources:", ...entries, ""].join("\n"),
     "utf-8",
   );
@@ -84,35 +84,35 @@ function watchlistEntry(args: {
 }
 
 describe("kota report CLI", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let origCwd: string;
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-report-cli-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-report-cli-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("renders the report from the current project state", async () => {
-    writeTask(projectDir, "backlog", "task-arch-1", {
+    writeTask(workspaceRoot, "backlog", "task-arch-1", {
       priority: "p1",
       area: "architecture",
     });
-    writeTask(projectDir, "backlog", "task-client-1", {
+    writeTask(workspaceRoot, "backlog", "task-client-1", {
       priority: "p2",
       area: "client",
       taskClass: "Product",
@@ -137,7 +137,7 @@ describe("kota report CLI", () => {
   });
 
   it("--json emits the structured report payload", async () => {
-    writeTask(projectDir, "backlog", "task-arch-1", {
+    writeTask(workspaceRoot, "backlog", "task-arch-1", {
       priority: "p1",
       area: "architecture",
     });
@@ -207,7 +207,7 @@ describe("kota report CLI", () => {
   });
 
   it("renders focused source-to-decision coverage", async () => {
-    writeWatchlist(projectDir, [
+    writeWatchlist(workspaceRoot, [
       watchlistEntry({
         url: "https://example.com/adopted",
         summary: "Covered by task-done-source.",
@@ -225,13 +225,13 @@ describe("kota report CLI", () => {
       }),
       watchlistEntry({ url: "https://example.com/unmapped" }),
     ]);
-    writeTask(projectDir, "done", "task-done-source", {
+    writeTask(workspaceRoot, "done", "task-done-source", {
       priority: "p2",
       area: "autonomy",
       body:
         "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/adopted\n",
     });
-    writeTask(projectDir, "ready", "task-open-source", {
+    writeTask(workspaceRoot, "ready", "task-open-source", {
       priority: "p2",
       area: "autonomy",
       body:
@@ -261,14 +261,14 @@ describe("kota report CLI", () => {
   });
 
   it("emits source coverage JSON", async () => {
-    writeWatchlist(projectDir, [
+    writeWatchlist(workspaceRoot, [
       watchlistEntry({
         url: "https://example.com/adopted",
         summary: "Covered by task-done-source.",
         lastSeen: "2026-07-06T00:00:00.000Z",
       }),
     ]);
-    writeTask(projectDir, "done", "task-done-source", {
+    writeTask(workspaceRoot, "done", "task-done-source", {
       priority: "p2",
       area: "autonomy",
       body:

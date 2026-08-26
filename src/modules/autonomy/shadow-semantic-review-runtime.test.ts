@@ -48,28 +48,28 @@ describe("shadow semantic review runtime", () => {
   });
 
   it("previews unstaged and untracked workflow mutations without touching the index", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "shadow-review-git-"));
-    git(projectDir, ["init"]);
-    git(projectDir, ["config", "user.email", "kota@example.test"]);
-    git(projectDir, ["config", "user.name", "KOTA Test"]);
-    git(projectDir, ["config", "commit.gpgsign", "false"]);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "shadow-review-git-"));
+    git(workspaceRoot, ["init"]);
+    git(workspaceRoot, ["config", "user.email", "kota@example.test"]);
+    git(workspaceRoot, ["config", "user.name", "KOTA Test"]);
+    git(workspaceRoot, ["config", "commit.gpgsign", "false"]);
     writeProjectFile(
-      projectDir,
+      workspaceRoot,
       "data/tasks/blocked/task-old.md",
       "## Resources\n- https://example.com/old\n",
     );
-    git(projectDir, ["add", "-A"]);
-    git(projectDir, ["commit", "-m", "initial"]);
+    git(workspaceRoot, ["add", "-A"]);
+    git(workspaceRoot, ["commit", "-m", "initial"]);
 
     writeProjectFile(
-      projectDir,
+      workspaceRoot,
       "data/tasks/blocked/task-old.md",
       "## Resources\n- https://example.com/updated\n\nUpdated source decision.\n",
     );
-    writeProjectFile(projectDir, "data/tasks/ready/task-new.md", "## Problem\nNew queue task.\n");
+    writeProjectFile(workspaceRoot, "data/tasks/ready/task-new.md", "## Problem\nNew queue task.\n");
 
     const artifacts = new Map(
-      workflowMutationArtifacts(projectDir).map((artifact) => [artifact.path, artifact.content]),
+      workflowMutationArtifacts(workspaceRoot).map((artifact) => [artifact.path, artifact.content]),
     );
 
     expect(artifacts.get("git:workflow-mutation-files")).toContain(
@@ -84,13 +84,13 @@ describe("shadow semantic review runtime", () => {
     expect(diff).toContain("diff --git a/data/tasks/ready/task-new.md b/data/tasks/ready/task-new.md");
     expect(diff).toContain("new file mode");
     expect(diff).toContain("New queue task.");
-    expect(git(projectDir, ["diff", "--cached", "--name-only"])).toBe("");
+    expect(git(workspaceRoot, ["diff", "--cached", "--name-only"])).toBe("");
   });
 
   it("writes advisory fail artifacts without blocking the workflow outcome", async () => {
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
     const result = await runShadowSemanticReview({
-      ctx: makeShadowReviewContext(projectDir, runDirPath),
+      ctx: makeShadowReviewContext(workspaceRoot, runDirPath),
       declaration: baseShadowReviewDeclaration(),
       invoker: async () => ({
         text: JSON.stringify({
@@ -125,9 +125,9 @@ describe("shadow semantic review runtime", () => {
   });
 
   it("records skipped target resolution as a shadow artifact", async () => {
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
     const result = await runShadowSemanticReview({
-      ctx: makeShadowReviewContext(projectDir, runDirPath),
+      ctx: makeShadowReviewContext(workspaceRoot, runDirPath),
       declaration: baseShadowReviewDeclaration({
         targetResolver: () => ({
           kind: "skip",
@@ -146,9 +146,9 @@ describe("shadow semantic review runtime", () => {
   });
 
   it("records malformed advisory reviewer output without throwing", async () => {
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
     const result = await runShadowSemanticReview({
-      ctx: makeShadowReviewContext(projectDir, runDirPath),
+      ctx: makeShadowReviewContext(workspaceRoot, runDirPath),
       declaration: baseShadowReviewDeclaration(),
       invoker: async () => ({
         text: "not json",
@@ -204,7 +204,7 @@ describe("shadow semantic review runtime", () => {
       }),
     };
     registerAgentHarness(harness);
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
     const runtime = {
       ...resolveAgentRuntime(undefined, {}),
       harness: harness.name,
@@ -232,7 +232,7 @@ describe("shadow semantic review runtime", () => {
       isError: false,
     }));
     const ctx = {
-      ...makeShadowReviewContext(projectDir, runDirPath),
+      ...makeShadowReviewContext(workspaceRoot, runDirPath),
       agentRuntime: runtime,
       runAgentHarness,
     };

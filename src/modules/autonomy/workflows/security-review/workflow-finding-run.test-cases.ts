@@ -86,7 +86,7 @@ export function describeSecurityReviewFindingRunTests(
       };
 
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
         stepMocks: {
           "investigate-candidates": investigation,
@@ -106,13 +106,13 @@ export function describeSecurityReviewFindingRunTests(
       if (!createdTaskId) throw new Error("security-review did not create its confirmed finding");
       expect(
         readFileSync(
-          join(fixture.projectDir, ".kota/runs/harness/security-review-revalidation.json"),
+          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-revalidation.json"),
           "utf-8",
         ),
       ).toContain("rejected-secret");
       const preflight = JSON.parse(
         readFileSync(
-          join(fixture.projectDir, ".kota/runs/harness/security-review-preflight.json"),
+          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-preflight.json"),
           "utf-8",
         ),
       ) as {
@@ -132,7 +132,7 @@ export function describeSecurityReviewFindingRunTests(
         taskId: createdTaskId,
         workflow: securityReviewWorkflow,
       });
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("writes preflight diagnostics and skips commit when task validation fails", async () => {
@@ -191,7 +191,7 @@ export function describeSecurityReviewFindingRunTests(
       };
 
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
         stepMocks: {
           "investigate-candidates": investigation,
@@ -204,7 +204,7 @@ export function describeSecurityReviewFindingRunTests(
       expect(result.status).toBe("failed");
       const preflight = JSON.parse(
         readFileSync(
-          join(fixture.projectDir, ".kota/runs/harness/security-review-preflight.json"),
+          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-preflight.json"),
           "utf-8",
         ),
       ) as {
@@ -276,7 +276,7 @@ export function describeSecurityReviewFindingRunTests(
       };
 
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
         stepMocks: {
           "investigate-candidates": investigation,

@@ -6,8 +6,8 @@ import {
   recordDaemonStopAttempt,
 } from "#modules/daemon-ops/daemon-ops-operations.js";
 import {
-  collectRuntimeHealthAuditForProject,
-  makeRuntimeHealthAuditProjectDir,
+  collectRuntimeHealthAuditForScope,
+  makeRuntimeHealthAuditScopeRoot,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
   runtimeHealthReadyTaskFiles,
@@ -15,20 +15,20 @@ import {
 } from "./runtime-health-audit-test-context.js";
 
 describe("runtime health audit operator evidence", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = makeRuntimeHealthAuditProjectDir();
+    scopeRoot = makeRuntimeHealthAuditScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("reads status-derived operator runtime warnings from daemon control evidence", () => {
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "daemon-control.json"),
+      join(scopeRoot, ".kota", "daemon-control.json"),
       JSON.stringify(
         {
           port: 8765,
@@ -42,8 +42,8 @@ describe("runtime health audit operator evidence", () => {
       "utf-8",
     );
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot: scopeRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
 
@@ -67,14 +67,14 @@ describe("runtime health audit operator evidence", () => {
 
   it("reads daemon stop timeout evidence recorded by daemon-ops", () => {
     recordDaemonStopAttempt({
-      projectDir,
+      scopeRoot,
       attemptedAt: "2026-06-19T11:00:00.000Z",
       timeoutSec: 3,
       result: { ok: false, reason: "timeout", pid: 12345 },
     });
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot: scopeRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
 
@@ -94,21 +94,21 @@ describe("runtime health audit operator evidence", () => {
       }),
     ]);
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(scopeRoot, audit);
     expect(actions.createdTaskIds).toEqual([]);
     expect(actions.issueTransitions).toEqual([]);
 
     recordDaemonStopAttempt({
-      projectDir,
+      scopeRoot,
       attemptedAt: "2026-06-19T11:30:00.000Z",
       timeoutSec: 3,
       result: { ok: false, reason: "timeout", pid: 12345 },
     });
-    const repeatedAudit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const repeatedAudit = collectRuntimeHealthAuditForScope({
+      workspaceRoot: scopeRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
-    const repeatedActions = reviewAndApplyRuntimeHealthAudit(projectDir, repeatedAudit);
+    const repeatedActions = reviewAndApplyRuntimeHealthAudit(scopeRoot, repeatedAudit);
     expect(repeatedActions.createdTaskIds).toEqual([]);
     expect(repeatedActions.issueTransitions).toEqual([
       expect.objectContaining({ kind: "opened", requiresDecision: true }),
@@ -116,14 +116,14 @@ describe("runtime health audit operator evidence", () => {
   });
 
   it("keeps noisy external provider failures out of local repair tasks", () => {
-    writeRuntimeHealthModuleLog(projectDir, "email", [
+    writeRuntimeHealthModuleLog(scopeRoot, "email", [
       JSON.stringify({ message: "SMTP provider network timeout" }),
       JSON.stringify({ message: "SMTP provider ECONNRESET while sending" }),
       JSON.stringify({ message: "SMTP provider network timeout" }),
     ]);
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot: scopeRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
 
@@ -135,8 +135,8 @@ describe("runtime health audit operator evidence", () => {
       }),
     ]);
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(scopeRoot, audit);
     expect(actions.createdTaskIds).toEqual([]);
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(scopeRoot)).toEqual([]);
   });
 });

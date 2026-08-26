@@ -17,18 +17,18 @@ describe("run transactional state", () => {
   test("keeps a staged value invisible until the run succeeds", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-context-state-"));
     roots.push(root);
-    const projectRoot = join(root, "project");
+    const scopeRoot = join(root, "project");
     const store = new RunStateDatabase(join(root, "state"));
     try {
-      store.registerProject({
-        id: "project-a",
-        rootPath: projectRoot,
+      store.registerScope({
+        id: "scope-a",
+        rootPath: scopeRoot,
         createdAt: "2026-08-25T10:00:00.000Z",
       });
       const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
       store.admitRun({
         id: "run-a",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "counter",
         repository: "none",
         trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -41,15 +41,15 @@ describe("run transactional state", () => {
         runId: "run-a",
         attempt: 1,
         daemonEpoch: epoch,
-        projectId: "project-a",
-        projectRoot,
+        scopeId: "scope-a",
+        scopeRoot,
         workflow: "counter",
         trigger: { event: "manual", schemaRef: null, payload: {} },
         sandbox: {
           runId: "run-a",
           repository: "none",
           rootDir: runRoot,
-          workspaceDir: projectRoot,
+          workspaceDir: scopeRoot,
           tempDir: join(runRoot, "tmp"),
           artifactDir: join(runRoot, "artifacts"),
         },
@@ -57,7 +57,7 @@ describe("run transactional state", () => {
           runId: "run-a",
           attempt: 1,
           daemonEpoch: epoch,
-          workspaceDir: projectRoot,
+          workspaceDir: scopeRoot,
           runDir: runRoot,
           tempDir: join(runRoot, "tmp"),
           artifactDir: join(runRoot, "artifacts"),

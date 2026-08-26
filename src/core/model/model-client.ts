@@ -104,8 +104,8 @@ export function modelProviderSelectionFromConfig(
 export type ProviderFactoryOptions = ModelProviderSelection & {
 	/** Model string — may include provider prefix (e.g., "ollama/llama3"). */
 	model: string;
-	/** Project directory used to resolve setup-stored secret references. */
-	projectDir?: string;
+	/** Scope root used to resolve setup-stored secret references. */
+	scopeRoot?: string;
 };
 
 /** Result of resolving a model client. */

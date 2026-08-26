@@ -167,15 +167,15 @@ function gitOutput(cwd: string, args: readonly string[]): string {
  * local Git identity, before allowing a standalone runtime host.
  */
 export function isPositivelyIdentifiedIsolatedEvalRoot(
-	projectDir: string,
+	workspaceRoot: string,
 	env: NodeJS.ProcessEnv = process.env,
 ): boolean {
 	try {
-		const root = realpathSync(projectDir);
+		const root = realpathSync(workspaceRoot);
 		if (!basename(root).startsWith("kota-eval-")) return false;
 		if (existsSync(join(root, ".kota", "daemon-control.json"))) return false;
-		if (env.KOTA_PROJECT_DIR === undefined) return false;
-		const declaredRoot = resolve(env.KOTA_PROJECT_DIR);
+		if (env.KOTA_SCOPE_ROOT === undefined) return false;
+		const declaredRoot = resolve(env.KOTA_SCOPE_ROOT);
 		if (realpathSync(declaredRoot) !== root) return false;
 		const runtimeRoot = join(declaredRoot, "node_modules", ".kota-eval-runtime");
 		for (const [key, leaf] of Object.entries(EVAL_RUNTIME_ENV_PATHS)) {
@@ -223,7 +223,7 @@ async function executeCanonicalWorkflow(
 	payload: Record<string, unknown> | undefined,
 ): Promise<void> {
 	const scopeId = deriveDirectoryScopeId(ctx.cwd);
-	const client = ctx.client.forScope?.(scopeId) ?? ctx.client.forProject(scopeId);
+	const client = ctx.client.forScope(scopeId);
 	const definitions = await client.workflow.listDefinitions();
 	if (definitions.source !== "daemon") {
 		throw new Error(
@@ -386,9 +386,9 @@ export function registerExecCommand(
         try {
           host = new StandaloneRunHost({
             stateDir,
-            project: {
-              projectId: scopeId,
-              projectDir: ctx.cwd,
+            scope: {
+              scopeId: scopeId,
+              scopeRoot: ctx.cwd,
               displayName: scopeId,
             },
             bus,

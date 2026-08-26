@@ -134,7 +134,7 @@ function buildAnswerUiSurface(
 
 export const answerUiSurfaceSource: UiSurfaceSource = {
   sourceId: "answers",
-  project: async (context) => {
+  scope: async (context) => {
     const history = await context.read("answer history", () =>
       context.client.answer.log({ limit: 10 }),
     );

@@ -57,38 +57,38 @@ async function runNativeProcess(
 
 describe("native CLI runtime write boundary", () => {
   it("rejects roots broader than one assigned invocation", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-state-boundary-"));
-    roots.push(projectDir);
-    mkdirSync(join(projectDir, ".kota"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-state-boundary-"));
+    roots.push(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"));
 
-    expect(() => nativeCliRuntimeWriteBoundary(projectDir, {
-      KOTA_RUN_DIR: join(projectDir, ".kota", "builder-evidence"),
+    expect(() => nativeCliRuntimeWriteBoundary(scopeRoot, {
+      KOTA_RUN_DIR: join(scopeRoot, ".kota", "builder-evidence"),
     })).toThrow(/KOTA_RUN_DIR outside its invocation-scoped runtime directory/);
-    expect(() => nativeCliRuntimeWriteBoundary(projectDir, {
-      KOTA_RUN_TEMP_DIR: join(projectDir, ".kota"),
+    expect(() => nativeCliRuntimeWriteBoundary(scopeRoot, {
+      KOTA_RUN_TEMP_DIR: join(scopeRoot, ".kota"),
     })).toThrow(/KOTA_RUN_TEMP_DIR outside its invocation-scoped runtime directory/);
   });
 
   it("overlays Linux runtime state read-only before reopening assigned roots", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-state-linux-"));
-    roots.push(projectDir);
-    const runtimeRoot = join(projectDir, ".kota");
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-state-linux-"));
+    roots.push(scopeRoot);
+    const runtimeRoot = join(scopeRoot, ".kota");
     const agentRunDir = join(runtimeRoot, "builder-evidence", "run-1");
     const tempRoot = join(runtimeRoot, "tmp", "run-1");
     mkdirSync(agentRunDir, { recursive: true });
     mkdirSync(tempRoot, { recursive: true });
-    const boundary = nativeCliRuntimeWriteBoundary(projectDir, {
+    const boundary = nativeCliRuntimeWriteBoundary(scopeRoot, {
       KOTA_RUN_DIR: agentRunDir,
       KOTA_RUN_TEMP_DIR: tempRoot,
     });
     expect(boundary).toBeDefined();
 
     const launch = buildMachineAuthoritySandboxLaunch("/bin/sh", [], {
-      cwd: projectDir,
+      cwd: scopeRoot,
       platform: "linux",
       pathExists: () => true,
-      readableRoots: [projectDir],
-      writableRoots: [projectDir],
+      readableRoots: [scopeRoot],
+      writableRoots: [scopeRoot],
       writeBoundaries: [boundary!],
     });
     expect(launch.ok).toBe(true);
@@ -104,25 +104,25 @@ describe("native CLI runtime write boundary", () => {
   });
 
   it("reopens only the isolated per-run agent output root under runtime state", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-agent-scope-"));
-    roots.push(projectDir);
-    const runtimeRoot = join(projectDir, ".kota");
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-agent-scope-"));
+    roots.push(scopeRoot);
+    const runtimeRoot = join(scopeRoot, ".kota");
     const runStore = join(runtimeRoot, "runs");
     const reviewerOutput = join(runStore, "run-1", "agent-output");
     mkdirSync(reviewerOutput, { recursive: true });
 
     const boundary = nativeCliRuntimeWriteBoundary(
-      projectDir,
+      scopeRoot,
       {},
       [reviewerOutput],
     );
     expect(boundary?.writableDescendants).toEqual([reviewerOutput]);
 
     const launch = buildMachineAuthoritySandboxLaunch("/bin/sh", [], {
-      cwd: projectDir,
+      cwd: scopeRoot,
       platform: "linux",
       pathExists: () => true,
-      readableRoots: [projectDir],
+      readableRoots: [scopeRoot],
       writableRoots: [reviewerOutput],
       writeBoundaries: [boundary!],
     });
@@ -139,9 +139,9 @@ describe("native CLI runtime write boundary", () => {
   it.runIf(canBootstrapMacosSandbox)(
     "protects daemon state while assigned run roots remain writable",
     async () => {
-      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-state-sandbox-"));
-      roots.push(projectDir);
-      const runtimeRoot = join(projectDir, ".kota");
+      const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-state-sandbox-"));
+      roots.push(scopeRoot);
+      const runtimeRoot = join(scopeRoot, ".kota");
       const agentRunDir = join(runtimeRoot, "builder-evidence", "run-1");
       const artifactRoot = join(agentRunDir, "artifacts");
       const tempRoot = join(runtimeRoot, "tmp", "run-1");
@@ -161,9 +161,9 @@ describe("native CLI runtime write boundary", () => {
           'if mv "$RUNTIME_ROOT" "$RUNTIME_ROOT.bak"; then exit 23; fi',
         ].join("; ")],
         {
-          cwd: projectDir,
+          cwd: scopeRoot,
           machineAuthorityOwner: "kota",
-          writableRoots: [projectDir],
+          writableRoots: [scopeRoot],
           env: buildNativeCliEnvironment({
             overrides: {
               KOTA_RUN_DIR: agentRunDir,
@@ -176,7 +176,7 @@ describe("native CLI runtime write boundary", () => {
             },
           }),
         },
-        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
       );
 
       expect(result.status, result.stderr).toBe(0);

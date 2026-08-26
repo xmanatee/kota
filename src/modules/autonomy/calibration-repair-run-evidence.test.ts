@@ -15,23 +15,23 @@ import {
 } from "./calibration-repair-freshness-test-support.js";
 
 describe("calibration repair run-evidence trust", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runCommand: WorkflowCommandRunner;
 
   beforeEach(() => {
-    projectDir = makeProject();
-    runCommand = createWorkflowCommandRunner({ cwd: projectDir });
+    workspaceRoot = makeProject();
+    runCommand = createWorkflowCommandRunner({ cwd: workspaceRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("rejects the formerly accepted metadata-less artifact", async () => {
-    const repair = closeRepairTask(projectDir);
-    const descendant = commitDescendant(projectDir);
+    const repair = closeRepairTask(workspaceRoot);
+    const descendant = commitDescendant(workspaceRoot);
     const seeded = seedArtifact(
-      projectDir,
+      workspaceRoot,
       "metadata-less-builder",
       descendant,
       "task-post-fix",
@@ -40,7 +40,7 @@ describe("calibration repair run-evidence trust", () => {
 
     expect(
       await inspectCalibrationRepairFreshness(
-        projectDir,
+        workspaceRoot,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
         runCommand,
@@ -49,22 +49,22 @@ describe("calibration repair run-evidence trust", () => {
   });
 
   it("rejects mismatched run identities and non-builder metadata", async () => {
-    const repair = closeRepairTask(projectDir);
-    const descendant = commitDescendant(projectDir);
-    seedArtifact(projectDir, "metadata-id-mismatch", descendant, "task-a", {
+    const repair = closeRepairTask(workspaceRoot);
+    const descendant = commitDescendant(workspaceRoot);
+    seedArtifact(workspaceRoot, "metadata-id-mismatch", descendant, "task-a", {
       metadataId: "another-run",
     });
-    seedArtifact(projectDir, "artifact-id-mismatch", descendant, "task-b", {
+    seedArtifact(workspaceRoot, "artifact-id-mismatch", descendant, "task-b", {
       artifactRunId: "another-run",
     });
-    seedArtifact(projectDir, "non-builder", descendant, "task-c", {
+    seedArtifact(workspaceRoot, "non-builder", descendant, "task-c", {
       metadataWorkflow: "security-review",
       artifactWorkflow: "security-review",
     });
 
     expect(
       (await inspectCalibrationRepairFreshness(
-        projectDir,
+        workspaceRoot,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
         runCommand,
@@ -73,23 +73,23 @@ describe("calibration repair run-evidence trust", () => {
   });
 
   it("rejects non-terminal runs and evidence without the canonical code step", async () => {
-    const repair = closeRepairTask(projectDir);
-    const descendant = commitDescendant(projectDir);
-    seedArtifact(projectDir, "running-builder", descendant, "task-a", {
+    const repair = closeRepairTask(workspaceRoot);
+    const descendant = commitDescendant(workspaceRoot);
+    seedArtifact(workspaceRoot, "running-builder", descendant, "task-a", {
       metadataStatus: "running",
     });
-    seedArtifact(projectDir, "failed-builder", descendant, "task-b", {
+    seedArtifact(workspaceRoot, "failed-builder", descendant, "task-b", {
       metadataStatus: "failed",
       artifactTerminalStatus: "failed",
     });
-    seedArtifact(projectDir, "wrong-step", descendant, "task-c", {
+    seedArtifact(workspaceRoot, "wrong-step", descendant, "task-c", {
       stepId: "agent-authored-calibration",
     });
-    seedArtifact(projectDir, "failed-step", descendant, "task-d", {
+    seedArtifact(workspaceRoot, "failed-step", descendant, "task-d", {
       stepStatus: "failed",
     });
     const missingStepRecord = seedArtifact(
-      projectDir,
+      workspaceRoot,
       "missing-step-record",
       descendant,
       "task-e",
@@ -98,7 +98,7 @@ describe("calibration repair run-evidence trust", () => {
 
     expect(
       (await inspectCalibrationRepairFreshness(
-        projectDir,
+        workspaceRoot,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
         runCommand,
@@ -107,10 +107,10 @@ describe("calibration repair run-evidence trust", () => {
   });
 
   it("rejects malformed and symlinked artifact files", async () => {
-    const repair = closeRepairTask(projectDir);
-    const descendant = commitDescendant(projectDir);
+    const repair = closeRepairTask(workspaceRoot);
+    const descendant = commitDescendant(workspaceRoot);
     const malformed = seedArtifact(
-      projectDir,
+      workspaceRoot,
       "malformed-builder",
       descendant,
       "task-malformed",
@@ -118,7 +118,7 @@ describe("calibration repair run-evidence trust", () => {
     writeFileSync(malformed.artifactPath, "{not-json\n");
 
     const linkedArtifact = seedArtifact(
-      projectDir,
+      workspaceRoot,
       "linked-artifact-builder",
       descendant,
       "task-linked-artifact",
@@ -129,7 +129,7 @@ describe("calibration repair run-evidence trust", () => {
 
     expect(
       (await inspectCalibrationRepairFreshness(
-        projectDir,
+        workspaceRoot,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
         runCommand,
@@ -138,21 +138,21 @@ describe("calibration repair run-evidence trust", () => {
   });
 
   it("rejects a symlinked run-directory entry", async () => {
-    const repair = closeRepairTask(projectDir);
-    const descendant = commitDescendant(projectDir);
+    const repair = closeRepairTask(workspaceRoot);
+    const descendant = commitDescendant(workspaceRoot);
     const seeded = seedArtifact(
-      projectDir,
+      workspaceRoot,
       "linked-run-builder",
       descendant,
       "task-linked-run",
     );
-    const target = join(projectDir, ".kota", "linked-run-target");
+    const target = join(workspaceRoot, ".kota", "linked-run-target");
     renameSync(seeded.runDir, target);
     symlinkSync(target, seeded.runDir, "dir");
 
     expect(
       (await inspectCalibrationRepairFreshness(
-        projectDir,
+        workspaceRoot,
         repair.path,
         CALIBRATION_REPAIR_TASK_ID,
         runCommand,

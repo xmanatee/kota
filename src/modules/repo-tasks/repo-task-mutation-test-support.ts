@@ -16,16 +16,16 @@ function git(cwd: string, args: readonly string[]): void {
 }
 
 export function createRepoTaskRuntimeSandbox(
-  scopeDir: string,
+  scopeRoot: string,
   runId: string,
 ): RepoTaskRuntimeSandboxTarget {
-  mkdirSync(scopeDir, { recursive: true });
-  git(scopeDir, ["init", "-q"]);
-  git(scopeDir, ["config", "user.email", "test@test"]);
-  git(scopeDir, ["config", "user.name", "test"]);
-  git(scopeDir, ["commit", "--allow-empty", "-q", "-m", "initial"]);
+  mkdirSync(scopeRoot, { recursive: true });
+  git(scopeRoot, ["init", "-q"]);
+  git(scopeRoot, ["config", "user.email", "test@test"]);
+  git(scopeRoot, ["config", "user.name", "test"]);
+  git(scopeRoot, ["commit", "--allow-empty", "-q", "-m", "initial"]);
 
-  const sandbox = new RunSandboxManager(scopeDir).create({
+  const sandbox = new RunSandboxManager(scopeRoot).create({
     runId,
     repository: "write",
   });
@@ -34,8 +34,8 @@ export function createRepoTaskRuntimeSandbox(
   const target: RepoTaskRuntimeSandboxTarget = {
     authority: "runtime-owned-sandbox",
     runId,
-    projectDir: sandbox.workspaceDir,
-    scopeDir,
+    workspaceRoot: sandbox.workspaceDir,
+    scopeRoot,
     runtimeResources: {
       profileId: `${runId}:1`,
       agentRunDir,
@@ -54,11 +54,11 @@ export function createRepoTaskRuntimeSandbox(
 }
 
 export function repoTaskRuntimeSandboxTarget(
-  projectDir: string,
+  workspaceRoot: string,
 ): RepoTaskRuntimeSandboxTarget {
-  const target = runtimeTargets.get(resolve(projectDir));
+  const target = runtimeTargets.get(resolve(workspaceRoot));
   if (target === undefined) {
-    throw new Error(`No test runtime owns repo-task sandbox "${projectDir}"`);
+    throw new Error(`No test runtime owns repo-task sandbox "${workspaceRoot}"`);
   }
   return target;
 }

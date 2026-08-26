@@ -56,13 +56,13 @@ function makeAwaitDefinition(): WorkflowDefinition {
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   signal = new AbortController().signal,
 ): RunContext {
   const runId = `${definition.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
   const agentDir = join(rootDir, "agent");
@@ -72,14 +72,14 @@ function makeRunContext(
   }
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: definition.name,
     trigger,
     sandbox: {
       runId,
       repository: "none",
       rootDir,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       tempDir,
       artifactDir,
     },
@@ -87,7 +87,7 @@ function makeRunContext(
       runId,
       attempt: 1,
       daemonEpoch: 1,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       runDir: rootDir,
       tempDir,
       artifactDir,
@@ -105,30 +105,30 @@ function makeRunContext(
 }
 
 describe("await-event step", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-await-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("(a) live: event arrives while the daemon is alive — step resolves and the workflow continues", async () => {
     const definition = makeAwaitDefinition();
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir, definition, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, definition, TRIGGER),
       bus,
       store,
       log,
@@ -166,7 +166,7 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      { runContext: makeRunContext(workspaceRoot, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     // Wait for the suspension file to be written, then abort.
@@ -233,7 +233,7 @@ describe("await-event step", () => {
       definition,
       resumeQueued.trigger,
       {
-        runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
+        runContext: makeRunContext(workspaceRoot, definition, resumeQueued.trigger),
         bus: newBus,
         store,
         log,
@@ -262,7 +262,7 @@ describe("await-event step", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      { runContext: makeRunContext(workspaceRoot, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
     let suspendedRunId = "";
@@ -308,7 +308,7 @@ describe("await-event step", () => {
       definition,
       resumeQueued.trigger,
       {
-        runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
+        runContext: makeRunContext(workspaceRoot, definition, resumeQueued.trigger),
         bus: newBus,
         store,
         log,

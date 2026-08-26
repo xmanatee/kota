@@ -3,8 +3,8 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { Memory } from "#core/modules/provider-types.js";
 import { parseWorkMemoryMetadataFromBody } from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import type { MemoryProjectStores } from "./project-scope.js";
 import { resolveMemoryRouteProvider } from "./route-provider.js";
+import type { MemoryScopeStores } from "./scope.js";
 
 type MemoryRequestBody = Awaited<ReturnType<typeof readBody>>;
 
@@ -37,10 +37,10 @@ function toListItem(m: Memory): MemoryListItem {
 export function handleListMemory(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): void {
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const all = provider.list();
     jsonResponse(res, 200, { entries: all.map(toListItem) } satisfies MemoryListResponse);
@@ -53,10 +53,10 @@ export function handleGetMemory(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): void {
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const entry = provider.list().find((m) => m.id === id) ?? null;
     if (!entry) {
@@ -72,7 +72,7 @@ export function handleGetMemory(
 export async function handleAddMemory(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): Promise<void> {
   let body: MemoryRequestBody;
   try {
@@ -93,7 +93,7 @@ export async function handleAddMemory(
     return;
   }
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const id = metadata.metadata
       ? provider.save(content, tags, metadata.metadata)
@@ -108,7 +108,7 @@ export async function handleUpdateMemory(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): Promise<void> {
   let body: MemoryRequestBody;
   try {
@@ -139,7 +139,7 @@ export async function handleUpdateMemory(
     changes.freshness = metadata.metadata?.freshness ?? null;
   }
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const existing = provider.list().find((m) => m.id === id) ?? null;
     if (!existing) {
@@ -158,10 +158,10 @@ export function handleDeleteMemory(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): void {
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const ok = provider.delete(id);
     if (!ok) {
@@ -177,7 +177,7 @@ export function handleDeleteMemory(
 export async function handleSearchMemory(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "", "http://localhost");
   const query = url.searchParams.get("q") ?? "";
@@ -187,7 +187,7 @@ export async function handleSearchMemory(
   const limitParam = url.searchParams.get("limit");
   const limit = limitParam ? Math.max(1, Number.parseInt(limitParam, 10) || 0) : 20;
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
@@ -215,10 +215,10 @@ export async function handleSearchMemory(
 export async function handleReindexMemory(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: MemoryProjectStores,
+  scopeStores?: MemoryScopeStores,
 ): Promise<void> {
   try {
-    const provider = resolveMemoryRouteProvider(req, res, projectStores);
+    const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);
@@ -228,45 +228,45 @@ export async function handleReindexMemory(
 }
 
 
-export function memoryRoutes(projectStores: MemoryProjectStores): RouteRegistration[] {
+export function memoryRoutes(scopeStores: MemoryScopeStores): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/memory",
-      handler: (req, res) => handleListMemory(req, res, projectStores),
+      handler: (req, res) => handleListMemory(req, res, scopeStores),
     },
     {
       method: "GET",
       path: "/api/memory/search",
-      handler: (req, res) => handleSearchMemory(req, res, projectStores),
+      handler: (req, res) => handleSearchMemory(req, res, scopeStores),
     },
     {
       method: "POST",
       path: "/api/memory",
-      handler: (req, res) => handleAddMemory(req, res, projectStores),
+      handler: (req, res) => handleAddMemory(req, res, scopeStores),
     },
     {
       method: "POST",
       path: "/api/memory/reindex",
-      handler: (req, res) => handleReindexMemory(req, res, projectStores),
+      handler: (req, res) => handleReindexMemory(req, res, scopeStores),
     },
     {
       method: "GET",
       path: "/api/memory/:id",
       handler: (req, res, params) =>
-        handleGetMemory(req, res, params.id, projectStores),
+        handleGetMemory(req, res, params.id, scopeStores),
     },
     {
       method: "DELETE",
       path: "/api/memory/:id",
       handler: (req, res, params) =>
-        handleDeleteMemory(req, res, params.id, projectStores),
+        handleDeleteMemory(req, res, params.id, scopeStores),
     },
     {
       method: "PATCH",
       path: "/api/memory/:id",
       handler: (req, res, params) =>
-        handleUpdateMemory(req, res, params.id, projectStores),
+        handleUpdateMemory(req, res, params.id, scopeStores),
     },
   ];
 }

@@ -19,8 +19,8 @@
  * `loadRuntimeModules`.
  *
  * This test closes that gap by spawning the actual built CLI daemon
- * command against a temp project, reading the published bearer token
- * out of `<projectDir>/.kota/daemon-control.json`, and asserting
+ * command against a temporary scope, reading the published bearer token
+ * out of `<scopeRoot>/.kota/daemon-control.json`, and asserting
  * `/api/knowledge` returns 200 with the typed `entries` shape — only
  * possible if the daemon process drove `loadRuntimeModules` and
  * `KnowledgeStore` registered itself through `onLoad`.
@@ -39,7 +39,7 @@
  *   - `node dist/cli.js daemon` is the supervisor mode: the parent
  *     process forks a child with `KOTA_DAEMON_CHILD=1` set. SIGTERM to
  *     the supervisor is forwarded to the child, which triggers the
- *     daemon's clean-shutdown path. `--project-dir` pins the project
+ *     daemon's clean-shutdown path. `--scope-root` pins the scope
  *     root; `HOME` redirect isolates the test from the developer's
  *     `~/.kota/config.json`. `NODE_OPTIONS` is cleared because the
  *     vitest parent runs with `--conditions=source` (TypeScript
@@ -78,7 +78,7 @@ beforeAll(() => {
 });
 
 describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-backed routes)", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
   let homeDir: string;
   let child: ChildProcess | null;
@@ -86,18 +86,18 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
   let stdoutChunks: Buffer[];
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-built-cli-daemon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    homeDir = join(projectDir, "home");
+    stateDir = join(scopeRoot, ".kota");
+    homeDir = join(scopeRoot, "home");
     mkdirSync(stateDir, { recursive: true });
     mkdirSync(homeDir, { recursive: true });
     mkdirSync(join(homeDir, ".kota"), { recursive: true });
     writeFileSync(
       join(homeDir, ".kota", "config.json"),
-      JSON.stringify({ trustedProjects: [projectDir] }),
+      JSON.stringify({ trustedScopes: [scopeRoot] }),
     );
     // Pin a default agent harness so any workflow validation that walks
     // shipped autonomy steps without explicit `harness:` overrides resolves
@@ -122,20 +122,20 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
         await waitForExit(child, 2_000);
       }
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("`node dist/cli.js daemon` serves /api/knowledge with 200 (provider onLoad ran)", async () => {
     child = spawn(
       process.execPath,
-      [CLI_PATH, "daemon", "--project-dir", projectDir, "--log-format", "json"],
+      [CLI_PATH, "daemon", "--scope-root", scopeRoot, "--log-format", "json"],
       {
         env: {
           ...process.env,
           // Redirect homedir() so we never read the developer's
           // ~/.kota/config.json into the smoke under test.
           HOME: homeDir,
-          KOTA_PROJECT_DIR: projectDir,
+          KOTA_SCOPE_ROOT: scopeRoot,
           KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH: "",
           // The vitest parent runs with `--conditions=source` to import
           // TypeScript directly. That env var would propagate and make
@@ -163,7 +163,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
       );
     }
 
-    const res = await fetchAuthorized(address.port, "/api/knowledge?scope=project", address.token);
+    const res = await fetchAuthorized(address.port, "/api/knowledge?scope=scope", address.token);
     const bodyText = await res.text();
     expect(
       res.status,
@@ -194,7 +194,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI daemon smoke (provider-back
     writeRestartRegressionModule(stateDir);
     child = spawn(
       process.execPath,
-      [CLI_PATH, "daemon", "--project-dir", projectDir, "--log-format", "json", "--poll-interval", "1"],
+      [CLI_PATH, "daemon", "--scope-root", scopeRoot, "--log-format", "json", "--poll-interval", "1"],
       {
         env: {
           ...process.env,

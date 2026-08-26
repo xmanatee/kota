@@ -1,7 +1,7 @@
 # Push-Notification Module
 
 Owns the entire Expo-push delivery surface for KOTA: the
-`<projectDir>/.kota/push-tokens.json` store, the `POST /push-tokens`
+`<scopeRoot>/.kota/push-tokens.json` store, the `POST /push-tokens`
 daemon-control registration route, the Expo Push API HTTP call, and the
 bus subscriptions that drive delivery.
 
@@ -34,7 +34,7 @@ the push module only sees events that are meant to be delivered.
 
 ## Recoverability
 
-`<projectDir>/.kota/push-tokens.json` is rewritten on every registration.
+`<scopeRoot>/.kota/push-tokens.json` is rewritten on every registration.
 Tokens survive daemon crashes; the in-flight Expo Push API call does not
 (by design — see below).
 

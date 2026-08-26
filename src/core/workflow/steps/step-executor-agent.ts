@@ -83,11 +83,11 @@ export async function executeAgentStep(
 ): Promise<AgentStepResult> {
   const resolvedHarness = resolveAgentHarness(step.harness);
   const resolvedModel = resolveAgentModel(step, agentConfig);
-  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
   const capabilitySnapshot = writeHarnessCapabilityArtifact(
     step.id,
     metadata,
-    agentConfig.projectDir,
+    agentConfig.scopeRoot,
     resolvedHarness,
     resolvedModel,
     step.effort,
@@ -115,7 +115,7 @@ export async function executeAgentStep(
     ? []
     : resolveAgentOutputWriteScopes(
         workspaceDir,
-        agentConfig.projectDir,
+        agentConfig.scopeRoot,
         metadata,
         agentConfig.runtimeResources,
       );
@@ -124,7 +124,7 @@ export async function executeAgentStep(
     step,
     metadata,
     trigger,
-    agentConfig.projectDir,
+    agentConfig.scopeRoot,
     priorStepOutputs,
     resolvedHarness.askOwnerToolName,
     foreach,
@@ -136,7 +136,7 @@ export async function executeAgentStep(
     systemPromptAppend: agentPrompt.systemPromptAppend,
     moduleRoot: step.moduleRoot,
     promptPath: step.promptPath,
-    projectDir: agentConfig.projectDir,
+    scopeRoot: agentConfig.scopeRoot,
     agentDef,
     agentName: step.agentName,
     resolveSkillsPrompt: agentConfig.resolveSkillsPrompt,
@@ -176,7 +176,7 @@ export async function executeAgentStep(
         lastJsonOutputFeedback = feedback;
       },
       outputValidationContext: {
-        projectDir: agentConfig.projectDir,
+        workspaceRoot: agentConfig.workspaceRoot ?? agentConfig.scopeRoot,
         stepOutputs: priorStepOutputs,
       },
     });
@@ -214,7 +214,7 @@ export async function executeAgentStep(
       writeAgentTokenBudgetArtifact(
         step.id,
         metadata,
-        agentConfig.projectDir,
+        agentConfig.scopeRoot,
         tokenBudget,
       );
       removeWorkflowScratchArtifacts(workspaceDir);
@@ -225,7 +225,7 @@ export async function executeAgentStep(
     }
 
     if (resolvedHarness.emitsAgentMessageStream) {
-      writeToolTelemetryArtifact(step.id, metadata, agentConfig.projectDir, stepTelemetry);
+      writeToolTelemetryArtifact(step.id, metadata, agentConfig.scopeRoot, stepTelemetry);
     }
 
     const stepMutatedPaths = preStepSnapshot
@@ -253,7 +253,7 @@ export async function executeAgentStep(
         writeWriteScopeViolationArtifact({
           ...violationCtx,
           metadata,
-          projectDir: agentConfig.projectDir,
+          scopeRoot: agentConfig.scopeRoot,
         });
         if (scopedAgent.writeScope === "deny-all") {
           preStepSnapshot?.restoreDenyAllMutations(workspaceDir, violations);
@@ -267,7 +267,7 @@ export async function executeAgentStep(
     const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
       stepId: step.id,
       runDir: metadata.runDir,
-      projectDir: agentConfig.projectDir,
+      scopeRoot: agentConfig.scopeRoot,
       harness: resolvedHarness,
       messages: successfulAttemptMessages,
       changedFiles: stepMutatedPaths,

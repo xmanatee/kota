@@ -23,7 +23,9 @@ export const voiceApi = {
         audioBase64,
         mimeType: input.mimeType,
         ...(input.filename !== undefined && { filename: input.filename }),
-        ...(input.languageHint !== undefined && { languageHint: input.languageHint }),
+        ...(input.languageHint !== undefined && {
+          languageHint: input.languageHint,
+        }),
       }),
     });
     const parsed = await readRecord(response);
@@ -31,7 +33,8 @@ export const voiceApi = {
     return {
       ok: true,
       text: asString(parsed.text),
-      language: typeof parsed.language === "string" ? parsed.language : undefined,
+      language:
+        typeof parsed.language === "string" ? parsed.language : undefined,
     };
   },
   voiceSynthesize: async (input: {
@@ -60,8 +63,10 @@ export const voiceApi = {
   },
 };
 
-async function readRecord(response: Response): Promise<Record<string, unknown>> {
-  return await response.json().catch(() => ({})) as Record<string, unknown>;
+async function readRecord(
+  response: Response,
+): Promise<Record<string, unknown>> {
+  return (await response.json().catch(() => ({}))) as Record<string, unknown>;
 }
 
 function daemonVoiceError(
@@ -83,7 +88,8 @@ function asString(value: unknown): string {
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error ?? new Error("FileReader failed"));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("FileReader failed"));
     reader.onload = () => {
       if (typeof reader.result !== "string") {
         reject(new Error("FileReader did not return a string"));

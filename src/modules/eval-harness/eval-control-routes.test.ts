@@ -25,12 +25,12 @@ function mockResponse(): MockResponse {
   return { res, result };
 }
 
-function makeFakeCtx(projectDir: string): ModuleContext {
-  return { cwd: projectDir } as unknown as ModuleContext;
+function makeFakeCtx(workspaceRoot: string): ModuleContext {
+  return { cwd: workspaceRoot } as unknown as ModuleContext;
 }
 
-function seedFixture(projectDir: string, id: string, controlDecisions: string[]): void {
-  const dir = join(projectDir, "src/modules/eval-harness/fixtures", id);
+function seedFixture(workspaceRoot: string, id: string, controlDecisions: string[]): void {
+  const dir = join(workspaceRoot, "src/modules/eval-harness/fixtures", id);
   mkdirSync(join(dir, "initial"), { recursive: true });
   writeFileSync(
     join(dir, "fixture.json"),
@@ -61,19 +61,19 @@ function seedFixture(projectDir: string, id: string, controlDecisions: string[])
 }
 
 describe("evalHarnessControlRoutes GET /eval/list", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "eval-control-routes-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "eval-control-routes-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns fixture control decisions and aggregate coverage summary", () => {
-    seedFixture(projectDir, "act-fixture", ["act"]);
-    const routes = evalHarnessControlRoutes(makeFakeCtx(projectDir));
+    seedFixture(workspaceRoot, "act-fixture", ["act"]);
+    const routes = evalHarnessControlRoutes(makeFakeCtx(workspaceRoot));
     const route = routes.find(
       (entry) => entry.method === "GET" && entry.path === "/eval/list",
     );

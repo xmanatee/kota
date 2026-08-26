@@ -33,7 +33,6 @@ export type OpenaiToolsSessionContext = {
   };
   scope: {
     scopeId?: string;
-    projectId?: string;
   };
 };
 
@@ -50,7 +49,7 @@ export type OpenaiToolsSessionRecord = {
 };
 
 export type PersistOpenaiToolsSessionInput = {
-  projectDir: string;
+  scopeRoot: string;
   existing?: OpenaiToolsSessionRecord;
   context: OpenaiToolsSessionContext;
   toolDeclarations: OpenaiToolsSessionToolDeclaration[];
@@ -83,8 +82,8 @@ function cloneMessages(messages: readonly KotaMessage[]): KotaMessage[] {
   return JSON.parse(JSON.stringify(messages)) as KotaMessage[];
 }
 
-function sessionRoot(projectDir: string): string {
-  return join(projectDir, ".kota", "openai-tools-agent-harness", "sessions");
+function sessionRoot(scopeRoot: string): string {
+  return join(scopeRoot, ".kota", "openai-tools-agent-harness", "sessions");
 }
 
 function assertSessionId(id: string): void {
@@ -93,9 +92,9 @@ function assertSessionId(id: string): void {
   }
 }
 
-function sessionPath(projectDir: string, id: string): string {
+function sessionPath(scopeRoot: string, id: string): string {
   assertSessionId(id);
-  return join(sessionRoot(projectDir), `${id}.json`);
+  return join(sessionRoot(scopeRoot), `${id}.json`);
 }
 
 export function createOpenaiToolsSessionId(): string {
@@ -104,7 +103,7 @@ export function createOpenaiToolsSessionId(): string {
 
 export function buildOpenaiToolsSessionContext(input: {
   options: AgentHarnessRunOptions;
-  projectDir: string;
+  scopeRoot: string;
   resolved: ResolvedProvider;
   outputTokenLimit: ResolvedModelOutputTokenLimit;
 }): OpenaiToolsSessionContext {
@@ -112,7 +111,7 @@ export function buildOpenaiToolsSessionContext(input: {
   return {
     model: input.resolved.model,
     providerName: input.resolved.providerName,
-    cwd: input.projectDir,
+    cwd: input.scopeRoot,
     outputMaxTokens: input.outputTokenLimit.maxTokens,
     providerSelection: {
       ...(input.options.modelProvider?.provider !== undefined
@@ -126,20 +125,17 @@ export function buildOpenaiToolsSessionContext(input: {
       ...(executionScope?.scopeId !== undefined
         ? { scopeId: executionScope.scopeId }
         : {}),
-      ...(executionScope?.projectId !== undefined
-        ? { projectId: executionScope.projectId }
-        : {}),
     },
   };
 }
 
 export function loadOpenaiToolsSession(
-  projectDir: string,
+  scopeRoot: string,
   id: string,
 ): OpenaiToolsSessionRecord {
-  const path = sessionPath(projectDir, id);
+  const path = sessionPath(scopeRoot, id);
   if (!existsSync(path)) {
-    throw new Error(`OpenAI tools session "${id}" was not found in ${sessionRoot(projectDir)}.`);
+    throw new Error(`OpenAI tools session "${id}" was not found in ${sessionRoot(scopeRoot)}.`);
   }
   const record = JSON.parse(readFileSync(path, "utf8")) as OpenaiToolsSessionRecord;
   if (record.schemaVersion !== SESSION_SCHEMA_VERSION || record.harness !== "openai-tools") {
@@ -191,8 +187,8 @@ export function persistOpenaiToolsSession(
       ? { lastProviderMessageId: input.lastProviderMessageId }
       : {}),
   };
-  mkdirSync(sessionRoot(input.projectDir), { recursive: true });
-  writeFileSync(sessionPath(input.projectDir, id), `${JSON.stringify(record, null, 2)}\n`);
+  mkdirSync(sessionRoot(input.scopeRoot), { recursive: true });
+  writeFileSync(sessionPath(input.scopeRoot, id), `${JSON.stringify(record, null, 2)}\n`);
   return {
     ...record,
     messages: cloneMessages(record.messages),
@@ -264,10 +260,7 @@ export function validateOpenaiToolsSessionContext(
       `OpenAI tools session "${record.id}" was created in "${previous.cwd}", not "${current.cwd}".`,
     );
   }
-  if (
-    previous.scope.scopeId !== current.scope.scopeId ||
-    previous.scope.projectId !== current.scope.projectId
-  ) {
+  if (previous.scope.scopeId !== current.scope.scopeId) {
     if (previous.scope.scopeId !== undefined && current.scope.scopeId === undefined) {
       throw new Error(
         `OpenAI tools session "${record.id}" requires scope "${previous.scope.scopeId}", but the current run has no scope.`,

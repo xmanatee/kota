@@ -38,7 +38,7 @@ const webModule: KotaModule = {
   onLoad(ctx) {
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
-      createWebReadinessSource({ projectDir: ctx.cwd }),
+      createWebReadinessSource({ scopeRoot: ctx.cwd }),
     );
   },
 
@@ -66,10 +66,10 @@ const webModule: KotaModule = {
           process.exit(1);
         }
         // daemon_required: a daemon is already running. Two web servers in the
-        // same project would conflict on autonomy state and likely on the port,
+        // same scope would conflict on autonomy state and likely on the port,
         // so the contract refuses uniformly and points the operator at the fix.
         printToStderr(line(span(
-          "Cannot start `kota serve` while a daemon is running. Stop the daemon first (`kota daemon stop`) or run `kota serve` against a separate project directory.",
+          "Cannot start `kota serve` while a daemon is running. Stop the daemon first (`kota daemon stop`) or run `kota serve` against a separate scope directory.",
           "error",
         )));
         process.exit(1);
@@ -78,7 +78,7 @@ const webModule: KotaModule = {
     return [cmd];
   },
 
-  routes: (ctx) => staticWebUiRoutes({ projectDir: ctx.cwd }),
+  routes: (ctx) => staticWebUiRoutes({ scopeRoot: ctx.cwd }),
   localClient: (ctx) => ({ web: localWebClient(ctx) }),
 
   daemonClient: (_link: DaemonTransport) => ({

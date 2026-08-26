@@ -39,18 +39,18 @@ function observation(args: {
 }
 
 describe("current autonomy health issue cards", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-health-issue-cards-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("reads every unresolved issue from the durable projection", () => {
@@ -68,7 +68,7 @@ describe("current autonomy health issue cards", () => {
       current: emptyAutonomyIssueProjection(),
       observations: [first, second],
     }).projection;
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
       current: projected,
       updates: [
         {
@@ -81,7 +81,7 @@ describe("current autonomy health issue cards", () => {
       ],
     }));
 
-    const evidence = collectCurrentAutonomyHealthIssueCards(projectDir, {
+    const evidence = collectCurrentAutonomyHealthIssueCards(workspaceRoot, {
       nowIso: "2026-06-17T13:01:00.000Z",
     });
 
@@ -108,7 +108,7 @@ describe("current autonomy health issue cards", () => {
   });
 
   it("does not infer current issues from latest review artifacts", () => {
-    const runDir = join(projectDir, ".kota", "runs", "review-legacy");
+    const runDir = join(workspaceRoot, ".kota", "runs", "review-legacy");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "autonomy-health-review.json"),
@@ -119,7 +119,7 @@ describe("current autonomy health issue cards", () => {
       "utf-8",
     );
 
-    expect(collectCurrentAutonomyHealthIssueCards(projectDir)).toEqual({
+    expect(collectCurrentAutonomyHealthIssueCards(workspaceRoot)).toEqual({
       generatedAt: expect.any(String),
       projectionUpdatedAt: null,
       issueCards: [],
@@ -142,10 +142,10 @@ describe("current autonomy health issue cards", () => {
       current: emptyAutonomyIssueProjection(),
       observations: [present, cleared],
     }).projection;
-    materializeAutonomyIssueProjection(projectDir, projected);
+    materializeAutonomyIssueProjection(workspaceRoot, projected);
 
     expect(
-      collectCurrentAutonomyHealthIssueCards(projectDir).issueCards,
+      collectCurrentAutonomyHealthIssueCards(workspaceRoot).issueCards,
     ).toEqual([]);
   });
 });

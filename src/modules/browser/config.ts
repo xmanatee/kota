@@ -18,7 +18,7 @@ export type BrowserModuleConfig = {
    * Path to a Playwright `storageState` JSON file. When present, the
    * browser context is created with this persisted cookie/localStorage
    * snapshot so authenticated sites recognise the session. Relative paths
-   * are resolved against the project directory. The file is optional -
+   * are resolved against the scope directory. The file is optional -
    * absence falls back to an ephemeral context.
    */
   storageStatePath?: string;
@@ -116,9 +116,9 @@ function readNetworkProfile(raw: RawBrowserModuleConfig): BrowserNetworkProfile 
 
 export function resolveStorageStatePath(
   configuredPath: string | null,
-  projectDir: string,
+  scopeRoot: string,
 ): string | null {
   if (!configuredPath) return null;
   if (isAbsolute(configuredPath)) return configuredPath;
-  return resolve(projectDir, configuredPath);
+  return resolve(scopeRoot, configuredPath);
 }

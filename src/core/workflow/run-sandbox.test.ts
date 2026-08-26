@@ -55,8 +55,8 @@ afterEach(() => {
 
 describe("RunSandboxManager", () => {
   test("allocates every repository access mode in a run-owned isolated location", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const repositoryFree = manager.create({ runId: "plain", repository: "none" });
     const reader = manager.create({ runId: "reader", repository: "read" });
     const dotted = manager.create({ runId: "same.name", repository: "write" });
@@ -68,20 +68,20 @@ describe("RunSandboxManager", () => {
     expect(dotted.branch).not.toBe(dashed.branch);
     expect(dotted.targetBranch).toBe("main");
     expect(basename(dotted.workspaceDir)).toMatch(/^same-name-[0-9a-f]{64}$/);
-    expect(readFileSync(join(projectDir, "value.txt"), "utf8")).toBe("canonical\n");
-    expect(git(projectDir, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
+    expect(readFileSync(join(workspaceRoot, "value.txt"), "utf8")).toBe("canonical\n");
+    expect(git(workspaceRoot, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
   });
 
   test("reconciles crash-window sandboxes from Git facts and finishes proven cleanup", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
 
     expect(manager.reconcile("active", "write")).toEqual({ status: "absent" });
 
     const active = manager.create({ runId: "active", repository: "write" });
     const activeHead = commitValue(active.workspaceDir, "active change");
-    git(projectDir, "merge", "--ff-only", activeHead);
-    expect(new RunSandboxManager(projectDir).reconcile("active", "write")).toEqual({
+    git(workspaceRoot, "merge", "--ff-only", activeHead);
+    expect(new RunSandboxManager(workspaceRoot).reconcile("active", "write")).toEqual({
       status: "active",
       sandbox: active,
     });
@@ -89,13 +89,13 @@ describe("RunSandboxManager", () => {
     const reader = manager.create({ runId: "reader-crash", repository: "read" });
     const removed = manager.create({ runId: "removed", repository: "write" });
     const removedHead = commitValue(removed.workspaceDir, "removed change");
-    git(projectDir, "merge", "--ff-only", removedHead);
-    git(projectDir, "worktree", "remove", removed.workspaceDir);
-    expect(new RunSandboxManager(projectDir).reconcile("removed", "write")).toEqual({
+    git(workspaceRoot, "merge", "--ff-only", removedHead);
+    git(workspaceRoot, "worktree", "remove", removed.workspaceDir);
+    expect(new RunSandboxManager(workspaceRoot).reconcile("removed", "write")).toEqual({
       status: "removed",
     });
     expect(existsSync(removed.rootDir)).toBe(false);
-    expect(gitSucceeds(projectDir, "show-ref", "--verify", `refs/heads/${removed.branch}`)).toBe(
+    expect(gitSucceeds(workspaceRoot, "show-ref", "--verify", `refs/heads/${removed.branch}`)).toBe(
       false,
     );
 
@@ -106,7 +106,7 @@ describe("RunSandboxManager", () => {
 
     const unintegrated = manager.create({ runId: "orphan", repository: "write" });
     commitValue(unintegrated.workspaceDir, "orphan change");
-    git(projectDir, "worktree", "remove", unintegrated.workspaceDir);
+    git(workspaceRoot, "worktree", "remove", unintegrated.workspaceDir);
     expect(() => manager.reconcile("orphan", "write")).toThrow(/not integrated/);
     expect(existsSync(unintegrated.rootDir)).toBe(true);
 
@@ -117,13 +117,13 @@ describe("RunSandboxManager", () => {
   });
 
   test("adopts only the persisted sandbox belonging to the expected repository and lineage", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const valid = manager.create({ runId: "valid", repository: "write" });
-    expect(new RunSandboxManager(projectDir).adopt(valid)).toEqual(valid);
+    expect(new RunSandboxManager(workspaceRoot).adopt(valid)).toEqual(valid);
 
     const reader = manager.create({ runId: "moved-reader", repository: "read" });
-    const newerCanonical = commitValue(projectDir, "new canonical");
+    const newerCanonical = commitValue(workspaceRoot, "new canonical");
     git(reader.workspaceDir, "checkout", "--detach", newerCanonical);
     expect(() => manager.adopt(reader)).toThrow(/moved from its base commit/);
 
@@ -132,11 +132,11 @@ describe("RunSandboxManager", () => {
 
     const rebasing = manager.create({ runId: "rebasing", repository: "write" });
     commitValue(rebasing.workspaceDir, "branch conflict");
-    commitValue(projectDir, "canonical conflict");
+    commitValue(workspaceRoot, "canonical conflict");
     expect(gitSucceeds(rebasing.workspaceDir, "rebase", "main")).toBe(false);
-    expect(new RunSandboxManager(projectDir).adopt(rebasing)).toEqual(rebasing);
+    expect(new RunSandboxManager(workspaceRoot).adopt(rebasing)).toEqual(rebasing);
 
-    git(projectDir, "worktree", "remove", valid.workspaceDir);
+    git(workspaceRoot, "worktree", "remove", valid.workspaceDir);
     mkdirSync(valid.workspaceDir);
     git(valid.workspaceDir, "init", "-b", valid.branch);
     configureRepository(valid.workspaceDir);
@@ -144,8 +144,8 @@ describe("RunSandboxManager", () => {
   });
 
   test("preserves dirty, unintegrated, and unverifiable repository work", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const dirty = manager.create({ runId: "dirty", repository: "write" });
     writeFileSync(join(dirty.workspaceDir, "value.txt"), "dirty\n");
     expect(manager.cleanup(dirty)).toEqual({
@@ -173,13 +173,13 @@ describe("RunSandboxManager", () => {
   });
 
   test("removes only repository work proven safe and integrated", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const repositoryFree = manager.create({ runId: "plain", repository: "none" });
     const reader = manager.create({ runId: "reader", repository: "read" });
     const writer = manager.create({ runId: "writer", repository: "write" });
     const writerHead = commitValue(writer.workspaceDir, "integrated");
-    git(projectDir, "merge", "--ff-only", writerHead);
+    git(workspaceRoot, "merge", "--ff-only", writerHead);
 
     expect(manager.cleanup(repositoryFree)).toEqual({ cleaned: true, blockers: [] });
     expect(manager.cleanup(reader)).toEqual({ cleaned: true, blockers: [] });
@@ -187,27 +187,27 @@ describe("RunSandboxManager", () => {
     expect(existsSync(repositoryFree.rootDir)).toBe(false);
     expect(existsSync(reader.workspaceDir)).toBe(false);
     expect(existsSync(writer.workspaceDir)).toBe(false);
-    expect(gitSucceeds(projectDir, "show-ref", "--verify", `refs/heads/${writer.branch}`)).toBe(
+    expect(gitSucceeds(workspaceRoot, "show-ref", "--verify", `refs/heads/${writer.branch}`)).toBe(
       false,
     );
   });
 
   test("keeps the writer bound to its original target branch across branch switches", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const writer = manager.create({ runId: "writer-target", repository: "write" });
     const writerHead = commitValue(writer.workspaceDir, "integrated on main");
-    git(projectDir, "merge", "--ff-only", writerHead);
-    git(projectDir, "switch", "-c", "owner-work");
+    git(workspaceRoot, "merge", "--ff-only", writerHead);
+    git(workspaceRoot, "switch", "-c", "owner-work");
 
-    expect(new RunSandboxManager(projectDir).adopt(writer)).toEqual(writer);
+    expect(new RunSandboxManager(workspaceRoot).adopt(writer)).toEqual(writer);
     expect(manager.cleanup(writer)).toEqual({ cleaned: true, blockers: [] });
-    expect(git(projectDir, "branch", "--show-current")).toBe("owner-work");
+    expect(git(workspaceRoot, "branch", "--show-current")).toBe("owner-work");
   });
 
   test("refuses persisted paths that escape or impersonate another run allocation", () => {
-    const projectDir = createRepository();
-    const manager = new RunSandboxManager(projectDir);
+    const workspaceRoot = createRepository();
+    const manager = new RunSandboxManager(workspaceRoot);
     const sandbox = manager.create({ runId: "owned", repository: "none" });
     const other = manager.create({ runId: "other", repository: "none" });
 

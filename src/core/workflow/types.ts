@@ -19,9 +19,9 @@ export type WorkflowDefinitionInput = {
    * Absolute path to the root of the module that ships this workflow. Relative
    * paths inside the definition (notably `promptPath`) are resolved against
    * this root so a workflow can be contributed by a module whose source lives
-   * outside the daemon's current `projectDir` (e.g. KOTA's own autonomy
-   * workflows while the daemon is pointed at an external project).
-   * When omitted, the loader falls back to the daemon's project directory.
+   * outside the daemon's current `workspaceRoot` (e.g. KOTA's own autonomy
+   * workflows while the daemon is pointed at an external scope).
+   * When omitted, the loader falls back to the daemon's scope directory.
    */
   moduleRoot?: string;
   /**
@@ -90,9 +90,9 @@ export type WorkflowIntegrationPolicy = Readonly<{
 
 export type WorkflowPostReconcileInvariantInput = Readonly<{
   /** Reconciled writer workspace at `head`. */
-  projectDir: string;
+  workspaceRoot: string;
   /** Clean canonical repository at `canonicalHead`. */
-  scopeDir: string;
+  repoRoot: string;
   /** Canonical durable runtime-state directory for this scope. */
   stateDir: string;
   workflowName: string;
@@ -111,7 +111,7 @@ export type WorkflowPostReconcileInvariant = (
 ) => WorkflowPostReconcileInvariantResult;
 
 export type WorkflowResourceInput = {
-  projectDir: string;
+  scopeRoot: string;
   /** Canonical durable runtime-state directory for this scope. */
   stateDir: string;
   workflowName: string;
@@ -123,7 +123,7 @@ export type WorkflowResourceResolver = (
 ) => readonly string[];
 
 export type WorkflowTriggerAdmissionInput = {
-  projectDir: string;
+  scopeRoot: string;
   stateDir: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;
@@ -138,7 +138,7 @@ export type WorkflowTriggerAdmissionResolver = (
   input: WorkflowTriggerAdmissionInput,
 ) => WorkflowTriggerAdmissionDecision;
 
-export type WorkflowContributionSource = "project" | "installed" | "foreign";
+export type WorkflowContributionSource = "bundled" | "installed" | "foreign";
 
 export type RegisteredWorkflowDefinitionInput = WorkflowDefinitionInput & {
   definitionPath: string;
@@ -154,7 +154,7 @@ export type RegisteredWorkflowDefinitionInput = WorkflowDefinitionInput & {
    * produce actionable error messages on name collisions.
    *
    * - `"project"` — KOTA's own `src/modules/*` tree.
-   * - `"installed"` — the target project's `<projectDir>/.kota/modules/*`.
+   * - `"installed"` — the target scope's `<workspaceRoot>/.kota/modules/*`.
    * - `"foreign"` — a module registered via `foreignModules` in config.
    */
   moduleSource?: WorkflowContributionSource;
@@ -169,7 +169,7 @@ export type WorkflowDefinition = {
    * Absolute filesystem root of the module that ships this workflow. Populated
    * by the loader (or the module itself) and used at runtime to resolve
    * `promptPath` values against KOTA's own install tree even when the daemon
-   * is pointed at an external project directory.
+   * is pointed at an external scope directory.
    */
   moduleRoot: string;
   /**

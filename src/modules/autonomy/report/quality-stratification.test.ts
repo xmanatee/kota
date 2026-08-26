@@ -17,18 +17,18 @@ import {
   WINDOW_START,
 } from "./quality-stratification.test-helpers.js";
 
-let projectDir: string;
+let workspaceRoot: string;
 let runsDir: string;
 
 describe("quality stratification", () => {
   beforeEach(() => {
-    projectDir = join(tmpdir(), `quality-stratification-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = join(tmpdir(), `quality-stratification-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("keeps pooled review trends separate from workflow composition shifts", () => {

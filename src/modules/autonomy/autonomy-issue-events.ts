@@ -1,4 +1,4 @@
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 import type { AutonomyIssueTransitionKind } from "./autonomy-issue-projection.js";
 
 export type AutonomyIssueDecisionRequest = {
@@ -10,7 +10,7 @@ export type AutonomyIssueDecisionRequest = {
 };
 
 export const autonomyIssueDecisionRequested =
-  defineProjectScopedModuleEvent<AutonomyIssueDecisionRequest>(
+  defineScopedModuleEvent<AutonomyIssueDecisionRequest>(
     "autonomy.issue.decision-requested",
     [
       "issueKey",

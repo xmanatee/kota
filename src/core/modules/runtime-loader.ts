@@ -16,9 +16,9 @@
  */
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { discoverBundledModules } from "./bundled-module-discovery.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
-import { discoverProjectModules } from "./project-discovery.js";
 
 export type RuntimeLoaderOptions = {
   config: KotaConfig;
@@ -48,11 +48,11 @@ export async function loadRuntimeModules(
   });
   loader.setCwd(options.cwd);
   loader.setBus(options.eventBus);
-  const projectModules = await discoverProjectModules();
+  const bundledModules = await discoverBundledModules();
   const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
   const installedModules = await discoverModules(installedModuleSourceDir, verbose, {
     globalConfigPath: options.globalConfigPath,
   });
-  await loader.loadAll(projectModules, installedModules);
+  await loader.loadAll(bundledModules, installedModules);
   return loader;
 }

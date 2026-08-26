@@ -50,10 +50,10 @@ export class ScopeAuthorityService implements ScopePolicyAuthority {
   ) {}
 
   inspect(scopeId: ScopeId): ScopeAuthorityView | ScopeAuthorityFailure {
-    const project = this.registry.get(scopeId);
-    if (!project) return unknownScope(scopeId);
+    const scope = this.registry.get(scopeId);
+    if (!scope) return unknownScope(scopeId);
     try {
-      return scopeAuthorityViewFor(this.registry, project, this.persistence.read());
+      return scopeAuthorityViewFor(this.registry, scope, this.persistence.read());
     } catch (error) {
       return persistenceFailure(scopeId, error);
     }
@@ -123,7 +123,7 @@ export class ScopeAuthorityService implements ScopePolicyAuthority {
         return {
           ok: true,
           status: "unchanged",
-          authority: scopeAuthorityViewFor(this.registry, prepared.project, prepared.current),
+          authority: scopeAuthorityViewFor(this.registry, prepared.scope, prepared.current),
         };
       }
 
@@ -158,7 +158,7 @@ export class ScopeAuthorityService implements ScopePolicyAuthority {
       return {
         ok: true,
         status: "applied",
-        authority: scopeAuthorityViewFor(this.registry, prepared.project, committed),
+        authority: scopeAuthorityViewFor(this.registry, prepared.scope, committed),
         auditRecord,
       };
     });
@@ -186,18 +186,18 @@ export class ScopeAuthorityService implements ScopePolicyAuthority {
     previousState: ScopeAuthorityStoredState,
     currentState: ScopeAuthorityStoredState,
   ): void {
-    for (const project of this.registry.list()) {
-      const listeners = this.restrictiveChangeListeners.get(project.projectId);
+    for (const scope of this.registry.list()) {
+      const listeners = this.restrictiveChangeListeners.get(scope.scopeId);
       if (listeners === undefined || listeners.size === 0) continue;
-      const previousView = scopeAuthorityViewFor(this.registry, project, previousState);
-      const currentView = scopeAuthorityViewFor(this.registry, project, currentState);
+      const previousView = scopeAuthorityViewFor(this.registry, scope, previousState);
+      const currentView = scopeAuthorityViewFor(this.registry, scope, currentState);
       const restrictiveAreas = scopePolicyRestrictiveAreas(
         previousView.resolvedPolicy,
         currentView.resolvedPolicy,
       );
       if (restrictiveAreas.length === 0) continue;
       const change: RestrictiveScopePolicyChange = {
-        scopeId: project.projectId,
+        scopeId: scope.scopeId,
         previous: {
           revision: previousView.revision,
           policy: previousView.resolvedPolicy,

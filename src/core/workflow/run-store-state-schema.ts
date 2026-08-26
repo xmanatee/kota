@@ -224,8 +224,6 @@ function isWorkflowBatchBufferState(
     value.sourceEventName.trim().length > 0 &&
     typeof value.scopeId === "string" &&
     value.scopeId.trim().length > 0 &&
-    typeof value.projectId === "string" &&
-    value.projectId === value.scopeId &&
     typeof value.groupingKey === "string" &&
     value.groupingKey.trim().length > 0 &&
     Array.isArray(value.groupValues) &&

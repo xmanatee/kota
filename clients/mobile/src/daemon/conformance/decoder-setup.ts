@@ -30,7 +30,7 @@ export const SETUP_STATES = [
   "unknown",
   "unavailable",
 ] as const;
-const SETUP_SCOPES = ["project", "global"] as const;
+const SETUP_SCOPES = ["scope", "global"] as const;
 const SETUP_MODES = ["form", "url", "none"] as const;
 const SETUP_FIELD_TYPES = ["string", "number", "boolean"] as const;
 const SETUP_FIELD_VALUE_KINDS = ["secret-reference"] as const;

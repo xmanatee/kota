@@ -41,7 +41,7 @@ const inspectWorktree = typedCodeStep<WorktreeInspection>({
   validate: (raw) => expectStructuredOutput<WorktreeInspection>(raw, ["dirty"]),
   run: async (ctx) => {
     const worktree = await ctx.runBlocking(repoWorktreeStatusOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
     });
     return { dirty: worktree.available && worktree.dirty };
   },
@@ -65,7 +65,7 @@ const stageActions = typedCodeStep<StageHealthReviewActionsOutput>({
     const output = await ctx.runBlocking(
       stageAutonomyHealthReviewActionsOperation,
       {
-        projectDir: ctx.projectDir,
+        workspaceRoot: ctx.workspaceRoot,
         currentProjection: projection,
         review,
       },

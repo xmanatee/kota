@@ -59,22 +59,22 @@ type GitOutput = {
 };
 
 export class WorkspaceChangeCommandError extends Error {
-  readonly projectDir: string;
+  readonly workspaceRoot: string;
   readonly args: readonly string[];
   readonly exitCode: number | null;
 
   constructor(args: {
-    projectDir: string;
+    workspaceRoot: string;
     gitArgs: readonly string[];
     exitCode: number | null;
     detail: string;
   }) {
     super(
-      `Git workspace evidence command failed in ${args.projectDir} ` +
+      `Git workspace evidence command failed in ${args.workspaceRoot} ` +
         `(${JSON.stringify(["git", ...args.gitArgs])}): ${args.detail}`,
     );
     this.name = "WorkspaceChangeCommandError";
-    this.projectDir = args.projectDir;
+    this.workspaceRoot = args.workspaceRoot;
     this.args = [...args.gitArgs];
     this.exitCode = args.exitCode;
   }
@@ -148,13 +148,13 @@ function commandFailureDetail(stderr: Buffer, fallback: string): string {
 }
 
 function runGit(
-  projectDir: string,
+  workspaceRoot: string,
   args: readonly string[],
   acceptedExitCodes: readonly number[],
   maxOutputBytes: number,
 ): GitOutput {
   const result = spawnSync("git", [...args], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "buffer",
     maxBuffer: Math.max(maxOutputBytes + 1, MIN_GIT_BUFFER_BYTES),
@@ -164,7 +164,7 @@ function runGit(
     result.error !== undefined && isOutputBufferError(result.error);
   if (result.error !== undefined && !outputBufferError) {
     throw new WorkspaceChangeCommandError({
-      projectDir,
+      workspaceRoot,
       gitArgs: args,
       exitCode: result.status,
       detail: result.error.message,
@@ -172,7 +172,7 @@ function runGit(
   }
   if (!outputBufferError && !acceptedExitCodes.includes(result.status ?? -1)) {
     throw new WorkspaceChangeCommandError({
-      projectDir,
+      workspaceRoot,
       gitArgs: args,
       exitCode: result.status,
       detail: commandFailureDetail(
@@ -190,11 +190,11 @@ function runGit(
 }
 
 function runGitComplete(
-  projectDir: string,
+  workspaceRoot: string,
   args: readonly string[],
   maxOutputBytes: number,
 ): Buffer {
-  const output = runGit(projectDir, args, [0], maxOutputBytes);
+  const output = runGit(workspaceRoot, args, [0], maxOutputBytes);
   if (output.truncated) {
     throw new WorkspaceChangeOutputLimitError("changed-paths", maxOutputBytes);
   }
@@ -249,12 +249,12 @@ function compareChanges(a: WorkspaceChange, b: WorkspaceChange): number {
 }
 
 function readWorkspaceChangesWithOptions(
-  projectDir: string,
+  workspaceRoot: string,
   options: ResolvedWorkspaceChangeEvidenceOptions,
 ): WorkspaceChange[] {
   const tracked = parseTrackedChanges(
     runGitComplete(
-      projectDir,
+      workspaceRoot,
       [
         "diff",
         "--name-status",
@@ -270,7 +270,7 @@ function readWorkspaceChangesWithOptions(
   const trackedPaths = new Set(tracked.map((change) => change.path));
   const untracked = nulRecords(
     runGitComplete(
-      projectDir,
+      workspaceRoot,
       [
         "ls-files",
         "--others",
@@ -292,7 +292,7 @@ function readWorkspaceChangesWithOptions(
 }
 
 function collectBoundedOutput(args: {
-  projectDir: string;
+  workspaceRoot: string;
   limitBytes: number;
   commands: readonly {
     args: readonly string[];
@@ -310,7 +310,7 @@ function collectBoundedOutput(args: {
       break;
     }
     const output = runGit(
-      args.projectDir,
+      args.workspaceRoot,
       command.args,
       command.acceptedExitCodes,
       remainingBytes,
@@ -342,7 +342,7 @@ function untrackedPaths(changes: readonly WorkspaceChange[]): string[] {
 }
 
 function readUnifiedDiffWithOptions(
-  projectDir: string,
+  workspaceRoot: string,
   changes: readonly WorkspaceChange[],
   options: ResolvedWorkspaceChangeEvidenceOptions,
 ): BoundedWorkspaceChangeOutput {
@@ -376,14 +376,14 @@ function readUnifiedDiffWithOptions(
     })),
   ];
   return collectBoundedOutput({
-    projectDir,
+    workspaceRoot,
     limitBytes: options.limits.diffBytes,
     commands,
   });
 }
 
 function readDiffStatWithOptions(
-  projectDir: string,
+  workspaceRoot: string,
   changes: readonly WorkspaceChange[],
   options: ResolvedWorkspaceChangeEvidenceOptions,
 ): BoundedWorkspaceChangeOutput {
@@ -417,46 +417,46 @@ function readDiffStatWithOptions(
     })),
   ];
   return collectBoundedOutput({
-    projectDir,
+    workspaceRoot,
     limitBytes: options.limits.statBytes,
     commands,
   });
 }
 
 export function readWorkspaceChanges(
-  projectDir: string,
+  workspaceRoot: string,
   pathspecs: readonly string[] = ["."],
 ): readonly WorkspaceChange[] {
-  return readWorkspaceChangesWithOptions(projectDir, resolveOptions({ pathspecs }));
+  return readWorkspaceChangesWithOptions(workspaceRoot, resolveOptions({ pathspecs }));
 }
 
 export function readWorkspaceUnifiedDiff(
-  projectDir: string,
+  workspaceRoot: string,
   options: WorkspaceChangeEvidenceOptions = {},
 ): BoundedWorkspaceChangeOutput {
   const resolved = resolveOptions(options);
-  const changes = readWorkspaceChangesWithOptions(projectDir, resolved);
-  return readUnifiedDiffWithOptions(projectDir, changes, resolved);
+  const changes = readWorkspaceChangesWithOptions(workspaceRoot, resolved);
+  return readUnifiedDiffWithOptions(workspaceRoot, changes, resolved);
 }
 
 export function readWorkspaceDiffStat(
-  projectDir: string,
+  workspaceRoot: string,
   options: WorkspaceChangeEvidenceOptions = {},
 ): BoundedWorkspaceChangeOutput {
   const resolved = resolveOptions(options);
-  const changes = readWorkspaceChangesWithOptions(projectDir, resolved);
-  return readDiffStatWithOptions(projectDir, changes, resolved);
+  const changes = readWorkspaceChangesWithOptions(workspaceRoot, resolved);
+  return readDiffStatWithOptions(workspaceRoot, changes, resolved);
 }
 
 export function readWorkspaceChangeEvidence(
-  projectDir: string,
+  workspaceRoot: string,
   options: WorkspaceChangeEvidenceOptions = {},
 ): WorkspaceChangeEvidence {
   const resolved = resolveOptions(options);
-  const changes = readWorkspaceChangesWithOptions(projectDir, resolved);
+  const changes = readWorkspaceChangesWithOptions(workspaceRoot, resolved);
   return {
     changes,
-    diff: readUnifiedDiffWithOptions(projectDir, changes, resolved),
-    stat: readDiffStatWithOptions(projectDir, changes, resolved),
+    diff: readUnifiedDiffWithOptions(workspaceRoot, changes, resolved),
+    stat: readDiffStatWithOptions(workspaceRoot, changes, resolved),
   };
 }

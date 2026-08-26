@@ -18,7 +18,7 @@ export function configRequirement(): ModuleSetupConfigRequirement {
     id: "endpoint",
     title: "Endpoint",
     required: true,
-    scope: "project",
+    scope: "scope",
   };
 
   return {
@@ -48,7 +48,7 @@ export function oauthRequirement(
     kind: "oauth",
     title: "OAuth connection",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "oauth",
     reauth: true,
     ...(options.withHealth && {
@@ -60,7 +60,7 @@ export function oauthRequirement(
       label: "Open OAuth",
       pendingTtlMs: 1000,
     },
-    secretRefs: [{ name: "DEMO_REFRESH_TOKEN", scope: "project" }],
+    secretRefs: [{ name: "DEMO_REFRESH_TOKEN", scope: "scope" }],
   };
 }
 
@@ -82,7 +82,7 @@ export function capabilityRequirement(): ModuleSetupCapabilityRequirement {
     kind: "capability",
     title: "Runtime capability",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "none",
     setup: { mode: "none" },
     capabilityIds: ["demo.runtime"],
@@ -90,7 +90,7 @@ export function capabilityRequirement(): ModuleSetupCapabilityRequirement {
 }
 
 export type ModuleSetupTestHarness = {
-  readonly projectDir: string;
+  readonly scopeRoot: string;
   setup(): void;
   cleanup(): void;
   service(requirements: ModuleSetupRequirement[]): ModuleSetupService;
@@ -99,28 +99,28 @@ export type ModuleSetupTestHarness = {
 };
 
 export function createModuleSetupTestHarness(): ModuleSetupTestHarness {
-  let projectDir: string | undefined;
+  let scopeRoot: string | undefined;
   let operatorDir: string | undefined;
   let authorityConfigPath: string | undefined;
   let now = new Date("2026-01-01T00:00:00.000Z");
   let capabilities: ModuleSetupCapabilityStatus[] = [];
 
-  const initializedProjectDir = (): string => {
-    if (projectDir === undefined) throw new Error("Module setup test harness is not initialized");
-    return projectDir;
+  const initializedScopeRoot = (): string => {
+    if (scopeRoot === undefined) throw new Error("Module setup test harness is not initialized");
+    return scopeRoot;
   };
 
   return {
-    get projectDir() {
-      return initializedProjectDir();
+    get scopeRoot() {
+      return initializedScopeRoot();
     },
     setup() {
-      projectDir = mkdtempSync(join(tmpdir(), "kota-setup-"));
+      scopeRoot = mkdtempSync(join(tmpdir(), "kota-setup-"));
       operatorDir = mkdtempSync(join(tmpdir(), "kota-setup-authority-"));
       authorityConfigPath = join(operatorDir, "config.json");
       writeFileSync(
         authorityConfigPath,
-        JSON.stringify({ trustedProjects: [projectDir] }),
+        JSON.stringify({ trustedScopes: [scopeRoot] }),
       );
       now = new Date("2026-01-01T00:00:00.000Z");
       capabilities = [];
@@ -128,9 +128,9 @@ export function createModuleSetupTestHarness(): ModuleSetupTestHarness {
     },
     cleanup() {
       resetSecretStores();
-      if (projectDir !== undefined) rmSync(projectDir, { recursive: true, force: true });
+      if (scopeRoot !== undefined) rmSync(scopeRoot, { recursive: true, force: true });
       if (operatorDir !== undefined) rmSync(operatorDir, { recursive: true, force: true });
-      projectDir = undefined;
+      scopeRoot = undefined;
       operatorDir = undefined;
       authorityConfigPath = undefined;
     },
@@ -139,7 +139,7 @@ export function createModuleSetupTestHarness(): ModuleSetupTestHarness {
         (requirement) => ({ moduleName: "demo", requirement }),
       );
       return new ModuleSetupService({
-        projectDir: initializedProjectDir(),
+        scopeRoot: initializedScopeRoot(),
         authorityConfigPath,
         getRequirements: () => contributions,
         probeCapabilities: async () => capabilities,

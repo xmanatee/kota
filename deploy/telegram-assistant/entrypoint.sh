@@ -3,16 +3,16 @@
 
 set -euo pipefail
 
-PROJECT_DIR="${KOTA_PROJECT_DIR:-/var/lib/kota}"
+SCOPE_ROOT="${KOTA_SCOPE_ROOT:-/var/lib/kota}"
 
-mkdir -p "$PROJECT_DIR/.kota"
+mkdir -p "$SCOPE_ROOT/.kota"
 
 node <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 
-const projectDir = process.env.KOTA_PROJECT_DIR || "/var/lib/kota";
-const configPath = path.join(projectDir, ".kota", "config.json");
+const scopeRoot = process.env.KOTA_SCOPE_ROOT || "/var/lib/kota";
+const configPath = path.join(scopeRoot, ".kota", "config.json");
 
 function readExistingConfig() {
   if (!fs.existsSync(configPath)) return {};
@@ -34,11 +34,11 @@ function readCsvIntegers(value, name) {
 
 const config = readExistingConfig();
 
-const trustedProjects = Array.isArray(config.trustedProjects)
-  ? config.trustedProjects.filter((entry) => typeof entry === "string")
+const trustedScopes = Array.isArray(config.trustedScopes)
+  ? config.trustedScopes.filter((entry) => typeof entry === "string")
   : [];
-if (!trustedProjects.includes(projectDir)) {
-  config.trustedProjects = [...trustedProjects, projectDir];
+if (!trustedScopes.includes(scopeRoot)) {
+  config.trustedScopes = [...trustedScopes, scopeRoot];
 }
 
 if (process.env.KOTA_MODEL) {

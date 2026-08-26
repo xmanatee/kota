@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   getOwnerQuestionQueue,
   OwnerQuestionQueue,
@@ -17,7 +17,7 @@ function makeQueue(dir: string): OwnerQuestionQueue {
   bus.on("*", (envelope) => {
     received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
   });
-  return new OwnerQuestionQueue(dir, new ProjectScopedEventBus(bus, "test-project"));
+  return new OwnerQuestionQueue(dir, new ScopedEventBus(bus, "test-scope"));
 }
 
 function validEnqueue(overrides: Partial<Parameters<OwnerQuestionQueue["enqueue"]>[0]> = {}) {
@@ -223,7 +223,7 @@ describe("OwnerQuestionQueue", () => {
       const asked = received.filter(({ event }) => event === "owner.question.asked");
       expect(asked).toHaveLength(1);
       expect(asked[0]?.payload).toMatchObject({
-        projectId: "test-project",
+        scopeId: "test-scope",
         id: item.id,
         source: "session-42",
         context: item.context,
@@ -242,7 +242,7 @@ describe("OwnerQuestionQueue", () => {
       queue.answer(item.id, "yes");
       const changed = received.filter(({ event }) => event === "owner.question.changed");
       expect(changed).toHaveLength(1);
-      expect(changed[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, pendingCount: 0 });
+      expect(changed[0]?.payload).toEqual({ scopeId: "test-scope", id: item.id, pendingCount: 0 });
     });
 
     it("emits owner.question.resolved with answered=true on answer", () => {
@@ -251,7 +251,7 @@ describe("OwnerQuestionQueue", () => {
       queue.answer(item.id, "yes");
       const resolved = received.filter(({ event }) => event === "owner.question.resolved");
       expect(resolved).toHaveLength(1);
-      expect(resolved[0]?.payload).toMatchObject({ projectId: "test-project", id: item.id, answered: true, answer: "yes" });
+      expect(resolved[0]?.payload).toMatchObject({ scopeId: "test-scope", id: item.id, answered: true, answer: "yes" });
     });
 
     it("emits owner.question.resolved with answered=false on dismiss", () => {
@@ -261,7 +261,7 @@ describe("OwnerQuestionQueue", () => {
       const resolved = received.filter(({ event }) => event === "owner.question.resolved");
       expect(resolved).toHaveLength(1);
       expect(resolved[0]?.payload).toMatchObject({
-        projectId: "test-project",
+        scopeId: "test-scope",
         id: item.id,
         answered: false,
         answer: "",
@@ -274,7 +274,7 @@ describe("OwnerQuestionQueue", () => {
       queue.dismiss(item.id, "no longer needed");
       const dismissed = received.filter(({ event }) => event === "owner.question.dismissed");
       expect(dismissed).toHaveLength(1);
-      expect(dismissed[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, reason: "no longer needed" });
+      expect(dismissed[0]?.payload).toEqual({ scopeId: "test-scope", id: item.id, reason: "no longer needed" });
     });
 
     it("emits owner.question.expired on expireStale", () => {
@@ -286,7 +286,7 @@ describe("OwnerQuestionQueue", () => {
       queue.expireStale();
       const expired = received.filter(({ event }) => event === "owner.question.expired");
       expect(expired).toHaveLength(1);
-      expect(expired[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", id: item.id, defaultResolution: "dismiss" });
+      expect(expired[0]?.payload).toEqual({ scopeId: "test-scope", id: item.id, defaultResolution: "dismiss" });
     });
   });
 });

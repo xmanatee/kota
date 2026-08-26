@@ -82,7 +82,6 @@ describe("workflow explain command", () => {
       ],
       redactedSamplePayload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         accessToken: "[redacted]",
       },
@@ -109,7 +108,6 @@ describe("workflow explain command", () => {
         "--payload",
         JSON.stringify({
           scopeId: "scope-a",
-          projectId: "scope-a",
           channel: "telegram",
           accessToken: "secret-token",
         }),
@@ -127,7 +125,6 @@ describe("workflow explain command", () => {
         event: "inbound.signal.received",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           channel: "telegram",
           accessToken: "secret-token",
         },

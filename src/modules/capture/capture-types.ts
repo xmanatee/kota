@@ -12,7 +12,7 @@
  * so adding a fifth store is a registration, not an enum edit.
  */
 
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -53,9 +53,9 @@ export const CAPTURE_TARGET_ORDER: ReadonlyArray<CaptureTarget> = [
   "inbox",
 ] as const;
 
-export type CaptureProjectContext = {
-  projectId: ProjectId;
-  projectDir: string;
+export type CaptureScopeContext = {
+  scopeId: ScopeId;
+  scopeRoot: string;
   memory: MemoryProvider;
   knowledge: KnowledgeProvider;
 };
@@ -68,7 +68,7 @@ export type CaptureProjectContext = {
 export type CaptureContributorInput = {
   text: string;
   hint?: string;
-  project?: CaptureProjectContext;
+  scope?: CaptureScopeContext;
 };
 
 /**
@@ -116,7 +116,7 @@ export interface CaptureProvider {
   capture(
     text: string,
     filter?: CaptureFilter,
-    project?: CaptureProjectContext,
+    scope?: CaptureScopeContext,
   ): Promise<CaptureResult>;
 }
 

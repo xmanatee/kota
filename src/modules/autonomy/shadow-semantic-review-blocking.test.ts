@@ -11,10 +11,10 @@ import {
 
 describe("shadow semantic review blocking mode", () => {
   it("requires a promoted autonomy-change decision before blocking mode", async () => {
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
     await expect(
       runShadowSemanticReview({
-        ctx: makeShadowReviewContext(projectDir, runDirPath),
+        ctx: makeShadowReviewContext(workspaceRoot, runDirPath),
         declaration: baseShadowReviewDeclaration({ mode: "blocking" }),
         invoker: async () => {
           throw new Error("invoker should not run without promotion evidence");
@@ -24,8 +24,8 @@ describe("shadow semantic review blocking mode", () => {
   });
 
   it("lets validated blocking mode reject the workflow target", async () => {
-    const { projectDir, runDirPath } = makeShadowReviewDirs();
-    const decisionPath = join(projectDir, ".kota", "runs", "decision", "autonomy-change-decision.json");
+    const { workspaceRoot, runDirPath } = makeShadowReviewDirs();
+    const decisionPath = join(workspaceRoot, ".kota", "runs", "decision", "autonomy-change-decision.json");
     writeAutonomyChangeDecisionArtifact(decisionPath, {
       schemaVersion: 1,
       artifactType: "autonomy-change-decision",
@@ -57,7 +57,7 @@ describe("shadow semantic review blocking mode", () => {
 
     await expect(
       runShadowSemanticReview({
-        ctx: makeShadowReviewContext(projectDir, runDirPath),
+        ctx: makeShadowReviewContext(workspaceRoot, runDirPath),
         declaration: baseShadowReviewDeclaration({
           mode: "blocking",
           blockingDecisionArtifact: ".kota/runs/decision/autonomy-change-decision.json",

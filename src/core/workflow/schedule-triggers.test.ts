@@ -24,14 +24,14 @@ function makeDefinition(
 }
 
 describe("ScheduleTriggerManager", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let manager: ScheduleTriggerManager;
   let enqueuedRuns: WorkflowRunTrigger[];
   let startNextCount: number;
   let isStopping: boolean;
 
   function makeManager(isDefaultScopeRuntime = true): ScheduleTriggerManager {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     return new ScheduleTriggerManager(
       store,
       () => isStopping,
@@ -47,7 +47,7 @@ describe("ScheduleTriggerManager", () => {
   }
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-schedule-triggers-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-schedule-triggers-"));
     enqueuedRuns = [];
     startNextCount = 0;
     isStopping = false;
@@ -56,7 +56,7 @@ describe("ScheduleTriggerManager", () => {
 
   afterEach(() => {
     manager.clearAll();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("queues scheduled runs with the configured trigger event name", async () => {
@@ -109,7 +109,7 @@ describe("ScheduleTriggerManager", () => {
   });
 
   it("clears stale schedule state when a workflow is disabled", () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     store.setWorkflowNextScheduledAt(
       "global-review",
       new Date(Date.now() + 60_000).toISOString(),

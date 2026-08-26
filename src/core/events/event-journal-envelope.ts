@@ -99,19 +99,11 @@ function resolveEnvelopeScope(
   scopeLineage: (scopeId: string) => readonly string[],
 ): EventEnvelopeScope {
   const scopeId = readString(payload, "scopeId");
-  const projectId = readString(payload, "projectId");
-  if (scopeId !== undefined && projectId !== undefined && scopeId !== projectId) {
-    throw new Error(
-      `Event envelope scope conflict: scopeId=${scopeId}, projectId=${projectId}`,
-    );
-  }
-  const resolved = scopeId ?? projectId;
-  if (resolved === undefined) return { kind: "daemon" };
+  if (scopeId === undefined) return { kind: "daemon" };
   return {
     kind: "scope",
-    scopeId: resolved,
-    projectId: resolved,
-    lineage: scopeLineage(resolved),
+    scopeId,
+    lineage: scopeLineage(scopeId),
   };
 }
 

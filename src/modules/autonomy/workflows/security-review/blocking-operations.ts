@@ -13,7 +13,7 @@ import {
 } from "./security-review.js";
 
 type SecurityReviewScanOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runDirPath: string;
   trigger: Pick<WorkflowRunTrigger, "event" | "payload">;
 };
@@ -22,7 +22,7 @@ export function scanSecurityReviewCandidatesInWorker(
   input: SecurityReviewScanOperationInput,
 ): SecurityReviewCandidatePacket {
   return scanAndWriteSecurityReviewCandidates(
-    input.projectDir,
+    input.workspaceRoot,
     input.runDirPath,
     {
       maxCandidates: SECURITY_REVIEW_MAX_CANDIDATES,
@@ -30,7 +30,7 @@ export function scanSecurityReviewCandidatesInWorker(
       dueTargets:
         input.trigger.event === SECURITY_REVIEW_DUE_EVENT
           ? securityReviewDueTargetsFromPayload(
-              input.projectDir,
+              input.workspaceRoot,
               input.trigger.payload,
             )
           : [],
@@ -39,11 +39,11 @@ export function scanSecurityReviewCandidatesInWorker(
 }
 
 export function createSecurityFindingTasksInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   findings: SecurityRevalidationOutput["findings"];
 }): SecurityFindingTaskResult {
-  return createOrUpdateSecurityFindingTasks(input.projectDir, {
+  return createOrUpdateSecurityFindingTasks(input.workspaceRoot, {
     runId: input.runId,
     findings: input.findings,
   });
@@ -58,7 +58,7 @@ export const securityReviewCandidateScanOperation =
 export const createSecurityFindingTasksOperation =
   defineWorkflowBlockingOperation<
     {
-      projectDir: string;
+      workspaceRoot: string;
       runId: string;
       findings: SecurityRevalidationOutput["findings"];
     },

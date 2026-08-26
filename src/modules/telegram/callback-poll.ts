@@ -186,7 +186,7 @@ async function handleOwnerAnswerCallback(
   const answerText = answers[answerIdx];
   const mutate = client
     ? info
-      ? await client.forProject(info.projectId).ownerQuestions.answer(questionId, answerText)
+      ? await client.forScope(info.scopeId).ownerQuestions.answer(questionId, answerText)
       : { ok: false as const, reason: "not_found" as const }
     : (() => {
         const resolved = getOwnerQuestionQueue().answer(questionId, answerText, "telegram-inline");
@@ -229,7 +229,7 @@ async function handleOwnerDismissCallback(
   const info = pending.get(questionId);
   const mutate = client
     ? info
-      ? await client.forProject(info.projectId).ownerQuestions.dismiss(questionId)
+      ? await client.forScope(info.scopeId).ownerQuestions.dismiss(questionId)
       : { ok: false as const, reason: "not_found" as const }
     : (() => {
         const resolved = getOwnerQuestionQueue().dismiss(questionId, undefined, "telegram-inline");

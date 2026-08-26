@@ -18,15 +18,15 @@ describe("StandaloneRunHost", () => {
   ): StandaloneRunHost {
     const root = mkdtempSync(join(tmpdir(), "kota-standalone-nested-host-"));
     cleanup.push(root);
-    const projectDir = join(root, "project");
-    mkdirSync(projectDir);
+    const workspaceRoot = join(root, "project");
+    mkdirSync(workspaceRoot);
     initProviderRegistry();
 
     return new StandaloneRunHost({
       stateDir: join(root, "state"),
-      project: {
-        projectId: "standalone-nested-test",
-        projectDir,
+      scope: {
+        scopeId: "standalone-nested-test",
+        scopeRoot: workspaceRoot,
         displayName: "Standalone nested test",
       },
       bus: new EventBus(),
@@ -35,7 +35,7 @@ describe("StandaloneRunHost", () => {
         {
           name: "parent-run",
           enabled: true,
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           definitionPath: "standalone-parent-test",
           repository: "none",
           tags: [],
@@ -51,7 +51,7 @@ describe("StandaloneRunHost", () => {
         {
           name: "child-run",
           enabled: true,
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           definitionPath: "standalone-child-test",
           repository: "none",
           tags: [],
@@ -76,23 +76,23 @@ describe("StandaloneRunHost", () => {
   it("admits an explicit workflow and returns its durable terminal result", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-standalone-host-"));
     cleanup.push(root);
-    const projectDir = join(root, "project");
+    const workspaceRoot = join(root, "project");
     const stateDir = join(root, "state");
-    mkdirSync(projectDir);
+    mkdirSync(workspaceRoot);
     initProviderRegistry();
 
     const host = new StandaloneRunHost({
       stateDir,
-      project: {
-        projectId: "standalone-test",
-        projectDir,
+      scope: {
+        scopeId: "standalone-test",
+        scopeRoot: workspaceRoot,
         displayName: "Standalone test",
       },
       bus: new EventBus(),
       workflows: [{
         name: "explicit-run",
         enabled: true,
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         definitionPath: "standalone-test",
         repository: "none",
         tags: [],

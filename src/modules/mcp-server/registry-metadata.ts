@@ -62,10 +62,10 @@ export type McpRegistryMetadata = {
 	serverJson: McpRegistryServerJson;
 };
 
-export function readMcpRegistryMetadata(projectRoot = REPO_ROOT): McpRegistryMetadata {
+export function readMcpRegistryMetadata(repoRoot = REPO_ROOT): McpRegistryMetadata {
 	return {
-		packageJson: readJsonFile<McpRegistryPackageJson>(join(projectRoot, "package.json")),
-		serverJson: readJsonFile<McpRegistryServerJson>(join(projectRoot, "server.json")),
+		packageJson: readJsonFile<McpRegistryPackageJson>(join(repoRoot, "package.json")),
+		serverJson: readJsonFile<McpRegistryServerJson>(join(repoRoot, "server.json")),
 	};
 }
 

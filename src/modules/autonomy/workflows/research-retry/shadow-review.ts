@@ -91,7 +91,7 @@ async function resolveResearchRetryShadowTarget(
     shadowSemanticReviewTargetOperation,
     {
       kind: "workflow-mutations",
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
     },
   );
   return {

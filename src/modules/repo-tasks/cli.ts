@@ -57,9 +57,9 @@ type TaskEntry = {
  */
 export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
 	const results: TaskEntry[] = [];
-	const projectDir = dirname(dirname(tasksDir));
+	const repoRoot = dirname(dirname(tasksDir));
 	const waitingById = new Map(
-		listRepoTaskDependencyWaits(projectDir, states).map((wait) => [
+		listRepoTaskDependencyWaits(repoRoot, states).map((wait) => [
 			wait.id,
 			wait.waitingOn,
 		]),

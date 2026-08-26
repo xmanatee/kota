@@ -8,7 +8,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type { DurableEffectValue } from "#core/workflow/run-context.js";
 import type {
   RegisteredWorkflowDefinitionInput,
@@ -57,29 +57,29 @@ function queueOnlyWorkflow(
 }
 
 describe("semantic review request queue isolation", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
   const runtimeFixtures: TestWorkflowRuntime[] = [];
 
   afterEach(() => {
     resetModuleEventRegistry();
     for (const fixture of runtimeFixtures.splice(0)) fixture.runState.close();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   function runtimeFor(workflow: WorkflowDefinitionInput) {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-semantic-request-queue-"));
-    projectDirs.push(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-semantic-request-queue-"));
+    scopeRoots.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, ".kota"), { recursive: true });
     const bus = new EventBus();
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    const pbus = new ProjectScopedEventBus(bus, scopeId);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const pbus = new ScopedEventBus(bus, scopeId);
     const fixture = createTestWorkflowRuntime({
       bus,
       pbus,
-      projectDir,
-      projectId: scopeId,
+      scopeRoot: workspaceRoot,
+      scopeId: scopeId,
       idleIntervalMs: 60_000,
       workflows: [queueOnlyWorkflow(workflow)],
     });
@@ -87,23 +87,23 @@ describe("semantic review request queue isolation", () => {
     const { runtime } = fixture;
     runtime.start();
     runtime.setDispatchPaused(true);
-    return { runtime, pbus, projectDir, runState: fixture.runState, scopeId };
+    return { runtime, pbus, workspaceRoot, runState: fixture.runState, scopeId };
   }
 
-  function persistProjectState(
+  function persistScopeState(
     runtime: ReturnType<typeof runtimeFor>,
     key: string,
     state: DurableEffectValue,
   ): void {
     const now = new Date().toISOString();
-    const current = runtime.runState.readProjectStateValue(
+    const current = runtime.runState.readScopeStateValue(
       runtime.scopeId,
       key,
     );
     const runId = `seed-scope-state-${current.revision}`;
     runtime.runState.admitRun({
       id: runId,
-      projectId: runtime.scopeId,
+      scopeId: runtime.scopeId,
       workflow: "test-state-seed",
       repository: "none",
       trigger: { event: "test.seed", schemaRef: null, payload: {} },
@@ -111,7 +111,7 @@ describe("semantic review request queue isolation", () => {
       admittedAt: now,
     });
     runtime.runState.startRun(runId, 1, now);
-    runtime.runState.stageProjectStateMutation({
+    runtime.runState.stageScopeStateMutation({
       runId,
       key,
       expectedRevision: current.revision,
@@ -121,19 +121,19 @@ describe("semantic review request queue isolation", () => {
     runtime.runState.finishRun(runId, 1, "succeeded", now);
   }
 
-  function persistScopeState(
+  function persistScopeImprovementState(
     runtime: ReturnType<typeof runtimeFor>,
     state: ScopeImprovementState,
   ): void {
-    persistProjectState(runtime, SCOPE_IMPROVEMENT_STATE_KEY, state);
+    persistScopeState(runtime, SCOPE_IMPROVEMENT_STATE_KEY, state);
   }
 
   it("preserves every explicit progress request beside one latest automatic revision", async () => {
     const events = initModuleEventRegistry();
     events.register("autonomy", progressReviewRequested);
     events.register("autonomy", automaticProgressReviewRequested);
-    const { runtime, pbus, projectDir } = runtimeFor(progressReviewerWorkflow);
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const { runtime, pbus, workspaceRoot } = runtimeFor(progressReviewerWorkflow);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
 
     pbus.emit(progressReviewRequested, { reason: "owner request one" });
     pbus.emit(progressReviewRequested, { reason: "owner request two" });
@@ -188,7 +188,7 @@ describe("semantic review request queue isolation", () => {
         deliveryAttempt: 0,
       },
     );
-    persistScopeState(scope, scopeState);
+    persistScopeImprovementState(scope, scopeState);
     const firstChange = {
       automatic: true,
       boundary: "content-policy-changed" as const,
@@ -204,7 +204,7 @@ describe("semantic review request queue isolation", () => {
       delivery: "queued",
       deliveryAttempt: 0,
     });
-    persistScopeState(scope, scopeState);
+    persistScopeImprovementState(scope, scopeState);
     const secondChange = {
       automatic: true,
       boundary: "content-policy-changed" as const,
@@ -239,7 +239,7 @@ describe("semantic review request queue isolation", () => {
     events.register("autonomy", scopeImprovementChanged);
 
     const progress = runtimeFor(progressReviewerWorkflow);
-    const progressScopeId = deriveDirectoryScopeId(progress.projectDir);
+    const progressScopeId = deriveDirectoryScopeId(progress.workspaceRoot);
     const progressPayload = {
       automatic: true,
       boundary: "parked-queue" as const,
@@ -247,7 +247,7 @@ describe("semantic review request queue isolation", () => {
       deliveryAttempt: 0,
       idempotencyKey: progressReviewDispatchKey(progressScopeId, 1, 0),
     };
-    persistProjectState(
+    persistScopeState(
       progress,
       PROGRESS_REVIEW_STATE_KEY,
       {
@@ -262,9 +262,9 @@ describe("semantic review request queue isolation", () => {
     expect(progress.runtime.getState().pendingRuns).toEqual([]);
 
     const scope = runtimeFor(scopeImproverWorkflow);
-    const scopeId = deriveDirectoryScopeId(scope.projectDir);
+    const scopeId = deriveDirectoryScopeId(scope.workspaceRoot);
     const fingerprint = "scope-content:consumed";
-    persistScopeState(scope, {
+    persistScopeImprovementState(scope, {
       scopeId,
       lastRunAt: "2026-08-15T12:00:00.000Z",
       consumedFingerprint: fingerprint,

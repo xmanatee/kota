@@ -41,12 +41,12 @@ export function registerKnowledgeOkfCommand(
 	okf
 		.command("import <bundle>")
 		.description("Import an OKF bundle into the knowledge store")
-		.option("--scope <scope>", "Storage scope: project or global", "project")
+		.option("--scope <scope>", "Storage scope: scope or global", "scope")
 		.option("--status <status>", "Entry status for imported entries", "active")
 		.action(async (bundle: string, opts: { scope: string; status: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
+			if (opts.scope !== "scope" && opts.scope !== "global") {
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "scope" or "global".`, "error")));
 				process.exit(1);
 			}
 			try {
@@ -62,7 +62,7 @@ export function registerKnowledgeOkfCommand(
 						type: entry.type,
 						tags: entry.tags,
 						status: entry.status,
-						scope: opts.scope as "project" | "global",
+						scope: opts.scope as "scope" | "global",
 						meta: entry.meta,
 					});
 				}
@@ -105,14 +105,14 @@ export function registerKnowledgeOkfCommand(
 		.option("--type <type>", "Filter by type")
 		.option("--status <status>", "Filter by status")
 		.option("--tag <tag>", "Filter by tag")
-		.option("--scope <scope>", "Storage scope: project, global, or all", "project")
+		.option("--scope <scope>", "Storage scope: scope, global, or all", "scope")
 		.action(async (
 			dir: string,
 			opts: { type?: string; status?: string; tag?: string; scope: string },
 		) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global" && opts.scope !== "all") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`, "error")));
+			if (opts.scope !== "scope" && opts.scope !== "global" && opts.scope !== "all") {
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "scope", "global", or "all".`, "error")));
 				process.exit(1);
 			}
 			try {
@@ -120,7 +120,7 @@ export function registerKnowledgeOkfCommand(
 					type: opts.type,
 					status: opts.status,
 					tag: opts.tag,
-					scope: opts.scope as "project" | "global" | "all",
+					scope: opts.scope as "scope" | "global" | "all",
 				});
 				const exported = exportOkfBundle({
 					outputDir: dir,

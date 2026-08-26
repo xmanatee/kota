@@ -48,7 +48,7 @@ import {
 const REPAIR_CHECK_TOOL = "repair_check_a_fixture";
 
 describe("executeStep repair loop", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agentConfig: AgentStepConfig;
 
   beforeAll(() => {
@@ -69,24 +69,25 @@ describe("executeStep repair loop", () => {
   });
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-repair-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
-    agentConfig = { projectDir };
+    agentConfig = { scopeRoot };
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
     return {
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      scopeRoot,
+      workspaceRoot: scopeRoot,
+      stateDir: join(scopeRoot, ".kota"),
       state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
@@ -94,7 +95,7 @@ describe("executeStep repair loop", () => {
         definitionPath: "src/modules/test/workflows/test/workflow.ts",
         runId: "run-1",
         runDir: ".kota/runs/run-1",
-        runDirPath: `${projectDir}/.kota/runs/run-1`,
+        runDirPath: `${scopeRoot}/.kota/runs/run-1`,
       },
       trigger: TRIGGER,
       previousOutput: null,
@@ -122,7 +123,7 @@ describe("executeStep repair loop", () => {
 
     const runTool = vi.fn().mockResolvedValue({ content: "all good", is_error: false });
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],
@@ -162,7 +163,7 @@ describe("executeStep repair loop", () => {
       .mockResolvedValue({ content: "lint passed", is_error: false }); // second check passes
 
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],
@@ -231,7 +232,7 @@ describe("executeStep repair loop", () => {
       .mockResolvedValue({ content: "lint passed", is_error: false });
 
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       harness: "repair-loop-nostream-test",
       model: "test-model",
       repairLoop: {
@@ -276,7 +277,7 @@ describe("executeStep repair loop", () => {
       .mockRejectedValue(new Error("lint error: missing semicolon"));
 
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 3,
         checks: [{ id: "check-lint", tool: REPAIR_CHECK_TOOL, input: { command: "npm run lint" } }],

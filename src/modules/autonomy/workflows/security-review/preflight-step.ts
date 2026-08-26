@@ -65,7 +65,7 @@ export const validateChanges = typedCodeStep<{
     try {
       await runPreflightRail(checks, "task-validation", async () => {
         await ctx.runBlocking(taskQueueValidationOperation, {
-          projectDir: ctx.projectDir,
+          workspaceRoot: ctx.workspaceRoot,
         });
         return "OK: task queue valid";
       });

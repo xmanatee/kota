@@ -26,8 +26,8 @@ describe("startChannel", () => {
     await startChannel(
       channel,
       {
-        getDefaultProjectRuntime: () => ({} as never),
-        getProjectRuntime: () => ({} as never),
+        getDefaultScopeRuntime: () => ({} as never),
+        getScopeRuntime: () => ({} as never),
         log: () => {},
         getWorkflowStatus: () => ({
           runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },

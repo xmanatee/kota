@@ -60,7 +60,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
     }
     setLoading(true);
     client
-      .getRunDetail(runId, state.activeProjectId ?? undefined)
+      .getRunDetail(runId, state.activeScopeId ?? undefined)
       .then((r) => {
         setRun(r);
         setError(null);
@@ -69,7 +69,7 @@ export function RunDetailScreen({ runId }: { runId: string }) {
         setError(e instanceof Error ? e.message : 'Failed to load run.');
       })
       .finally(() => setLoading(false));
-  }, [client, runId, state.activeProjectId]);
+  }, [client, runId, state.activeScopeId]);
 
   if (loading) {
     return (

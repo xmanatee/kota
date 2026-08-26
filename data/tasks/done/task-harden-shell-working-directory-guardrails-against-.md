@@ -13,7 +13,7 @@ updated_at: 2026-05-25T04:17:40.000Z
 
 KOTA's guardrails now classify leading authority-changing environment
 assignments in `shell` and `process` commands, including project/root
-overrides such as `KOTA_PROJECT_DIR=...`. The execution surface still has a
+overrides such as `KOTA_SCOPE_ROOT=...`. The execution surface still has a
 nearby gap: `shell` accepts an explicit `cwd` input and also runs arbitrary
 `sh -c` command text, but `classifyRisk("shell", ...)` only inspects the
 command string for destructive patterns and leading env assignments.

@@ -5,7 +5,7 @@ import {
 } from "#core/daemon/dead-letter-queue.js";
 import type { DaemonRuntimeScope } from "#core/daemon/runtime-scope-provider.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { AUTONOMY_ISSUE_PROJECTION_FILE } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
@@ -25,7 +25,6 @@ export const AUTONOMY_SOURCE_EVENT_NAMES = [
 
 export type ScopedAutonomyHealthSignal = AutonomyHealthSignal & {
   scopeId: string;
-  projectId: string;
 };
 
 function interruptedBuilderRun(id: string): WorkflowRunMetadata {
@@ -62,21 +61,21 @@ export function createRuntimeSourceFixture(args: {
   tag: string;
 }) {
   const { bus, scope, tag } = args;
-  const scopeId = scope.project.projectId;
-  const projectDir = scope.project.projectDir;
-  const pbus = new ProjectScopedEventBus(bus, scopeId);
+  const scopeId = scope.scope.scopeId;
+  const scopeRoot = scope.scope.scopeRoot;
+  const pbus = new ScopedEventBus(bus, scopeId);
   const reviewRunId = `review-${tag}`;
   const trajectoryRunId = `trajectory-${tag}`;
   const interruptionRunId = `builder-interrupted-${tag}`;
   const reviewPath = join(
-    projectDir,
+    scopeRoot,
     ".kota",
     "runs",
     reviewRunId,
     "review-scrutiny.json",
   );
   const trajectoryPath = join(
-    projectDir,
+    scopeRoot,
     ".kota",
     "runs",
     trajectoryRunId,
@@ -87,7 +86,7 @@ export function createRuntimeSourceFixture(args: {
 
   return {
     scopeId,
-    projectDir,
+    scopeRoot,
     emitFailure(errorSummary = `${tag} daemon runtime integration failure`): void {
       pbus.emit("workflow.failure.alert", {
         workflow: "builder",
@@ -174,7 +173,7 @@ export function createRuntimeSourceFixture(args: {
         origin: { kind: "manual", source: "daemon-runtime-fixture" },
       });
       ownerQuestionPath = join(
-        projectDir,
+        scopeRoot,
         ".kota",
         "owner-questions",
         `${question.id}.json`,
@@ -215,15 +214,15 @@ export function createRuntimeSourceFixture(args: {
         throw new Error(`scope ${scopeId} has no owner-question fixture`);
       }
       const paths = [
-        join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE),
-        join(projectDir, ".kota", "dead-letter-queue", "items.json"),
+        join(scopeRoot, AUTONOMY_ISSUE_PROJECTION_FILE),
+        join(scopeRoot, ".kota", "dead-letter-queue", "items.json"),
         ownerQuestionPath,
         join(scope.runStore.runsDir, interruptionRunId, "metadata.json"),
         reviewPath,
         trajectoryPath,
       ];
       return Object.fromEntries(paths.map((path) => [
-        path.slice(projectDir.length + 1),
+        path.slice(scopeRoot.length + 1),
         readFileSync(path, "utf-8"),
       ]));
     },

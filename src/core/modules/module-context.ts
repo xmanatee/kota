@@ -6,7 +6,7 @@ import {
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
@@ -150,7 +150,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     ? getOrCreateStorage(moduleName, cwd, moduleStorages)
     : new ModuleStorage(cwd, "_default");
   const prefix = moduleName ? `[module:${moduleName}]` : "[module]";
-  const secretStore = getProjectSecretStore(cwd);
+  const secretStore = getScopeSecretStore(cwd);
   const formatLine = resolveLogFormatter(config.log?.format);
   const log = {
     info: (msg: string, data?: unknown) => {

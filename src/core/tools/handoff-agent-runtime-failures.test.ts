@@ -14,31 +14,31 @@ import { createDelegateBudget } from "./delegate-budget.js";
 import { setDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
 
-function initGit(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: projectDir });
-  writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+function initGit(scopeRoot: string): void {
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: scopeRoot });
+  writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+  execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
 }
 
-function scopeInput(projectDir: string): { scope_id: string; project_id: string } {
-  const scopeId = deriveDirectoryScopeId(projectDir);
-  return { scope_id: scopeId, project_id: scopeId };
+function scopeInput(scopeRoot: string): { scope_id: string } {
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
+  return { scope_id: scopeId };
 }
 
 describe("handoff_agent runtime failure handling", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let reviewer: AgentDef;
   let receivedOptions: AgentHarnessRunOptions[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Reviewer prompt.\n");
-    initGit(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "reviewer.md"), "Reviewer prompt.\n");
+    initGit(scopeRoot);
     reviewer = {
       name: "reviewer",
       role: "Review structured handoff work.",
@@ -71,7 +71,7 @@ describe("handoff_agent runtime failure handling", () => {
     });
     setDelegateConfig({
       model: "unused",
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: "handoff-test",
       resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       resolveSkillsPrompt: () => "Skill prompt.",
@@ -79,7 +79,7 @@ describe("handoff_agent runtime failure handling", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
     setDelegateConfig({ model: "gpt-5.6-sol" });
   });
@@ -92,7 +92,7 @@ describe("handoff_agent runtime failure handling", () => {
       reason: "Continue specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
       resume_session_id: "child-session-existing",
     });
 
@@ -111,7 +111,7 @@ describe("handoff_agent runtime failure handling", () => {
     const budget = createDelegateBudget({ maxDepth: 1, maxActiveChildren: 4 });
     setDelegateConfig({
       model: "unused",
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: "handoff-test",
       resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       delegateBudget: budget,
@@ -128,7 +128,7 @@ describe("handoff_agent runtime failure handling", () => {
           reason: "Need specialist review.",
           autonomy_mode: "autonomous",
           budget: { max_turns: 3 },
-          scope: scopeInput(projectDir),
+          scope: scopeInput(scopeRoot),
         }),
       );
 
@@ -166,7 +166,7 @@ describe("handoff_agent runtime failure handling", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);
@@ -182,7 +182,7 @@ describe("handoff_agent runtime failure handling", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
       output_schema: {
         type: "object",
         properties: { verdict: { type: "string" } },
@@ -206,7 +206,7 @@ describe("handoff_agent runtime failure handling", () => {
       emitsAgentMessageStream: false,
       toolControl: "kota",
       run: vi.fn(async () => {
-        const escapePath = join(projectDir, "src", "escape.ts");
+        const escapePath = join(scopeRoot, "src", "escape.ts");
         mkdirSync(dirname(escapePath), { recursive: true });
         writeFileSync(escapePath, "export const escape = true;\n");
         return {
@@ -225,7 +225,7 @@ describe("handoff_agent runtime failure handling", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);

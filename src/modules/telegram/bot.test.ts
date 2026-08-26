@@ -5,8 +5,8 @@ import {
   resolveAgentHarness,
   runAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { Scheduler } from "#core/daemon/scheduler.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import {
   initProviderRegistry,
   resetProviderRegistry,
@@ -31,7 +31,7 @@ import {
 import { ERROR_BACKOFF_MS } from "./client.js";
 import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
-import type { TelegramProjectSelection } from "./project-selection.js";
+import type { TelegramScopeSelection } from "./scope-selection.js";
 
 const agentSendMock = vi.fn(async () => undefined);
 const agentSessionOptions: unknown[] = [];
@@ -60,30 +60,30 @@ function makeTestHarness(name: string): AgentHarness {
   };
 }
 
-function makeProjectRuntime(
-  projectId = "project-a",
-  projectDir = `/tmp/${projectId}`,
-): ProjectRuntime {
+function makeScopeRuntime(
+  scopeId = "scope-a",
+  scopeRoot = `/tmp/${scopeId}`,
+): ScopeRuntime {
   return {
-    project: { projectId, projectDir, displayName: projectId },
-    scheduler: new Scheduler(projectDir, null),
-  } as ProjectRuntime;
+    scope: { scopeId, scopeRoot, displayName: scopeId },
+    scheduler: new Scheduler(scopeRoot, null),
+  } as ScopeRuntime;
 }
 
 function botOptions(
   overrides: Partial<TelegramBotOptions> = {},
 ): TelegramBotOptions {
-  const defaultProjectRuntime =
-    overrides.defaultProjectRuntime ?? makeProjectRuntime();
+  const defaultScopeRuntime =
+    overrides.defaultScopeRuntime ?? makeScopeRuntime();
   return {
     token: "tok",
     autonomyMode: "supervised",
     config: { modelProvider: { type: "openai" } },
-    defaultProjectRuntime,
-    getProjectRuntime: (projectId) =>
-      projectId === defaultProjectRuntime.project.projectId
-        ? defaultProjectRuntime
-        : makeProjectRuntime(projectId),
+    defaultScopeRuntime,
+    getScopeRuntime: (scopeId) =>
+      scopeId === defaultScopeRuntime.scope.scopeId
+        ? defaultScopeRuntime
+        : makeScopeRuntime(scopeId),
     ...overrides,
   };
 }
@@ -700,29 +700,29 @@ describe("TelegramBot", () => {
     expect(sentToChat77).toBe(true);
   });
 
-  it("creates project-scoped sessions and scopes broadcasts by project", async () => {
+  it("creates scoped sessions and scopes broadcasts by scope", async () => {
     agentSendMock.mockClear();
-    const projectSelection = {
+    const scopeSelection = {
       resolveChat: vi.fn(async () => ({
         ok: true as const,
-        project: {
-          projectId: "project-b",
-          projectDir: "/tmp/project-b",
-          displayName: "Project B",
+        scope: {
+          scopeId: "scope-b",
+          scopeRoot: "/tmp/scope-b",
+          displayName: "Scope B",
         },
-        showProjectLabels: true,
+        showScopeLabels: true,
       })),
       switchChat: vi.fn(),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
-    const projectBRuntime = makeProjectRuntime("project-b", "/tmp/project-b");
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
+    const scopeBRuntime = makeScopeRuntime("scope-b", "/tmp/scope-b");
     const bot = new TelegramBot({
       ...botOptions(),
-      getProjectRuntime: (projectId) => {
-        if (projectId !== "project-b") throw new Error(`unexpected project ${projectId}`);
-        return projectBRuntime;
+      getScopeRuntime: (scopeId) => {
+        if (scopeId !== "scope-b") throw new Error(`unexpected scope ${scopeId}`);
+        return scopeBRuntime;
       },
-      projectSelection,
+      scopeSelection,
     });
     let delivered = false;
     fetchMock.mockImplementation(async (url: string) => {
@@ -770,22 +770,22 @@ describe("TelegramBot", () => {
     while (Date.now() < deadline && bot.sessionCount === 0) {
       await new Promise((r) => setTimeout(r, 20));
     }
-    bot.broadcastToChats("project-b ping", "project-b");
-    bot.broadcastToChats("project-a ping", "project-a");
+    bot.broadcastToChats("scope-b ping", "scope-b");
+    bot.broadcastToChats("scope-a ping", "scope-a");
     await startPromise;
 
     expect(agentSessionOptions).toHaveLength(1);
     expect(agentSessionOptions[0]).toEqual(
       expect.objectContaining({
-        projectDir: "/tmp/project-b",
-        projectRuntime: projectBRuntime,
+        scopeRoot: "/tmp/scope-b",
+        scopeRuntime: scopeBRuntime,
       }),
     );
     const sentBodies = fetchMock.mock.calls
       .filter((call) => String(call[0]).endsWith("/sendMessage"))
       .map((call) => JSON.parse(String((call[1] as { body: string }).body)) as { text: string });
-    expect(sentBodies.some((body) => body.text === "project-b ping")).toBe(true);
-    expect(sentBodies.some((body) => body.text === "project-a ping")).toBe(false);
+    expect(sentBodies.some((body) => body.text === "scope-b ping")).toBe(true);
+    expect(sentBodies.some((body) => body.text === "scope-a ping")).toBe(false);
   });
 
   it("routes a reply_to_message text update through the onChatReply hook and skips agent.send when the hook returns true", async () => {
@@ -1038,7 +1038,7 @@ describe("TelegramBot", () => {
       expect.objectContaining({
         prompt: "ping",
         model: "gpt-5.6-sol",
-        cwd: "/tmp/project-a",
+        cwd: "/tmp/scope-a",
         autonomyMode: "passive",
       }),
       expect.objectContaining({ write: expect.any(Function) }),
@@ -1195,7 +1195,7 @@ describe("TelegramBot", () => {
     expect(events.emit).toHaveBeenCalledWith(
       inboundSignalReceived,
       expect.objectContaining({
-        projectId: "project-a",
+        scopeId: "scope-a",
         provider: "telegram",
         channel: "telegram.message",
         actor: expect.objectContaining({

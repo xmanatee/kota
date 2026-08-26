@@ -11,16 +11,16 @@ export type StepSeed = {
   errorKind?: WorkflowStepErrorKind;
 };
 
-export function readyTaskPath(projectDir: string, taskId: string): string {
-  return join(projectDir, "data", "tasks", "ready", `${taskId}.md`);
+export function readyTaskPath(workspaceRoot: string, taskId: string): string {
+  return join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`);
 }
 
 export function writeRunWithCoverage(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   startedAt: string,
 ): void {
-  const runDir = join(projectDir, ".kota", "runs", id);
+  const runDir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),
@@ -109,7 +109,7 @@ function stepResult(step: StepSeed, startedAt: string) {
 }
 
 export function writeRunWithAgentRuntimeCoverageGaps(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     id: string;
     startedAt: string;
@@ -118,7 +118,7 @@ export function writeRunWithAgentRuntimeCoverageGaps(
   },
 ): void {
   const { id, startedAt } = args;
-  const runDir = join(projectDir, ".kota", "runs", id);
+  const runDir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(runDir, { recursive: true });
   const step: StepSeed = {
     id: "review-evidence",
@@ -208,11 +208,11 @@ export function writeRunWithAgentRuntimeCoverageGaps(
 }
 
 export function writeRunWithUnsupportedAgentStreamCoverageGaps(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   startedAt: string,
 ): void {
-  const runDir = join(projectDir, ".kota", "runs", id);
+  const runDir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(runDir, { recursive: true });
   const step: StepSeed = {
     id: "improve",
@@ -303,7 +303,7 @@ export function writeRunWithUnsupportedAgentStreamCoverageGaps(
 }
 
 export function writeRunWithApprovalOwnerGateGap(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     id: string;
     metadataId?: string;
@@ -314,7 +314,7 @@ export function writeRunWithApprovalOwnerGateGap(
   },
 ): void {
   const { id, startedAt, step } = args;
-  const runDir = join(projectDir, ".kota", "runs", id);
+  const runDir = join(workspaceRoot, ".kota", "runs", id);
   const stepsDir = join(runDir, "steps");
   mkdirSync(stepsDir, { recursive: true });
   const stepArtifact = args.stepArtifact ?? step;
@@ -409,11 +409,11 @@ export function writeRunWithApprovalOwnerGateGap(
 }
 
 export function writeRunWithSkippedApprovalGateGap(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   startedAt: string,
 ): void {
-  writeRunWithApprovalOwnerGateGap(projectDir, {
+  writeRunWithApprovalOwnerGateGap(workspaceRoot, {
     id,
     startedAt,
     step: { id: "approve-comment", type: "approval", status: "skipped" },
@@ -421,11 +421,11 @@ export function writeRunWithSkippedApprovalGateGap(
 }
 
 export function writeRunWithSkippedOwnerWaitGateGap(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   startedAt: string,
 ): void {
-  writeRunWithApprovalOwnerGateGap(projectDir, {
+  writeRunWithApprovalOwnerGateGap(workspaceRoot, {
     id,
     startedAt,
     step: {

@@ -11,10 +11,10 @@ export function getWorkflowDefinitions(
 
 export function getValidatedWorkflowDefinitions(
   ctx: ModuleContext,
-  projectDir = ctx.cwd,
+  workspaceRoot = ctx.cwd,
 ): WorkflowDefinition[] {
   const runtime = resolveAgentRuntime(ctx.config);
-  return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), projectDir, {
+  return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), workspaceRoot, {
     defaultAgentHarness: runtime.harness,
     preset: runtime.preset,
     modelTiers: runtime.tiers,

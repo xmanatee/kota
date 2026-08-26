@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventSchemaReference } from "#core/events/event-bus.js";
 import {
   type EventEnvelope,
@@ -79,8 +80,9 @@ function makeDryRunContext(
   trigger: WorkflowRunTrigger,
 ): WorkflowStepContext {
   return {
-    projectDir: process.cwd(),
-    scopeDir: process.cwd(),
+    scopeId: deriveDirectoryScopeId(process.cwd()),
+    workspaceRoot: process.cwd(),
+    scopeRoot: process.cwd(),
     stateDir: join(process.cwd(), ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {

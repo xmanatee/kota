@@ -12,21 +12,21 @@ import {
 } from "./security-review.js";
 
 export class SecurityReviewProjectFixture {
-  readonly projectDir: string;
+  readonly workspaceRoot: string;
 
   constructor() {
-    this.projectDir = join(
+    this.workspaceRoot = join(
       tmpdir(),
       `kota-security-review-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(this.projectDir, { recursive: true });
-    writeFileSync(join(this.projectDir, ".gitignore"), ".kota/\n", "utf-8");
+    mkdirSync(this.workspaceRoot, { recursive: true });
+    writeFileSync(join(this.workspaceRoot, ".gitignore"), ".kota/\n", "utf-8");
     execFileSync("git", ["init", "-q", "-b", "main"], {
-      cwd: this.projectDir,
+      cwd: this.workspaceRoot,
       stdio: "ignore",
     });
     execFileSync("git", ["add", ".gitignore"], {
-      cwd: this.projectDir,
+      cwd: this.workspaceRoot,
       stdio: "ignore",
     });
     execFileSync(
@@ -40,16 +40,16 @@ export class SecurityReviewProjectFixture {
         "-m",
         "initial",
       ],
-      { cwd: this.projectDir, stdio: "ignore" },
+      { cwd: this.workspaceRoot, stdio: "ignore" },
     );
   }
 
   cleanup(): void {
-    rmSync(this.projectDir, { recursive: true, force: true });
+    rmSync(this.workspaceRoot, { recursive: true, force: true });
   }
 
   writeProjectFile(path: string, content: string): void {
-    const fullPath = join(this.projectDir, path);
+    const fullPath = join(this.workspaceRoot, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, content, "utf-8");
   }
@@ -120,7 +120,7 @@ export class SecurityReviewProjectFixture {
         body,
       ].join("\n"),
     );
-    execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", path], { cwd: this.workspaceRoot, stdio: "ignore" });
   }
 
   writeLegacySecurityFindingTask(args: {
@@ -178,6 +178,6 @@ export class SecurityReviewProjectFixture {
         "",
       ].join("\n"),
     );
-    execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", path], { cwd: this.workspaceRoot, stdio: "ignore" });
   }
 }

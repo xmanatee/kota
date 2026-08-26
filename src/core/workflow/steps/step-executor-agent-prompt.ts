@@ -29,11 +29,11 @@ function shouldExposeOutput(output: unknown): boolean {
 
 // Walk closer-scoped `.kota.md`/`AGENTS.md`/`CLAUDE.md` from the prompt
 // directory when it lives under the project; otherwise fall back to the
-// project root so external module guidance does not leak into discovery.
-export function resolvePromptContextStartDir(promptDir: string, projectDir: string): string {
-  const rel = relative(projectDir, promptDir);
+// scope root so external module guidance does not leak into discovery.
+export function resolvePromptContextStartDir(promptDir: string, scopeRoot: string): string {
+  const rel = relative(scopeRoot, promptDir);
   if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return promptDir;
-  return projectDir;
+  return scopeRoot;
 }
 
 export function buildAgentSystemPrompt(input: {
@@ -41,13 +41,13 @@ export function buildAgentSystemPrompt(input: {
   systemPromptAppend: string;
   moduleRoot: string;
   promptPath: string;
-  projectDir: string;
+  scopeRoot: string;
   agentDef?: AgentDef;
   agentName?: string;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
 }): string | undefined {
   const promptDir = dirname(resolve(input.moduleRoot, input.promptPath));
-  const contextStartDir = resolvePromptContextStartDir(promptDir, input.projectDir);
+  const contextStartDir = resolvePromptContextStartDir(promptDir, input.scopeRoot);
   const skillsPrompt = input.agentDef?.skills && input.resolveSkillsPrompt
     ? input.resolveSkillsPrompt(input.agentDef.skills, input.agentName)
     : undefined;
@@ -55,7 +55,7 @@ export function buildAgentSystemPrompt(input: {
     input.config,
     input.systemPromptAppend,
     contextStartDir,
-    input.projectDir,
+    input.scopeRoot,
     skillsPrompt,
   );
 }
@@ -145,7 +145,7 @@ export function buildAgentPrompt(
   step: WorkflowAgentStep,
   metadata: WorkflowRunMetadata,
   trigger: WorkflowRunTrigger,
-  projectDir: string,
+  scopeRoot: string,
   priorStepOutputs: Record<string, unknown>,
   askOwnerToolName: string | null,
   foreach?: WorkflowStepContext["foreach"],
@@ -160,7 +160,7 @@ export function buildAgentPrompt(
   const exposedOutputs = getExposedStepOutputs(definition, priorStepOutputs);
   const agentRunDir = resolveAgentRunDir({
     metadata,
-    projectDir,
+    scopeRoot,
     runtimeResources,
   });
   const lines = [
@@ -171,7 +171,7 @@ export function buildAgentPrompt(
     `Run directory: ${agentRunDir}`,
     `Workflow definition: ${metadata.definitionPath}`,
     `Prompt file: ${step.promptPath}`,
-    `Project root: ${projectDir}`,
+    `Scope root: ${scopeRoot}`,
     `Trigger event: ${trigger.event}`,
     "Only runtime-only workflow facts are injected here. Discover repository context yourself.",
   ];

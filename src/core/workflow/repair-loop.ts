@@ -72,10 +72,10 @@ export async function runAgentRepairLoop(
   const trajectoryMessages = [...initialResult.trajectoryMessages];
   const resolvedHarness = resolveAgentHarness(step.harness);
   const scopedAgent = resolveScopedRepairAgent(step, agentConfig);
-  const workspaceDir = context.projectDir;
+  const workspaceDir = context.workspaceRoot;
   const agentRunDir = resolveAgentRunDir({
     metadata,
-    projectDir: context.scopeDir,
+    scopeRoot: context.scopeRoot,
     runtimeResources: context.runtimeResources,
   });
   const agentOutputWriteScopes = agentRunDirWriteScopes(
@@ -191,7 +191,7 @@ export async function runAgentRepairLoop(
       writeAgentTokenBudgetArtifact(
         step.id,
         metadata,
-        context.scopeDir,
+        context.scopeRoot,
         initialResult.tokenBudget,
       );
     }
@@ -204,7 +204,7 @@ export async function runAgentRepairLoop(
         scopedAgent,
         stepId: step.id,
         metadata,
-        projectDir: context.scopeDir,
+        scopeRoot: context.scopeRoot,
       });
     }
     if (!repairAttempt.ok) {

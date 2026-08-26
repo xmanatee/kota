@@ -34,7 +34,7 @@ describe("extractToolResultContent", () => {
 		expect(extractToolResultContent(block)).toBe("[ERROR] something failed");
 	});
 
-	it("projects image blocks into bounded text for tool-role content", () => {
+	it("scopes image blocks into bounded text for tool-role content", () => {
 		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
@@ -60,7 +60,7 @@ describe("extractToolResultContent", () => {
 		expect(extractToolResultContent(block)).toBe("");
 	});
 
-	it("projects enriched tool_result fields without mutating the rich block", () => {
+	it("scopes enriched tool_result fields without mutating the rich block", () => {
 		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",
@@ -89,7 +89,7 @@ describe("extractToolResultContent", () => {
 		expect(projection).not.toContain("r1");
 	});
 
-	it("projects MCP-only tool_result content explicitly", () => {
+	it("scopes MCP-only tool_result content explicitly", () => {
 		const block: KotaToolResultBlock = {
 			type: "tool_result",
 			tool_use_id: "t1",

@@ -17,7 +17,7 @@ import type { ModuleCapabilityManifestProjection } from "#core/modules/module-ma
 import { WORKFLOW_BATCH_FLUSH_EVENT } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { workflowDispatchIdempotency } from "#core/workflow/workflow-idempotency.js";
-import { eventJournalForProject } from "../utils.js";
+import { eventJournalForScope } from "../utils.js";
 import { simulateAutomation } from "./engine.js";
 import {
   getSimulationFixture,
@@ -42,7 +42,7 @@ const strictEvent = defineDaemonWideModuleEvent<StrictPayload>(
   },
 );
 
-function projectDir(): string {
+function workspaceRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-simulation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -69,7 +69,6 @@ function eventEnvelope(args: {
     scope: {
       kind: "scope",
       scopeId: "scope-a",
-      projectId: "scope-a",
       lineage: ["scope-a"],
     },
     timestamps: {
@@ -280,7 +279,7 @@ const progressReviewer = workflow("progress-reviewer", {
       batch: {
         maxCount: 5,
         maxAgeMs: 6 * 60 * 60 * 1000,
-        groupBy: ["projectId"],
+        groupBy: ["scopeId"],
         maxBufferSize: 20,
         overflow: "flush-oldest",
       },
@@ -323,7 +322,7 @@ describe("workflow automation simulation engine", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = projectDir();
+    dir = workspaceRoot();
     resetModuleEventRegistry();
     initModuleEventRegistry().register("simulation", strictEvent);
   });
@@ -337,7 +336,7 @@ describe("workflow automation simulation engine", () => {
     const definitions = [sportsRoute, progressReviewer, strictWorkflow];
 
     const ignored = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions,
       request: {
         event: "inbound.signal.received",
@@ -351,13 +350,12 @@ describe("workflow automation simulation engine", () => {
     expect(ignored.inputs[0]?.reasons[0]?.code).toBe("source-ignored");
 
     const batched = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions,
       request: {
         event: "inbound.signal.received",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           sourceId: "sports-chat",
           actor: { trust: "trusted" },
         },
@@ -369,7 +367,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const flushed = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions,
       request: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
@@ -391,7 +389,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const duplicate = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions,
       request: {
         event: "booking.requested",
@@ -404,7 +402,7 @@ describe("workflow automation simulation engine", () => {
     expect(duplicate.inputs[0]?.reasons[0]?.code).toBe("idempotency-duplicate");
 
     const dlq = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions,
       request: {
         event: "simulation.strict",
@@ -418,25 +416,23 @@ describe("workflow automation simulation engine", () => {
   });
 
   it("composes journaled event ranges through the batch manager until maxCount flushes", async () => {
-    eventJournalForProject(dir).appendEnvelope(eventEnvelope({
+    eventJournalForScope(dir).appendEnvelope(eventEnvelope({
       id: "evtj-sports-1",
       sequence: 10,
       event: "inbound.signal.received",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         sourceId: "sports-chat",
         actor: { trust: "trusted" },
         body: { text: "one" },
       },
     }));
-    eventJournalForProject(dir).appendEnvelope(eventEnvelope({
+    eventJournalForScope(dir).appendEnvelope(eventEnvelope({
       id: "evtj-sports-2",
       sequence: 11,
       event: "inbound.signal.received",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         sourceId: "sports-chat",
         actor: { trust: "trusted" },
         body: { text: "two" },
@@ -444,7 +440,7 @@ describe("workflow automation simulation engine", () => {
     }));
 
     const result = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [sportsRoute],
       request: {
         journal: {
@@ -479,31 +475,29 @@ describe("workflow automation simulation engine", () => {
   });
 
   it("previews overflow flushes through the existing batch policy", async () => {
-    eventJournalForProject(dir).appendEnvelope(eventEnvelope({
+    eventJournalForScope(dir).appendEnvelope(eventEnvelope({
       id: "evtj-overflow-1",
       sequence: 20,
       event: "task.changed",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         bucket: "ready",
         taskId: "task-one",
       },
     }));
-    eventJournalForProject(dir).appendEnvelope(eventEnvelope({
+    eventJournalForScope(dir).appendEnvelope(eventEnvelope({
       id: "evtj-overflow-2",
       sequence: 21,
       event: "task.changed",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         bucket: "ready",
         taskId: "task-two",
       },
     }));
 
     const result = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [overflowBatchWorkflow],
       request: {
         journal: {
@@ -530,7 +524,7 @@ describe("workflow automation simulation engine", () => {
 
   it("previews setup blockers, owner confirmation gates, and side effects from manifests", async () => {
     const owner = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       moduleManifests: [capabilityManifest({ hooks: ["owner-confirmation"] })],
       request: {
@@ -542,7 +536,7 @@ describe("workflow automation simulation engine", () => {
     expect(owner.inputs[0]?.blockers[0]?.kind).toBe("owner-confirmation");
 
     const setup = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       moduleManifests: [capabilityManifest({ hooks: ["setup"], setupState: "missing" })],
       request: {
@@ -557,7 +551,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const effect = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       moduleManifests: [capabilityManifest({ hooks: [] })],
       request: {
@@ -572,7 +566,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const blockedEffect = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       moduleManifests: [capabilityManifest({ hooks: [], simulationBlocked: true })],
       request: {
@@ -591,7 +585,6 @@ describe("workflow automation simulation engine", () => {
   it("checks typed envelope duplicates through workflow dispatch idempotency", async () => {
     const payload = {
       scopeId: "scope-a",
-      projectId: "scope-a",
       requestedBy: "operator",
       idempotencyStatus: "replayed",
     };
@@ -611,7 +604,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const preview = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       request: {
         envelope,
@@ -640,10 +633,10 @@ describe("workflow automation simulation engine", () => {
     const fixture = getSimulationFixture("weekly-progress-review-journal-replay");
     expect(fixture?.request.envelope).toBeDefined();
     const envelope = fixture!.request.envelope!;
-    eventJournalForProject(dir).appendEnvelope(envelope);
+    eventJournalForScope(dir).appendEnvelope(envelope);
 
     const replayed = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [progressReviewer],
       request: {
         journal: {
@@ -676,7 +669,6 @@ describe("workflow automation simulation engine", () => {
   it("checks journal replay duplicates through workflow dispatch idempotency", async () => {
     const payload = {
       scopeId: "scope-a",
-      projectId: "scope-a",
       requestedBy: "operator",
       idempotencyStatus: "replayed",
     };
@@ -686,7 +678,7 @@ describe("workflow automation simulation engine", () => {
       event: "booking.requested",
       payload,
     });
-    eventJournalForProject(dir).appendEnvelope(envelope);
+    eventJournalForScope(dir).appendEnvelope(envelope);
     recordWorkflowDispatch({
       dir,
       workflowName: "booking-workflow",
@@ -697,7 +689,7 @@ describe("workflow automation simulation engine", () => {
     });
 
     const replayed = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       request: {
         journal: {

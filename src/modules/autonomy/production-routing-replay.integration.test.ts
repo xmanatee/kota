@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { getPreset } from "#core/model/preset.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
@@ -95,7 +95,7 @@ describe("production completion routing replay", () => {
     tempDirs.push(replayDir);
     const scopeId = "8nrg1m";
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, scopeId);
+    const pbus = new ScopedEventBus(bus, scopeId);
     const store = new WorkflowRunStore(replayDir);
     const invocations: RoutedInvocation[] = [];
     const recordInvocation = (

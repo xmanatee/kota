@@ -74,18 +74,18 @@ export type StatusSnapshot = {
   workflowPause?: WorkflowDispatchPauseStatus;
   sessions: number;
   pendingApprovals: number;
-  projectDir: string;
-  projectName: string;
+  scopeRoot: string;
+  scopeName: string;
   controlFile: DaemonControlIdentity;
   strandedDaemon?: { pid: number; command: string };
-  daemonProjectDir?: string;
-  daemonProjectName?: string;
-  scopedProject?: { projectId: string; projectDir: string; displayName: string };
-  wrongProject?: boolean;
+  daemonScopeRoot?: string;
+  daemonScopeName?: string;
+  selectedScope?: { scopeId: string; scopeRoot: string; displayName: string };
+  wrongScope?: boolean;
   dashboard?: StatusDashboard;
   runProjection: StatusRunProjection;
 };
 
 export type StatusGatherOptions = {
-  projectId?: string;
+  scopeId?: string;
 };

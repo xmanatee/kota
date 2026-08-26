@@ -47,8 +47,8 @@ const inspectGate = typedCodeStep<GateInspection>({
       "passWithWarningsMinSample",
       "aggregate",
     ]),
-  run: ({ projectDir, stateDir, runBlocking }) =>
-    runBlocking(inspectEvaluatorCalibrationOperation, { projectDir, stateDir }),
+  run: ({ workspaceRoot, stateDir, runBlocking }) =>
+    runBlocking(inspectEvaluatorCalibrationOperation, { workspaceRoot, stateDir }),
 });
 
 type ProposeResult = { proposal: CalibrationRepairProposal };
@@ -66,7 +66,7 @@ const proposeRepair = typedCodeStep<ProposeResult>({
     const inspection = inspectGate.outputRequired(ctx);
     const proposal = await proposeCalibrationRepair(
       {
-        projectDir: ctx.projectDir,
+        workspaceRoot: ctx.workspaceRoot,
         decisionReason: inspection.reason,
         driftKinds: inspection.driftKinds,
         aggregate: inspection.aggregate,
@@ -93,7 +93,7 @@ const applyRepair = typedCodeStep<ApplyResult>({
     const applied = await ctx.runBlocking(applyCalibrationRepairOperation, {
       proposal: proposeRepair.outputRequired(ctx).proposal,
       context: {
-        projectDir: ctx.projectDir,
+        workspaceRoot: ctx.workspaceRoot,
         decisionReason: inspection.reason,
         driftKinds: inspection.driftKinds,
         aggregate: inspection.aggregate,
@@ -197,7 +197,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

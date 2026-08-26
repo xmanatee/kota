@@ -50,7 +50,7 @@ function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
       const receivedAt = new Date().toISOString();
       const normalized = normalizeInboundSignalInput(
         payload as InboundSignalInputObject,
-        { projectId: deriveDirectoryScopeId(ctx.cwd), receivedAt },
+        { scopeId: deriveDirectoryScopeId(ctx.cwd), receivedAt },
       );
       if (!normalized.ok) {
         jsonResponse(res, 400, { error: normalized.error });
@@ -61,7 +61,7 @@ function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
       jsonResponse(res, 200, {
         ok: true,
         event: inboundSignalReceived.name,
-        projectId: normalized.payload.projectId,
+        scopeId: normalized.payload.scopeId,
         actorTrust: normalized.payload.actor.trust,
         listeners:
           ctx.events.listenerCount(inboundSignalReceived.name) +

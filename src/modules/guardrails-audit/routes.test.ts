@@ -34,7 +34,7 @@ function makeCtx(manifest?: ModuleCapabilityManifestProjection): ModuleContext {
 		? [
 				{
 					name: manifest.moduleName,
-					source: "project",
+					source: "bundled",
 					dependencies: [],
 					toolNames: [],
 					workflowNames: [],

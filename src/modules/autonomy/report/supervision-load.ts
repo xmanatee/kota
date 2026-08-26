@@ -30,7 +30,7 @@ export function buildSupervisionLoadReport(
 ): SupervisionLoadReport {
   const taskById = new Map(input.tasks.map((task) => [task.id, task]));
   const stores = readSupervisionLoadStores({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     runsDir: input.runsDir,
     runs: input.runs,
   });

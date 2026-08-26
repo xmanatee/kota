@@ -18,12 +18,12 @@ describe("SlackBot", () => {
         payload: { team_id: "T-TEST", event: { type: "message", text: "msg1", user: "U1", channel: "D1", channel_type: "im" } },
       });
       await vi.waitFor(() => expect(AgentSession).toHaveBeenCalledTimes(1));
-      expect(bot.listScopeSessionIds("test-project"))
-        .toEqual(["slack:U1:test-project"]);
+      expect(bot.listScopeSessionIds("test-scope"))
+        .toEqual(["slack:U1:test-scope"]);
       expect(AgentSession).toHaveBeenLastCalledWith(expect.objectContaining({
-        projectDir: "/tmp/test-project",
-        projectRuntime: expect.objectContaining({
-          project: expect.objectContaining({ projectId: "test-project" }),
+        scopeRoot: "/tmp/test-scope",
+        scopeRuntime: expect.objectContaining({
+          scope: expect.objectContaining({ scopeId: "test-scope" }),
         }),
       }));
 

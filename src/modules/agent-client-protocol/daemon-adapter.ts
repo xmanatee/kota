@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { directoryScopesFromProjection } from "#core/daemon/scope-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { daemonHttpError, daemonProtocolError, responseErrorMessage } from "./daemon-adapter-errors.js";
@@ -12,13 +13,13 @@ import {
   type AcpDaemonClient,
   type AcpDaemonPermissionDecision,
   type AcpDaemonSession,
-  type AcpProject,
-  type AcpProjectList,
   AcpPromptCancelledError,
+  type AcpScope,
+  type AcpScopeList,
   type CreateSessionWireBody,
-  type ProjectsWireBody,
   type PromptSessionArgs,
   type PromptSessionResult,
+  type ScopesWireBody,
   type SessionBindingsWireBody,
   type SessionListWireBody,
 } from "./daemon-adapter-types.js";
@@ -29,9 +30,9 @@ export type {
   AcpDaemonPermissionDecision,
   AcpDaemonPermissionRequest,
   AcpDaemonSession,
-  AcpProject,
-  AcpProjectList,
   AcpPromptUpdate,
+  AcpScope,
+  AcpScopeList,
   PromptSessionArgs,
   PromptSessionResult,
 } from "./daemon-adapter-types.js";
@@ -43,22 +44,22 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     private readonly autonomyMode: AutonomyMode = "supervised",
   ) {}
 
-  async listProjects(): Promise<AcpProjectList> {
-    const res = await this.transport.fetchRaw("/projects", {
+  async listScopes(): Promise<AcpScopeList> {
+    const res = await this.transport.fetchRaw("/scopes", {
       method: "GET",
       headers: this.transport.authHeaders(),
     });
     if (!res.ok) throw daemonHttpError(res.status, await responseErrorMessage(res));
-    const body = (await res.json()) as ProjectsWireBody;
+    const body = (await res.json()) as ScopesWireBody;
     return {
-      projects: body.projects,
-      defaultProjectId: body.defaultProjectId,
-      activeProjectId: body.activeProjectId ?? null,
+      scopes: directoryScopesFromProjection(body),
+      defaultScopeId: body.defaultScopeId,
+      activeScopeId: body.activeScopeId ?? null,
     };
   }
 
-  async createSession(project: AcpProject): Promise<{ sessionId: string }> {
-    const query = new URLSearchParams({ projectId: project.projectId });
+  async createSession(scope: AcpScope): Promise<{ sessionId: string }> {
+    const query = new URLSearchParams({ scopeId: scope.scopeId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...this.transport.authHeaders() },
@@ -74,16 +75,16 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     return { sessionId: body.session_id };
   }
 
-  async listSessions(project: AcpProject): Promise<AcpDaemonSession[]> {
-    const live = await this.listLiveSessions(project);
+  async listSessions(scope: AcpScope): Promise<AcpDaemonSession[]> {
+    const live = await this.listLiveSessions(scope);
     const liveIds = new Set(live.map((session) => session.sessionId));
-    const bindings = await this.listPersistedSessionBindings(project);
+    const bindings = await this.listPersistedSessionBindings(scope);
     return [...live, ...bindings.filter((session) => !liveIds.has(session.sessionId))]
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  async resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }> {
-    const query = new URLSearchParams({ projectId: project.projectId });
+  async resumeSession(scope: AcpScope, sessionId: string): Promise<{ sessionId: string }> {
+    const query = new URLSearchParams({ scopeId: scope.scopeId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...this.transport.authHeaders() },
@@ -214,8 +215,8 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     if (!res.ok) throw daemonHttpError(res.status, await responseErrorMessage(res));
   }
 
-  private async listLiveSessions(project: AcpProject): Promise<AcpDaemonSession[]> {
-    const query = new URLSearchParams({ projectId: project.projectId });
+  private async listLiveSessions(scope: AcpScope): Promise<AcpDaemonSession[]> {
+    const query = new URLSearchParams({ scopeId: scope.scopeId });
     const res = await this.transport.fetchRaw(`/sessions?${query.toString()}`, {
       method: "GET",
       headers: this.transport.authHeaders(),
@@ -226,11 +227,11 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
       throw daemonProtocolError("Daemon session list response did not include sessions");
     }
     return entries.filter((entry) => entry.source === "daemon")
-      .map((entry) => mapLiveSession(project, entry));
+      .map((entry) => mapLiveSession(scope, entry));
   }
 
-  private async listPersistedSessionBindings(project: AcpProject): Promise<AcpDaemonSession[]> {
-    const query = new URLSearchParams({ projectId: project.projectId });
+  private async listPersistedSessionBindings(scope: AcpScope): Promise<AcpDaemonSession[]> {
+    const query = new URLSearchParams({ scopeId: scope.scopeId });
     const res = await this.transport.fetchRaw(`/sessions/bindings?${query.toString()}`, {
       method: "GET",
       headers: this.transport.authHeaders(),
@@ -240,11 +241,11 @@ export class HttpAcpDaemonClient implements AcpDaemonClient {
     if (!Array.isArray(bindings)) {
       throw daemonProtocolError("Daemon session bindings response did not include bindings");
     }
-    return bindings.map((entry) => mapBindingSession(project, entry));
+    return bindings.map((entry) => mapBindingSession(scope, entry));
   }
 }
 
-export function resolveAcpProject(projects: AcpProjectList, cwd: string): AcpProject | null {
+export function resolveAcpScope(scopes: AcpScopeList, cwd: string): AcpScope | null {
   const wanted = resolve(cwd);
-  return projects.projects.find((project) => resolve(project.projectDir) === wanted) ?? null;
+  return scopes.scopes.find((scope) => resolve(scope.scopeRoot) === wanted) ?? null;
 }

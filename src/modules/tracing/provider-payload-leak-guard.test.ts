@@ -72,7 +72,7 @@ describe("provider payload observability leak guard", () => {
   let originalFetch: typeof globalThis.fetch;
   let spanExporter: InMemorySpanExporter;
   let provider: NodeTracerProvider;
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -83,7 +83,7 @@ describe("provider payload observability leak guard", () => {
       spanProcessors: [new SimpleSpanProcessor(spanExporter)],
     });
     provider.register();
-    projectDir = makeTmpDir();
+    scopeRoot = makeTmpDir();
   });
 
   afterEach(async () => {
@@ -95,7 +95,7 @@ describe("provider payload observability leak guard", () => {
   it("omits raw model-provider request, response, tool, reasoning, and credential values from exported observability payloads", async () => {
     const exchange = await captureProviderExchange();
     const runDir = ".kota/runs/provider-payload-leak-guard";
-    writeProviderPayloadArtifacts(projectDir, runDir, exchange);
+    writeProviderPayloadArtifacts(scopeRoot, runDir, exchange);
 
     expect(exchange.requestBody).toContain(sentinels.prompt);
     expect(exchange.requestBody).toContain(sentinels.toolSchema);
@@ -113,7 +113,7 @@ describe("provider payload observability leak guard", () => {
 
     const tracerErrors: LoggedError[] = [];
     const tracer = new WorkflowTracer(
-      projectDir,
+      scopeRoot,
       new Map([["provider-payload-leak-guard:build", "openrouter/safe-metadata-model"]]),
       (msg, err) => {
         tracerErrors.push({
@@ -139,7 +139,7 @@ describe("provider payload observability leak guard", () => {
       autonomyMode: "autonomous",
     });
     const completedPayload = {
-      projectId: "project-provider-payload",
+      scopeId: "scope-provider-payload",
       workflow: "provider-payload-leak-guard",
       runId: "run-provider-payload-leak",
       stepId: "build",
@@ -165,7 +165,7 @@ describe("provider payload observability leak guard", () => {
     const securityExporter = new CapturingSecurityLogExporter();
     const securityErrors: LoggedError[] = [];
     const securityEmitter = new SecurityLogEmitter(
-      projectDir,
+      scopeRoot,
       securityExporter,
       (msg, err) => securityErrors.push({ msg, err }),
     );
@@ -183,13 +183,13 @@ describe("provider payload observability leak guard", () => {
     await otlpExporter.export(securityExporter.records);
 
     const brokenRunDir = ".kota/runs/provider-payload-leak-guard-broken";
-    writeBrokenEnrichmentArtifacts(projectDir, brokenRunDir);
+    writeBrokenEnrichmentArtifacts(scopeRoot, brokenRunDir);
     const brokenPayload = {
       ...completedPayload,
       runId: "run-provider-payload-broken",
       runDir: brokenRunDir,
     };
-    const brokenTracer = new WorkflowTracer(projectDir, new Map(), (msg, err) => {
+    const brokenTracer = new WorkflowTracer(scopeRoot, new Map(), (msg, err) => {
       tracerErrors.push({
         msg,
         err: err instanceof Error ? err : new Error(String(err)),
@@ -223,7 +223,7 @@ describe("provider payload observability leak guard", () => {
       }),
     );
     const failingEmitter = new SecurityLogEmitter(
-      projectDir,
+      scopeRoot,
       failingOtlpExporter,
       (msg, err) => exportErrors.push({ msg, err }),
     );
@@ -257,7 +257,7 @@ describe("provider payload observability leak guard", () => {
     const toolCall = securityExporter.records.find((record) => record.name === "agent.tool_call");
     expect(toolCall?.severityText).toBe("WARN");
     expect(toolCall?.attributes).toMatchObject({
-      "project.id": "project-provider-payload",
+      "scope.id": "scope-provider-payload",
       "workflow.name": "provider-payload-leak-guard",
       "workflow.step.status": "failed",
       "workflow.step.duration_ms": 4567,

@@ -62,30 +62,30 @@ function makeTmpDir(): string {
   return dir;
 }
 
-function commitFile(projectDir: string, path: string, content: string): void {
-  const absolutePath = join(projectDir, path);
+function commitFile(workspaceRoot: string, path: string, content: string): void {
+  const absolutePath = join(workspaceRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, content);
-  execFileSync("git", ["add", "--", path], { cwd: projectDir });
+  execFileSync("git", ["add", "--", path], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "--quiet", "-m", `seed ${path}`], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }
 
-function stageFile(projectDir: string, path: string, content: string): void {
-  const absolutePath = join(projectDir, path);
+function stageFile(workspaceRoot: string, path: string, content: string): void {
+  const absolutePath = join(workspaceRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, content);
-  execFileSync("git", ["add", "--", path], { cwd: projectDir });
+  execFileSync("git", ["add", "--", path], { cwd: workspaceRoot });
 }
 
-function makeContext(projectDir: string, runDirPath?: string) {
+function makeContext(workspaceRoot: string, runDirPath?: string) {
   return {
-    projectDir,
+    workspaceRoot,
     workflow: {
       name: "improver",
       runId: "test-run",
-      runDirPath: runDirPath ?? join(projectDir, ".kota/runs/test-run"),
+      runDirPath: runDirPath ?? join(workspaceRoot, ".kota/runs/test-run"),
       definitionPath: "src/modules/autonomy/workflows/improver/workflow.ts",
     },
     trigger: { event: "autonomy.issue.decision-requested", payload: {} },
@@ -150,7 +150,7 @@ describe("createImproverSemanticCheck", () => {
     expect(result).toMatch(/pass/);
     expect(mockRunBlocking).toHaveBeenCalledWith(
       expect.objectContaining({ exportName: "inspectImproverSemanticReviewInWorker" }),
-      { projectDir: dir, runDirPath: runDir },
+      { workspaceRoot: dir, runDirPath: runDir },
     );
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
 

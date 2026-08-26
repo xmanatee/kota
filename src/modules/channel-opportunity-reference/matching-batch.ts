@@ -9,7 +9,6 @@ export function readChannelOpportunityBatch(
 ): ChannelOpportunityBatchInput {
   return {
     scopeId: payload.scopeId,
-    projectId: payload.projectId,
     sourceEventName: payload.sourceEventName,
     groupingKey: payload.groupingKey,
     flushReason: payload.reason,

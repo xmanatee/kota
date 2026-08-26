@@ -2,8 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  collectRuntimeHealthAuditForProject,
-  makeRuntimeHealthAuditProjectDir,
+  collectRuntimeHealthAuditForScope,
+  makeRuntimeHealthAuditScopeRoot,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
   runtimeHealthReadyTaskFiles,
@@ -13,18 +13,18 @@ import {
 } from "./runtime-health-audit-test-context.js";
 
 describe("runtime health audit", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeRuntimeHealthAuditProjectDir();
+    workspaceRoot = makeRuntimeHealthAuditScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("routes Telegram getUpdates conflicts to one issue decision", () => {
-    writeRuntimeHealthModuleLog(projectDir, "telegram", [
+    writeRuntimeHealthModuleLog(workspaceRoot, "telegram", [
       JSON.stringify({
         level: "warn",
         message:
@@ -36,8 +36,8 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
 
@@ -51,8 +51,8 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const first = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
-    const second = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const first = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
+    const second = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
 
     expect(first.applied).toEqual([
       expect.objectContaining({
@@ -62,14 +62,14 @@ describe("runtime health audit", () => {
       }),
     ]);
     expect(second.applied).toEqual([]);
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([]);
   });
 
   it("requests one issue decision for stale open DLQ items", () => {
-    writeRuntimeHealthDeadLetterQueue(projectDir, [staleWorkflowDispatchDeadLetter()]);
+    writeRuntimeHealthDeadLetterQueue(workspaceRoot, [staleWorkflowDispatchDeadLetter()]);
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
@@ -81,18 +81,18 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
     expect(actions.applied).toEqual([
       expect.objectContaining({
         kind: "decision-requested",
         dedupeKey: "dead-letter:validation:workflow-runtime:builder",
       }),
     ]);
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([]);
   });
 
   it("keeps classified agent transport DLQs separate from local execution repairs", () => {
-    writeRuntimeHealthDeadLetterQueue(projectDir, [
+    writeRuntimeHealthDeadLetterQueue(workspaceRoot, [
       staleWorkflowDispatchDeadLetter({
         id: "dlq-provider-transport",
         lastErrorClass: "execution",
@@ -107,8 +107,8 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
@@ -137,7 +137,7 @@ describe("runtime health audit", () => {
       ]),
     );
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
     expect(actions.applied).toEqual(
       [
         expect.objectContaining({
@@ -146,11 +146,11 @@ describe("runtime health audit", () => {
         }),
       ],
     );
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([]);
   });
 
   it("does not infer issue disposition from a title-related active task", () => {
-    writeRuntimeHealthDeadLetterQueue(projectDir, [
+    writeRuntimeHealthDeadLetterQueue(workspaceRoot, [
       staleWorkflowDispatchDeadLetter({
         id: "dlq-c3d9197c-110e-495d-ab5d-12e1de7925a7",
         workflow: "progress-reviewer",
@@ -160,7 +160,7 @@ describe("runtime health audit", () => {
         updatedAt: "2026-06-17T08:00:00.000Z",
       }),
     ]);
-    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const readyDir = join(workspaceRoot, "data", "tasks", "ready");
     mkdirSync(readyDir, { recursive: true });
     writeFileSync(
       join(readyDir, "task-clear-stale-progress-reviewer-write-scope-dlq-item.md"),
@@ -189,8 +189,8 @@ describe("runtime health audit", () => {
       "utf-8",
     );
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, staleDeadLetterMs: 60 * 60 * 1000 },
     });
 
@@ -203,7 +203,7 @@ describe("runtime health audit", () => {
       }),
     ]);
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
 
     expect(actions.applied).toEqual([
       expect.objectContaining({
@@ -212,7 +212,7 @@ describe("runtime health audit", () => {
           "dead-letter:execution:workflow-runtime:progress-reviewer",
       }),
     ]);
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([
+    expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([
       "task-clear-stale-progress-reviewer-write-scope-dlq-item.md",
     ]);
   });

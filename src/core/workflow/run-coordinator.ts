@@ -86,11 +86,11 @@ export class RunCoordinator {
   private readonly publicationRetryMs: number;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
-  private readonly projectIdleWaiters = new Map<string, Set<() => void>>();
+  private readonly scopeIdleWaiters = new Map<string, Set<() => void>>();
   private readonly capacityWaiters: CapacityWaiter[] = [];
   private readonly terminalWaiters = new Map<string, Set<TerminalWaiter>>();
   private readonly dependencyRunIds = new Set<string>();
-  private readonly pausedProjectIds = new Set<string>();
+  private readonly pausedScopeIds = new Set<string>();
   private globalAdmissionPaused = false;
   private eligibilityTimer: ReturnType<typeof setTimeout> | null = null;
   private publicationDrain: Promise<void> | null = null;
@@ -129,8 +129,8 @@ export class RunCoordinator {
     return this.phase === "disposed";
   }
 
-  isProjectAdmissionPaused(projectId: string): boolean {
-    return this.pausedProjectIds.has(projectId);
+  isScopeAdmissionPaused(scopeId: string): boolean {
+    return this.pausedScopeIds.has(scopeId);
   }
 
   get activeCount(): number {
@@ -149,15 +149,15 @@ export class RunCoordinator {
     return [...this.active.keys()].sort();
   }
 
-  activeRunIdsForProject(projectId: string): readonly string[] {
+  activeRunIdsForScope(scopeId: string): readonly string[] {
     return [...this.active.values()]
-      .filter((active) => active.run.projectId === projectId)
+      .filter((active) => active.run.scopeId === scopeId)
       .map((active) => active.run.id)
       .sort();
   }
 
-  isProjectBusy(projectId: string): boolean {
-    return this.activeRunIdsForProject(projectId).length > 0;
+  isScopeBusy(scopeId: string): boolean {
+    return this.activeRunIdsForScope(scopeId).length > 0;
   }
 
   pauseGlobalAdmission(): void {
@@ -171,15 +171,15 @@ export class RunCoordinator {
     return this.refill();
   }
 
-  pauseProjectAdmission(projectId: string): void {
-    this.pausedProjectIds.add(projectId);
+  pauseScopeAdmission(scopeId: string): void {
+    this.pausedScopeIds.add(scopeId);
     this.clearEligibilityTimer();
     if (this.phase === "active") this.refill();
   }
 
-  resumeProjectAdmission(projectId: string): number {
+  resumeScopeAdmission(scopeId: string): number {
     if (this.phase !== "active") return 0;
-    this.pausedProjectIds.delete(projectId);
+    this.pausedScopeIds.delete(scopeId);
     return this.refill();
   }
 
@@ -193,7 +193,7 @@ export class RunCoordinator {
       this.store.listDispatchableRuns({
         now: observedAt,
         limit: this.concurrency - this.countOccupiedCapacity(),
-        excludedProjectIds: [],
+        excludedScopeIds: [],
         includedRunIds: [...this.dependencyRunIds],
       }),
       observedAt,
@@ -203,7 +203,7 @@ export class RunCoordinator {
         this.store.listDispatchableRuns({
           now: observedAt,
           limit: this.concurrency - this.countOccupiedCapacity(),
-          excludedProjectIds: [...this.pausedProjectIds],
+          excludedScopeIds: [...this.pausedScopeIds],
         }),
         observedAt,
       );
@@ -238,9 +238,9 @@ export class RunCoordinator {
     return true;
   }
 
-  cancelProject(projectId: string): number {
+  cancelScope(scopeId: string): number {
     let cancelled = 0;
-    for (const runId of this.activeRunIdsForProject(projectId)) {
+    for (const runId of this.activeRunIdsForScope(scopeId)) {
       if (this.cancel(runId)) cancelled += 1;
     }
     return cancelled;
@@ -270,7 +270,7 @@ export class RunCoordinator {
     }
     const sharedResource = parent.run.resources.find((resource) =>
       current.resources.includes(resource) &&
-      (parent.run.projectId === current.projectId || resource.startsWith("global:"))
+      (parent.run.scopeId === current.scopeId || resource.startsWith("global:"))
     );
     if (sharedResource !== undefined) {
       throw new Error(
@@ -301,12 +301,12 @@ export class RunCoordinator {
     return new Promise((resolve) => this.idleWaiters.add(resolve));
   }
 
-  whenProjectIdle(projectId: string): Promise<void> {
-    if (!this.isProjectBusy(projectId)) return Promise.resolve();
+  whenScopeIdle(scopeId: string): Promise<void> {
+    if (!this.isScopeBusy(scopeId)) return Promise.resolve();
     return new Promise((resolve) => {
-      const waiters = this.projectIdleWaiters.get(projectId) ?? new Set<() => void>();
+      const waiters = this.scopeIdleWaiters.get(scopeId) ?? new Set<() => void>();
       waiters.add(resolve);
-      this.projectIdleWaiters.set(projectId, waiters);
+      this.scopeIdleWaiters.set(scopeId, waiters);
     });
   }
 
@@ -384,7 +384,7 @@ export class RunCoordinator {
       })
       .finally(() => {
         this.active.delete(run.id);
-        this.resolveProjectIdleWaiters(run.projectId);
+        this.resolveScopeIdleWaiters(run.scopeId);
         if (this.notifyTerminal(run.id)) {
           queueMicrotask(() => {
             this.grantCapacityWaiters();
@@ -490,11 +490,11 @@ export class RunCoordinator {
     this.idleWaiters.clear();
   }
 
-  private resolveProjectIdleWaiters(projectId: string): void {
-    if (this.isProjectBusy(projectId)) return;
-    const waiters = this.projectIdleWaiters.get(projectId);
+  private resolveScopeIdleWaiters(scopeId: string): void {
+    if (this.isScopeBusy(scopeId)) return;
+    const waiters = this.scopeIdleWaiters.get(scopeId);
     if (!waiters) return;
-    this.projectIdleWaiters.delete(projectId);
+    this.scopeIdleWaiters.delete(scopeId);
     for (const resolve of waiters) resolve();
   }
 
@@ -624,14 +624,14 @@ export class RunCoordinator {
     if (this.countOccupiedCapacity() >= this.concurrency) return;
     const dependencyEligibility = this.store.nextQueuedEligibility({
       after: observedAt,
-      excludedProjectIds: [],
+      excludedScopeIds: [],
       includedRunIds: [...this.dependencyRunIds],
     });
     const normalEligibility = this.globalAdmissionPaused
       ? null
       : this.store.nextQueuedEligibility({
           after: observedAt,
-          excludedProjectIds: [...this.pausedProjectIds],
+          excludedScopeIds: [...this.pausedScopeIds],
         });
     const eligibleAt = [dependencyEligibility, normalEligibility]
       .filter((value): value is string => value !== null)

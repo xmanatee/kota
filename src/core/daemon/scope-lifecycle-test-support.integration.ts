@@ -1,8 +1,8 @@
 import { vi } from "vitest";
-import type { ProjectRuntime } from "./project-runtime.js";
+import type { ScopeRuntime } from "./scope-runtime.js";
 
 export function mockPendingWorkflowBuffers(
-  runtime: ProjectRuntime,
+  runtime: ScopeRuntime,
   scopeId: string,
 ): () => void {
   const runtimeState = runtime.workflowRuntime.getState();
@@ -27,7 +27,6 @@ export function mockPendingWorkflowBuffers(
         triggerIndex: 0,
         sourceEventName: "test.pending-scope-work",
         scopeId,
-        projectId: scopeId,
         groupingKey: "all",
         groupValues: [],
         firstEventAt: "2026-08-01T12:00:00.000Z",
@@ -36,7 +35,7 @@ export function mockPendingWorkflowBuffers(
           event: "test.pending-scope-work",
           schemaRef: null,
           receivedAt: "2026-08-01T12:00:00.000Z",
-          payload: { scopeId, projectId: scopeId },
+          payload: { scopeId },
         }],
         droppedInputCount: 0,
       },

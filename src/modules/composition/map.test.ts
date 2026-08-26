@@ -90,7 +90,7 @@ describe("map tool", () => {
 						{ path: "b.txt" },
 					],
 				},
-				{ cwd: testDir, scopeId: "project-b", projectId: "project-b" },
+				{ cwd: testDir, scopeId: "scope-b" },
 			);
 
 			expect(r.is_error).toBeUndefined();

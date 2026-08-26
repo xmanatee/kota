@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
@@ -10,7 +10,6 @@ import daemonModule, { buildOperatorControlUiSurface } from "./index.js";
 
 function migratedClient(): ModuleRuntimeContext["client"] {
   const client = buildMigratedNamespaceTestStubs() as ModuleRuntimeContext["client"];
-  client.forProject = () => client;
   client.forScope = () => client;
   return client;
 }
@@ -71,7 +70,7 @@ describe("daemonModule definition", () => {
       "status",
       "inbox",
       "ui",
-      "project",
+      "scope",
     ]);
     const daemon = commands[0];
     expect(daemon.options.map((option) => option.long)).toEqual(
@@ -83,7 +82,7 @@ describe("daemonModule definition", () => {
         "--verbose",
         "--preset",
         "--poll-interval",
-        "--project-dir",
+        "--scope-root",
         "--log-format",
       ]),
     );
@@ -103,22 +102,22 @@ describe("daemonModule definition", () => {
   });
 
   it("serves the unified scoped module projection from /ui/surfaces", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-route-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-route-"));
     try {
       const getContributedUiSurfaces = vi.fn(() => [{
         moduleName: "test-ui",
         source: {
           sourceId: "operator-control",
-          project: ({ scopeId }: { scopeId: string }) => [
+          scope: ({ scopeId }: { scopeId: string }) => [
             buildOperatorControlUiSurface(scopeId),
           ],
         },
       }]);
       const ctx: ModuleRuntimeContext = {
         ...stubCtx,
-        cwd: projectDir,
+        cwd: scopeRoot,
         client: migratedClient(),
-        storage: new ModuleStorage(projectDir, "daemon"),
+        storage: new ModuleStorage(scopeRoot, "daemon"),
         getContributedUiSurfaces,
       };
       const route = daemonModule.controlRoutes!(ctx).find((candidate) =>
@@ -151,12 +150,12 @@ describe("daemonModule definition", () => {
       ]);
       expect(getContributedUiSurfaces).toHaveBeenCalledOnce();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("uses the daemon's implicit active scope for contributor reads", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-route-active-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-route-active-"));
     try {
       const migrated = migratedClient();
       const baseMemoryList = vi.fn(async () => ({
@@ -176,13 +175,12 @@ describe("daemonModule definition", () => {
         ...baseClient,
         memory: { ...baseClient.memory, list: scopedMemoryList },
         forScope: () => scopedClient,
-        forProject: () => scopedClient,
       } satisfies ModuleRuntimeContext["client"];
       const getContributedUiSurfaces = vi.fn(() => [{
         moduleName: "test-ui",
         source: {
           sourceId: "operator-control",
-          project: async ({
+          scope: async ({
             client,
             scopeId,
           }: {
@@ -198,23 +196,23 @@ describe("daemonModule definition", () => {
         },
       }]);
       const scopeProvider = {
-        getProjectRegistryProjection: () => ({
-          defaultProjectId: "scope-default",
-          projects: [],
+        getScopeRegistryProjection: () => ({
+          defaultScopeId: "scope-default",
+          scopes: [],
         }),
-        getActiveProjectId: () => "scope-active",
-        resolveProjectRuntime: () => {
+        getActiveScopeId: () => "scope-active",
+        resolveScopeRuntime: () => {
           throw new Error("not used");
         },
       };
       const ctx: ModuleRuntimeContext = {
         ...stubCtx,
-        cwd: projectDir,
+        cwd: scopeRoot,
         client: baseClient,
-        storage: new ModuleStorage(projectDir, "daemon"),
+        storage: new ModuleStorage(scopeRoot, "daemon"),
         getContributedUiSurfaces,
         getProvider: vi.fn((token) =>
-          token === DAEMON_PROJECT_SCOPE_PROVIDER_TYPE ? scopeProvider : null
+          token === DAEMON_SCOPE_PROVIDER_TYPE ? scopeProvider : null
         ) as ModuleRuntimeContext["getProvider"],
       };
       const route = daemonModule.controlRoutes!(ctx).find((candidate) =>
@@ -251,7 +249,7 @@ describe("daemonModule definition", () => {
       expect(scopedMemoryList).toHaveBeenCalledOnce();
       expect(baseMemoryList).not.toHaveBeenCalled();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });

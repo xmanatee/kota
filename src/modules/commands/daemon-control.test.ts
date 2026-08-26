@@ -89,16 +89,16 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => ({ rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] })),
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: { rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -135,7 +135,7 @@ type CatalogScenario = {
   skills?: Array<{ name: string; description?: string; promptPath: string; module: string }>;
 };
 
-function registerCatalog(projectDir: string, scenario: CatalogScenario): void {
+function registerCatalog(scopeRoot: string, scenario: CatalogScenario): void {
   const registry = getProviderRegistry();
   if (!registry) throw new Error("provider registry not initialized");
   const summaries = (scenario.skills ?? []).reduce<
@@ -166,7 +166,7 @@ function registerCatalog(projectDir: string, scenario: CatalogScenario): void {
     getModuleSummaries: () =>
       summaries.map((s) => ({
         name: s.name,
-        source: "project" as const,
+        source: "bundled" as const,
         dependencies: [],
         toolNames: [],
         workflowNames: [],
@@ -178,7 +178,7 @@ function registerCatalog(projectDir: string, scenario: CatalogScenario): void {
         commandNames: [],
         routeSummaries: [],
       } as never)),
-    projectDir,
+    scopeRoot,
   });
   registry.register(SLASH_COMMAND_PROVIDER_TYPE, "commands-test", catalog);
 }
@@ -201,10 +201,10 @@ function registerDispatcher(
 describe("commands module daemon-control routes", () => {
   let server: DaemonControlServer;
   let port: number;
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-commands-control-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-commands-control-"));
     resetProviderRegistry();
     initProviderRegistry();
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
@@ -216,7 +216,7 @@ describe("commands module daemon-control routes", () => {
   afterEach(async () => {
     await server.stop();
     resetProviderRegistry();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   describe("registration seam", () => {
@@ -229,7 +229,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("requires the daemon bearer token on both routes", async () => {
-      registerCatalog(projectDir, {});
+      registerCatalog(scopeRoot, {});
       const list = await globalThis.fetch(`http://127.0.0.1:${port}/commands`);
       expect(list.status).toBe(401);
       const invoke = await globalThis.fetch(
@@ -248,7 +248,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns the catalog list when registered", async () => {
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         workflows: [
           { name: "builder", description: "Run the builder", tags: ["command"], contributingModule: "autonomy" },
           { name: "internal", tags: [], contributingModule: "autonomy" },
@@ -280,7 +280,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 for invalid JSON body", async () => {
-      registerCatalog(projectDir, {});
+      registerCatalog(scopeRoot, {});
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -291,7 +291,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 when name is missing or empty", async () => {
-      registerCatalog(projectDir, {});
+      registerCatalog(scopeRoot, {});
       for (const body of [{}, { name: "" }, { name: 123 }]) {
         const res = await fetchWith(port, "/commands/invoke", {
           method: "POST",
@@ -306,7 +306,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 404 when the command is unknown", async () => {
-      registerCatalog(projectDir, {});
+      registerCatalog(scopeRoot, {});
       const res = await fetchWith(port, "/commands/invoke", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -317,9 +317,9 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 200 with the skill prompt for a skill command", async () => {
-      const promptPath = join(projectDir, "deep-research.md");
+      const promptPath = join(scopeRoot, "deep-research.md");
       writeFileSync(promptPath, "Investigate carefully.\n");
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         skills: [
           { name: "deep-research", description: "Research", promptPath, module: "research" },
         ],
@@ -338,7 +338,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 200 with queued workflow and runId when the dispatcher accepts", async () => {
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
@@ -365,7 +365,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 409 when the dispatcher reports the workflow is already queued", async () => {
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
@@ -384,7 +384,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 400 when the dispatcher reports a generic enqueue failure", async () => {
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],
@@ -401,7 +401,7 @@ describe("commands module daemon-control routes", () => {
     });
 
     it("returns 503 when the workflow-dispatcher seam is not registered", async () => {
-      registerCatalog(projectDir, {
+      registerCatalog(scopeRoot, {
         workflows: [
           { name: "builder", tags: ["command"], contributingModule: "autonomy" },
         ],

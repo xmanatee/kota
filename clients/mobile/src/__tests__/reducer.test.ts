@@ -64,27 +64,29 @@ describe('reducer', () => {
     expect(next.pushNotificationsEnabled).toBe(false);
   });
 
-  test('IDENTITY seeds activeProjectId on first refresh and ACTIVE_PROJECT clears project-scoped rows', () => {
+  test('IDENTITY seeds activeScopeId on first refresh and ACTIVE_SCOPE clears scoped rows', () => {
     const seeded = reducer(initialState, {
       type: 'IDENTITY',
       identity: {
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: {
-          defaultProjectId: 'p-default',
-          projects: [
-            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
-            { projectId: 'p-other', projectDir: '/tmp/o', displayName: 'other' },
+        scopeRegistry: {
+          rootScopeId: 'global',
+          defaultScopeId: 'p-default',
+          scopes: [
+            { scopeId: 'global', displayName: 'Global' },
+            { scopeId: 'p-default', directoryRoot: '/tmp/kota', displayName: 'kota', parentScopeId: 'global' },
+            { scopeId: 'p-other', directoryRoot: '/tmp/o', displayName: 'other', parentScopeId: 'global' },
           ],
         },
       },
-      activeProjectId: 'p-default',
+      activeScopeId: 'p-default',
     });
-    expect(seeded.activeProjectId).toBe('p-default');
-    expect(seeded.identity?.projects.projects).toHaveLength(2);
+    expect(seeded.activeScopeId).toBe('p-default');
+    expect(seeded.identity?.scopeRegistry.scopes).toHaveLength(3);
 
     const populated: DaemonState = {
       ...seeded,
@@ -103,41 +105,43 @@ describe('reducer', () => {
     };
 
     const switched = reducer(populated, {
-      type: 'ACTIVE_PROJECT',
-      projectId: 'p-other',
+      type: 'ACTIVE_SCOPE',
+      scopeId: 'p-other',
     });
-    expect(switched.activeProjectId).toBe('p-other');
+    expect(switched.activeScopeId).toBe('p-other');
     expect(switched.runs).toEqual([]);
     expect(switched.approvals).toEqual([]);
     expect(switched.pendingApprovalCount).toBe(0);
 
-    // Switching back to the same project is a no-op so React Native does
+    // Switching back to the same scope is a no-op so React Native does
     // not bounce the StatusScreen list.
-    const noop = reducer(switched, { type: 'ACTIVE_PROJECT', projectId: 'p-other' });
+    const noop = reducer(switched, { type: 'ACTIVE_SCOPE', scopeId: 'p-other' });
     expect(noop).toBe(switched);
   });
 
-  test('IDENTITY_CLEARED resets identity and activeProjectId together', () => {
+  test('IDENTITY_CLEARED resets identity and activeScopeId together', () => {
     const seeded = reducer(initialState, {
       type: 'IDENTITY',
       identity: {
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: {
-          defaultProjectId: 'p-default',
-          projects: [
-            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
+        scopeRegistry: {
+          rootScopeId: 'global',
+          defaultScopeId: 'p-default',
+          scopes: [
+            { scopeId: 'global', displayName: 'Global' },
+            { scopeId: 'p-default', directoryRoot: '/tmp/kota', displayName: 'kota', parentScopeId: 'global' },
           ],
         },
       },
-      activeProjectId: 'p-default',
+      activeScopeId: 'p-default',
     });
     const cleared = reducer(seeded, { type: 'IDENTITY_CLEARED' });
     expect(cleared.identity).toBeNull();
-    expect(cleared.activeProjectId).toBeNull();
+    expect(cleared.activeScopeId).toBeNull();
   });
 
   test('SET_URL and SET_TOKEN update in isolation', () => {

@@ -25,7 +25,7 @@ export type OperatorInboxItem = {
 };
 
 export type OperatorInboxSnapshot = {
-  projectDir: string;
+  scopeRoot: string;
   generatedAt: string;
   items: OperatorInboxItem[];
   counts: Record<OperatorInboxKind, number>;
@@ -191,16 +191,16 @@ function failedRunItem(run: WorkflowRunSummary): OperatorInboxItem {
 
 export async function buildOperatorInboxSnapshot(args: {
   client: KotaClient;
-  projectDir: string;
-  projectId?: string;
+  scopeRoot: string;
+  scopeId?: string;
   limit?: number;
   status?: StatusSnapshot;
 }): Promise<OperatorInboxSnapshot> {
   const limit = args.limit ?? 20;
-  const client = args.projectId ? args.client.forProject(args.projectId) : args.client;
+  const client = args.scopeId ? args.client.forScope(args.scopeId) : args.client;
   const status = args.status ?? await gatherStatus(
-    args.projectDir,
-    args.projectId ? { projectId: args.projectId } : {},
+    args.scopeRoot,
+    args.scopeId ? { scopeId: args.scopeId } : {},
   );
 
   const approvals = await client.approvals.list({ status: "pending" });
@@ -231,7 +231,7 @@ export async function buildOperatorInboxSnapshot(args: {
   ];
 
   return {
-    projectDir: args.projectDir,
+    scopeRoot: args.scopeRoot,
     generatedAt: new Date().toISOString(),
     items,
     counts: countItems(items),

@@ -21,14 +21,14 @@ import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 function createRuntime(
   config: Omit<
     WorkflowRuntimeConfig,
-    "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
-  > & { projectDir: string },
+    "scopeId" | "runState" | "runCoordinator" | "daemonEpoch"
+  > & { scopeRoot: string },
 ): { runtime: WorkflowRuntime; runState: RunStateDatabase } {
-  const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
-  const projectId = "write-scope-project";
-  runState.registerProject({
-    id: projectId,
-    rootPath: config.projectDir,
+  const runState = new RunStateDatabase(join(config.scopeRoot, ".kota", "state"));
+  const scopeId = "write-scope-test";
+  runState.registerScope({
+    id: scopeId,
+    rootPath: config.scopeRoot,
     createdAt: "2026-08-25T10:00:00.000Z",
   });
   const daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
@@ -42,7 +42,7 @@ function createRuntime(
   });
   runtime = new WorkflowRuntime({
     ...config,
-    projectId,
+    scopeId,
     runState,
     runCoordinator,
     daemonEpoch,
@@ -68,25 +68,25 @@ async function waitUntil(
   throw new Error(message);
 }
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-write-scope-dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
+  execFileSync("git", ["add", ".gitignore"], { cwd: workspaceRoot, stdio: "ignore" });
   execFileSync(
     "git",
     ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "init"],
-    { cwd: projectDir, stdio: "ignore" },
+    { cwd: workspaceRoot, stdio: "ignore" },
   );
-  return projectDir;
+  return workspaceRoot;
 }
 
-function countWorkflowRuns(projectDir: string, workflowName: string): number {
-  const runsDir = join(projectDir, ".kota", "runs");
+function countWorkflowRuns(workspaceRoot: string, workflowName: string): number {
+  const runsDir = join(workspaceRoot, ".kota", "runs");
   if (!existsSync(runsDir)) return 0;
   return readdirSync(runsDir).filter((runId) => {
     const metadataPath = join(runsDir, runId, "metadata.json");
@@ -96,29 +96,29 @@ function countWorkflowRuns(projectDir: string, workflowName: string): number {
 }
 
 describe("runtime dispatch write-scope attribution", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("propagates each declared repository mode to its run-owned sandbox", async () => {
     type Observation = {
       branch: string | null;
       hasGitMetadata: boolean;
-      projectDir: string;
-      scopeDir: string;
+      workspaceRoot: string;
+      scopeRoot: string;
     };
     const observed = new Map<RepositoryAccess, Observation>();
     const modes = ["none", "read", "write"] as const;
     const workflows: RegisteredWorkflowDefinitionInput[] = modes.map((repository) => ({
       name: `repository-${repository}`,
       definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       repository,
       ...(repository === "write"
         ? { integration: { validationCommand: ["true"] as const } }
@@ -128,7 +128,7 @@ describe("runtime dispatch write-scope attribution", () => {
         id: "observe-sandbox",
         type: "code",
         run: async (context) => {
-          const hasGitMetadata = existsSync(join(context.projectDir, ".git"));
+          const hasGitMetadata = existsSync(join(context.workspaceRoot, ".git"));
           const branch = hasGitMetadata
             ? (await context.runCommand({
                 command: "git",
@@ -138,8 +138,8 @@ describe("runtime dispatch write-scope attribution", () => {
           observed.set(repository, {
             branch,
             hasGitMetadata,
-            projectDir: context.projectDir,
-            scopeDir: context.scopeDir,
+            workspaceRoot: context.workspaceRoot,
+            scopeRoot: context.scopeRoot,
           });
         },
       }],
@@ -147,7 +147,7 @@ describe("runtime dispatch write-scope attribution", () => {
 
     const { runtime, runState } = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows,
     });
@@ -169,27 +169,27 @@ describe("runtime dispatch write-scope attribution", () => {
     expect(observed.get("none")).toMatchObject({
       branch: null,
       hasGitMetadata: false,
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
     });
-    expect(observed.get("none")?.projectDir).not.toBe(projectDir);
+    expect(observed.get("none")?.workspaceRoot).not.toBe(workspaceRoot);
     expect(observed.get("read")).toMatchObject({
       branch: "",
       hasGitMetadata: true,
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
     });
-    expect(observed.get("read")?.projectDir).not.toBe(projectDir);
+    expect(observed.get("read")?.workspaceRoot).not.toBe(workspaceRoot);
     expect(observed.get("write")).toMatchObject({
       hasGitMetadata: true,
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
     });
     expect(observed.get("write")?.branch).toMatch(/^kota\/run\//);
-    expect(observed.get("write")?.projectDir).not.toBe(projectDir);
+    expect(observed.get("write")?.workspaceRoot).not.toBe(workspaceRoot);
   });
 
   it("keeps shared-workspace agent write-scope snapshots from blaming concurrent agent edits", async () => {
     const harnessName =
       `runtime-dispatch-write-scope-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    writeFileSync(join(projectDir, "prompt.md"), "Review.\n");
+    writeFileSync(join(workspaceRoot, "prompt.md"), "Review.\n");
 
     let builderStartedAt = 0;
     let builderCompletedAt = 0;
@@ -208,7 +208,7 @@ describe("runtime dispatch write-scope attribution", () => {
           builderStartedAt = Date.now();
           await wait(80);
           const target = join(
-            options.cwd ?? projectDir,
+            options.cwd ?? workspaceRoot,
             "src",
             "modules",
             "autonomy",
@@ -234,14 +234,14 @@ describe("runtime dispatch write-scope attribution", () => {
 
     const { runtime, runState } = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
           repository: "read",
           name: "builder",
           definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           triggers: [{ event: "manual", cooldownMs: 0 }],
           steps: [
             {
@@ -261,7 +261,7 @@ describe("runtime dispatch write-scope attribution", () => {
           repository: "read",
           name: "progress-reviewer",
           definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           triggers: [{ event: "manual", cooldownMs: 0 }],
           steps: [
             {
@@ -311,8 +311,8 @@ describe("runtime dispatch write-scope attribution", () => {
       expect(runtime.enqueuePendingRun("progress-reviewer").ok).toBe(true);
       await waitUntil(
         () =>
-          countWorkflowRuns(projectDir, "builder") === 1 &&
-          countWorkflowRuns(projectDir, "progress-reviewer") === 1 &&
+          countWorkflowRuns(workspaceRoot, "builder") === 1 &&
+          countWorkflowRuns(workspaceRoot, "progress-reviewer") === 1 &&
           !runtime.isBusy(),
         "Timed out waiting for shared-workspace agent runs",
       );
@@ -324,13 +324,13 @@ describe("runtime dispatch write-scope attribution", () => {
     expect(builderCompletedAt).toBeGreaterThan(0);
     expect(reviewerStartedAt).toBeLessThan(builderCompletedAt);
 
-    const progressRunId = readdirSync(join(projectDir, ".kota", "runs")).find(
+    const progressRunId = readdirSync(join(workspaceRoot, ".kota", "runs")).find(
       (runId) => runId.includes("progress-reviewer"),
     );
     expect(progressRunId).toBeDefined();
     const metadata = JSON.parse(
       readFileSync(
-        join(projectDir, ".kota", "runs", progressRunId!, "metadata.json"),
+        join(workspaceRoot, ".kota", "runs", progressRunId!, "metadata.json"),
         "utf-8",
       ),
     ) as { status: string; steps: Array<{ id: string; status: string }> };
@@ -341,7 +341,7 @@ describe("runtime dispatch write-scope attribution", () => {
     expect(
       existsSync(
         join(
-          projectDir,
+          workspaceRoot,
           ".kota",
           "runs",
           progressRunId!,

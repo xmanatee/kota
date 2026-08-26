@@ -40,7 +40,7 @@ import { loadInstructionContext } from "./instruction-files.js";
 import type { LoopOptions } from "./loop.js";
 import { type AgentLoopState, runInitModules, saveToHistoryImpl } from "./loop-init.js";
 import { getAgentLoopTokenBudget, setAgentLoopTokenBudget } from "./loop-token-budget.js";
-import { loadProjectContext } from "./project-context.js";
+import { loadScopeContext } from "./scope-context.js";
 import { SessionStateMachine } from "./session-state.js";
 import { NullTransport, ProxyTransport } from "./transport.js";
 import { detectVerifyCommands, VerifyTracker } from "./verify-tracker.js";
@@ -50,11 +50,11 @@ export function initAgentSession(
   options: LoopOptions,
   sessionFactory: (opts: CreateSessionOptions) => ModuleSession,
 ): void {
-  const projectDir = options.projectRuntime?.project.projectDir ?? options.projectDir ?? process.cwd();
-  state.projectDir = projectDir;
-  state.authorityConfigPath = options.projectRuntime?.authorityConfigPath ?? getGlobalConfigPath();
-  state.scopeId = options.projectRuntime?.project.projectId
-    ?? deriveDirectoryScopeId(projectDir);
+  const scopeRoot = options.scopeRuntime?.scope.scopeRoot ?? options.scopeRoot ?? process.cwd();
+  state.scopeRoot = scopeRoot;
+  state.authorityConfigPath = options.scopeRuntime?.authorityConfigPath ?? getGlobalConfigPath();
+  state.scopeId = options.scopeRuntime?.scope.scopeId
+    ?? deriveDirectoryScopeId(scopeRoot);
   state.sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionLabel = options.label;
   if (!isAutonomyMode(options.autonomyMode)) {
@@ -62,7 +62,7 @@ export function initAgentSession(
       "AgentSession requires an explicit autonomyMode (passive | supervised | autonomous)",
     );
   }
-  state.scopePolicyAuthority = options.projectRuntime?.scopePolicyAuthority;
+  state.scopePolicyAuthority = options.scopeRuntime?.scopePolicyAuthority;
   const initialScopePolicy = state.scopePolicyAuthority?.getSnapshot(state.scopeId).policy;
   state.autonomyMode = initialScopePolicy
     ? capScopeAutonomyMode(options.autonomyMode, initialScopePolicy)
@@ -104,8 +104,8 @@ export function initAgentSession(
   state.modelOutputTokenLimits = options.config?.modelOutputTokenLimits;
   state.channelIdentity = options.channelIdentity;
   setAgentLoopTokenBudget(state, options.tokenBudget);
-	state.approvalQueue = options.projectRuntime?.approvalQueue
-		?? getApprovalQueue(join(projectDir, ".kota", "approvals"));
+	state.approvalQueue = options.scopeRuntime?.approvalQueue
+		?? getApprovalQueue(join(scopeRoot, ".kota", "approvals"));
 
   const thinkingBudget = options.thinkingBudget || 10_000;
   state.thinkingConfig = options.thinkingEnabled
@@ -120,29 +120,29 @@ export function initAgentSession(
     provider: options.config?.modelProvider?.type,
     baseUrl: options.config?.modelProvider?.baseUrl,
     apiKey: options.config?.modelProvider?.apiKey,
-    projectDir,
+    scopeRoot,
   }).client;
   state.costTracker = new CostTracker();
 
-  if (options.projectRuntime) {
-    if (options.projectDir !== undefined && options.projectDir !== projectDir) {
+  if (options.scopeRuntime) {
+    if (options.scopeRoot !== undefined && options.scopeRoot !== scopeRoot) {
       throw new Error(
-        `AgentSession projectDir ${options.projectDir} does not match projectRuntime ${projectDir}`,
+        `AgentSession scopeRoot ${options.scopeRoot} does not match scopeRuntime ${scopeRoot}`,
       );
     }
-    setTaskStoreInstance(options.projectRuntime.taskStore);
-    setSchedulerInstance(options.projectRuntime.scheduler);
-    setModuleLogStoreInstance(options.projectRuntime.moduleLogStore);
-    setIdempotencyStoreInstance(options.projectRuntime.idempotencyStore);
-    setOwnerQuestionQueueInstance(options.projectRuntime.ownerQuestionQueue);
-    state.idempotencyStore = options.projectRuntime.idempotencyStore;
+    setTaskStoreInstance(options.scopeRuntime.taskStore);
+    setSchedulerInstance(options.scopeRuntime.scheduler);
+    setModuleLogStoreInstance(options.scopeRuntime.moduleLogStore);
+    setIdempotencyStoreInstance(options.scopeRuntime.idempotencyStore);
+    setOwnerQuestionQueueInstance(options.scopeRuntime.ownerQuestionQueue);
+    state.idempotencyStore = options.scopeRuntime.idempotencyStore;
   } else {
-    initTaskStore(projectDir);
-    initScheduler(projectDir);
-    initModuleLogStore(projectDir);
+    initTaskStore(scopeRoot);
+    initScheduler(scopeRoot);
+    initModuleLogStore(scopeRoot);
     const idempotencyStore = new IdempotencyStore(
-      join(projectDir, ".kota", "idempotency"),
-      deriveDirectoryScopeId(projectDir),
+      join(scopeRoot, ".kota", "idempotency"),
+      deriveDirectoryScopeId(scopeRoot),
     );
     setIdempotencyStoreInstance(idempotencyStore);
     state.idempotencyStore = idempotencyStore;
@@ -154,15 +154,15 @@ export function initAgentSession(
     registerDefaultProviders();
   }
 
-  state.projectContext = loadProjectContext(projectDir, projectDir);
-  const projectContext = state.projectContext;
-  const instructionContext = loadInstructionContext(projectDir, projectDir);
+  state.scopeContext = loadScopeContext(scopeRoot, scopeRoot);
+  const scopeContext = state.scopeContext;
+  const instructionContext = loadInstructionContext(scopeRoot, scopeRoot);
   state.instructionContext = instructionContext;
-  const warmup = buildSessionWarmup(projectDir);
+  const warmup = buildSessionWarmup(scopeRoot);
   const userProfile = options.config ? buildUserProfile(options.config) : "";
-  const systemPrompt = SYSTEM_PROMPT + projectContext + instructionContext + userProfile + warmup;
-  if (projectContext && state.verbose) {
-    state.transport.emit({ type: "status", message: "[kota] Loaded project context from .kota.md" });
+  const systemPrompt = SYSTEM_PROMPT + scopeContext + instructionContext + userProfile + warmup;
+  if (scopeContext && state.verbose) {
+    state.transport.emit({ type: "status", message: "[kota] Loaded scope context from .kota.md" });
   }
   if (instructionContext && state.verbose) {
     state.transport.emit({
@@ -203,14 +203,14 @@ export function initAgentSession(
   state.historyEnabled = !options.noHistory && (!state.sessionPath || !!options.resumeConversation);
   state.historySource = options.historySource ?? "user";
 
-  state.verifyTracker = new VerifyTracker(detectVerifyCommands(projectDir));
+  state.verifyTracker = new VerifyTracker(detectVerifyCommands(scopeRoot));
 
   state.moduleLoader = options.moduleLoader
     ?? new ModuleLoader(options.config || {}, state.verbose);
   if (state.ownsModuleRuntime) {
-    state.moduleLoader.setCwd(projectDir);
+    state.moduleLoader.setCwd(scopeRoot);
     state.moduleLoader.setBus(
-      options.projectRuntime?.pbus.getUnderlying() ?? initEventBus(),
+      options.scopeRuntime?.pbus.getUnderlying() ?? initEventBus(),
     );
   }
   const configuredModelProvider = options.config?.modelProvider;
@@ -235,8 +235,8 @@ export function initAgentSession(
     ...(hasDelegateModelProvider ? { modelProvider: delegateModelProvider } : {}),
     modelOutputTokenLimits: options.config?.modelOutputTokenLimits,
     client: state.client,
-    cwd: projectDir,
-    projectContext: projectContext || undefined,
+    cwd: scopeRoot,
+    scopeContext: scopeContext || undefined,
     instructionContext: instructionContext || undefined,
     costTracker: state.costTracker,
     transport: state.transport,

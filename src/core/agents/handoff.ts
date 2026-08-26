@@ -10,7 +10,6 @@ export type AgentHandoffMode = "call" | "transfer";
 
 export type AgentHandoffScope = {
   scopeId: string;
-  projectId?: string;
 };
 
 export type AgentHandoffBudget = {

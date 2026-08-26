@@ -252,7 +252,7 @@ describe('HistoryScreen', () => {
           updatedAt: '2026-06-15T09:20:00.000Z',
           model: 'test-model',
           messageCount: 3,
-          cwd: '/tmp/project',
+          cwd: '/tmp/scope',
           source: 'user',
         },
         {
@@ -262,7 +262,7 @@ describe('HistoryScreen', () => {
           updatedAt: '2026-06-15T10:45:00.000Z',
           model: 'test-model',
           messageCount: 11,
-          cwd: '/tmp/project',
+          cwd: '/tmp/scope',
           source: 'action',
         },
       ],

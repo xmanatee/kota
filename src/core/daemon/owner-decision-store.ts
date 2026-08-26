@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type {
   OwnerDecisionConsumeResult,
   OwnerDecisionConsumption,
@@ -72,12 +72,12 @@ function ownerDecisionFilePathForItem(dir: string, item: OwnerDecisionRecord): s
 }
 
 export class OwnerDecisionStore {
-  private pbus: ProjectScopedEventBus | null;
+  private pbus: ScopedEventBus | null;
 
   constructor(
     private dir: string,
     private scopeId: string,
-    pbus?: ProjectScopedEventBus | null,
+    pbus?: ScopedEventBus | null,
   ) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     this.pbus = pbus ?? null;

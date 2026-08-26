@@ -39,7 +39,7 @@ describe("buildDaemonHandle reloadConfig events", () => {
     const subject = makeReloadSubject({}, () => [
       {
         name: "demo",
-        source: "project",
+        source: "bundled",
         dependencies: [],
         toolNames: [],
         workflowNames: [],
@@ -56,7 +56,7 @@ describe("buildDaemonHandle reloadConfig events", () => {
             kind: "config",
             title: "Endpoint",
             required: true,
-            scope: "project",
+            scope: "scope",
             sensitivity: "none",
             setup,
           },
@@ -186,7 +186,7 @@ describe("buildDaemonHandle reloadConfig events", () => {
 
     expect(subject.restartRequests).toEqual([
       {
-        projectId: "test-project",
+        scopeId: "test-scope",
         reason: "Agent runtime selection changed during config reload",
       },
     ]);

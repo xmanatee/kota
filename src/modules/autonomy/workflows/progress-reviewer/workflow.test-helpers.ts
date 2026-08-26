@@ -72,7 +72,7 @@ export function reviewOutput(args: {
   };
 }
 
-export function makeProgressReviewProjectDir(label = "progress-reviewer"): string {
+export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string {
   const dir = realpathSync.native(mkdtempSync(join(tmpdir(), `kota-${label}-`)));
   writeFileSync(
     join(dir, ".gitignore"),
@@ -98,10 +98,10 @@ export function makeProgressReviewProjectDir(label = "progress-reviewer"): strin
 }
 
 export function makeProgressReviewRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
 ): RunContext {
-  const runtimeDir = join(projectDir, ".kota", "runtime", runId);
+  const runtimeDir = join(workspaceRoot, ".kota", "runtime", runId);
   const tempDir = join(runtimeDir, "temp");
   const artifactDir = join(runtimeDir, "artifacts");
   const agentDir = join(runtimeDir, "agent");
@@ -112,9 +112,9 @@ export function makeProgressReviewRunContext(
   const signal = new AbortController().signal;
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: {
-      id: deriveDirectoryScopeId(projectDir),
-      root: projectDir,
+    scope: {
+      id: deriveDirectoryScopeId(workspaceRoot),
+      root: workspaceRoot,
     },
     workflow: "progress-reviewer",
     trigger: {
@@ -126,25 +126,25 @@ export function makeProgressReviewRunContext(
       runId,
       repository: "write",
       rootDir: runtimeDir,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       tempDir,
       artifactDir,
       baseCommit: execFileSync("git", ["rev-parse", "HEAD"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         encoding: "utf-8",
       }).trim(),
       branch: `test/${runId}`,
       targetBranch: execFileSync(
         "git",
         ["symbolic-ref", "--quiet", "--short", "HEAD"],
-        { cwd: projectDir, encoding: "utf-8" },
+        { cwd: workspaceRoot, encoding: "utf-8" },
       ).trim(),
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       runDir: runtimeDir,
       tempDir,
       artifactDir,
@@ -167,13 +167,13 @@ export function makeProgressReviewRunContext(
 }
 
 export function commitProgressReviewFixture(
-  projectDir: string,
+  workspaceRoot: string,
   message: string,
   committedAt: string,
 ): string {
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "--quiet", "-m", message], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: {
       ...process.env,
       GIT_AUTHOR_DATE: committedAt,
@@ -181,13 +181,13 @@ export function commitProgressReviewFixture(
     },
   });
   return execFileSync("git", ["rev-parse", "HEAD"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf-8",
   }).trim();
 }
 
 export function writeProgressReviewTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: string,
   id: string,
 ): void {
@@ -200,7 +200,7 @@ export function writeProgressReviewTask(
     context: "Progress reviewer test fixture.",
   });
   writeFileSync(
-    join(projectDir, "data", "tasks", state, `${id}.md`),
+    join(workspaceRoot, "data", "tasks", state, `${id}.md`),
     `---
 id: ${id}
 title: ${id}
@@ -255,11 +255,10 @@ export function parseReviewInputFromAgentPrompt(
   return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
 }
 
-export function channelBatchPayload(projectDir: string): WorkflowBatchFlushPayload {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+export function channelBatchPayload(workspaceRoot: string): WorkflowBatchFlushPayload {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   return {
     scopeId,
-    projectId: scopeId,
     sourceEventName: inboundSignalReceived.name,
     groupingKey: "channel=slack;sourceId=C123",
     reason: "count",
@@ -279,7 +278,6 @@ export function channelBatchPayload(projectDir: string): WorkflowBatchFlushPaylo
         receivedAt: "2026-06-04T11:55:00.000Z",
         payload: {
           scopeId,
-          projectId: scopeId,
           provider: "slack",
           channel: "slack",
           accountId: "workspace",
@@ -310,7 +308,6 @@ export function channelBatchPayload(projectDir: string): WorkflowBatchFlushPaylo
         receivedAt: "2026-06-04T11:56:00.000Z",
         payload: {
           scopeId,
-          projectId: scopeId,
           provider: "slack",
           channel: "slack",
           accountId: "workspace",

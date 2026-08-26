@@ -42,7 +42,7 @@ backend instead of throwing when the backend is available.
 
 The container path preserves the current fixture isolation guarantees:
 materialized fixture working directories stay outside the operator repo,
-`HOME` and `KOTA_PROJECT_DIR` point at the fixture working directory, replay
+`HOME` and `KOTA_SCOPE_ROOT` point at the fixture working directory, replay
 recording env and external-call shims still work, and run artifacts are
 written back to the expected eval-run artifact directory.
 

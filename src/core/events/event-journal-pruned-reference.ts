@@ -13,7 +13,6 @@ function retainedScopeMetadata(scope: EventEnvelopeScope): EvidenceJsonObject {
   return {
     scopeKind: "scope",
     scopeId: scope.scopeId,
-    projectId: scope.projectId,
     lineage: [...scope.lineage],
   };
 }

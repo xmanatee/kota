@@ -5,7 +5,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { WorkflowClient } from "./client.js";
 import workflowOpsModule from "./index.js";
 
-export function makeWorkflowOpsProjectDir(): string {
+export function makeWorkflowOpsScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-wf-local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -16,10 +16,10 @@ export function makeWorkflowOpsProjectDir(): string {
 }
 
 export function buildLocalWorkflowHandler(
-  projectDir: string,
+  workspaceRoot: string,
   overrides?: Partial<ModuleContext>,
 ): WorkflowClient {
-  const ctx = { cwd: projectDir, ...(overrides ?? {}) } as ModuleContext;
+  const ctx = { cwd: workspaceRoot, ...(overrides ?? {}) } as ModuleContext;
   const handlers = workflowOpsModule.localClient!(ctx);
   if (!handlers.workflow) throw new Error("workflow handler missing");
   return handlers.workflow;

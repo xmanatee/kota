@@ -162,7 +162,7 @@ function taskPriorityForUpdate(
 }
 
 export function createOrUpdateSecurityFindingTasks(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     runId: string;
     findings: readonly SecurityRevalidatedFinding[];
@@ -181,7 +181,7 @@ export function createOrUpdateSecurityFindingTasks(
     }
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
-    const resolution = resolveSecurityFindingTaskTarget(projectDir, {
+    const resolution = resolveSecurityFindingTaskTarget(workspaceRoot, {
       baseId: `task-${slugifyTaskTitle(title)}`,
       candidateId: finding.candidateId,
       findingId: finding.id,
@@ -220,7 +220,7 @@ export function createOrUpdateSecurityFindingTasks(
       ...securityFindingIdentityAttrs(key, mergedReviewRunIds),
     };
     writeRepoTaskFile(
-      projectDir,
+      workspaceRoot,
       target.path,
       serializeFlatFrontMatter(
         attrs,

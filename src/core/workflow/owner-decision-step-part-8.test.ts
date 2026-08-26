@@ -16,7 +16,7 @@ import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
 import { ownerDecisionSteps } from "./owner-decision-step.js";
 import {
@@ -48,14 +48,14 @@ type ConfirmedActionFixtureOptions = {
 };
 
 describe("owner decision workflow helpers", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let decisionDir: string;
   let questionDir: string;
   let approvalDir: string;
   let deadLetterDir: string;
   let idempotencyDir: string;
   let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
+  let pbus: ScopedEventBus;
   let store: WorkflowRunStore;
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
@@ -65,7 +65,7 @@ describe("owner decision workflow helpers", () => {
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "owner-decision-workflow-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "owner-decision-workflow-"));
     decisionDir = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
     questionDir = mkdtempSync(join(tmpdir(), "owner-decision-question-"));
     approvalDir = mkdtempSync(join(tmpdir(), "owner-decision-approval-"));
@@ -73,8 +73,8 @@ describe("owner decision workflow helpers", () => {
     idempotencyDir = mkdtempSync(join(tmpdir(), "owner-decision-idempotency-"));
     resetEventBus();
     bus = initEventBus();
-    pbus = new ProjectScopedEventBus(bus, "scope-a");
-    store = new WorkflowRunStore(projectDir);
+    pbus = new ScopedEventBus(bus, "scope-a");
+    store = new WorkflowRunStore(workspaceRoot);
     decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
     questionQueue = new OwnerQuestionQueue(questionDir, pbus);
     approvalQueue = new ApprovalQueue(approvalDir, pbus);
@@ -89,7 +89,7 @@ describe("owner decision workflow helpers", () => {
     resetApprovalQueue();
     resetIdempotencyStore();
     resetEventBus();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(decisionDir, { recursive: true, force: true });
     rmSync(questionDir, { recursive: true, force: true });
     rmSync(approvalDir, { recursive: true, force: true });
@@ -233,27 +233,27 @@ describe("owner decision workflow helpers", () => {
     const runId = `owner-decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return {
       run: { id: runId, attempt: 1, daemonEpoch: 1 },
-      project: { id: "scope-a", root: projectDir },
+      scope: { id: "scope-a", root: workspaceRoot },
       workflow: "owner-decision-fixture",
       trigger: TRIGGER,
       sandbox: {
         runId,
         repository: "none",
-        rootDir: projectDir,
-        workspaceDir: projectDir,
-        tempDir: projectDir,
-        artifactDir: projectDir,
+        rootDir: workspaceRoot,
+        workspaceDir: workspaceRoot,
+        tempDir: workspaceRoot,
+        artifactDir: workspaceRoot,
       },
       resources: {
         runId,
         attempt: 1,
         daemonEpoch: 1,
-        workspaceDir: projectDir,
-        runDir: projectDir,
-        tempDir: projectDir,
-        artifactDir: projectDir,
-        agentDir: projectDir,
-        packageCacheDir: projectDir,
+        workspaceDir: workspaceRoot,
+        runDir: workspaceRoot,
+        tempDir: workspaceRoot,
+        artifactDir: workspaceRoot,
+        agentDir: workspaceRoot,
+        packageCacheDir: workspaceRoot,
         ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
         env: {},
       },

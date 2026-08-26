@@ -1,4 +1,4 @@
-import type { ScopeId } from "#core/events/project-scope.js";
+import type { ScopeId } from "#core/events/scope.js";
 import type { ResolvedScopePolicy, ScopePolicyArea, ScopePolicyFragment } from "./scope-policy.js";
 
 export const SCOPE_AUTHORITY_SCHEMA_VERSION = 1 as const;
@@ -36,7 +36,7 @@ export type ScopeAuthorityMetadata = {
 
 export type ScopeTrustDecision = {
   trusted: boolean;
-  source: "kota-self-project" | "machine-config" | "default-untrusted";
+  source: "kota-self-scope" | "machine-config" | "default-untrusted";
 };
 
 export type ScopeAuthorityView = {
@@ -97,7 +97,7 @@ export type ScopeAuthorityMutationResult =
   | ScopeAuthorityFailure;
 
 export type ScopeAuthorityStoredState = {
-  trustedProjects: readonly string[];
+  trustedScopes: readonly string[];
   scopePolicies: readonly ScopePolicyFragment[];
   metadata: ScopeAuthorityMetadata;
 };

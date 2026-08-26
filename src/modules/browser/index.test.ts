@@ -146,7 +146,7 @@ describe("browser module", () => {
       expect.objectContaining({ storageStatePath: "/secure/profile.json" }),
       {
         scopeId: expect.any(String),
-        projectDir: cwd,
+        scopeRoot: cwd,
       },
     );
   });

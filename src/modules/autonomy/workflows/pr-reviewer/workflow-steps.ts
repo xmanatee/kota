@@ -146,7 +146,7 @@ export function githubCommentInput(
 }
 
 function assessCommentPolicy(
-  projectDir: string,
+  workspaceRoot: string,
   input: GithubCommentInput,
 ): PrReviewCommentPolicy {
   if (getToolEffect("github_comment") === undefined) {
@@ -159,7 +159,7 @@ function assessCommentPolicy(
   const assessment = assess(
     "github_comment",
     input,
-    nonInteractiveConfig(loadConfig(projectDir).guardrails),
+    nonInteractiveConfig(loadConfig(workspaceRoot).guardrails),
   );
   if (assessment.policy === "deny") {
     throw new Error(`github_comment is denied by guardrails: ${assessment.reason}`);
@@ -255,6 +255,6 @@ export const commentPolicy = typedCodeStep<PrReviewCommentPolicy>({
   when: stepSucceeded("prepare-comment"),
   run: (ctx) => {
     const comment = prepareComment.outputRequired(ctx);
-    return assessCommentPolicy(ctx.projectDir, githubCommentInput(comment));
+    return assessCommentPolicy(ctx.workspaceRoot, githubCommentInput(comment));
   },
 });

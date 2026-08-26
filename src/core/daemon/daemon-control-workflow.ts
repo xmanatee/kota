@@ -4,24 +4,24 @@ import type { EventSchemaReference } from "#core/events/event-bus-types.js";
 import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
-import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
+import { jsonResponse, readBody, resolveScopeIdParam } from "./daemon-control-utils.js";
 
 export function handleGetWorkflowStatus(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  jsonResponse(res, 200, handle.getWorkflowLiveStatus(scope.projectId));
+  jsonResponse(res, 200, handle.getWorkflowLiveStatus(scope.scopeId));
 }
 
 export function handleGetWorkflowDefinitions(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  jsonResponse(res, 200, { definitions: handle.getWorkflowDefinitions(scope.projectId) });
+  jsonResponse(res, 200, { definitions: handle.getWorkflowDefinitions(scope.scopeId) });
 }
 
 export function handleListWorkflowRuns(
@@ -29,7 +29,7 @@ export function handleListWorkflowRuns(
   res: ServerResponse,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
@@ -40,7 +40,7 @@ export function handleListWorkflowRuns(
   const rawLimit = url.searchParams.has("limit") ? Number.parseInt(url.searchParams.get("limit")!, 10) : 20;
   const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 20 : Math.min(rawLimit, 200);
   jsonResponse(res, 200, {
-    runs: handle.listWorkflowRuns({ workflow, limit, tag, causedByRunId, projectId: scope.projectId }),
+    runs: handle.listWorkflowRuns({ workflow, limit, tag, causedByRunId, scopeId: scope.scopeId }),
   });
 }
 
@@ -50,7 +50,7 @@ export function handleGetWorkflowRun(
   params: Record<string, string>,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
@@ -62,7 +62,7 @@ export function handleGetWorkflowRun(
     jsonResponse(res, 400, { error: "Invalid workflow run id" });
     return;
   }
-  const run = handle.getWorkflowRun(runId, scope.projectId);
+  const run = handle.getWorkflowRun(runId, scope.scopeId);
   if (!run) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -71,17 +71,17 @@ export function handleGetWorkflowRun(
 }
 
 export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const { already } = handle.pauseWorkflowDispatch(scope.projectId);
+  const { already } = handle.pauseWorkflowDispatch(scope.scopeId);
   jsonResponse(res, 200, { ok: true, paused: true, ...(already && { already: true }) });
 }
 
 export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
@@ -90,7 +90,7 @@ export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerRes
     ? { retryAgent: true }
     : undefined;
   const { already, agentBackoffCleared } =
-    handle.resumeWorkflowDispatch(scope.projectId, options);
+    handle.resumeWorkflowDispatch(scope.scopeId, options);
   jsonResponse(res, 200, {
     ok: true,
     paused: false,
@@ -100,12 +100,12 @@ export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerRes
 }
 
 export function handleAbortWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const { aborted } = handle.abortActiveRuns(scope.projectId);
+  const { aborted } = handle.abortActiveRuns(scope.scopeId);
   jsonResponse(res, 200, { ok: true, aborted });
 }
 
@@ -115,12 +115,12 @@ export function handleAbortWorkflowRun(
   params: Record<string, string>,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const result = handle.abortActiveRun(params.id, scope.projectId);
+  const result = handle.abortActiveRun(params.id, scope.scopeId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -133,12 +133,12 @@ export function handleAbortWorkflowRun(
 }
 
 export function handleReloadWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const { count } = handle.reloadWorkflowDefinitions(scope.projectId);
+  const { count } = handle.reloadWorkflowDefinitions(scope.scopeId);
   jsonResponse(res, 200, { ok: true, count });
 }
 
@@ -157,12 +157,12 @@ export function handleCancelWorkflowRun(
   params: Record<string, string>,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const result = handle.cancelQueuedRun(params.id, scope.projectId);
+  const result = handle.cancelQueuedRun(params.id, scope.scopeId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -180,12 +180,12 @@ export function handleDisableWorkflow(
   params: Record<string, string>,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const result = handle.disableWorkflow(params.name, scope.projectId);
+  const result = handle.disableWorkflow(params.name, scope.scopeId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
     return;
@@ -199,12 +199,12 @@ export function handleEnableWorkflow(
   params: Record<string, string>,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  const result = handle.enableWorkflow(params.name, scope.projectId);
+  const result = handle.enableWorkflow(params.name, scope.scopeId);
   if (result.notFound) {
     jsonResponse(res, 404, { error: `Workflow "${params.name}" not found` });
     return;
@@ -218,7 +218,7 @@ export function handleTriggerWorkflow(
   res: ServerResponse,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
@@ -242,7 +242,7 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 400, { error: options.error });
         return;
       }
-      const result = handle.enqueuePendingRun(name, options.value, scope.projectId);
+      const result = handle.enqueuePendingRun(name, options.value, scope.scopeId);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;

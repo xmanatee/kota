@@ -23,19 +23,19 @@ async function captureStdout(fn: () => Promise<object | void>): Promise<string> 
 }
 
 describe("kota eval calibration CLI", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   const originalExitCode = process.exitCode;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "cal-cli-"));
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = mkdtempSync(join(tmpdir(), "cal-cli-"));
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     process.exitCode = 0;
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     process.exitCode = originalExitCode;
     vi.restoreAllMocks();
   });
@@ -55,7 +55,7 @@ describe("kota eval calibration CLI", () => {
       return true;
     });
 
-    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
     await cmd.parseAsync(
       ["calibration", "--min-sample", "1", "--threshold-rate", "0.9"],
       { from: "user" },
@@ -74,7 +74,7 @@ describe("kota eval calibration CLI", () => {
     seedCalibration(runsDir, "run-a", hourAgo, "pass", ["src/core/a.ts"]);
     seedCalibration(runsDir, "run-b", nowIso, "fail", ["src/core/a.ts"]);
 
-    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
     const output = await captureStdout(() => cmd.parseAsync(
       [
         "calibration",
@@ -109,7 +109,7 @@ describe("kota eval calibration CLI", () => {
       return true;
     });
 
-    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
     await cmd.parseAsync(
       ["calibration", "--min-sample", "8", "--threshold-rate", "0.25"],
       { from: "user" },

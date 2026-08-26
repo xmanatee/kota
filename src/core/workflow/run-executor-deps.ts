@@ -7,7 +7,7 @@ import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { RunContext } from "./run-context.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunToolRunner } from "./run-types.js";
@@ -19,10 +19,10 @@ export type RunExecutorDeps = {
   authorityConfigPath?: string;
   bus: EventBus;
   /**
-   * Per-project view over the bus. Standalone runs derive one from projectDir
+   * Per-project view over the bus. Standalone runs derive one from workspaceRoot
    * when the daemon does not supply it.
    */
-  pbus?: ProjectScopedEventBus;
+  pbus?: ScopedEventBus;
   store: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;
   eventJournal?: EventJournal;

@@ -6,13 +6,13 @@ import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { SlackChannelConfig } from "./config.js";
 
 export const STUB_CHANNEL_START_CTX = {
-  getDefaultProjectRuntime: () =>
+  getDefaultScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
     }) as never,
-  getProjectRuntime: () =>
+  getScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
     }) as never,
   log: () => {},
   reportFailure: () => {},
@@ -76,7 +76,7 @@ export function makeSlackChannelModuleTestContext(
         list: vi.fn(async () => ({
           approvals: [{
             id: "abc123",
-            scopeId: "test-project",
+            scopeId: "test-scope",
             tool: "shell",
             input: { redacted: true, reason: "tool-io" },
             review: {

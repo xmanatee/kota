@@ -44,7 +44,7 @@ const slackChannelModule: KotaModule = {
         id: "slack-channel.tokens",
         description: "Slack bot and app token references used for Socket Mode.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -84,9 +84,9 @@ const slackChannelModule: KotaModule = {
       kind: "config",
       title: "Slack Socket Mode and admission config",
       description:
-        "Project config for stored token references, the expected workspace, the interactive user allowlist, and notification delivery.",
+        "Scope config for stored token references, the expected workspace, the interactive user allowlist, and notification delivery.",
       required: true,
-      scope: "project",
+      scope: "scope",
       owner: "slack-channel",
       sensitivity: "none",
       setup: {
@@ -118,7 +118,7 @@ const slackChannelModule: KotaModule = {
             required: true,
             placeholder: "T0123456789",
             helperText:
-              "Interactive input remains disabled until allowedUserIds is also set in the project module config.",
+              "Interactive input remains disabled until allowedUserIds is also set in the scope module config.",
           },
           {
             id: "notify-channel",
@@ -138,7 +138,7 @@ const slackChannelModule: KotaModule = {
       description:
         "Slack bot and app token values stored through the shared secret provider.",
       required: true,
-      scope: "project",
+      scope: "scope",
       owner: "slack-channel",
       sensitivity: "secret",
       setup: {
@@ -148,8 +148,8 @@ const slackChannelModule: KotaModule = {
         pendingTtlMs: 30 * 60 * 1000,
       },
       secretRefs: [
-        { name: "SLACK_BOT_TOKEN", scope: "project" },
-        { name: "SLACK_APP_TOKEN", scope: "project" },
+        { name: "SLACK_BOT_TOKEN", scope: "scope" },
+        { name: "SLACK_APP_TOKEN", scope: "scope" },
       ],
     },
   ] satisfies ModuleSetupRequirement[],

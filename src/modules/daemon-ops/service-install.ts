@@ -73,11 +73,11 @@ function servicePath(environment: ServiceUnitEnvironment): string | undefined {
 }
 
 export function buildLaunchdPlist(
-  projectDir: string,
+  scopeRoot: string,
   environment: ServiceUnitEnvironment = currentServiceUnitEnvironment(),
 ): string {
   const kotaBin = process.argv[1]!;
-  const logDir = join(projectDir, ".kota");
+  const logDir = join(scopeRoot, ".kota");
   const nodeOptions = serviceNodeOptions(environment);
   const path = servicePath(environment);
   return [
@@ -96,8 +96,8 @@ export function buildLaunchdPlist(
     `  </array>`,
     `  <key>EnvironmentVariables</key>`,
     `  <dict>`,
-    `    <key>KOTA_PROJECT_DIR</key>`,
-    `    <string>${plistString(projectDir)}</string>`,
+    `    <key>KOTA_SCOPE_ROOT</key>`,
+    `    <string>${plistString(scopeRoot)}</string>`,
     `    <key>KOTA_DAEMON_LOG_FORMAT</key>`,
     `    <string>json</string>`,
     ...(path
@@ -114,7 +114,7 @@ export function buildLaunchdPlist(
       : []),
     `  </dict>`,
     `  <key>WorkingDirectory</key>`,
-    `  <string>${plistString(projectDir)}</string>`,
+    `  <string>${plistString(scopeRoot)}</string>`,
     `  <key>RunAtLoad</key>`,
     `  <true/>`,
     `  <key>KeepAlive</key>`,
@@ -129,7 +129,7 @@ export function buildLaunchdPlist(
 }
 
 export function buildSystemdUnit(
-  projectDir: string,
+  scopeRoot: string,
   environment: ServiceUnitEnvironment = currentServiceUnitEnvironment(),
 ): string {
   const kotaBin = process.argv[1]!;
@@ -144,8 +144,8 @@ export function buildSystemdUnit(
     `[Service]`,
     `Type=simple`,
     `ExecStart=${process.execPath} ${execArgs}`,
-    `WorkingDirectory=${projectDir}`,
-    systemdEnvironment("KOTA_PROJECT_DIR", projectDir),
+    `WorkingDirectory=${scopeRoot}`,
+    systemdEnvironment("KOTA_SCOPE_ROOT", scopeRoot),
     systemdEnvironment("KOTA_DAEMON_LOG_FORMAT", "json"),
     ...(path ? [systemdEnvironment("PATH", path)] : []),
     ...(nodeOptions ? [systemdEnvironment("NODE_OPTIONS", nodeOptions)] : []),

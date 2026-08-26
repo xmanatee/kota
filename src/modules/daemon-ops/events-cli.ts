@@ -29,58 +29,58 @@ function formatEventSummary(type: string, payload: Record<string, unknown>): str
 }
 
 /**
- * Resolve the project the events stream filters on. Returns:
+ * Resolve the scope the events stream filters on. Returns:
  *  - the explicit `--project` value when provided (validated to be a
- *    configured id or `null` to opt into cross-project listing),
+ *    configured scope id or `null` to opt into cross-scope listing),
  *  - the daemon's currently active selection when no flag is set, or
- *  - `null` when the daemon hosts a single project (no filter needed).
+ *  - `null` when the daemon hosts a single scope (no filter needed).
  *
- * `--all-projects` opts into cross-project listing explicitly. The
- * combined flag set rejects `--project` + `--all-projects`.
+ * `--all-scopes` opts into cross-scope listing explicitly. The
+ * combined flag set rejects `--project` + `--all-scopes`.
  */
-async function resolveEventsProjectFilter(
+async function resolveEventsScopeFilter(
   ctx: ModuleContext,
-  opts: { project?: string; allProjects?: boolean },
-): Promise<{ ok: true; projectId: string | null } | { ok: false; message: string }> {
-  if (opts.project && opts.allProjects) {
-    return { ok: false, message: "--project and --all-projects are mutually exclusive." };
+  opts: { scope?: string; allScopes?: boolean },
+): Promise<{ ok: true; scopeId: string | null } | { ok: false; message: string }> {
+  if (opts.scope && opts.allScopes) {
+    return { ok: false, message: "--project and --all-scopes are mutually exclusive." };
   }
-  if (opts.allProjects) return { ok: true, projectId: null };
-  const view = await ctx.client.projects.list();
+  if (opts.allScopes) return { ok: true, scopeId: null };
+  const view = await ctx.client.scopes.list();
   if (!view.ok) {
-    if (opts.project) return { ok: true, projectId: opts.project };
-    return { ok: true, projectId: null };
+    if (opts.scope) return { ok: true, scopeId: opts.scope };
+    return { ok: true, scopeId: null };
   }
-  if (opts.project) {
-    if (!view.projects.some((p) => p.projectId === opts.project)) {
-      return { ok: false, message: `Unknown project: "${opts.project}".` };
+  if (opts.scope) {
+    if (!view.scopes.some((p) => p.scopeId === opts.scope)) {
+      return { ok: false, message: `Unknown scope: "${opts.scope}".` };
     }
-    return { ok: true, projectId: opts.project };
+    return { ok: true, scopeId: opts.scope };
   }
-  if (view.projects.length <= 1) return { ok: true, projectId: null };
-  const fallback = view.activeProjectId ?? view.defaultProjectId;
-  return { ok: true, projectId: fallback };
+  if (view.scopes.length <= 1) return { ok: true, scopeId: null };
+  const fallback = view.activeScopeId ?? view.defaultScopeId;
+  return { ok: true, scopeId: fallback };
 }
 
 /**
- * Read an optional `projectId` field from any event-bus payload. The
+ * Read an optional `scopeId` field from any event-bus payload. The
  * SSE union and the `/api/events` ring-buffer response both carry
  * heterogeneous payload shapes; payloads that genuinely don't scope to a
  * project just don't expose the field, and the helper returns
- * `undefined` so the caller treats the event as cross-project.
+ * `undefined` so the caller treats the event as cross-scope.
  */
-function readEventProjectId(payload: object): string | undefined {
-  if ("projectId" in payload && typeof payload.projectId === "string") {
-    return payload.projectId;
+function readEventScopeId(payload: object): string | undefined {
+  if ("scopeId" in payload && typeof payload.scopeId === "string") {
+    return payload.scopeId;
   }
   return undefined;
 }
 
-function eventMatchesProject(payload: object, projectId: string | null): boolean {
-  if (projectId === null) return true;
-  const carried = readEventProjectId(payload);
+function eventMatchesScope(payload: object, scopeId: string | null): boolean {
+  if (scopeId === null) return true;
+  const carried = readEventScopeId(payload);
   if (carried === undefined) return true;
-  return carried === projectId;
+  return carried === scopeId;
 }
 
 export function buildEventsCommand(ctx: ModuleContext): Command {
@@ -96,18 +96,18 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
     .option("--json", "Emit raw NDJSON instead of formatted output")
     .option("--filter <prefix>", "Show only events whose type starts with <prefix>")
     .option(
-      "--project <id>",
-      "Filter to one configured project (default: daemon's active project)",
+      "--scope <id>",
+      "Filter to one configured scope (default: daemon's active scope)",
     )
-    .option("--all-projects", "Stream events from every configured project (opt-in)")
-    .action(async (opts: { json?: boolean; filter?: string; project?: string; allProjects?: boolean }) => {
+    .option("--all-scopes", "Stream events from every configured scope (opt-in)")
+    .action(async (opts: { json?: boolean; filter?: string; scope?: string; allScopes?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
         printToStderr(line(span("Daemon is not running. Start the daemon with `kota daemon start`.", "error")));
         process.exit(1);
       }
 
-      const filter = await resolveEventsProjectFilter(ctx, opts);
+      const filter = await resolveEventsScopeFilter(ctx, opts);
       if (!filter.ok) {
         printToStderr(line(span(filter.message, "error")));
         process.exit(1);
@@ -121,7 +121,7 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
       for await (const event of link.events()) {
         if (done) break;
         if (opts.filter && !event.type.startsWith(opts.filter)) continue;
-        if (!eventMatchesProject(event.payload, filter.projectId)) continue;
+        if (!eventMatchesScope(event.payload, filter.scopeId)) continue;
 
         if (opts.json) {
           writeJson({ type: event.type, payload: event.payload });
@@ -149,11 +149,11 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
     .option("--limit <n>", "Maximum number of events to return", "50")
     .option("--json", "Output raw NDJSON for scripting")
     .option(
-      "--project <id>",
-      "Filter to one configured project (default: daemon's active project)",
+      "--scope <id>",
+      "Filter to one configured scope (default: daemon's active scope)",
     )
-    .option("--all-projects", "Include events from every configured project (opt-in)")
-    .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean; project?: string; allProjects?: boolean }) => {
+    .option("--all-scopes", "Include events from every configured scope (opt-in)")
+    .action(async (opts: { type?: string; since?: string; limit: string; json?: boolean; scope?: string; allScopes?: boolean }) => {
       const link = getDaemonTransport();
       if (!link) {
         printToStderr(line(span("Daemon is not running. Start the daemon with `kota daemon start`.", "error")));
@@ -161,7 +161,7 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
         return;
       }
 
-      const filter = await resolveEventsProjectFilter(ctx, opts);
+      const filter = await resolveEventsScopeFilter(ctx, opts);
       if (!filter.ok) {
         printToStderr(line(span(filter.message, "error")));
         process.exitCode = 1;
@@ -194,7 +194,7 @@ export function buildEventsCommand(ctx: ModuleContext): Command {
         return;
       }
 
-      const filtered = result.events.filter((ev) => eventMatchesProject(ev.payload, filter.projectId));
+      const filtered = result.events.filter((ev) => eventMatchesScope(ev.payload, filter.scopeId));
       if (filtered.length === 0) {
         if (!opts.json) print(line(plain("No matching events.")));
         return;

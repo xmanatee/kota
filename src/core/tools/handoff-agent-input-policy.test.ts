@@ -13,31 +13,31 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { setDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
 
-function initGit(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: projectDir });
-  writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+function initGit(scopeRoot: string): void {
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: scopeRoot });
+  writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+  execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
 }
 
-function scopeInput(projectDir: string): { scope_id: string; project_id: string } {
-  const scopeId = deriveDirectoryScopeId(projectDir);
-  return { scope_id: scopeId, project_id: scopeId };
+function scopeInput(scopeRoot: string): { scope_id: string } {
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
+  return { scope_id: scopeId };
 }
 
 describe("handoff_agent input and policy rejection", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let reviewer: AgentDef;
   let receivedOptions: AgentHarnessRunOptions[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Reviewer prompt.\n");
-    initGit(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "reviewer.md"), "Reviewer prompt.\n");
+    initGit(scopeRoot);
     reviewer = {
       name: "reviewer",
       role: "Review structured handoff work.",
@@ -70,7 +70,7 @@ describe("handoff_agent input and policy rejection", () => {
     });
     setDelegateConfig({
       model: "unused",
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: "handoff-test",
       resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       resolveSkillsPrompt: () => "Skill prompt.",
@@ -78,7 +78,7 @@ describe("handoff_agent input and policy rejection", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
     setDelegateConfig({ model: "gpt-5.6-sol" });
   });
@@ -112,7 +112,7 @@ describe("handoff_agent input and policy rejection", () => {
       reason: "Need passive specialist review.",
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);
@@ -128,7 +128,7 @@ describe("handoff_agent input and policy rejection", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);
@@ -150,7 +150,7 @@ describe("handoff_agent input and policy rejection", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);
@@ -158,7 +158,7 @@ describe("handoff_agent input and policy rejection", () => {
     expect(receivedOptions).toHaveLength(0);
   });
 
-  it("rejects requested scope outside the current project scope", async () => {
+  it("rejects requested scope outside the current scope", async () => {
     const result = await runHandoffAgent({
       agent: "reviewer",
       mode: "call",
@@ -166,7 +166,7 @@ describe("handoff_agent input and policy rejection", () => {
       reason: "Need specialist review.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: { scope_id: "other-scope", project_id: "other-scope" },
+      scope: { scope_id: "other-scope" },
     });
 
     expect(result.is_error).toBe(true);
@@ -174,20 +174,4 @@ describe("handoff_agent input and policy rejection", () => {
     expect(receivedOptions).toHaveLength(0);
   });
 
-  it("rejects requested project selectors outside the current project boundary", async () => {
-    const scope = scopeInput(projectDir);
-    const result = await runHandoffAgent({
-      agent: "reviewer",
-      mode: "call",
-      input: { task: "Review the patch." },
-      reason: "Need specialist review.",
-      autonomy_mode: "autonomous",
-      budget: { max_turns: 3 },
-      scope: { scope_id: scope.scope_id, project_id: "other-project" },
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("scope.project_id must match scope.scope_id");
-    expect(receivedOptions).toHaveLength(0);
-  });
 });

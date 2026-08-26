@@ -66,14 +66,14 @@ describe("staticWebUiRoutes", () => {
     }
   });
 
-  it("serves a built dashboard from projectDir without serve-time global setup", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-web-project-"));
-    const distDir = join(projectDir, "clients", "web", "dist");
+  it("serves a built dashboard from scopeRoot without serve-time global setup", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-web-project-"));
+    const distDir = join(scopeRoot, "clients", "web", "dist");
     try {
       mkdirSync(join(distDir, "assets"), { recursive: true });
       writeFileSync(join(distDir, "index.html"), "<html><body>daemon dashboard</body></html>");
 
-      const routes = staticWebUiRoutes({ projectDir });
+      const routes = staticWebUiRoutes({ scopeRoot });
       const captured = mockResponse();
       routes[0].handler(mockRequest("/"), captured.res, {});
 
@@ -81,7 +81,7 @@ describe("staticWebUiRoutes", () => {
       expect(captured.headers?.["Content-Type"]).toBe("text/html; charset=utf-8");
       expect(captured.body.toString()).toContain("daemon dashboard");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

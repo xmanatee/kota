@@ -197,7 +197,7 @@ function emitNewStepEvents(
 
 export async function followRunLogs(
   runsDir: string,
-  operationalScope: { stateDir: string; projectDir: string },
+  operationalScope: { stateDir: string; scopeRoot: string },
   runId: string | undefined,
   filterStep: string | undefined,
   maxLen = DEFAULT_MAX_LEN,

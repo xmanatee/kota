@@ -124,7 +124,7 @@ export const createFollowUpTasks = typedCodeStep<
   run: async (ctx) => {
     const revalidation = recordRevalidation.outputRequired(ctx);
     const result = await ctx.runBlocking(createSecurityFindingTasksOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       runId: ctx.workflow.runId,
       findings: revalidation.findings,
     });

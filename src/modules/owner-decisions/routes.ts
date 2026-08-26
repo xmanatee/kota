@@ -9,7 +9,7 @@ import {
   getOwnerQuestionQueue,
   type OwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type {
   ControlRouteRegistration,
   RouteRegistration,
@@ -62,14 +62,14 @@ function resolveQueues(
   res: ServerResponse,
   selector?: NormalizedScopeSelector,
 ): OwnerDecisionQueues | null {
-  const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-  if (!projectScope) {
+  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+  if (!scopeProvider) {
     return {
       decisionStore: getOwnerDecisionStore(),
       questionQueue: getOwnerQuestionQueue(),
     };
   }
-  const resolved = projectScope.resolveProjectRuntime(selectedScopeSelectorId(selector));
+  const resolved = scopeProvider.resolveScopeRuntime(selectedScopeSelectorId(selector));
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;

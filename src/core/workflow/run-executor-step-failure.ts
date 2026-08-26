@@ -112,7 +112,7 @@ export function recordWorkflowStepFailure(args: {
   const trajectoryDiagnostics = writeFailedAgentTrajectoryDiagnostics({
     step,
     runDir: run.metadata.runDir,
-    projectDir: agentConfig.projectDir,
+    scopeRoot: agentConfig.scopeRoot,
     messages: capturedAgentMessages,
     log: deps.log,
   });

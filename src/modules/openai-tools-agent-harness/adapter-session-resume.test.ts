@@ -15,13 +15,13 @@ import {
   tool,
 } from "./adapter-shared-runner-test-support.js";
 
-function createProjectDir(prefix: string): string {
+function createScopeRoot(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
 describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
   it("persists a neutral transcript and replays it before the resumed prompt", async () => {
-    const projectDir = createProjectDir("openai-tools-resume-");
+    const scopeRoot = createScopeRoot("openai-tools-resume-");
     try {
       getAllToolsMock.mockReturnValue([tool("echo_tool")]);
       queueToolUse("call_persist", "echo_tool", { text: "hello" });
@@ -32,7 +32,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         prompt: "please echo",
         model: "openai/gpt-5.6-luna",
         effort: "xhigh",
-        cwd: projectDir,
+        cwd: scopeRoot,
         persistSession: true,
       });
 
@@ -40,7 +40,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       expect(persisted.sessionId).not.toBe("msg_end");
 
       const sessionPath = join(
-        projectDir,
+        scopeRoot,
         ".kota",
         "openai-tools-agent-harness",
         "sessions",
@@ -54,7 +54,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       expect(record.context).toMatchObject({
         model: "openai/gpt-5.6-luna",
         providerName: "openai",
-        cwd: projectDir,
+        cwd: scopeRoot,
       });
       expect(record.lastProviderMessageId).toBe("msg_end");
       expect(JSON.stringify(record.messages)).toContain("echo: hello");
@@ -64,7 +64,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         prompt: "continue",
         model: "openai/gpt-5.6-luna",
         effort: "xhigh",
-        cwd: projectDir,
+        cwd: scopeRoot,
         resumeSessionId: persisted.sessionId,
       });
 
@@ -83,37 +83,37 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
       });
       expect(JSON.stringify(replayedMessages)).toContain("echo: hello");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("rejects a missing KOTA-owned session id before dispatching a model call", async () => {
-    const projectDir = createProjectDir("openai-tools-missing-resume-");
+    const scopeRoot = createScopeRoot("openai-tools-missing-resume-");
     try {
       await expect(
         openaiToolsAgentHarness.run({
           prompt: "continue",
           model: "openai/gpt-5.6-luna",
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: "ots_00000000-0000-0000-0000-000000000000",
         }),
       ).rejects.toThrow(/was not found/);
       expect(messagesStreamMock).not.toHaveBeenCalled();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("rejects resumes with incompatible model, provider, or token capability metadata", async () => {
-    const projectDir = createProjectDir("openai-tools-context-resume-");
+    const scopeRoot = createScopeRoot("openai-tools-context-resume-");
     try {
       queueEnd("saved");
       const persisted = await openaiToolsAgentHarness.run({
         prompt: "save",
         model: "openai/gpt-5.6-luna",
         effort: "xhigh",
-        cwd: projectDir,
+        cwd: scopeRoot,
         persistSession: true,
       });
 
@@ -122,7 +122,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           prompt: "resume",
           model: "openai/gpt-5.6-sol",
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
       ).rejects.toThrow(/created for model/);
@@ -137,7 +137,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           prompt: "resume",
           model: "openai/gpt-5.6-luna",
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
       ).rejects.toThrow(/created for provider/);
@@ -148,17 +148,17 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           model: "openai/gpt-5.6-luna",
           modelOutputTokenLimits: { "openai/gpt-5.6-luna": 7777 },
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
       ).rejects.toThrow(/output-token capability changed/);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("rejects resumes when a previously exposed local tool is missing or changed", async () => {
-    const projectDir = createProjectDir("openai-tools-tool-resume-");
+    const scopeRoot = createScopeRoot("openai-tools-tool-resume-");
     try {
       getAllToolsMock.mockReturnValue([tool("echo_tool")]);
       queueEnd("saved");
@@ -166,7 +166,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         prompt: "save",
         model: "openai/gpt-5.6-luna",
         effort: "xhigh",
-        cwd: projectDir,
+        cwd: scopeRoot,
         persistSession: true,
       });
 
@@ -176,7 +176,7 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           prompt: "resume",
           model: "openai/gpt-5.6-luna",
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
       ).rejects.toThrow(/references unavailable tool "echo_tool"/);
@@ -189,12 +189,12 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           prompt: "resume",
           model: "openai/gpt-5.6-luna",
           effort: "xhigh",
-          cwd: projectDir,
+          cwd: scopeRoot,
           resumeSessionId: persisted.sessionId,
         }),
       ).rejects.toThrow(/tool declaration for "echo_tool" changed/);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });

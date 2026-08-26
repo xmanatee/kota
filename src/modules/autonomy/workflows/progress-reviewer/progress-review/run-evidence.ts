@@ -142,7 +142,7 @@ function listPendingRuns(
 ): ScopedRunEvidence[] {
   const state = readWorkflowOperationalState({
     stateDir: source.stateDir,
-    projectDir: source.scopeDir,
+    scopeRoot: source.scopeRoot,
   });
 
   const pending: ScopedRunEvidence[] = [];

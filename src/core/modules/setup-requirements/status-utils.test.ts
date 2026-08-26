@@ -15,7 +15,7 @@ function adversarialStatus(): ModuleSetupRequirementStatus {
     title: "OpenRouter API key credential",
     description: `OAuth token setup; token=${RAW_API_KEY}`,
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "credential-operator",
     sensitivity: "none",
     setup: {
@@ -37,7 +37,7 @@ function adversarialStatus(): ModuleSetupRequirementStatus {
     message: `API key credential was revoked; bearer=${RAW_API_KEY}`,
     secretRefs: [{
       name: "OPENROUTER_API_KEY",
-      scope: "project",
+      scope: "scope",
       present: false,
       source: "project-secret-provider",
     }],

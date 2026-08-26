@@ -53,7 +53,7 @@ export function createRepairLoopResultWrapper(options: {
     const trajectoryDiagnostics = writeAgentTrajectoryDiagnosticsArtifact({
       stepId: options.step.id,
       runDir: options.context.workflow.runDir,
-      projectDir: options.context.scopeDir,
+      scopeRoot: options.context.scopeRoot,
       harness: options.resolvedHarness,
       messages: options.trajectoryMessages,
       changedFiles,
@@ -73,7 +73,7 @@ export function createRepairLoopResultWrapper(options: {
         writeWriteScopeViolationArtifact({
           ...violationCtx,
           metadata: options.metadata,
-          projectDir: options.context.scopeDir,
+          scopeRoot: options.context.scopeRoot,
         });
         throw new AgentWriteScopeViolationError(violationCtx);
       }

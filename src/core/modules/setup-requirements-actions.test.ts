@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import {
   configRequirement,
   createModuleSetupTestHarness,
@@ -27,7 +27,7 @@ describe("module setup actions", () => {
     expect(started.status.state).toBe("pending");
     expect(JSON.stringify(started.status)).not.toContain("secret-state");
     expect(
-      readFileSync(join(harness.projectDir, ".kota", "setup-actions.json"), "utf8"),
+      readFileSync(join(harness.scopeRoot, ".kota", "setup-actions.json"), "utf8"),
     ).not.toContain("secret-state");
 
     const completed = await sut.complete(started.action.actionId, {
@@ -40,9 +40,9 @@ describe("module setup actions", () => {
       expect(completed.status.secretRefs).toEqual([
         {
           name: "DEMO_REFRESH_TOKEN",
-          scope: "project",
+          scope: "scope",
           present: true,
-          source: "project-file",
+          source: "scope-file",
         },
       ]);
     }
@@ -65,8 +65,8 @@ describe("module setup actions", () => {
       reason: "invalid_request",
       message: expect.stringContaining("expired"),
     });
-    expect(existsSync(join(harness.projectDir, ".kota", "config.json"))).toBe(false);
-    expect(existsSync(join(harness.projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "config.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "secrets.json"))).toBe(false);
     expect(JSON.stringify(rejected)).not.toContain("expired-refresh-token-secret");
   });
 
@@ -87,7 +87,7 @@ describe("module setup actions", () => {
       reason: "invalid_request",
       message: expect.stringContaining("revoked"),
     });
-    expect(existsSync(join(harness.projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "secrets.json"))).toBe(false);
     expect(JSON.stringify(rejected)).not.toContain("revoked-refresh-token-secret");
   });
 
@@ -111,7 +111,7 @@ describe("module setup actions", () => {
       reason: "invalid_request",
       message: expect.stringContaining("completed"),
     });
-    expect(getProjectSecretStore(harness.projectDir).get("DEMO_REFRESH_TOKEN")).toBe(
+    expect(getScopeSecretStore(harness.scopeRoot).get("DEMO_REFRESH_TOKEN")).toBe(
       "original-refresh-token-secret",
     );
     expect(JSON.stringify(rejected)).not.toContain("replacement-refresh-token-secret");
@@ -119,9 +119,9 @@ describe("module setup actions", () => {
 
   it("rejects malformed setup actions before applying form values", async () => {
     const sut = harness.service([configRequirement()]);
-    mkdirSync(join(harness.projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(harness.scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(harness.projectDir, ".kota", "setup-actions.json"),
+      join(harness.scopeRoot, ".kota", "setup-actions.json"),
       `${JSON.stringify({
         actions: [{
           actionId: "demo.endpoint.malformed",
@@ -146,14 +146,14 @@ describe("module setup actions", () => {
       reason: "invalid_request",
       message: expect.stringContaining("URL setup"),
     });
-    expect(existsSync(join(harness.projectDir, ".kota", "config.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "config.json"))).toBe(false);
   });
 
   it("rejects setup actions with malformed status before writing submitted secrets", async () => {
     const sut = harness.service([oauthRequirement()]);
-    mkdirSync(join(harness.projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(harness.scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(harness.projectDir, ".kota", "setup-actions.json"),
+      join(harness.scopeRoot, ".kota", "setup-actions.json"),
       `${JSON.stringify({
         actions: [{
           actionId: "demo.oauth.malformed",
@@ -178,7 +178,7 @@ describe("module setup actions", () => {
       reason: "invalid_request",
       message: expect.stringContaining("invalid status"),
     });
-    expect(existsSync(join(harness.projectDir, ".kota", "secrets.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "secrets.json"))).toBe(false);
     expect(JSON.stringify(rejected)).not.toContain("malformed-refresh-token-secret");
   });
 

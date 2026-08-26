@@ -5,9 +5,9 @@ import type {
   WorkflowDefinitionSummary,
 } from "./daemon-control-types.js";
 import type { DaemonHandleContext } from "./daemon-handle.js";
-import type { ProjectRuntime } from "./project-runtime.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
+import type { ScopeRuntime } from "./scope-runtime.js";
 
 type WorkflowHandle = Pick<
   DaemonControlHandle,
@@ -28,15 +28,15 @@ type WorkflowHandle = Pick<
 
 export function buildDaemonWorkflowHandle(
   ctx: DaemonHandleContext,
-  lookupRuntime: (projectId?: ProjectId) => ProjectRuntime,
+  lookupRuntime: (scopeId?: ScopeId) => ScopeRuntime,
   getUnavailableScopeState: (
-    projectId: ProjectId,
+    scopeId: ScopeId,
   ) => Exclude<ScopeHostingState, "hosted"> | null,
 ): WorkflowHandle {
-  const { projectRegistry } = ctx;
+  const { scopeRegistry } = ctx;
   return {
-    getWorkflowLiveStatus: (projectId?: ProjectId) => {
-      const workflows = lookupRuntime(projectId).workflowRuntime;
+    getWorkflowLiveStatus: (scopeId?: ScopeId) => {
+      const workflows = lookupRuntime(scopeId).workflowRuntime;
       const wfState = workflows.getState();
       const windowStatus = workflows.getDispatchWindowStatus();
       const pause = workflows.getDispatchPauseStatus();
@@ -60,14 +60,14 @@ export function buildDaemonWorkflowHandle(
         }),
       };
     },
-    pauseWorkflowDispatch: (projectId?: ProjectId) => {
-      const workflows = lookupRuntime(projectId).workflowRuntime;
+    pauseWorkflowDispatch: (scopeId?: ScopeId) => {
+      const workflows = lookupRuntime(scopeId).workflowRuntime;
       const already = workflows.getDispatchPauseStatus().kind === "operator";
       if (!already) workflows.setDispatchPaused(true, "persistent");
       return { already };
     },
-    resumeWorkflowDispatch: (projectId, options) => {
-      const workflows = lookupRuntime(projectId).workflowRuntime;
+    resumeWorkflowDispatch: (scopeId, options) => {
+      const workflows = lookupRuntime(scopeId).workflowRuntime;
       const already = !workflows.isDispatchPaused();
       const agentBackoffCleared = options?.retryAgent === true &&
         workflows.clearAgentBackoff("after explicit operator retry");
@@ -82,21 +82,21 @@ export function buildDaemonWorkflowHandle(
       const capabilities = await ctx.probeCapabilityReadiness();
       const state = ctx.getState();
       return buildClientIdentity({
-        projectDir: projectRegistry.getDefault().projectDir,
+        scopeRoot: scopeRegistry.getDefault().scopeRoot,
         pid: state.pid,
         startedAt: state.startedAt,
         capabilities,
-        projects: projectRegistry.toProjection(),
+        scopeRegistry: scopeRegistry.toProjection(),
       });
     },
-    abortActiveRuns: (projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.abortActiveRuns(),
-    abortActiveRun: (runId: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.abortActiveRun(runId),
-    reloadWorkflowDefinitions: (projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.reloadWorkflowDefinitions(),
-    getWorkflowDefinitions: (projectId?: ProjectId): WorkflowDefinitionSummary[] => {
-      const workflows = lookupRuntime(projectId).workflowRuntime;
+    abortActiveRuns: (scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.abortActiveRuns(),
+    abortActiveRun: (runId: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.abortActiveRun(runId),
+    reloadWorkflowDefinitions: (scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.reloadWorkflowDefinitions(),
+    getWorkflowDefinitions: (scopeId?: ScopeId): WorkflowDefinitionSummary[] => {
+      const workflows = lookupRuntime(scopeId).workflowRuntime;
       return workflows.getDefinitions().map((def) => {
         const sourceEnabled = workflows.getDefinitionSourceEnabled(def.name);
         const hasOverride = sourceEnabled !== undefined && sourceEnabled !== def.enabled;
@@ -131,32 +131,32 @@ export function buildDaemonWorkflowHandle(
         };
       });
     },
-    enableWorkflow: (name: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.enableWorkflow(name),
-    disableWorkflow: (name: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.disableWorkflow(name),
+    enableWorkflow: (name: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.enableWorkflow(name),
+    disableWorkflow: (name: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.disableWorkflow(name),
     enqueuePendingRun: (
       name: string,
       options?: WorkflowEnqueueOptions,
-      projectId?: ProjectId,
+      scopeId?: ScopeId,
     ) => {
-      const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
-      const state = getUnavailableScopeState(resolvedProjectId);
+      const resolvedScopeId = scopeId ?? scopeRegistry.getDefaultScopeId();
+      const state = getUnavailableScopeState(resolvedScopeId);
       if (state !== null) {
         return {
           ok: false,
-          error: `Scope ${resolvedProjectId} is ${state} and cannot accept workflow runs`,
+          error: `Scope ${resolvedScopeId} is ${state} and cannot accept workflow runs`,
           reason: "scope_not_hosted" as const,
-          scopeId: resolvedProjectId,
+          scopeId: resolvedScopeId,
           state,
         };
       }
-      return lookupRuntime(resolvedProjectId).workflowRuntime.enqueuePendingRun(
+      return lookupRuntime(resolvedScopeId).workflowRuntime.enqueuePendingRun(
         name,
         options,
       );
     },
-    cancelQueuedRun: (runId: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).workflowRuntime.cancelQueuedRun(runId),
+    cancelQueuedRun: (runId: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).workflowRuntime.cancelQueuedRun(runId),
   };
 }

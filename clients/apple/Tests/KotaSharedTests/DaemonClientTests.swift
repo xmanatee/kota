@@ -15,7 +15,7 @@ final class DaemonClientTests: XCTestCase {
         try payload.write(to: controlPath, atomically: true, encoding: .utf8)
 
         let client = DaemonClient()
-        XCTAssertTrue(client.refreshConnection(projectDir: tempDir))
+        XCTAssertTrue(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertEqual(client.connection?.baseURL.absoluteString, "http://127.0.0.1:8765")
         XCTAssertEqual(client.connection?.token, "tok-xyz")
     }
@@ -24,7 +24,7 @@ final class DaemonClientTests: XCTestCase {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("kota-tests-\(UUID().uuidString)")
         let client = DaemonClient()
-        XCTAssertFalse(client.refreshConnection(projectDir: tempDir))
+        XCTAssertFalse(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertNil(client.connection)
     }
 
@@ -39,7 +39,7 @@ final class DaemonClientTests: XCTestCase {
         try "not json".write(to: controlPath, atomically: true, encoding: .utf8)
 
         let client = DaemonClient()
-        XCTAssertFalse(client.refreshConnection(projectDir: tempDir))
+        XCTAssertFalse(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertNil(client.connection)
     }
 
@@ -85,7 +85,7 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertEqual(status.workflow?.activeRuns.count, 0)
     }
 
-    func testProjectScopedStatusPreservesQueryString() async throws {
+    func testScopeScopedStatusPreservesQueryString() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -93,7 +93,7 @@ final class DaemonClientTests: XCTestCase {
             let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
             XCTAssertEqual(request.url?.path, "/status")
             XCTAssertEqual(components?.queryItems, [
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let body = #"{"running": true, "workflow": {"activeRuns": [], "paused": false}}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -105,10 +105,10 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
-        _ = try await client.fetchStatus(projectId: "p-kota")
+        _ = try await client.fetchStatus(scopeId: "p-kota")
     }
 
-    func testProjectScopedRunHistoryPreservesExistingAndProjectQueryItems() async throws {
+    func testScopeScopedRunHistoryPreservesExistingAndProjectQueryItems() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -117,7 +117,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/workflow/runs")
             XCTAssertEqual(components?.queryItems, [
                 URLQueryItem(name: "limit", value: "3"),
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let body = #"{"runs":[]}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -129,7 +129,7 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
-        _ = try await client.fetchRecentRuns(limit: 3, projectId: "p-kota")
+        _ = try await client.fetchRecentRuns(limit: 3, scopeId: "p-kota")
     }
 
     func testFetchStatusThrowsOnHttpError() async throws {
@@ -1860,7 +1860,7 @@ final class DaemonClientTests: XCTestCase {
         MockURLProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/capture")
             let respBody = #"""
-            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach project root"}
+            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach scope root"}
             """#.data(using: .utf8)!
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
@@ -1876,10 +1876,10 @@ final class DaemonClientTests: XCTestCase {
             XCTFail("expected contributorFailed arm, got \(result)"); return
         }
         XCTAssertEqual(target, .inbox)
-        XCTAssertEqual(message, "inbox writer cannot reach project root")
+        XCTAssertEqual(message, "inbox writer cannot reach scope root")
         XCTAssertEqual(
             renderCaptureResultPlain(result),
-            "Capture into inbox failed: inbox writer cannot reach project root"
+            "Capture into inbox failed: inbox writer cannot reach scope root"
         )
     }
 
@@ -2098,7 +2098,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/retract")
             XCTAssertEqual(request.httpMethod, "POST")
             let respBody = #"""
-            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach project root"}
+            {"ok": false, "reason": "contributor_failed", "target": "inbox", "message": "inbox writer cannot reach scope root"}
             """#.data(using: .utf8)!
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
@@ -2114,10 +2114,10 @@ final class DaemonClientTests: XCTestCase {
             XCTFail("expected contributorFailed arm, got \(result)"); return
         }
         XCTAssertEqual(target, .inbox)
-        XCTAssertEqual(message, "inbox writer cannot reach project root")
+        XCTAssertEqual(message, "inbox writer cannot reach scope root")
         XCTAssertEqual(
             renderRetractResultPlain(result),
-            "Retract from inbox failed: inbox writer cannot reach project root"
+            "Retract from inbox failed: inbox writer cannot reach scope root"
         )
     }
 
@@ -2177,7 +2177,7 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertEqual(resp.runId, "run-2")
     }
 
-    func testPauseWorkflowPostsProjectScopedEndpoint() async throws {
+    func testPauseWorkflowPostsScopeScopedEndpoint() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -2186,7 +2186,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.httpMethod, "POST")
             let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
             XCTAssertEqual(components?.queryItems, [
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let respBody = #"{"ok": true, "paused": true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -2198,11 +2198,11 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
 
-        let resp = try await client.pauseWorkflow(projectId: "p-kota")
+        let resp = try await client.pauseWorkflow(scopeId: "p-kota")
         XCTAssertEqual(resp.paused, true)
     }
 
-    func testResumeWorkflowPostsProjectScopedEndpoint() async throws {
+    func testResumeWorkflowPostsScopeScopedEndpoint() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -2211,7 +2211,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.httpMethod, "POST")
             let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
             XCTAssertEqual(components?.queryItems, [
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let respBody = #"{"ok": true, "paused": false}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -2223,7 +2223,7 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "t")
 
-        let resp = try await client.resumeWorkflow(projectId: "p-kota")
+        let resp = try await client.resumeWorkflow(scopeId: "p-kota")
         XCTAssertEqual(resp.paused, false)
     }
 

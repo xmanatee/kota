@@ -5,7 +5,7 @@ import { AGY_MODEL_EVALUATION_SCENARIOS } from "./agy-model-evaluation-types.js"
 import type { LoadedFixture } from "./fixture.js";
 
 export function validateAgyScenarioFixtures(
-  projectDir: string,
+  workspaceRoot: string,
   fixtures: readonly LoadedFixture[],
 ): void {
   for (const fixture of fixtures) {
@@ -31,12 +31,12 @@ export function validateAgyScenarioFixtures(
           `git-changes-within predicate; observed ${scopePredicates.length}.`,
       );
     }
-    validateInstructionSources(projectDir, fixture, scenario.instructionTraceRules);
+    validateInstructionSources(workspaceRoot, fixture, scenario.instructionTraceRules);
   }
 }
 
 function validateInstructionSources(
-  projectDir: string,
+  workspaceRoot: string,
   fixture: LoadedFixture,
   rules: readonly AgyInstructionTraceRule[],
 ): void {
@@ -44,7 +44,7 @@ function validateInstructionSources(
     const sourceRoot =
       rule.sourceRoot === "fixture-initial-state"
         ? fixture.initialStateDir
-        : projectDir;
+        : workspaceRoot;
     const sourcePath = resolve(sourceRoot, rule.sourcePath);
     const relativeSource = relative(sourceRoot, sourcePath);
     if (

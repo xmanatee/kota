@@ -102,7 +102,7 @@ const modelClientsModule: KotaModule = {
         id: "model-clients.provider-credentials",
         description: "Model provider API key references resolved through the shared secret provider.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -116,7 +116,7 @@ const modelClientsModule: KotaModule = {
         id: "model-clients.pricing-metadata",
         description: "Per-model pricing rows used by CostTracker.",
         sensitivity: "public",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "none",
       },
     ],

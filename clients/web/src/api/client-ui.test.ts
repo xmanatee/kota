@@ -21,11 +21,11 @@ describe("shared UI API client", () => {
     });
 
     const { api } = await import("./client");
-    const result = await api.getUiSurfaces("project one");
+    const result = await api.getUiSurfaces("scope one");
 
     expect(result.protocolVersion).toBe("ui.surface.v1");
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/ui/surfaces?projectId=project%20one",
+      "/ui/surfaces?scopeId=scope%20one",
       expect.any(Object),
     );
   });

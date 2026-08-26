@@ -26,7 +26,7 @@ const MAX_BUCKET_ROWS = 10;
 export type { OwnerInterventionReport } from "./owner-intervention-types.js";
 
 export type OwnerInterventionReportInput = {
-  projectDir: string;
+  workspaceRoot: string;
   windowStartMs: number;
   windowEndMs: number;
   includeEscalation?: boolean;
@@ -35,7 +35,7 @@ export type OwnerInterventionReportInput = {
 export function buildOwnerInterventionReport(
   input: OwnerInterventionReportInput,
 ): OwnerInterventionReport {
-  const dir = join(input.projectDir, ".kota", "owner-questions");
+  const dir = join(input.workspaceRoot, ".kota", "owner-questions");
   if (!existsSync(dir)) return emptyOwnerInterventionReport();
 
   const queue = new OwnerQuestionQueue(dir);
@@ -57,7 +57,7 @@ export function buildOwnerInterventionReport(
   return {
     ...report,
     recurringPatterns: buildOwnerInterventionEscalationReport({
-      projectDir: input.projectDir,
+      workspaceRoot: input.workspaceRoot,
       patterns: detection.patterns,
       ignoredPatterns: detection.ignoredPatterns,
       belowThresholdPatterns: detection.belowThresholdPatterns,

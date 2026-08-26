@@ -3,7 +3,7 @@ import {
   type AgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -68,9 +68,9 @@ async function flushAsyncNotifications(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const TEST_PROJECT: ConfiguredProject = {
-  projectId: "test-project",
-  projectDir: "/tmp/test",
+const TEST_SCOPE: DirectoryScope = {
+  scopeId: "test-scope",
+  scopeRoot: "/tmp/test",
   displayName: "KOTA",
 };
 
@@ -78,12 +78,12 @@ function makeChannelStartContext(
   overrides: { reportFailure?: (message: string) => void } = {},
 ) {
   const runtime = {
-    project: TEST_PROJECT,
+    scope: TEST_SCOPE,
     scheduler: { count: () => 0 },
   } as never;
   return {
-    getDefaultProjectRuntime: () => runtime,
-    getProjectRuntime: () => runtime,
+    getDefaultScopeRuntime: () => runtime,
+    getScopeRuntime: () => runtime,
     log: () => {},
     reportFailure: overrides.reportFailure ?? (() => {}),
     getWorkflowStatus: () => ({
@@ -98,12 +98,12 @@ function makeStubClient(
   overrides: Partial<KotaClient> = {},
 ): KotaClient {
   const client = {
-    projects: {
+    scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
-        defaultProjectId: TEST_PROJECT.projectId,
-        activeProjectId: null,
-        projects: [TEST_PROJECT],
+        defaultScopeId: TEST_SCOPE.scopeId,
+        activeScopeId: null,
+        scopes: [TEST_SCOPE],
       })),
       use: vi.fn(),
     },
@@ -113,7 +113,7 @@ function makeStubClient(
       dismiss: vi.fn(),
     },
   } as Partial<KotaClient>;
-  client.forProject = vi.fn(() => client as KotaClient);
+  client.forScope = vi.fn(() => client as KotaClient);
   Object.assign(client, overrides);
   return client as KotaClient;
 }
@@ -230,8 +230,7 @@ describe("telegramModule", () => {
       );
       expect(healthSignals).toHaveLength(1);
       expect(healthSignals[0]?.payload).toMatchObject({
-        projectId: TEST_PROJECT.projectId,
-        scopeId: TEST_PROJECT.projectId,
+        scopeId: TEST_SCOPE.scopeId,
         severity: "warning",
         actionability: "external-service",
         dedupeKey: "module:telegram:getupdates-conflict",

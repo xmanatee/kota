@@ -41,22 +41,22 @@ import "#modules/claude-agent-harness/index.js";
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
 describe("autonomous workflow loop integration", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let savedPreset: string | undefined;
 
   beforeEach(() => {
     savedPreset = process.env[PRESET_ENV_VAR];
     process.env[PRESET_ENV_VAR] = "claude";
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-integ-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    seedAutonomousLoopFixture(projectDir);
+    seedAutonomousLoopFixture(workspaceRoot);
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     if (savedPreset === undefined) {
       delete process.env[PRESET_ENV_VAR];
     } else {
@@ -72,24 +72,24 @@ describe("autonomous workflow loop integration", () => {
       // The explorer trigger cooldown (30 min) matches the exploration refresh window,
       // so with the last completion only 10 minutes ago, the explorer should not be
       // eligible to run — eliminating no-op churn.
-      for (const f of readdirSync(join(projectDir, "data/tasks/ready"))) {
-        rmSync(join(projectDir, "data/tasks/ready", f));
+      for (const f of readdirSync(join(workspaceRoot, "data/tasks/ready"))) {
+        rmSync(join(workspaceRoot, "data/tasks/ready", f));
       }
-      for (const f of readdirSync(join(projectDir, "data/tasks/backlog"))) {
-        rmSync(join(projectDir, "data/tasks/backlog", f));
+      for (const f of readdirSync(join(workspaceRoot, "data/tasks/backlog"))) {
+        rmSync(join(workspaceRoot, "data/tasks/backlog", f));
       }
-      for (const f of readdirSync(join(projectDir, "data/inbox"))) {
-        rmSync(join(projectDir, "data/inbox", f));
+      for (const f of readdirSync(join(workspaceRoot, "data/inbox"))) {
+        rmSync(join(workspaceRoot, "data/inbox", f));
       }
       execSync("git add -A && git -c user.email='t@t' -c user.name='T' commit -m 'clear'", {
-        cwd: projectDir,
+        cwd: workspaceRoot,
       });
 
       const bus = new EventBus();
       const runtimeHarness = createTestWorkflowRuntime({
         config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
         bus,
-        projectDir,
+        scopeRoot: workspaceRoot,
         idleIntervalMs: 10,
         workflows: (await loadAutonomyWorkflowDefinitions()).filter((w) =>
           ["dispatcher", "explorer"].includes(w.name),
@@ -100,7 +100,7 @@ describe("autonomous workflow loop integration", () => {
       await wait(500);
       await runtimeHarness.stop();
 
-      const runsDir = join(projectDir, ".kota", "runs");
+      const runsDir = join(workspaceRoot, ".kota", "runs");
       const runIds = readdirSync(runsDir);
       const explorerRunDir = runIds.find((id) => {
         const meta = JSON.parse(readFileSync(join(runsDir, id, "metadata.json"), "utf-8"));
@@ -111,27 +111,27 @@ describe("autonomous workflow loop integration", () => {
   );
 
   it(
-    "validates and runs real workflows against an external project directory without KOTA source",
+    "validates and runs real workflows against an external scope directory without KOTA source",
     async () => {
-      // Use a project directory that is NOT the KOTA source tree, and does not
+      // Use a scope directory that is NOT the KOTA source tree, and does not
       // contain any `src/modules/autonomy/workflows/*/prompt.md` files. The
       // real autonomy workflows must still validate and execute because their
       // `promptPath` resolves against `moduleRoot` (KOTA's install root), not
-      // against `projectDir`.
-      const externalProjectDir = join(
+      // against `workspaceRoot`.
+      const externalScopeRoot = join(
         tmpdir(),
         `kota-external-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       );
-      mkdirSync(externalProjectDir, { recursive: true });
+      mkdirSync(externalScopeRoot, { recursive: true });
       try {
-        mkdirSync(join(externalProjectDir, ".kota"), { recursive: true });
-        writeFileSync(join(externalProjectDir, ".gitignore"), ".kota/\n");
+        mkdirSync(join(externalScopeRoot, ".kota"), { recursive: true });
+        writeFileSync(join(externalScopeRoot, ".gitignore"), ".kota/\n");
         writeFileSync(
-          join(externalProjectDir, "package.json"),
+          join(externalScopeRoot, "package.json"),
           JSON.stringify({ name: "external-fixture" }),
         );
         writeFileSync(
-          join(externalProjectDir, ".kota", "config.json"),
+          join(externalScopeRoot, ".kota", "config.json"),
           JSON.stringify({
             guardrails: {
               policies: { dangerous: "allow" },
@@ -146,15 +146,15 @@ describe("autonomous workflow loop integration", () => {
             serve: { noAuth: true },
           }),
         );
-        execSync("git init && git add .", { cwd: externalProjectDir });
+        execSync("git init && git add .", { cwd: externalScopeRoot });
         execSync(
           'git -c user.email="t@t" -c user.name="T" commit -m "init"',
-          { cwd: externalProjectDir },
+          { cwd: externalScopeRoot },
         );
 
-        // Sanity: the external project has no KOTA source seeded.
+        // Sanity: the external scope has no KOTA source seeded.
         expect(
-          existsSync(join(externalProjectDir, "src/modules/autonomy")),
+          existsSync(join(externalScopeRoot, "src/modules/autonomy")),
         ).toBe(false);
 
         const rawDefs = await loadAutonomyWorkflowDefinitions();
@@ -162,14 +162,14 @@ describe("autonomous workflow loop integration", () => {
         for (const def of rawDefs) {
           expect(def.moduleRoot, `workflow ${def.name} must carry moduleRoot`).toBeDefined();
           // moduleRoot must point to KOTA's install root (which contains src/),
-          // not to the external project dir.
-          expect(def.moduleRoot).not.toBe(externalProjectDir);
+          // not to the external scope root.
+          expect(def.moduleRoot).not.toBe(externalScopeRoot);
           expect(
             existsSync(join(def.moduleRoot!, "src/modules/autonomy")),
           ).toBe(true);
         }
 
-        const operatorConfig = loadConfig(externalProjectDir, {
+        const operatorConfig = loadConfig(externalScopeRoot, {
           defaultAgentHarness: "claude-agent-sdk",
           defaultPreset: "claude",
           model: "operator-model",
@@ -187,19 +187,19 @@ describe("autonomous workflow loop integration", () => {
         expect(operatorConfig.foreignModules).toBeUndefined();
         expect(operatorConfig.serve?.noAuth).toBeUndefined();
 
-        // Validation must succeed against the external project dir. If
-        // promptPath were resolved against projectDir, every agent step would
+        // Validation must succeed against the external scope root. If
+        // promptPath were resolved against workspaceRoot, every agent step would
         // fail with `promptPath does not exist`.
-        const compiled = validateWorkflowDefinitions(rawDefs, externalProjectDir, {
+        const compiled = validateWorkflowDefinitions(rawDefs, externalScopeRoot, {
           defaultAgentHarness: operatorConfig.defaultAgentHarness,
           preset: getPreset(operatorConfig.defaultPreset ?? "claude"),
         });
         expect(compiled.length).toBe(rawDefs.length);
         for (const def of compiled) {
-          expect(def.moduleRoot).not.toBe(externalProjectDir);
+          expect(def.moduleRoot).not.toBe(externalScopeRoot);
         }
 
-        // Boot the runtime against the external project and drive an agent
+        // Boot the runtime against the external scope and drive an agent
         // step. With no tasks and no inbox, the builder should pull nothing
         // but still start, proving the daemon can operate on an external
         // project. Mock the SDK so we don't spend real turns.
@@ -215,7 +215,7 @@ describe("autonomous workflow loop integration", () => {
         const runtimeHarness = createTestWorkflowRuntime({
           config: operatorConfig,
           bus,
-          projectDir: externalProjectDir,
+          scopeRoot: externalScopeRoot,
           idleIntervalMs: 10,
           workflows: compiled.filter((w) => w.name === "dispatcher"),
         });
@@ -224,22 +224,22 @@ describe("autonomous workflow loop integration", () => {
         await runtimeHarness.stop();
 
         // No crash means the daemon booted and ticked at least once against
-        // the external project directory using KOTA-owned workflow prompts.
+        // the external scope directory using KOTA-owned workflow prompts.
         expect(true).toBe(true);
       } finally {
-        rmSync(externalProjectDir, { recursive: true, force: true });
+        rmSync(externalScopeRoot, { recursive: true, force: true });
       }
     },
   );
 
   it("a monitored completion reaches attention-digest but not issue-driven improver", async () => {
-    mkdirSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest"), { recursive: true });
-    writeFileSync(join(projectDir, "src/modules/autonomy/workflows/attention-digest/prompt.md"), "Digest.\n");
+    mkdirSync(join(workspaceRoot, "src/modules/autonomy/workflows/attention-digest"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "src/modules/autonomy/workflows/attention-digest/prompt.md"), "Digest.\n");
 
     const rawDefs = await loadAutonomyWorkflowDefinitions();
     const compiled = validateWorkflowDefinitions(
       rawDefs.filter((d) => d.name === "attention-digest" || d.name === "improver"),
-      projectDir,
+      workspaceRoot,
       { defaultAgentHarness: "claude-agent-sdk", preset: getPreset("claude") },
     );
 

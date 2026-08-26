@@ -6,32 +6,32 @@ import { PAUSE_SIGNAL_FILE } from "./runtime-signals.js";
 const OPERATOR_PAUSE_MESSAGE = "Persistent operator pause.";
 const RUNTIME_PAUSE_MESSAGE = "Workflow dispatch is paused in the running daemon.";
 
-function pauseSignalPath(projectDir: string): string {
-  return join(projectDir, ".kota", PAUSE_SIGNAL_FILE);
+function pauseSignalPath(scopeRoot: string): string {
+  return join(scopeRoot, ".kota", PAUSE_SIGNAL_FILE);
 }
 
-export function hasPersistentDispatchPause(projectDir: string): boolean {
-  return existsSync(pauseSignalPath(projectDir));
+export function hasPersistentDispatchPause(scopeRoot: string): boolean {
+  return existsSync(pauseSignalPath(scopeRoot));
 }
 
-export function writeOperatorPauseSignal(projectDir: string): void {
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
+export function writeOperatorPauseSignal(scopeRoot: string): void {
+  mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
   writeFileSync(
-    pauseSignalPath(projectDir),
+    pauseSignalPath(scopeRoot),
     `${JSON.stringify({ kind: "operator", pausedAt: new Date().toISOString() }, null, 2)}\n`,
     "utf8",
   );
 }
 
-export function clearWorkflowPauseSignal(projectDir: string): void {
-  rmSync(pauseSignalPath(projectDir), { force: true });
+export function clearWorkflowPauseSignal(scopeRoot: string): void {
+  rmSync(pauseSignalPath(scopeRoot), { force: true });
 }
 
 export function resolveWorkflowDispatchPause(input: {
-  projectDir: string;
+  scopeRoot: string;
   runtimePaused: boolean;
 }): WorkflowDispatchPauseStatus {
-  if (hasPersistentDispatchPause(input.projectDir)) {
+  if (hasPersistentDispatchPause(input.scopeRoot)) {
     return {
       paused: true,
       kind: "operator",

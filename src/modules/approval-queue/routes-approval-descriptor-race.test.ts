@@ -93,20 +93,20 @@ function gatedMcpServerScript(markerPath: string, releasePath: string): string {
 	`;
 }
 
-function writeMcpConfig(projectDir: string, script: string): void {
-	mkdirSync(join(projectDir, ".kota"), { recursive: true });
-	writeFileSync(join(projectDir, ".kota", "mcp.json"), JSON.stringify({
+function writeMcpConfig(scopeRoot: string, script: string): void {
+	mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+	writeFileSync(join(scopeRoot, ".kota", "mcp.json"), JSON.stringify({
 		mcpServers: { remote: { command: "node", args: ["-e", script] } },
 	}, null, 2));
 }
 
-async function currentMcpPromptSnapshot(projectDir: string): Promise<{
+async function currentMcpPromptSnapshot(scopeRoot: string): Promise<{
 	declarationFingerprint: string;
 	serverTransportIdentityFingerprint: string;
 }> {
-	const config = McpManager.loadConfig(projectDir);
+	const config = McpManager.loadConfig(scopeRoot);
 	if (!config) throw new Error("expected MCP test config");
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	try {
 		await manager.initialize(config);
 		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
@@ -145,15 +145,15 @@ describe("approval descriptor preflight race", () => {
 	});
 
 	it("rejects a stored tool substitution during delayed MCP preflight", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-substitution-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-approval-mcp-substitution-"));
 		const queueDir = mkdtempSync(join(tmpdir(), "kota-approval-queue-substitution-"));
 		const queue = new ApprovalQueue(queueDir);
 		try {
-			const markerPath = join(projectDir, "preflight-started.txt");
-			const releasePath = join(projectDir, "release-preflight.txt");
-			writeMcpConfig(projectDir, gatedMcpServerScript(markerPath, releasePath));
+			const markerPath = join(scopeRoot, "preflight-started.txt");
+			const releasePath = join(scopeRoot, "release-preflight.txt");
+			writeMcpConfig(scopeRoot, gatedMcpServerScript(markerPath, releasePath));
 			writeFileSync(releasePath, "prompt");
-			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			const promptSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			rmSync(releasePath, { force: true });
 			rmSync(markerPath, { force: true });
 			const item = queue.enqueue(
@@ -177,7 +177,7 @@ describe("approval descriptor preflight race", () => {
 			const { res, result } = mockResponse();
 			const review = queue.projectForClient(item).review;
 			if (review.status !== "available") throw new Error("expected review descriptor");
-			await withCwd(projectDir, async () => {
+			await withCwd(scopeRoot, async () => {
 				const response = handleApproveApproval(
 					mockRequest(review.digest),
 					res,
@@ -202,7 +202,7 @@ describe("approval descriptor preflight race", () => {
 			expect(queue.get(item.id)).toMatchObject({ tool: "shell", status: "pending" });
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 			rmSync(queueDir, { recursive: true, force: true });
 		}
 	});

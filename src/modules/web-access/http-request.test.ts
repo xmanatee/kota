@@ -480,14 +480,14 @@ describe("runHttpRequest", () => {
 
   // --- save_to ---
 
-  it("rejects outside-project save_to before fetching", async () => {
+  it("rejects outside-scope save_to before fetching", async () => {
     globalThis.fetch = vi.fn();
     const result = await runHttpRequest({
       url: "https://api.example.com/export",
       save_to: "/tmp/kota-http-outside.txt",
     });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("project directory");
+    expect(result.content).toContain("scope directory");
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
@@ -495,10 +495,10 @@ describe("runHttpRequest", () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
-    const projectDir = await makeProjectTempDir("kota-http-link-");
+    const scopeRoot = await makeProjectTempDir("kota-http-link-");
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-outside-"));
     const outsideTarget = path.join(outsideDir, "response.txt");
-    const link = path.join(projectDir, "response.txt");
+    const link = path.join(scopeRoot, "response.txt");
     fs.symlinkSync(outsideTarget, link);
     globalThis.fetch = vi.fn();
 
@@ -509,11 +509,11 @@ describe("runHttpRequest", () => {
       });
 
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("project directory");
+      expect(result.content).toContain("scope directory");
       expect(globalThis.fetch).not.toHaveBeenCalled();
       expect(fs.existsSync(outsideTarget)).toBe(false);
     } finally {
-      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(scopeRoot, { recursive: true, force: true });
       fs.rmSync(outsideDir, { recursive: true, force: true });
     }
   });
@@ -540,9 +540,9 @@ describe("runHttpRequest", () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-context-"));
+    const scopeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kota-http-context-"));
     const savePath = ".approval-context/data.json";
-    const resolvedSavePath = path.join(projectDir, savePath);
+    const resolvedSavePath = path.join(scopeRoot, savePath);
     const defaultCwdSaveDir = path.resolve(path.dirname(savePath));
 
     mockFetch({ body: '{"project":"b"}', contentType: "application/json" });
@@ -553,14 +553,14 @@ describe("runHttpRequest", () => {
           url: "https://api.example.com/export",
           save_to: savePath,
         },
-        { cwd: projectDir, scopeId: "project-b", projectId: "project-b" },
+        { cwd: scopeRoot, scopeId: "scope-b" },
       );
 
       expect(result.content).toContain("[Saved to");
       expect(result.is_error).toBeUndefined();
       expect(fs.readFileSync(resolvedSavePath, "utf-8")).toBe('{"project":"b"}');
     } finally {
-      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(scopeRoot, { recursive: true, force: true });
       fs.rmSync(defaultCwdSaveDir, { recursive: true, force: true });
     }
   });

@@ -1,19 +1,26 @@
 {
   "identity": {
-    "projectName": "kota",
-    "projectDir": "/Users/operator/projects/kota",
-    "projects": {
-      "defaultProjectId": "p-kota-fixture-default",
-      "projects": [
+    "scopeName": "kota",
+    "scopeRoot": "/Users/operator/projects/kota",
+    "scopeRegistry": {
+      "rootScopeId": "global",
+      "defaultScopeId": "p-kota-fixture-default",
+      "scopes": [
         {
-          "projectId": "p-kota-fixture-default",
-          "projectDir": "/Users/operator/projects/kota",
-          "displayName": "kota"
+          "scopeId": "global",
+          "displayName": "Global"
         },
         {
-          "projectId": "p-side-fixture",
-          "projectDir": "/Users/operator/projects/side-project",
-          "displayName": "side-project"
+          "scopeId": "p-kota-fixture-default",
+          "displayName": "kota",
+          "parentScopeId": "global",
+          "directoryRoot": "/Users/operator/projects/kota"
+        },
+        {
+          "scopeId": "p-side-fixture",
+          "displayName": "side-scope",
+          "parentScopeId": "global",
+          "directoryRoot": "/Users/operator/projects/side-scope"
         }
       ]
     },
@@ -26,15 +33,21 @@
     }
   },
   "identityWithoutDashboard": {
-    "projectName": "kota",
-    "projectDir": "/Users/operator/projects/kota",
-    "projects": {
-      "defaultProjectId": "p-kota-fixture-default",
-      "projects": [
+    "scopeName": "kota",
+    "scopeRoot": "/Users/operator/projects/kota",
+    "scopeRegistry": {
+      "rootScopeId": "global",
+      "defaultScopeId": "p-kota-fixture-default",
+      "scopes": [
         {
-          "projectId": "p-kota-fixture-default",
-          "projectDir": "/Users/operator/projects/kota",
-          "displayName": "kota"
+          "scopeId": "global",
+          "displayName": "Global"
+        },
+        {
+          "scopeId": "p-kota-fixture-default",
+          "displayName": "kota",
+          "parentScopeId": "global",
+          "directoryRoot": "/Users/operator/projects/kota"
         }
       ]
     },
@@ -46,21 +59,6 @@
       "reason": "web_ui_not_built",
       "message": "Web dashboard is unavailable — run `pnpm --filter @kota/web build` to produce clients/web/dist."
     }
-  },
-  "projects": {
-    "defaultProjectId": "p-kota-fixture-default",
-    "projects": [
-      {
-        "projectId": "p-kota-fixture-default",
-        "projectDir": "/Users/operator/projects/kota",
-        "displayName": "kota"
-      },
-      {
-        "projectId": "p-side-fixture",
-        "projectDir": "/Users/operator/projects/side-project",
-        "displayName": "side-project"
-      }
-    ]
   },
   "scopes": {
     "rootScopeId": "global",
@@ -84,9 +82,9 @@
       },
       {
         "scopeId": "p-side-fixture",
-        "displayName": "side-project",
+        "displayName": "side-scope",
         "parentScopeId": "global",
-        "directoryRoot": "/Users/operator/projects/side-project"
+        "directoryRoot": "/Users/operator/projects/side-scope"
       }
     ]
   },
@@ -362,10 +360,10 @@
       ]
     }
   },
-  "unknownProjectError": {
-    "error": "Unknown project",
-    "reason": "unknown_project",
-    "projectId": "p-not-configured"
+  "unknownScopeError": {
+    "error": "Unknown scope",
+    "reason": "unknown_scope",
+    "scopeId": "p-not-configured"
   },
   "capabilities": {
     "capabilities": [
@@ -417,7 +415,7 @@
           "title": "Telegram bot credentials",
           "description": "Bot token and default alert chat reference used by Telegram channels.",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "owner": "telegram",
           "sensitivity": "secret",
           "setup": {
@@ -432,7 +430,7 @@
           "secretRefs": [
             {
               "name": "TELEGRAM_BOT_TOKEN",
-              "scope": "project",
+              "scope": "scope",
               "present": false
             }
           ]
@@ -443,7 +441,7 @@
           "kind": "config",
           "title": "Google Workspace OAuth config references",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "owner": "google-workspace",
           "sensitivity": "none",
           "setup": {
@@ -479,7 +477,7 @@
           "kind": "oauth",
           "title": "Google Workspace OAuth credentials",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "owner": "google-workspace",
           "sensitivity": "oauth",
           "setup": {
@@ -494,9 +492,9 @@
           "secretRefs": [
             {
               "name": "GOOGLE_REFRESH_TOKEN",
-              "scope": "project",
+              "scope": "scope",
               "present": true,
-              "source": "project-file"
+              "source": "scope-file"
             }
           ],
           "pendingAction": {
@@ -516,7 +514,7 @@
           "kind": "browser-profile",
           "title": "Authenticated browser profile",
           "required": false,
-          "scope": "project",
+          "scope": "scope",
           "owner": "browser",
           "sensitivity": "browser-profile",
           "setup": {
@@ -551,7 +549,7 @@
           "title": "Slack app token",
           "description": "Slack socket mode app token used by the channel adapter.",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "owner": "slack-channel",
           "sensitivity": "secret",
           "setup": {
@@ -566,9 +564,9 @@
           "secretRefs": [
             {
               "name": "SLACK_APP_TOKEN",
-              "scope": "project",
+              "scope": "scope",
               "present": true,
-              "source": "project-file"
+              "source": "scope-file"
             }
           ],
           "pendingAction": {
@@ -589,7 +587,7 @@
           "title": "SMTP password",
           "description": "SMTP password reference used for outbound email alerts.",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "owner": "email",
           "sensitivity": "secret",
           "setup": {
@@ -604,7 +602,7 @@
           "secretRefs": [
             {
               "name": "SMTP_PASSWORD",
-              "scope": "project",
+              "scope": "scope",
               "present": false
             }
           ],
@@ -639,7 +637,7 @@
           "kind": "config",
           "title": "Bad state",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "sensitivity": "none",
           "setup": {
             "mode": "none"
@@ -667,7 +665,7 @@
           "kind": "token",
           "title": "Bad kind",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "sensitivity": "secret",
           "setup": {
             "mode": "url",
@@ -697,7 +695,7 @@
           "kind": "external-url",
           "title": "Bad mode",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "sensitivity": "none",
           "setup": {
             "mode": "qr"
@@ -725,7 +723,7 @@
           "kind": "config",
           "title": "Bad field value kind",
           "required": true,
-          "scope": "project",
+          "scope": "scope",
           "sensitivity": "none",
           "setup": {
             "mode": "form",

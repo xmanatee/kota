@@ -72,7 +72,7 @@ describe("process tool", () => {
     it("terminates a credential-bearing process when its session tears down", async () => {
       const context = {
         sessionId: "session-bg-secret",
-        scopeId: "project-bg-secret",
+        scopeId: "scope-bg-secret",
       };
       registerSessionEnvironment(context);
       try {

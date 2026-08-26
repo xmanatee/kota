@@ -44,7 +44,7 @@ function kindLabel(kind: OperatorInboxKind): string {
 export function buildOperatorInboxNode(snapshot: OperatorInboxSnapshot): RenderNode {
   if (snapshot.items.length === 0) {
     return stack(
-      statusBanner("success", "Operator inbox is clear", snapshot.projectDir),
+      statusBanner("success", "Operator inbox is clear", snapshot.scopeRoot),
       line(span("No approvals, owner questions, blocked owner asks, setup gaps, failed runs, or runtime warnings.", "muted")),
     );
   }
@@ -57,7 +57,7 @@ export function buildOperatorInboxNode(snapshot: OperatorInboxSnapshot): RenderN
   return stack(
     heading("Operator inbox", 1),
     line(span(summary, "accent", true)),
-    line(span(snapshot.projectDir, "muted")),
+    line(span(snapshot.scopeRoot, "muted")),
     blank(),
     list(snapshot.items.map((item) => ({
       spans: [

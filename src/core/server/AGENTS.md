@@ -27,10 +27,9 @@ per CLI invocation and stores it in `client-holder.ts`. CLI subcommands
 read it through `ModuleContext.client` and never re-decide the
 daemon-vs-local policy.
 
-`KotaClient.forScope(scopeId)` is the canonical scoping primitive. Legacy
-project-shaped input is translated once at the outer compatibility boundary;
-new namespaces, handlers, and callers use scope terminology and do not extend
-the project-shaped path.
+`KotaClient.forScope(scopeId)` is the sole scoping primitive. Namespaces,
+handlers, and callers use the same scope terminology; vendor-specific project
+concepts stay inside their adapters and never enter this contract.
 
 ## Conventions
 

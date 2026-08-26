@@ -42,14 +42,14 @@ describe("Telegram approval callback receipts", () => {
         approvalId: "reused-id",
         chatId: "99",
         messageId: 10,
-        projectId: "test-project",
+        scopeId: "test-scope",
         reviewDigest: oldDigest,
       }],
       [pendingApprovalMessageKey(99, 11), {
         approvalId: "reused-id",
         chatId: "99",
         messageId: 11,
-        projectId: "test-project",
+        scopeId: "test-scope",
         reviewDigest: currentDigest,
       }],
     ]);
@@ -76,7 +76,7 @@ describe("Telegram approval callback receipts", () => {
       "reused-id",
       oldDigest,
       undefined,
-      { projectId: "test-project" },
+      { scopeId: "test-scope" },
     );
     expect(callTelegramApi).toHaveBeenCalledWith("token", "answerCallbackQuery", {
       callback_query_id: "cq-stale",
@@ -105,16 +105,16 @@ describe("Telegram approval callback receipts", () => {
         },
       },
     });
-    const forProject = vi.fn(() => ({
+    const forScope = vi.fn(() => ({
       approvals: { approve, reject: vi.fn() },
     }));
-    const client: KotaClient = { forProject } as never;
+    const client: KotaClient = { forScope } as never;
     const pending: Map<string, PendingApprovalMessage> = new Map([
       [pendingApprovalMessageKey(99, 12), {
         approvalId: "approval-id",
         chatId: "99",
         messageId: 12,
-        projectId: "test-project",
+        scopeId: "test-scope",
         reviewDigest,
       }],
     ]);
@@ -137,7 +137,7 @@ describe("Telegram approval callback receipts", () => {
       client,
     );
 
-    expect(forProject).toHaveBeenCalledWith("test-project");
+    expect(forScope).toHaveBeenCalledWith("test-scope");
     expect(approve).toHaveBeenCalledWith("approval-id", reviewDigest);
     expect(pending).toHaveLength(0);
   });
@@ -164,14 +164,14 @@ describe("Telegram approval callback receipts", () => {
       },
     });
     const client: KotaClient = {
-      forProject: () => ({ approvals: { approve, reject: vi.fn() } }),
+      forScope: () => ({ approvals: { approve, reject: vi.fn() } }),
     } as never;
     const pending: Map<string, PendingApprovalMessage> = new Map([
       [pendingApprovalMessageKey(99, 13), {
         approvalId: "approval-failed",
         chatId: "99",
         messageId: 13,
-        projectId: "test-project",
+        scopeId: "test-scope",
         reviewDigest,
       }],
     ]);

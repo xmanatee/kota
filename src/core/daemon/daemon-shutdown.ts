@@ -53,7 +53,7 @@ export async function runDaemonShutdown(
   ctx.unsubscribe = null;
   ctx.uninstallEventJournal();
 
-  for (const bundle of ctx.projectRuntimes.list()) {
+  for (const bundle of ctx.scopeRuntimes.list()) {
     bundle.notificationGate?.dispose();
     bundle.notificationGate = null;
   }

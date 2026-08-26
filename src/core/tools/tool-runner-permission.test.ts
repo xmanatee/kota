@@ -129,11 +129,11 @@ describe("executeToolCalls permission gate", () => {
 	});
 
 	it("blocks a bounded file write whose symlinked ancestor resolves outside the scope", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-scope-policy-project-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-scope-policy-project-"));
 		const outsideDir = mkdtempSync(join(tmpdir(), "kota-scope-policy-outside-"));
-		tempDirs.push(projectDir, outsideDir);
+		tempDirs.push(scopeRoot, outsideDir);
 		try {
-			symlinkSync(outsideDir, join(projectDir, "link"), "dir");
+			symlinkSync(outsideDir, join(scopeRoot, "link"), "dir");
 		} catch {
 			return;
 		}
@@ -153,7 +153,7 @@ describe("executeToolCalls permission gate", () => {
 						scopeId: "fixture",
 						displayName: "Fixture",
 						parentScopeId: "global",
-						directoryRoot: projectDir,
+						directoryRoot: scopeRoot,
 					},
 				],
 			},
@@ -167,7 +167,7 @@ describe("executeToolCalls permission gate", () => {
 
 		const results = await executeToolCalls(
 			[toolBlock("file_write", { path: "link/escape.txt", content: "escaped" })],
-			runOptions({ scopePolicy, cwd: projectDir }),
+			runOptions({ scopePolicy, cwd: scopeRoot }),
 		);
 
 		expect(results[0]).toMatchObject({ is_error: true });

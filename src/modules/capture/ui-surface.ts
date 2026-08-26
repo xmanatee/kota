@@ -53,7 +53,7 @@ function buildCaptureUiSurface(scopeId: string): UiSurface {
     confirmation: {
       mode: "required",
       title: "Capture this note?",
-      detail: "The note will be written to the selected project store.",
+      detail: "The note will be written to the selected scope store.",
       confirmLabel: "Capture note",
       risk: "low",
     },
@@ -83,5 +83,5 @@ function buildCaptureUiSurface(scopeId: string): UiSurface {
 
 export const captureUiSurfaceSource: UiSurfaceSource = {
   sourceId: "capture",
-  project: (context) => [buildCaptureUiSurface(context.scopeId)],
+  scope: (context) => [buildCaptureUiSurface(context.scopeId)],
 };

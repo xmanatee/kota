@@ -53,7 +53,7 @@ type MetricsLogger = (msg: string, err: unknown) => void;
  * existing pattern instead of demanding a second event protocol.
  */
 export class WorkflowMetricsEmitter {
-  private readonly projectDir: string;
+  private readonly scopeRoot: string;
   private readonly onEnrichmentError: MetricsLogger;
   private readonly runCounter: Counter;
   private readonly runDuration: Histogram;
@@ -67,10 +67,10 @@ export class WorkflowMetricsEmitter {
 
   constructor(
     meter: Meter,
-    projectDir: string,
+    scopeRoot: string,
     onEnrichmentError: MetricsLogger = () => {},
   ) {
-    this.projectDir = projectDir;
+    this.scopeRoot = scopeRoot;
     this.onEnrichmentError = onEnrichmentError;
 
     this.runCounter = meter.createCounter("kota.workflow.runs", {
@@ -208,7 +208,7 @@ export class WorkflowMetricsEmitter {
   }
 
   private readAgentStepOutput(runDir: string, stepId: string): AgentStepOutput | undefined {
-    const filePath = join(resolve(this.projectDir, runDir), "steps", `${stepId}.json`);
+    const filePath = join(resolve(this.scopeRoot, runDir), "steps", `${stepId}.json`);
     if (!existsSync(filePath)) return undefined;
     try {
       const raw = JSON.parse(readFileSync(filePath, "utf-8"));

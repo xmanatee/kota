@@ -61,7 +61,7 @@ function decodeArtifact(value: unknown): ProgressReviewArtifact {
 
 /** Advance canonical owner/runtime state from a post-integration follow-up run. */
 export function publishProgressReview(args: {
-  scopeDir: string;
+  scopeRoot: string;
   sourceRunId: string;
   currentState: ProgressReviewConsumptionState;
 }): {
@@ -69,7 +69,7 @@ export function publishProgressReview(args: {
   nextState: ProgressReviewConsumptionState;
 } {
   const sourceRunDir = join(
-    args.scopeDir,
+    args.scopeRoot,
     ".kota",
     "runs",
     args.sourceRunId,
@@ -82,8 +82,8 @@ export function publishProgressReview(args: {
   }
   const decoded = decodeArtifact(artifact);
   const proposalArgs = {
-    projectDir: args.scopeDir,
-    ownerQuestionQueue: createGeneratedWorkQuestionQueue(args.scopeDir),
+    workspaceRoot: args.scopeRoot,
+    ownerQuestionQueue: createGeneratedWorkQuestionQueue(args.scopeRoot),
   };
   for (const { group } of progressReviewFindingGroupEntries(decoded.review)) {
     for (const task of group.followUpTasks) {

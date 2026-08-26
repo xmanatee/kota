@@ -11,13 +11,13 @@ final class SharedUiRendererTests: XCTestCase {
             return true
         }
 
-        func pickProjectDirectory() async -> URL? {
+        func pickScopeDirectory() async -> URL? {
             URL(fileURLWithPath: "/tmp/kota-shared-ui")
         }
 
         func openAppSettings() {}
         var supportsQuit: Bool { false }
-        var supportsNativeProjectPicker: Bool { true }
+        var supportsNativeScopePicker: Bool { true }
         func quitApp() {}
     }
 
@@ -81,12 +81,12 @@ final class SharedUiRendererTests: XCTestCase {
             platform: platform,
             startPollingOnInit: false
         )
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: "scope-main",
-            projects: [ConfiguredProjectEntry(
-                projectId: "scope-main",
-                projectDir: "/tmp/kota",
-                displayName: "KOTA"
+        state.reconcileActiveScopeId(with: makeScopeRegistry(
+            defaultScopeId: "scope-main",
+            directoryScopes: [directoryScope(
+                scopeId: "scope-main",
+                displayName: "KOTA",
+                directoryRoot: "/tmp/kota"
             )]
         ))
 

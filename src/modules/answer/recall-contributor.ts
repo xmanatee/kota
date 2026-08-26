@@ -20,21 +20,21 @@ import {
   type AnswerHistoryStore,
   answerSearchPreview,
 } from "./answer-history-store.js";
-import type { ResolveAnswerProjectContext } from "./project-context.js";
+import type { ResolveAnswerScopeContext } from "./scope-context.js";
 
 export function createAnswerRecallContributor(
   store: AnswerHistoryStore,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): RecallContributor {
   return {
     source: "answer",
-    async recall(query, { topK, project }) {
+    async recall(query, { topK, scope }) {
       const scoped =
-        project && resolveProjectContext
-          ? resolveProjectContext(project.projectId)
+        scope && resolveScopeContext
+          ? resolveScopeContext(scope.scopeId)
           : null;
       if (scoped && "error" in scoped) {
-        throw new Error(`Unknown project: ${scoped.projectId}`);
+        throw new Error(`Unknown scope: ${scoped.scopeId}`);
       }
       const history = scoped?.history ?? store;
       const hits = await history.searchAnswers(query, { topK });

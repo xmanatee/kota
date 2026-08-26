@@ -54,7 +54,7 @@ export type EvalHarnessRegressionPayload = {
 };
 
 export type EvalHarnessCadenceOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runDirPath: string;
   isolationBackend: Extract<SubprocessIsolationBackend, { kind: "container" }>;
   priorBaseline: PersistedBaseline | null;
@@ -135,7 +135,7 @@ export async function runEvalHarnessCadenceInWorker(
 ): Promise<EvalHarnessCadenceOperationOutput> {
   context.signal.throwIfAborted();
   context.reportProgress("loading eval-harness cadence fixtures");
-  const fixturesRoot = join(input.projectDir, "src/modules/eval-harness/fixtures");
+  const fixturesRoot = join(input.workspaceRoot, "src/modules/eval-harness/fixtures");
   const fixtures = loadAllFixtures(fixturesRoot);
   if (fixtures.length === 0) {
     throw new Error(
@@ -145,7 +145,7 @@ export async function runEvalHarnessCadenceInWorker(
   }
 
   const executor = createSubprocessExecutor({
-    kotaBinaryPath: resolve(join(input.projectDir, "bin/kota.mjs")),
+    kotaBinaryPath: resolve(join(input.workspaceRoot, "bin/kota.mjs")),
     isolationBackend: input.isolationBackend,
     signal: context.signal,
   });
@@ -160,7 +160,7 @@ export async function runEvalHarnessCadenceInWorker(
 
   try {
     const report = await runEvalSet({
-      projectDir: input.projectDir,
+      workspaceRoot: input.workspaceRoot,
       fixtures,
       executor,
       requestedProfile,

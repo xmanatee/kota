@@ -7,7 +7,7 @@ import {
   mockAgentSession,
   mockRequest,
   mockResponse,
-  PROJECT_ID,
+  SCOPE_ID,
 } from "./daemon-chat-test-support.integration.js";
 
 describe("daemon chat session scope admission", () => {
@@ -24,14 +24,14 @@ describe("daemon chat session scope admission", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       () => state === "hosted"
         ? { ok: true }
         : {
             ok: false,
             reason: "scope_not_hosted",
-            scopeId: PROJECT_ID,
+            scopeId: SCOPE_ID,
             state,
           },
     );
@@ -42,9 +42,9 @@ describe("daemon chat session scope admission", () => {
 
     expect(res.writeHead).toHaveBeenCalledWith(409, expect.any(Object));
     expect(JSON.parse(res._written.at(-1) ?? "")).toEqual({
-      error: `Scope ${PROJECT_ID} is draining and cannot accept sessions`,
+      error: `Scope ${SCOPE_ID} is draining and cannot accept sessions`,
       reason: "scope_not_hosted",
-      scopeId: PROJECT_ID,
+      scopeId: SCOPE_ID,
       state: "draining",
     });
     expect(pool.size).toBe(0);

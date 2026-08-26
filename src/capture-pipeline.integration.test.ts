@@ -13,7 +13,7 @@
  * the four real first-party contributors (`createMemoryContributor`,
  * `createKnowledgeContributor`, `createTasksContributor`,
  * `createInboxContributor`) wired against in-process `MemoryStore` and
- * `KnowledgeStore` instances and a temp project root for the tasks and
+ * `KnowledgeStore` instances and a temp scope root for the tasks and
  * inbox writers. The classifier is replaced with a deterministic
  * in-process stub that branches on the input text so one test instance
  * exercises both the confident-routing path and the ambiguous path
@@ -142,12 +142,12 @@ function startServer(specs: RouteSpec[]): Promise<{ server: Server; port: number
   });
 }
 
-function makeProjectRoot(): string {
+function makeScopeRoot(): string {
   const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-pipeline-"));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "capture-pipeline",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -164,10 +164,10 @@ type WriteSnapshot = {
 function snapshotWrites(args: {
   memoryStore: MemoryStore;
   knowledgeStore: KnowledgeStore;
-  projectRoot: string;
+  scopeRoot: string;
 }): WriteSnapshot {
-  const tasksDir = join(args.projectRoot, "data", "tasks", "backlog");
-  const inboxDir = join(args.projectRoot, "data", "inbox");
+  const tasksDir = join(args.scopeRoot, "data", "tasks", "backlog");
+  const inboxDir = join(args.scopeRoot, "data", "inbox");
   return {
     memory: args.memoryStore.list().length,
     knowledge: args.knowledgeStore.list().length,
@@ -185,7 +185,7 @@ function readdirCount(dir: string): number {
 }
 
 describe("cross-store capture pipeline (HTTP)", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let memoryStore: MemoryStore;
   let knowledgeStore: KnowledgeStore;
   let provider: CaptureProvider;
@@ -195,11 +195,11 @@ describe("cross-store capture pipeline (HTTP)", () => {
   let client: DaemonControlClient;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
 
     const { classifier, calls } = buildClassifier();
@@ -208,7 +208,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
     const captureProvider = new CaptureProviderImpl({ classifier });
     captureProvider.register(createMemoryContributor(memoryStore));
     captureProvider.register(createKnowledgeContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     captureProvider.register(createTasksContributor(mutationTarget));
     captureProvider.register(createInboxContributor(mutationTarget));
     provider = captureProvider;
@@ -236,7 +236,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("registers exactly the four first-party contributors in CAPTURE_TARGET_ORDER", () => {
@@ -291,7 +291,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
       `data/tasks/backlog/${result.record.recordId}.md`,
     );
 
-    const filePath = join(projectRoot, result.record.path);
+    const filePath = join(scopeRoot, result.record.path);
     expect(existsSync(filePath)).toBe(true);
     const body = readFileSync(filePath, "utf-8");
     expect(body).toMatch(new RegExp(`title: ${TASKS_TEXT}`));
@@ -313,7 +313,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
       `data/inbox/${result.record.recordId}.md`,
     );
 
-    const filePath = join(projectRoot, result.record.path);
+    const filePath = join(scopeRoot, result.record.path);
     expect(existsSync(filePath)).toBe(true);
     const body = readFileSync(filePath, "utf-8");
     expect(body).toContain(INBOX_TEXT);
@@ -338,7 +338,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
   });
 
   it("classifier ambiguous reply surfaces the typed ambiguous envelope with all four registered contributors and writes nothing", async () => {
-    const before = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const before = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     const result = await client.capture.capture(AMBIGUOUS_QUERY);
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected ok:false");
@@ -346,16 +346,16 @@ describe("cross-store capture pipeline (HTTP)", () => {
     if (result.reason !== "ambiguous") throw new Error("unreachable");
     expect([...result.suggestions]).toEqual([...CAPTURE_TARGET_ORDER]);
 
-    const after = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const after = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     expect(after).toEqual(before);
   });
 
   it("empty / whitespace-only text is rejected at the wire and writes nothing to any store", async () => {
-    const before = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const before = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     await expect(client.capture.capture("   \n\t  ")).rejects.toThrow(
       /text is required/,
     );
-    const after = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const after = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     expect(after).toEqual(before);
   });
 
@@ -413,7 +413,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
 });
 
 describe("cross-store capture pipeline — contributor failure isolation", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let memoryStore: MemoryStore;
   let knowledgeStore: KnowledgeStore;
   let provider: CaptureProvider;
@@ -421,11 +421,11 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
   let client: DaemonControlClient;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
 
     const captureProvider = new CaptureProviderImpl();
@@ -440,7 +440,7 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
     };
     captureProvider.register(throwingMemory);
     captureProvider.register(createKnowledgeContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     captureProvider.register(createTasksContributor(mutationTarget));
     captureProvider.register(createInboxContributor(mutationTarget));
     provider = captureProvider;
@@ -467,11 +467,11 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("contributor_failed: the seam surfaces the typed failure envelope with the thrown message verbatim and writes nothing to any other store", async () => {
-    const before = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const before = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     const result = await client.capture.capture("anything", {
       target: "memory",
     });
@@ -482,7 +482,7 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
     expect(result.target).toBe("memory");
     expect(result.message).toBe("memory writer is offline");
 
-    const after = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const after = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     expect(after).toEqual(before);
   });
 });

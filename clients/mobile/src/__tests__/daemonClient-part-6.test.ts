@@ -157,7 +157,7 @@ describe('DaemonClient', () => {
         ok: false,
         reason: 'contributor_failed',
         target: 'inbox',
-        message: 'inbox writer cannot reach project root',
+        message: 'inbox writer cannot reach scope root',
       }),
     );
     const res = await client().retract({
@@ -168,7 +168,7 @@ describe('DaemonClient', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     });
   });
 

@@ -74,7 +74,7 @@ function makeDoneTask(id: string, title: string, area: string, updatedAt: string
   ].join("\n");
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "fan-out-consolidator-wf-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -98,28 +98,28 @@ describe("fan-out-consolidator workflow", () => {
 
   it("seeds a consolidation task in ready/ when a fan-out batch is detected", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const baseMs = Date.now() - 5 * 24 * 60 * 60 * 1000;
     for (let i = 0; i < FAN_OUT_TITLES.length; i++) {
       const t = FAN_OUT_TITLES[i]!;
       const updatedAt = new Date(baseMs + i * 24 * 60 * 60 * 1000).toISOString();
       writeFileSync(
-        join(projectDir, "data", "tasks", "done", `${t.id}.md`),
+        join(workspaceRoot, "data", "tasks", "done", `${t.id}.md`),
         makeDoneTask(t.id, t.title, t.area, updatedAt),
       );
     }
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
-      projectDir,
+      workspaceRoot,
       contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
     expect(result.status).toBe("success");
     const consolidationPath = join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "ready",
@@ -133,27 +133,27 @@ describe("fan-out-consolidator workflow", () => {
 
   it("skips seeding when the worktree is dirty (recovery safety)", async () => {
     await mockDirtyWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const baseMs = Date.now() - 5 * 24 * 60 * 60 * 1000;
     for (let i = 0; i < FAN_OUT_TITLES.length; i++) {
       const t = FAN_OUT_TITLES[i]!;
       const updatedAt = new Date(baseMs + i * 24 * 60 * 60 * 1000).toISOString();
       writeFileSync(
-        join(projectDir, "data", "tasks", "done", `${t.id}.md`),
+        join(workspaceRoot, "data", "tasks", "done", `${t.id}.md`),
         makeDoneTask(t.id, t.title, t.area, updatedAt),
       );
     }
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 
     expect(result.status).toBe("success");
     const consolidationPath = join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "ready",
@@ -164,9 +164,9 @@ describe("fan-out-consolidator workflow", () => {
 
   it("does not seed when no fan-out batch is detected (single-surface only)", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "done", "task-tighten-internal.md"),
+      join(workspaceRoot, "data", "tasks", "done", "task-tighten-internal.md"),
       makeDoneTask(
         "task-tighten-internal",
         "Tighten internal protocol invariant",
@@ -174,11 +174,11 @@ describe("fan-out-consolidator workflow", () => {
         new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(fanOutConsolidatorWorkflow, {
       trigger: { event: "workflow.completed", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 

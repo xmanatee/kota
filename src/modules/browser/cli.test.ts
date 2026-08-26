@@ -120,7 +120,6 @@ describe("browser CLI", () => {
       expect.objectContaining({
         sessionId: expect.stringMatching(/^browser-cli:/),
         scopeId: expect.any(String),
-        projectId: expect.any(String),
         cwd: tempDir,
       }),
     );

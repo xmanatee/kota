@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { projectHash } from "./schedule-parser.js";
+import { ScopedEventBus } from "#core/events/scope.js";
+import { scopeHash } from "./schedule-parser.js";
 import { getTaskStore, initTaskStore, resetTaskStore, TaskStore } from "./task-store.js";
 
 const testDir = mkdtempSync(join(tmpdir(), "kota-task-test-"));
@@ -127,7 +127,7 @@ describe("TaskStore", () => {
       expect(t3.id).toBe(3);
     });
 
-    it("isolates projects by path", () => {
+    it("isolates scopes by path", () => {
       store.add("Project A task");
 
       const storeB = new TaskStore("/other/project", testDir);
@@ -239,7 +239,7 @@ describe("TaskStore", () => {
 
   describe("error paths", () => {
     function filePath(dir: string, proj: string): string {
-      return join(dir, `tasks-${projectHash(proj)}.json`);
+      return join(dir, `tasks-${scopeHash(proj)}.json`);
     }
 
     it("recovers gracefully from corrupt JSON file", () => {
@@ -259,7 +259,7 @@ describe("TaskStore", () => {
     it("handles tasks field that is not an array", () => {
       writeFileSync(
         filePath(testDir, "/test/project"),
-        JSON.stringify({ project: "/test/project", tasks: "not-array", nextId: 1 }),
+        JSON.stringify({ scope: "/test/project", tasks: "not-array", nextId: 1 }),
       );
       const store2 = new TaskStore("/test/project", testDir);
       expect(store2.list()).toHaveLength(0);
@@ -271,7 +271,7 @@ describe("TaskStore", () => {
     it("handles tasks field that is null", () => {
       writeFileSync(
         filePath(testDir, "/test/project"),
-        JSON.stringify({ project: "/test/project", tasks: null, nextId: 3 }),
+        JSON.stringify({ scope: "/test/project", tasks: null, nextId: 3 }),
       );
       const store2 = new TaskStore("/test/project", testDir);
       expect(store2.list()).toHaveLength(0);
@@ -281,7 +281,7 @@ describe("TaskStore", () => {
       writeFileSync(
         filePath(testDir, "/test/project"),
         JSON.stringify({
-          project: "/test/project",
+          scope: "/test/project",
           tasks: [{ id: 5, task: "Existing", status: "pending", created: "2025-01-01" }],
           nextId: 0,
         }),
@@ -296,7 +296,7 @@ describe("TaskStore", () => {
       writeFileSync(
         filePath(testDir, "/test/project"),
         JSON.stringify({
-          project: "/test/project",
+          scope: "/test/project",
           tasks: [{ id: 3, task: "Existing", status: "pending", created: "2025-01-01" }],
           nextId: "bad",
         }),
@@ -310,7 +310,7 @@ describe("TaskStore", () => {
       writeFileSync(
         filePath(testDir, "/test/project"),
         JSON.stringify({
-          project: "/test/project",
+          scope: "/test/project",
           tasks: [{ id: 2, task: "Existing", status: "pending", created: "2025-01-01" }],
           nextId: -5,
         }),
@@ -392,18 +392,18 @@ describe("singleton management", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("initTaskStore defaults persistence to the project runtime directory", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-task-project-"));
+  it("initTaskStore defaults persistence to the scope runtime directory", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-task-project-"));
     try {
-      initTaskStore(projectDir);
+      initTaskStore(scopeRoot);
       const store = getTaskStore();
-      store.add("Project-local task");
+      store.add("Scope-local task");
       expect(
-        existsSync(join(projectDir, ".kota", `tasks-${hashProject(projectDir)}.json`)),
+        existsSync(join(scopeRoot, ".kota", `tasks-${hashProject(scopeRoot)}.json`)),
       ).toBe(true);
     } finally {
       resetTaskStore();
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
@@ -427,7 +427,7 @@ describe("task.changed events", () => {
     bus.on("*", (envelope) => {
       received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
     });
-    const pbus = new ProjectScopedEventBus(bus, "test-project");
+    const pbus = new ScopedEventBus(bus, "test-scope");
     store = new TaskStore("/test/project", null, pbus);
   });
 
@@ -435,7 +435,7 @@ describe("task.changed events", () => {
     store.add("Task 1");
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 1, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-scope", counts: { pending: 1, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on update with updated counts", () => {
@@ -444,7 +444,7 @@ describe("task.changed events", () => {
     store.update(1, { status: "in_progress" });
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 1, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-scope", counts: { pending: 0, in_progress: 1, done: 0 } });
   });
 
   it("emits task.changed on clear with zero counts", () => {
@@ -453,7 +453,7 @@ describe("task.changed events", () => {
     store.clear();
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-scope", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("emits task.changed on archiveCompleted when tasks are removed", () => {
@@ -463,7 +463,7 @@ describe("task.changed events", () => {
     store.archiveCompleted();
     const calls = received.filter(({ event }) => event === "task.changed");
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.payload).toEqual({ scopeId: "test-project", projectId: "test-project", counts: { pending: 0, in_progress: 0, done: 0 } });
+    expect(calls[0]?.payload).toEqual({ scopeId: "test-scope", counts: { pending: 0, in_progress: 0, done: 0 } });
   });
 
   it("does not emit task.changed on archiveCompleted when nothing to archive", () => {

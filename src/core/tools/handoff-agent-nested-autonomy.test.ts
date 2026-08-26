@@ -25,27 +25,27 @@ import {
 } from "./handoff-agent-scope-policy-test-support.js";
 
 describe("handoff_agent nested autonomy inheritance", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let scopeId: string;
   let approvalQueue: ApprovalQueue;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-nested-autonomy-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "child.md"), "Child prompt.\n");
-    writeFileSync(join(projectDir, "agents", "grandchild.md"), "Grandchild prompt.\n");
-    initHandoffPolicyGitProject(projectDir);
-    scopeId = deriveDirectoryScopeId(projectDir);
-    approvalQueue = handoffApprovalQueue(projectDir, scopeId);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-nested-autonomy-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "child.md"), "Child prompt.\n");
+    writeFileSync(join(scopeRoot, "agents", "grandchild.md"), "Grandchild prompt.\n");
+    initHandoffPolicyGitProject(scopeRoot);
+    scopeId = deriveDirectoryScopeId(scopeRoot);
+    approvalQueue = handoffApprovalQueue(scopeRoot, scopeId);
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("caps a grandchild against its immediate supervised parent", async () => {
-    const policy = handoffScopePolicy(projectDir);
+    const policy = handoffScopePolicy(scopeRoot);
     const authority = handoffScopePolicyAuthority(policy);
     const agents: AgentDef[] = [
       {
@@ -90,10 +90,10 @@ describe("handoff_agent nested autonomy inheritance", () => {
               reason: "Prove transitive autonomy capping.",
               autonomy_mode: "autonomous",
               budget: { max_turns: 1 },
-              scope: { scope_id: scopeId, project_id: scopeId },
+              scope: { scope_id: scopeId },
               allowed_tools: ["Read"],
             },
-            { scopeId, projectId: scopeId, sessionId: "child-session" },
+            { scopeId, sessionId: "child-session" },
           );
           return {
             text: nested.content,
@@ -111,13 +111,12 @@ describe("handoff_agent nested autonomy inheritance", () => {
       },
     });
     const runtime: HandoffAgentRuntime = {
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => agents.find((agent) => agent.name === name),
       delegateBudget: createDelegateBudget(),
       autonomyMode: "autonomous",
       scopeId,
-      projectId: scopeId,
       scopePolicy: policy,
       scopePolicyAuthority: authority,
       getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
@@ -133,10 +132,10 @@ describe("handoff_agent nested autonomy inheritance", () => {
           reason: "Prove immediate-parent inheritance.",
           autonomy_mode: "supervised",
           budget: { max_turns: 2 },
-          scope: { scope_id: scopeId, project_id: scopeId },
+          scope: { scope_id: scopeId },
           allowed_tools: ["Read", "handoff_agent"],
         },
-        { scopeId, projectId: scopeId, sessionId: "workflow-parent" },
+        { scopeId, sessionId: "workflow-parent" },
       )
     );
 

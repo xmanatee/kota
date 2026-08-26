@@ -17,7 +17,7 @@ type ValidationResult = {
 
 type ValidateDefinitionsOptions = {
   workflow?: string;
-  projectDir?: string;
+  workspaceRoot?: string;
   defaultAgentHarness?: string;
   preset?: Preset;
   modelTiers?: ModelTiers;
@@ -43,7 +43,7 @@ export function validateDefinitions(
     try {
       validateWorkflowDefinitions(
         [def],
-        options.projectDir,
+        options.workspaceRoot,
         {
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
@@ -69,7 +69,7 @@ export function validateDefinitions(
     try {
       validateWorkflowDefinitions(
         allDefs,
-        options.projectDir,
+        options.workspaceRoot,
         {
           defaultAgentHarness: options.defaultAgentHarness,
           preset: options.preset,
@@ -109,7 +109,7 @@ export function registerValidateCommand(
         const runtime = resolveAgentRuntime(ctx.config);
         results = validateDefinitions(getWorkflowDefinitions(ctx), {
           workflow: opts.workflow,
-          projectDir: ctx.cwd,
+          workspaceRoot: ctx.cwd,
           defaultAgentHarness: runtime.harness,
           preset: runtime.preset,
           modelTiers: runtime.tiers,

@@ -270,7 +270,7 @@ export async function runEvalFixturesForSpec(args: {
   const harnessName = expectedHarnessNameForSpec(args.deps, args.spec);
   mkdirSync(runArtifactBaseDir, { recursive: true });
   const report = await runEvalSet({
-    projectDir: args.deps.projectDir,
+    workspaceRoot: args.deps.scopeRoot,
     fixtures: args.fixtures,
     executor: args.deps.evalExecutor ?? defaultEvalExecutor(args.deps),
     requestedProfile: args.requestedProfile,

@@ -188,7 +188,7 @@ export function registerHistoryCommands(program: Command) {
         resumeHere: opts.resumeHere,
       });
       reportResumeCwdSelection(resume);
-      const config = loadConfig(resume.projectDir);
+      const config = loadConfig(resume.scopeRoot);
       const modelSpec =
         opts.model ||
         config.model ||
@@ -201,19 +201,19 @@ export function registerHistoryCommands(program: Command) {
         const harnessName = runtime.harness;
         const model = modelForHarness(modelSpec, harnessName);
         const modelProvider = modelProviderSelectionFromConfig(config);
-        const resumeStore = openHarnessResumeConversation(resume.projectDir, resume.id);
+        const resumeStore = openHarnessResumeConversation(resume.scopeRoot, resume.id);
         await runHarnessRepl({
           harness: resolveAgentHarness(harnessName),
           model,
-          cwd: resume.projectDir,
+          cwd: resume.scopeRoot,
           run: {
             verbose: opts.verbose || config.verbose || false,
             effort: preset.defaultEffort,
             systemPrompt: buildKotaSystemPrompt(
               config,
               undefined,
-              resume.projectDir,
-              resume.projectDir,
+              resume.scopeRoot,
+              resume.scopeRoot,
             ),
             ...(modelProvider !== undefined ? { modelProvider } : {}),
           },
@@ -233,7 +233,7 @@ export function registerHistoryCommands(program: Command) {
         provider: config.modelProvider?.type,
         baseUrl: config.modelProvider?.baseUrl,
         apiKey: config.modelProvider?.apiKey,
-        projectDir: resume.projectDir,
+        scopeRoot: resume.scopeRoot,
       });
       await interactiveMode({
         autonomyMode: resolveChannelAutonomyMode(
@@ -245,7 +245,7 @@ export function registerHistoryCommands(program: Command) {
         verbose: opts.verbose || config.verbose,
         config,
         resumeConversation: resume.id,
-        projectDir: resume.projectDir,
+        scopeRoot: resume.scopeRoot,
         client: resolved.client,
       }, config);
     });

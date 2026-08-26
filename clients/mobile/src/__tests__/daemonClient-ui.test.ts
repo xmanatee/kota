@@ -29,7 +29,7 @@ describe('DaemonClient shared UI', () => {
     expect(result.protocolVersion).toBe('ui.surface.v1');
     expect(result.surfaces.length).toBeGreaterThan(0);
     expect(fetchSpy.mock.calls[0]?.[0]).toBe(
-      'http://127.0.0.1:8765/ui/surfaces?projectId=scope%20one',
+      'http://127.0.0.1:8765/ui/surfaces?scopeId=scope%20one',
     );
   });
 

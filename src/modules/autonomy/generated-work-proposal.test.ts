@@ -7,29 +7,29 @@ import {
   materializeGeneratedWorkProposal,
 } from "./generated-work-proposal.js";
 import {
-  cleanupGeneratedWorkProjectDirs,
+  cleanupGeneratedWorkScopeRoots,
   GENERATED_WORK_TASK_STATES,
-  makeGeneratedWorkProjectDir,
+  makeGeneratedWorkScopeRoot,
   placeTaskInState,
   questionProposal,
   taskProposal,
 } from "./generated-work-proposal.test-helpers.js";
 
-afterEach(cleanupGeneratedWorkProjectDirs);
+afterEach(cleanupGeneratedWorkScopeRoots);
 
 describe("generated-work proposal materializer", () => {
   for (const state of GENERATED_WORK_TASK_STATES) {
     it(`finds and revises the same task from ${state}`, () => {
-      const projectDir = makeGeneratedWorkProjectDir(state);
+      const workspaceRoot = makeGeneratedWorkScopeRoot(state);
       const created = materializeGeneratedWorkProposal({
-        projectDir,
+        workspaceRoot,
         proposal: taskProposal(),
       });
       const taskId = created.taskId!;
-      placeTaskInState(projectDir, taskId, state);
+      placeTaskInState(workspaceRoot, taskId, state);
 
       const revised = materializeGeneratedWorkProposal({
-        projectDir,
+        workspaceRoot,
         proposal: taskProposal({
           summary: "Revised issue disposition with stronger evidence.",
           provenance: {
@@ -43,7 +43,7 @@ describe("generated-work proposal materializer", () => {
       });
 
       expect(revised.taskId).toBe(taskId);
-      const tasks = listFullRepoTasks(projectDir);
+      const tasks = listFullRepoTasks(workspaceRoot);
       expect(tasks).toHaveLength(1);
       expect(tasks[0]?.state).toBe(state === "doing" ? "doing" : "ready");
       expect(tasks[0]?.body).toContain("review-run-1");
@@ -53,19 +53,19 @@ describe("generated-work proposal materializer", () => {
   }
 
   it("revises and reopens one owner-question record across terminal states", () => {
-    const projectDir = makeGeneratedWorkProjectDir("question");
+    const workspaceRoot = makeGeneratedWorkScopeRoot("question");
     const first = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: questionProposal(),
     });
     const questionId = first.ownerQuestionId!;
     const queue = new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     );
     queue.answer(questionId, "Repair the protocol", "fixture");
 
     const revised = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: questionProposal({
         question: "Should builder repair the protocol now?",
         provenance: {
@@ -93,13 +93,13 @@ describe("generated-work proposal materializer", () => {
   });
 
   it("reconciles task, question, and resolved dispositions under one key", () => {
-    const projectDir = makeGeneratedWorkProjectDir("lifecycle");
+    const workspaceRoot = makeGeneratedWorkScopeRoot("lifecycle");
     materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: questionProposal(),
     });
     const task = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: taskProposal(),
     });
 
@@ -110,10 +110,10 @@ describe("generated-work proposal materializer", () => {
       ]),
     );
     expect(task.ownerQuestionId).toBeNull();
-    expect(listFullRepoTasks(projectDir)).toHaveLength(1);
+    expect(listFullRepoTasks(workspaceRoot)).toHaveLength(1);
 
     const resolved = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: {
         kind: "none",
         proposalKey: "autonomy-issue:stable-fixture",
@@ -131,22 +131,22 @@ describe("generated-work proposal materializer", () => {
       `data/tasks/dropped/${task.taskId}.md`,
       `data/tasks/ready/${task.taskId}.md`,
     ]);
-    expect(listFullRepoTasks(projectDir)[0]?.state).toBe("dropped");
+    expect(listFullRepoTasks(workspaceRoot)[0]?.state).toBe("dropped");
     expect(
       new OwnerQuestionQueue(
-        join(projectDir, ".kota", "owner-questions"),
+        join(workspaceRoot, ".kota", "owner-questions"),
       ).list("pending"),
     ).toEqual([]);
   });
 
   it("reports only the current linked record when disposition kind changes", () => {
-    const projectDir = makeGeneratedWorkProjectDir("current-link");
+    const workspaceRoot = makeGeneratedWorkScopeRoot("current-link");
     const task = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: taskProposal(),
     });
     const question = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: questionProposal(),
     });
 
@@ -157,7 +157,7 @@ describe("generated-work proposal materializer", () => {
         expect.objectContaining({ kind: "dropped-task", taskId: task.taskId }),
       ]),
     });
-    expect(listFullRepoTasks(projectDir)).toEqual([
+    expect(listFullRepoTasks(workspaceRoot)).toEqual([
       expect.objectContaining({ id: task.taskId, state: "dropped" }),
     ]);
   });

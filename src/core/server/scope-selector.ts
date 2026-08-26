@@ -1,33 +1,25 @@
 export type ScopeSelector = {
   scopeId?: string;
-  projectId?: string;
 };
 
 export type ScopeSelectorArgument = string | ScopeSelector | undefined;
 
 export type NormalizedScopeSelector = {
   scopeId?: string;
-  projectId?: string;
 };
 
 export type ScopeSelectorConflictBody = {
   error: "Conflicting scope selectors";
   reason: "conflicting_scope_selectors";
-  scopeId: string;
-  projectId: string;
+  requestedScopeId: string;
+  boundScopeId: string;
 };
 
-export type UnknownScopeSelectorBody =
-  | {
-      error: "Unknown scope";
-      reason: "unknown_scope";
-      scopeId: string;
-    }
-  | {
-      error: "Unknown project";
-      reason: "unknown_project";
-      projectId: string;
-    };
+export type UnknownScopeSelectorBody = {
+  error: "Unknown scope";
+  reason: "unknown_scope";
+  scopeId: string;
+};
 
 export type ScopeSelectorQueryNormalization =
   | { ok: true; changed: boolean; pathWithQuery: string }
@@ -39,14 +31,16 @@ export type ScopeSelectorResolution =
 
 export class ScopeSelectorConflictError extends Error {
   readonly reason = "conflicting_scope_selectors" as const;
-  readonly scopeId: string;
-  readonly projectId: string;
+  readonly requestedScopeId: string;
+  readonly boundScopeId: string;
 
-  constructor(scopeId: string, projectId: string) {
-    super(`Conflicting scope selectors: scopeId=${scopeId}, projectId=${projectId}`);
+  constructor(requestedScopeId: string, boundScopeId: string) {
+    super(
+      `Conflicting scope selectors: requested=${requestedScopeId}, bound=${boundScopeId}`,
+    );
     this.name = "ScopeSelectorConflictError";
-    this.scopeId = scopeId;
-    this.projectId = projectId;
+    this.requestedScopeId = requestedScopeId;
+    this.boundScopeId = boundScopeId;
   }
 }
 
@@ -54,21 +48,14 @@ export function normalizeScopeSelector(
   selector?: ScopeSelector,
 ): NormalizedScopeSelector {
   const scopeId = normalizeSelectorValue(selector?.scopeId);
-  const projectId = normalizeSelectorValue(selector?.projectId);
-  if (scopeId !== undefined && projectId !== undefined && scopeId !== projectId) {
-    throw new ScopeSelectorConflictError(scopeId, projectId);
-  }
-  return {
-    ...(scopeId !== undefined ? { scopeId } : {}),
-    ...(projectId !== undefined ? { projectId } : {}),
-  };
+  return scopeId === undefined ? {} : { scopeId };
 }
 
 export function normalizeScopeSelectorArgument(
   selector?: ScopeSelectorArgument,
 ): NormalizedScopeSelector {
   if (typeof selector === "string") {
-    return normalizeScopeSelector({ projectId: selector });
+    return normalizeScopeSelector({ scopeId: selector });
   }
   return normalizeScopeSelector(selector);
 }
@@ -77,7 +64,7 @@ export function selectedScopeSelectorId(
   selector?: ScopeSelectorArgument,
 ): string | undefined {
   const normalized = normalizeScopeSelectorArgument(selector);
-  return normalized.scopeId ?? normalized.projectId;
+  return normalized.scopeId;
 }
 
 export function resolveScopeSelector(
@@ -88,7 +75,7 @@ export function resolveScopeSelector(
     return {
       ok: true,
       selector: normalized,
-      selectedId: normalized.scopeId ?? normalized.projectId,
+      selectedId: normalized.scopeId,
     };
   } catch (err) {
     if (!(err instanceof ScopeSelectorConflictError)) throw err;
@@ -99,7 +86,6 @@ export function resolveScopeSelector(
 export function resolveScopeSelectorFromUrl(url: URL): ScopeSelectorResolution {
   return resolveScopeSelector({
     scopeId: url.searchParams.get("scopeId") ?? undefined,
-    projectId: url.searchParams.get("projectId") ?? undefined,
   });
 }
 
@@ -109,7 +95,6 @@ export function appendScopeSelector(
 ): void {
   const normalized = normalizeScopeSelectorArgument(selector);
   if (normalized.scopeId !== undefined) params.set("scopeId", normalized.scopeId);
-  if (normalized.projectId !== undefined) params.set("projectId", normalized.projectId);
 }
 
 export function scopeSelectorQuery(selector?: ScopeSelectorArgument): string {
@@ -131,18 +116,14 @@ export function mergeScopeSelector<T extends ScopeSelector>(
 ): T & ScopeSelector {
   const valueSelector = normalizeScopeSelector(value);
   const enforcedSelector = normalizeScopeSelector(selector);
-  const valueId = valueSelector.scopeId ?? valueSelector.projectId;
-  const enforcedId = enforcedSelector.scopeId ?? enforcedSelector.projectId;
+  const valueId = valueSelector.scopeId;
+  const enforcedId = enforcedSelector.scopeId;
   if (valueId !== undefined && enforcedId !== undefined && valueId !== enforcedId) {
-    throw new ScopeSelectorConflictError(
-      enforcedSelector.scopeId ?? valueSelector.scopeId ?? enforcedId,
-      enforcedSelector.projectId ?? valueSelector.projectId ?? valueId,
-    );
+    throw new ScopeSelectorConflictError(valueId, enforcedId);
   }
   return {
     ...(value ?? ({} as T)),
     ...(enforcedSelector.scopeId !== undefined ? { scopeId: enforcedSelector.scopeId } : {}),
-    ...(enforcedSelector.projectId !== undefined ? { projectId: enforcedSelector.projectId } : {}),
   };
 }
 
@@ -152,27 +133,16 @@ export function scopeSelectorConflictBody(
   return {
     error: "Conflicting scope selectors",
     reason: "conflicting_scope_selectors",
-    scopeId: error.scopeId,
-    projectId: error.projectId,
+    requestedScopeId: error.requestedScopeId,
+    boundScopeId: error.boundScopeId,
   };
 }
 
-export function unknownScopeSelectorBody(
-  selector: ScopeSelectorArgument,
-  selectedId: string,
-): UnknownScopeSelectorBody {
-  const normalized = normalizeScopeSelectorArgument(selector);
-  if (normalized.scopeId !== undefined) {
-    return {
-      error: "Unknown scope",
-      reason: "unknown_scope",
-      scopeId: selectedId,
-    };
-  }
+export function unknownScopeSelectorBody(selectedId: string): UnknownScopeSelectorBody {
   return {
-    error: "Unknown project",
-    reason: "unknown_project",
-    projectId: selectedId,
+    error: "Unknown scope",
+    reason: "unknown_scope",
+    scopeId: selectedId,
   };
 }
 
@@ -189,7 +159,7 @@ export function normalizeScopeSelectorQueryUrl(
       pathWithQuery: pathWithEncodedQuery(url),
     };
   }
-  url.searchParams.set("projectId", selector.scopeId);
+  url.searchParams.set("scopeId", selector.scopeId);
   return {
     ok: true,
     changed: true,
@@ -239,10 +209,10 @@ function normalizeScopeSelectorClientArgument<T>(value: T): T {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return value;
   }
-  if (!("scopeId" in value) && !("projectId" in value)) return value;
+  if (!("scopeId" in value)) return value;
   const normalized = normalizeScopeSelector(value as ScopeSelector);
   if (normalized.scopeId === undefined) return value;
-  return { ...value, projectId: normalized.scopeId } as T;
+  return { ...value, scopeId: normalized.scopeId } as T;
 }
 
 function pathWithEncodedQuery(url: URL): string {

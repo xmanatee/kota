@@ -38,14 +38,14 @@ import {
 import { registerHistoryCommands } from "./cli-commands.js";
 import type {
 	HistoryDetail,
-	HistoryDiscoveredProjectFilter,
+	HistoryDiscoveredScopeFilter,
 	HistoryListFilter,
 	HistorySearchFilter,
 	HistorySearchResult,
 	HistoryShowOptions,
 	HistoryShowResult,
 } from "./client.js";
-import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
+import { listLocalScopeHistoryRecords } from "./local-history-scan.js";
 
 vi.mock("#core/modules/cli-providers.js", () => ({
 	ensureCliProvidersFor: vi.fn(async () => {}),
@@ -188,11 +188,11 @@ function makeHistoryClient(records: ConversationRecord[]): {
 				calls.push({ filter });
 				return { conversations: records };
 			},
-			async listDiscoveredProjectRecords(
-				filter?: HistoryDiscoveredProjectFilter,
+			async listDiscoveredScopeRecords(
+				filter?: HistoryDiscoveredScopeFilter,
 			) {
 				return {
-					conversations: listLocalProjectHistoryRecords({
+					conversations: listLocalScopeHistoryRecords({
 						cwd: process.cwd(),
 						limit: filter?.limit,
 					}),
@@ -602,11 +602,11 @@ describe("conversation resume cwd selection", () => {
 		};
 	}
 
-	function seedProjectHistory(
-		projectDir: string,
+	function seedScopeHistory(
+		scopeRoot: string,
 		record: ConversationRecord,
 	): void {
-		const historyDir = join(projectDir, ".kota", "history");
+		const historyDir = join(scopeRoot, ".kota", "history");
 		mkdirSync(historyDir, { recursive: true });
 		writeFileSync(
 			join(historyDir, "index.json"),
@@ -633,7 +633,7 @@ describe("conversation resume cwd selection", () => {
 		});
 
 		expect(result?.id).toBe("conv-resume");
-		expect(result?.projectDir).toBe(savedCwd);
+		expect(result?.scopeRoot).toBe(savedCwd);
 		expect(result?.explicit).toBe(true);
 		expect(result?.cwdOverridden).toBe(false);
 	});
@@ -645,7 +645,7 @@ describe("conversation resume cwd selection", () => {
 			id: "conv-local-cross",
 			cwd: savedCwd,
 		});
-		seedProjectHistory(savedCwd, record);
+		seedScopeHistory(savedCwd, record);
 		const { client } = makeHistoryClient([]);
 
 		const result = await resolveRunContinue(client, {
@@ -653,7 +653,7 @@ describe("conversation resume cwd selection", () => {
 		});
 
 		expect(result?.id).toBe("conv-local-cross");
-		expect(result?.projectDir).toBe(savedCwd);
+		expect(result?.scopeRoot).toBe(savedCwd);
 		expect(result?.explicit).toBe(true);
 	});
 
@@ -667,7 +667,7 @@ describe("conversation resume cwd selection", () => {
 
 		expect(calls[0].filter).toEqual({ cwd: callerCwd, limit: 1 });
 		expect(result?.id).toBe("conv-latest");
-		expect(result?.projectDir).toBe(callerCwd);
+		expect(result?.scopeRoot).toBe(callerCwd);
 		expect(result?.explicit).toBe(false);
 	});
 
@@ -699,7 +699,7 @@ describe("conversation resume cwd selection", () => {
 			resumeHere: true,
 		});
 
-		expect(result.projectDir).toBe(callerCwd);
+		expect(result.scopeRoot).toBe(callerCwd);
 		expect(result.savedCwd).toBe(record.cwd);
 		expect(result.cwdOverridden).toBe(true);
 	});

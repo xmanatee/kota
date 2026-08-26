@@ -14,7 +14,7 @@ export type Task = {
 };
 
 export type TaskFileData = {
-  project: string;
+  scope: string;
   tasks: Task[];
   nextId: number;
 };

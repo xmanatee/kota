@@ -50,7 +50,7 @@ const IMPLEMENTATION_CLAIM_TERMS =
 	/\b(add(?:ed|s)?|client|daemon|fix(?:ed|es)?|guard|harden(?:ed|s)?|implement(?:ed|s)?|module|repair(?:ed|s)?|route|runtime|test(?:ed|s)?|update(?:d|s)?|workflow)\b/i;
 
 export async function writeDiffSummaryConsistencyArtifact(
-	projectDir: string,
+	workspaceRoot: string,
 	runDirPath: string,
 	delivery: AutonomyRunDeliveryEvidence,
 	runCommand: WorkflowCommandRunner,
@@ -58,14 +58,14 @@ export async function writeDiffSummaryConsistencyArtifact(
 	const record = buildDiffSummaryConsistencyRecord({
 		delivery,
 		commitMessageFile: readTrimmedFile(join(runDirPath, "commit-message.txt")),
-		task: findTaskForDelivery(projectDir, delivery),
+		task: findTaskForDelivery(workspaceRoot, delivery),
 		nameStatus: await collectGitNameStatus(
-			projectDir,
+			workspaceRoot,
 			runCommand,
 			delivery.integratedFromHead,
 			delivery.publishedHead,
 		),
-		knownModuleNames: collectKnownModuleNames(projectDir),
+		knownModuleNames: collectKnownModuleNames(workspaceRoot),
 	});
 	writeFileSync(
 		join(runDirPath, DIFF_SUMMARY_CONSISTENCY_ARTIFACT),
@@ -214,8 +214,8 @@ function isBroadProductionChurnHidden(
 	);
 }
 
-function collectKnownModuleNames(projectDir: string): string[] {
-	const modulesDir = join(projectDir, "src", "modules");
+function collectKnownModuleNames(workspaceRoot: string): string[] {
+	const modulesDir = join(workspaceRoot, "src", "modules");
 	if (!existsSync(modulesDir)) return [];
 	return readdirSync(modulesDir)
 		.filter((name) => {
@@ -229,12 +229,12 @@ function collectKnownModuleNames(projectDir: string): string[] {
 }
 
 function findTaskForDelivery(
-	projectDir: string,
+	workspaceRoot: string,
 	delivery: AutonomyRunDeliveryEvidence,
 ): RepoTaskFullRecord | null {
 	if (!delivery.taskId) return null;
 	return (
-		listFullRepoTasks(projectDir).find((task) => task.id === delivery.taskId) ??
+		listFullRepoTasks(workspaceRoot).find((task) => task.id === delivery.taskId) ??
 		null
 	);
 }

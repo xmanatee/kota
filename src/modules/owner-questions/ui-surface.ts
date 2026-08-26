@@ -157,7 +157,7 @@ function buildOwnerQuestionsUiSurface(
 
 export const ownerQuestionsUiSurfaceSource: UiSurfaceSource = {
   sourceId: "owner-questions",
-  project: async (context) => {
+  scope: async (context) => {
     const questions = await context.read("owner questions", () =>
       context.client.ownerQuestions.list({ status: "pending" }),
     );

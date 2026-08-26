@@ -30,7 +30,7 @@ struct SharedUiFieldView: View {
             case .path:
                 HStack {
                     TextField(field.label, text: $text).textFieldStyle(.roundedBorder)
-                    if appState.platform.supportsNativeProjectPicker {
+                    if appState.platform.supportsNativeScopePicker {
                         Button("Choose…") {
                             Task {
                                 if let selected = await appState.pickUiPath() { text = selected.path }

@@ -140,7 +140,7 @@ Recorded under
   `show missing-id`
   (`Conversation "missing-id" not found.`, exit 1) /
   `search 'q' --limit not-a-number` (typed input validation, exit 1)
-  runs against an isolated `KOTA_PROJECT_DIR` empty store. Confirms
+  runs against an isolated `KOTA_SCOPE_ROOT` empty store. Confirms
   the CLI surface decodes the same `{ ok: true, conversations }` /
   `{ ok: false, reason: "semantic_unavailable" }` envelopes the
   visual clients mirror.

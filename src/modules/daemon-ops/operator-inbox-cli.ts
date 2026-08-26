@@ -14,16 +14,16 @@ export function buildInboxCommand(ctx: ModuleContext): Command {
   return new Command("inbox")
     .description("Show one operator inbox for approvals, owner questions, blocked tasks, setup gaps, failed runs, and runtime warnings")
     .option(
-      "--project <id>",
-      "Scope the inbox to one configured project (default: daemon's active project)",
+      "--scope <id>",
+      "Scope the inbox to one configured scope (default: daemon's active scope)",
     )
     .option("-n, --limit <n>", "Maximum items to read from each source", "20")
     .option("--json", "Emit the structured inbox projection as JSON")
-    .action(async (opts: { project?: string; limit?: string; json?: boolean }) => {
+    .action(async (opts: { scope?: string; limit?: string; json?: boolean }) => {
       const snapshot = await buildOperatorInboxSnapshot({
         client: ctx.client,
-        projectDir: ctx.cwd,
-        projectId: opts.project,
+        scopeRoot: ctx.cwd,
+        scopeId: opts.scope,
         limit: parseLimit(opts.limit),
       });
       if (opts.json === true) {

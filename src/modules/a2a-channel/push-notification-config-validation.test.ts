@@ -34,7 +34,7 @@ describe("a2a push notification config validation", () => {
       method: "CreateTaskPushNotificationConfig",
       params: pushConfigParams({
         tenant: "proj-1",
-        projectId: "proj-2",
+        scopeId: "proj-2",
       }),
     });
     expect(errorReason(mismatch)).toBe("ROUTING_SCOPE_MISMATCH");

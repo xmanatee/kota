@@ -57,11 +57,11 @@ const REQUIRED_ATTRS = [
   "updated_at",
 ] as const;
 
-function listTaskEntries(projectDir: string): TaskEntryScan {
+function listTaskEntries(repoRoot: string): TaskEntryScan {
   const entries: TaskFileEntry[] = [];
   const findings: TaskQueueValidationFinding[] = [];
   for (const state of REPO_TASK_STATES) {
-    const dir = getRepoTaskStateDir(projectDir, state);
+    const dir = getRepoTaskStateDir(repoRoot, state);
     if (!existsSync(dir)) continue;
     for (const dirent of readdirSync(dir, { withFileTypes: true })) {
       if (!dirent.name.endsWith(".md") || dirent.name === "AGENTS.md") continue;
@@ -87,8 +87,8 @@ function listTaskEntries(projectDir: string): TaskEntryScan {
   return { entries, findings };
 }
 
-function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
-  const dataDir = join(projectDir, "data");
+function listNestedRuntimeStateDirsUnderData(repoRoot: string): string[] {
+  const dataDir = join(repoRoot, "data");
   if (!existsSync(dataDir)) return [];
   const paths: string[] = [];
   const walk = (dir: string): void => {
@@ -96,7 +96,7 @@ function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
       if (!entry.isDirectory()) continue;
       const path = join(dir, entry.name);
       if (entry.name === ".kota" || entry.name === "runs") {
-        paths.push(`${relative(projectDir, path)}/`);
+        paths.push(`${relative(repoRoot, path)}/`);
       } else {
         walk(path);
       }
@@ -172,8 +172,8 @@ function formatFindingList(findings: TaskQueueValidationFinding[]): string {
     .join("\n");
 }
 
-export function validateTaskQueue(projectDir: string): TaskQueueValidationResult {
-  const scan = listTaskEntries(projectDir);
+export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
+  const scan = listTaskEntries(repoRoot);
   const entries = scan.entries;
   const counts = Object.fromEntries(
     REPO_TASK_STATES.map((state) => [state, 0]),
@@ -367,7 +367,7 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
     });
   }
 
-  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(projectDir);
+  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(repoRoot);
   if (nestedRuntimeStateDirs.length > 0) {
     findings.push({
       code: "data-nested-runtime-state",
@@ -385,8 +385,8 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
   };
 }
 
-export function assertTaskQueueValid(projectDir: string): TaskQueueValidationResult {
-  const result = validateTaskQueue(projectDir);
+export function assertTaskQueueValid(repoRoot: string): TaskQueueValidationResult {
+  const result = validateTaskQueue(repoRoot);
   const errors = result.findings.filter((finding) => finding.severity === "error");
   if (errors.length > 0) throw new Error(formatFindingList(errors));
   return result;

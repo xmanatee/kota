@@ -2,7 +2,7 @@ import type { ToolRunnerContext } from "./index.js";
 
 type SessionEnvironmentContext = Pick<
   ToolRunnerContext,
-  "sessionId" | "scopeId" | "projectId" | "workflow"
+  "sessionId" | "scopeId" | "scopeId" | "workflow"
 >;
 
 type SessionEnvironmentIdentity = {
@@ -46,9 +46,9 @@ function resolveIdentity(
     context.workflow?.spanId;
   const scopeId = oneIdentityValue("scope id", [
     context.scopeId,
-    context.projectId,
+    context.scopeId,
     context.workflow?.scopeId,
-    context.workflow?.projectId,
+    context.workflow?.scopeId,
   ]);
   if (sessionId === undefined || scopeId === undefined) return null;
   return { sessionId, scopeId };
@@ -60,7 +60,7 @@ function requireIdentity(
   const identity = resolveIdentity(context);
   if (identity === null) {
     throw new Error(
-      "Credential injection requires an active session and project scope",
+      "Credential injection requires an active session and scope identity",
     );
   }
   return identity;

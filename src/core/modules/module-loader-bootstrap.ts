@@ -1,10 +1,10 @@
 import type { KotaConfig, LoadConfigOptions } from "#core/config/config.js";
+import { reimportBundledModule } from "./bundled-module-discovery.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
 import { topoSort } from "./module-deps.js";
 import { reimportInstalledModule } from "./module-discovery.js";
 import type { LoaderState } from "./module-loader-state.js";
 import type { KotaModule, ModuleSource } from "./module-types.js";
-import { reimportProjectModule } from "./project-discovery.js";
 import { getProviderRegistry } from "./provider-registry.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -17,8 +17,8 @@ export interface LoadAllEnv {
 
 /**
  * Drive the full module load cycle: register sources, topo-sort, load each
- * module (project + installed + foreign), activate configured providers,
- * then surface aggregated project-module load failures. The orchestrator
+ * module (scope + installed + foreign), activate configured providers,
+ * then surface aggregated scope-module load failures. The orchestrator
  * passes its own `load(mod)` here so this function never sees the loader's
  * private context plumbing.
  */
@@ -27,13 +27,13 @@ export async function loadAllModules(
   env: LoadAllEnv,
   load: (mod: KotaModule) => Promise<void>,
   getToolCount: () => number,
-  projectModules: KotaModule[],
+  bundledModules: KotaModule[],
   installedModules?: KotaModule[],
 ): Promise<void> {
-  const projectNames = new Set(projectModules.map((m) => m.name));
-  const allModules = [...projectModules, ...(installedModules ?? [])];
+  const bundledNames = new Set(bundledModules.map((m) => m.name));
+  const allModules = [...bundledModules, ...(installedModules ?? [])];
 
-  for (const mod of projectModules) state.moduleSources.set(mod.name, "project");
+  for (const mod of bundledModules) state.moduleSources.set(mod.name, "bundled");
   for (const mod of installedModules ?? []) state.moduleSources.set(mod.name, "installed");
 
   const sorted = topoSort(allModules);
@@ -42,8 +42,8 @@ export async function loadAllModules(
       await load(mod);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const isProject = projectNames.has(mod.name);
-      if (isProject) {
+      const isBundled = bundledNames.has(mod.name);
+      if (isBundled) {
         printTerminalDiagnostic(`[kota] Module "${mod.name}" failed to load: ${msg}`, "error");
       } else if (env.verbose) {
         printTerminalDiagnostic(`[kota] Optional module "${mod.name}" skipped: ${msg}`, "warn");
@@ -74,12 +74,12 @@ export async function loadAllModules(
 
   activateConfiguredProviders(env.config, env.verbose);
 
-  const projectFailures = [...state.loadFailures.entries()]
-    .filter(([name]) => projectNames.has(name));
-  if (projectFailures.length > 0) {
-    const details = projectFailures.map(([name, f]) => `  ${name}: ${f.message}`).join("\n");
+  const bundledFailures = [...state.loadFailures.entries()]
+    .filter(([name]) => bundledNames.has(name));
+  if (bundledFailures.length > 0) {
+    const details = bundledFailures.map(([name, f]) => `  ${name}: ${f.message}`).join("\n");
     throw new Error(
-      `${projectFailures.length} project module(s) failed to load:\n${details}`,
+      `${bundledFailures.length} bundled module(s) failed to load:\n${details}`,
     );
   }
 
@@ -116,7 +116,7 @@ export async function reimportModule(
   configOptions: LoadConfigOptions = {},
 ): Promise<KotaModule | null> {
   try {
-    if (source === "project") return await reimportProjectModule(name);
+    if (source === "bundled") return await reimportBundledModule(name);
     if (source === "installed") {
       return await reimportInstalledModule(name, cwd, configOptions);
     }

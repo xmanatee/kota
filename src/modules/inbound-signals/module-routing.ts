@@ -113,26 +113,26 @@ export function effectiveRoutingConfig(
   };
 }
 
-function filterProjectRoutes(
+function filterScopeRoutes(
   status: InboundSignalRoutingStatus,
-  projectId: string | undefined,
+  scopeId: string | undefined,
 ): InboundSignalRoutingStatus {
-  if (!projectId) return status;
+  if (!scopeId) return status;
   return {
     ...status,
     routes: status.routes.filter((route) =>
-      route.scopeId === projectId || route.scopeId === "(signal scope)"
+      route.scopeId === scopeId || route.scopeId === "(signal scope)"
     ),
   };
 }
 
 export function buildRoutingStatus(
   ctx: ModuleContext,
-  projectId?: string,
+  scopeId?: string,
 ): InboundSignalRoutingStatus {
   const context = routingValidationContext(ctx);
-  return filterProjectRoutes(
+  return filterScopeRoutes(
     inboundSignalRoutingStatus(effectiveRoutingConfig(ctx, context), context),
-    projectId,
+    scopeId,
   );
 }

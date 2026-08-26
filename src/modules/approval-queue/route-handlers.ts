@@ -14,7 +14,6 @@ import {
 import {
 	approvalQuery,
 	listApprovalsLocal,
-	projectQuery,
 	proxyApprovalMutation,
 	readApprovalBatchDecisionBody,
 	readApprovalDecisionBody,
@@ -23,6 +22,7 @@ import {
 	rejectApprovalLocal,
 	rejectMalformedApprovalId,
 	resolveApprovalQueue,
+	scopeQuery,
 } from "./route-helpers.js";
 
 export async function handleListApprovals(
@@ -30,19 +30,19 @@ export async function handleListApprovals(
 	link: DaemonTransport | null = null,
 	queue?: ApprovalQueue,
 	status?: ApprovalStatus | "all",
-	projectId?: string,
+	scopeId?: string,
 ): Promise<void> {
 	if (link) {
 		const result = await link.request<{ approvals: ApprovalClientProjection[] }>(
 			"GET",
-			`/approvals${approvalQuery(status, projectId)}`,
+			`/approvals${approvalQuery(status, scopeId)}`,
 		);
 		if (result) {
 			jsonResponse(res, 200, result);
 			return;
 		}
 	}
-	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
+	const resolvedQueue = resolveApprovalQueue(res, queue, scopeId);
 	if (!resolvedQueue) return;
 	jsonResponse(res, 200, listApprovalsLocal(resolvedQueue.queue, status));
 }
@@ -53,7 +53,7 @@ export async function handleApproveApproval(
 	id: string,
 	link: DaemonTransport | null = null,
 	queue?: ApprovalQueue,
-	projectId?: string,
+	scopeId?: string,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, id)) return;
 	const decision = await readApprovalDecisionBody(req, res);
@@ -63,7 +63,7 @@ export async function handleApproveApproval(
 		await proxyApprovalMutation(
 			res,
 			link,
-			`/approvals/${encodeURIComponent(id)}/approve${projectQuery(projectId)}`,
+			`/approvals/${encodeURIComponent(id)}/approve${scopeQuery(scopeId)}`,
 			{
 				reviewDigest: decision.reviewDigest,
 				...(decision.note !== undefined ? { note: decision.note } : {}),
@@ -71,7 +71,7 @@ export async function handleApproveApproval(
 		);
 		return;
 	}
-	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
+	const resolvedQueue = resolveApprovalQueue(res, queue, scopeId);
 	if (!resolvedQueue) return;
 	await writeApproveApprovalMutation(
 		res,
@@ -89,7 +89,7 @@ export async function handleRejectApproval(
 	id: string,
 	link: DaemonTransport | null = null,
 	queue?: ApprovalQueue,
-	projectId?: string,
+	scopeId?: string,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, id)) return;
 	const reason = await readOptionalStringField(req, res, "reason");
@@ -99,12 +99,12 @@ export async function handleRejectApproval(
 		await proxyApprovalMutation(
 			res,
 			link,
-			`/approvals/${encodeURIComponent(id)}/reject${projectQuery(projectId)}`,
+			`/approvals/${encodeURIComponent(id)}/reject${scopeQuery(scopeId)}`,
 			reason.value === undefined ? {} : { reason: reason.value },
 		);
 		return;
 	}
-	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
+	const resolvedQueue = resolveApprovalQueue(res, queue, scopeId);
 	if (!resolvedQueue) return;
 	const item = rejectApprovalLocal(resolvedQueue.queue, id, reason.value);
 	if (!item) {
@@ -119,7 +119,7 @@ export async function handleApproveAllApprovals(
 	res: ServerResponse,
 	link: DaemonTransport | null = null,
 	queue?: ApprovalQueue,
-	projectId?: string,
+	scopeId?: string,
 ): Promise<void> {
 	const decision = await readApprovalBatchDecisionBody(req, res);
 	if (!decision.ok) return;
@@ -128,7 +128,7 @@ export async function handleApproveAllApprovals(
 		await proxyApprovalMutation(
 			res,
 			link,
-			`/approvals/approve-all${projectQuery(projectId)}`,
+			`/approvals/approve-all${scopeQuery(scopeId)}`,
 			{
 				reviews: decision.reviews,
 				...(decision.note !== undefined ? { note: decision.note } : {}),
@@ -136,7 +136,7 @@ export async function handleApproveAllApprovals(
 		);
 		return;
 	}
-	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
+	const resolvedQueue = resolveApprovalQueue(res, queue, scopeId);
 	if (!resolvedQueue) return;
 	await writeApproveAllApprovalsMutation(
 		res,
@@ -152,7 +152,7 @@ export async function handleRejectAllApprovals(
 	res: ServerResponse,
 	link: DaemonTransport | null = null,
 	queue?: ApprovalQueue,
-	projectId?: string,
+	scopeId?: string,
 ): Promise<void> {
 	const reason = await readOptionalStringField(req, res, "reason");
 	if (!reason.ok) return;
@@ -161,12 +161,12 @@ export async function handleRejectAllApprovals(
 		await proxyApprovalMutation(
 			res,
 			link,
-			`/approvals/reject-all${projectQuery(projectId)}`,
+			`/approvals/reject-all${scopeQuery(scopeId)}`,
 			reason.value === undefined ? {} : { reason: reason.value },
 		);
 		return;
 	}
-	const resolvedQueue = resolveApprovalQueue(res, queue, projectId);
+	const resolvedQueue = resolveApprovalQueue(res, queue, scopeId);
 	if (!resolvedQueue) return;
 	jsonResponse(res, 200, rejectAllApprovalsLocal(resolvedQueue.queue, reason.value));
 }

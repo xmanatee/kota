@@ -37,7 +37,7 @@ export type DispatcherInspection = {
 };
 
 export function inspectDispatcherStateInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   nowIso: string;
   scopePolicySnapshot: ScopePolicySnapshot | null;
@@ -46,17 +46,17 @@ export function inspectDispatcherStateInWorker(input: {
 }): DispatcherInspection {
   const now = new Date(input.nowIso);
   return {
-    queue: getRepoTaskQueueSnapshot(input.projectDir),
-    builderTasks: listBuilderTaskDispatches(input.projectDir),
-    promotionRationale: buildPromotionRationale(input.projectDir),
-    researchRetryAvailability: inspectResearchRetryAvailability(input.projectDir),
-    securityReviewDue: inspectSecurityReviewDue(input.projectDir, {
+    queue: getRepoTaskQueueSnapshot(input.workspaceRoot),
+    builderTasks: listBuilderTaskDispatches(input.workspaceRoot),
+    promotionRationale: buildPromotionRationale(input.workspaceRoot),
+    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
+    securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,
       stateDir: input.stateDir,
     }, input.securityReviewGitEvidence),
     scopeBoundary: input.scopePolicySnapshot
       ? inspectScopeSemanticBoundary({
-          projectDir: input.projectDir,
+          workspaceRoot: input.workspaceRoot,
           scopePolicySnapshot: input.scopePolicySnapshot,
           state: input.scopeImprovementState,
         })
@@ -71,7 +71,7 @@ export function inspectDispatcherStateInWorker(input: {
 
 export const dispatcherInspectionOperation = defineWorkflowBlockingOperation<
   {
-    projectDir: string;
+    workspaceRoot: string;
     stateDir: string;
     nowIso: string;
     scopePolicySnapshot: ScopePolicySnapshot | null;

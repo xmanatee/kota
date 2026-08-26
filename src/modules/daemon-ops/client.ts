@@ -32,8 +32,8 @@ import type {
   ScopeAuthorityView,
 } from "#core/daemon/scope-authority-types.js";
 import type {
-  ConfiguredProject,
-  ProjectId,
+  DirectoryScope,
+  ScopeId,
 } from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
@@ -155,68 +155,68 @@ export interface DaemonOpsClient {
 }
 
 /**
- * Result of `projects.list()`.
+ * Result of `scopes.list()`.
  *
  * The daemon-up arm carries the full registry projection plus the
- * operator-selected `activeProjectId` (or `null` when no selection is in
- * force — routes fall back to `defaultProjectId` in that case). The
+ * operator-selected `activeScopeId` (or `null` when no selection is in
+ * force — routes fall back to `defaultScopeId` in that case). The
  * `daemon_required` arm signals the local handler reached this code with
  * no daemon to ask: there is no project registry to read offline.
  */
-export type ProjectsListResult =
+export type ScopesListResult =
   | {
       ok: true;
-      projects: ConfiguredProject[];
-      defaultProjectId: ProjectId;
-      activeProjectId: ProjectId | null;
+      scopes: DirectoryScope[];
+      defaultScopeId: ScopeId;
+      activeScopeId: ScopeId | null;
     }
   | { ok: false; reason: "daemon_required" };
 
 /**
- * Result of `projects.use(projectId | null)`. The success arm echoes the
+ * Result of `scopes.use(scopeId | null)`. The success arm echoes the
  * new active selection; `not_found` rejects unknown ids; `daemon_required`
  * surfaces when no daemon is reachable to mutate.
  */
-export type ProjectsUseResult =
-  | { ok: true; activeProjectId: ProjectId | null }
-  | { ok: false; reason: "not_found"; projectId: string }
+export type ScopesUseResult =
+  | { ok: true; activeScopeId: ScopeId | null }
+  | { ok: false; reason: "not_found"; scopeId: string }
   | { ok: false; reason: "daemon_required" };
 
-export type ProjectAuthorityInspectResult =
+export type ScopeAuthorityInspectResult =
   | { ok: true; authority: ScopeAuthorityView }
   | ScopeAuthorityFailure
   | { ok: false; reason: "daemon_required" };
 
-export type ProjectAuthorityValidationResult =
+export type ScopeAuthorityClientValidationResult =
   | ScopeAuthorityValidationResult
   | { ok: false; reason: "daemon_required" };
 
-export type ProjectAuthorityMutationResult =
+export type ScopeAuthorityClientMutationResult =
   | ScopeAuthorityMutationResult
   | { ok: false; reason: "daemon_required" };
 
 /**
- * Project-selection operations exposed to operator CLIs and clients.
+ * Scope-selection operations exposed to operator CLIs and clients.
  *
- * The daemon owns the configured project registry plus the
- * operator-selected active project; this namespace is the typed contract
+ * The daemon owns the configured scope registry plus the
+ * operator-selected active scope; this namespace is the typed contract
  * every client (CLI, native app, web dashboard) reaches for both reads
- * and the typed switch call. Routes that take optional `?projectId=` fall
+ * and the typed switch call. Routes that take optional `?scopeId=` fall
  * back to the active selection when the parameter is absent, so a
- * `kota project use <id>` selection scopes subsequent inspection commands
- * without each one re-passing `--project`.
+ * `kota scopes use <id>` selection scopes subsequent inspection commands
+ * without each one re-passing `--scope`.
  */
-export interface ProjectsClient {
-  list(): Promise<ProjectsListResult>;
-  use(projectId: string | null): Promise<ProjectsUseResult>;
-  inspectAuthority?(scopeId: string): Promise<ProjectAuthorityInspectResult>;
+export interface ScopesClient {
+  list(): Promise<ScopesListResult>;
+  use(scopeId: string | null): Promise<ScopesUseResult>;
+  inspectAuthority?(scopeId: string): Promise<ScopeAuthorityInspectResult>;
   validateAuthority?(
     scopeId: string,
     mutation: ScopeAuthorityMutation,
-  ): Promise<ProjectAuthorityValidationResult>;
+  ): Promise<ScopeAuthorityClientValidationResult>;
   applyAuthority?(
     scopeId: string,
     mutation: ScopeAuthorityMutation,
     operatorAction: ScopeAuthorityOperatorActionValue,
-  ): Promise<ProjectAuthorityMutationResult>;
+  ): Promise<ScopeAuthorityClientMutationResult>;
 }

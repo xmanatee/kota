@@ -13,10 +13,10 @@ import {
 } from "./owner-intervention-escalation-types.js";
 
 function findExistingTask(
-  projectDir: string,
+  workspaceRoot: string,
   taskId: string,
 ): ExistingOwnerInterventionTask | null {
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(workspaceRoot);
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${taskId}.md`);
     if (!existsSync(candidate)) continue;
@@ -35,10 +35,10 @@ function findExistingTask(
 }
 
 export function proposeOwnerInterventionEscalation(
-  projectDir: string,
+  workspaceRoot: string,
   pattern: OwnerInterventionPattern,
 ): OwnerInterventionEscalationProposal {
-  const existing = findExistingTask(projectDir, pattern.taskId);
+  const existing = findExistingTask(workspaceRoot, pattern.taskId);
   if (!existing) return { action: "create", pattern, target: "ready" };
   if (existing.state === "doing" || existing.state === "blocked") {
     return {

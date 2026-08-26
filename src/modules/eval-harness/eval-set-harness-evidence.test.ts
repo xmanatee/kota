@@ -27,7 +27,7 @@ describe("runEvalSet harness evidence", () => {
   it("summarizes resolved harness and model evidence from child workflow artifacts", async () => {
     seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => EXECUTION_PROFILE,
@@ -78,7 +78,7 @@ describe("runEvalSet harness evidence", () => {
   it("ignores skipped agent steps when summarizing resolved harness and model evidence", async () => {
     seedFixture(fixturesRoot, "alpha", { kind: "file-exists", path: "alpha.txt" });
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => EXECUTION_PROFILE,

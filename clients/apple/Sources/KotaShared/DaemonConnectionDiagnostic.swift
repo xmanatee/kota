@@ -1,7 +1,7 @@
 import Foundation
 
 /// Result of the most recent attempt to read `.kota/daemon-control.json`
-/// from the operator-selected project directory. Modeled as a typed
+/// from the operator-selected scope directory. Modeled as a typed
 /// discriminated state so the diagnostic derivation does not have to
 /// re-parse the file or guess from a `nil` connection.
 ///
@@ -9,7 +9,7 @@ import Foundation
 /// callers that need the token use `DaemonClient.refreshConnection`
 /// instead. Diagnostics must remain safe to render and log.
 enum DaemonControlFileState: Equatable {
-    /// `.kota/daemon-control.json` does not exist at the selected project.
+    /// `.kota/daemon-control.json` does not exist at the selected scope.
     case missing
     /// File exists, parses, and the daemon process is alive.
     case fresh(port: Int, pid: Int)
@@ -36,65 +36,65 @@ enum DaemonIdentityProbe: Equatable {
 /// talking to and why a given connection attempt is in the state it is.
 /// The purpose is to replace the historical "Daemon offline" string —
 /// which collapsed missing control file, stale control file, wrong
-/// project, token rejected, and remote-mode failures into one line —
+/// scope, token rejected, and remote-mode failures into one line —
 /// with a discriminated state the UI can render unambiguously.
 ///
 /// Every arm carries the inputs the operator needs to diagnose the
-/// mismatch (selected project path, daemon base URL when known, daemon
-/// project path when the daemon answered `/identity`), and never the
+/// mismatch (selected scope path, daemon base URL when known, daemon
+/// scope path when the daemon answered `/identity`), and never the
 /// bearer token. The enum is pure data so it can be derived in a unit
 /// test without spinning up `URLSession` or instantiating `AppState`.
 enum DaemonConnectionDiagnostic: Equatable {
-    /// No project directory has been chosen and no remote URL is set.
-    /// The operator must pick a project before the menu bar can show
+    /// No scope directory has been chosen and no remote URL is set.
+    /// The operator must pick a scope before the menu bar can show
     /// any daemon identity at all.
-    case noProject
+    case noScope
 
-    /// A project directory is selected but `.kota/daemon-control.json`
-    /// is missing. Either the daemon was never started for this project
-    /// or this is the wrong project for the running daemon.
-    case noControlFile(projectDir: String)
+    /// A scope directory is selected but `.kota/daemon-control.json`
+    /// is missing. Either the daemon was never started for this scope
+    /// or this is the wrong scope for the running daemon.
+    case noControlFile(scopeRoot: String)
 
     /// The control file is present but cannot be parsed in the documented
     /// shape (legacy / partial write / wrong file). This is rare but
     /// distinct from `noControlFile` so the operator does not get a
     /// generic "missing" message when the file actually exists.
-    case unreadableControlFile(projectDir: String)
+    case unreadableControlFile(scopeRoot: String)
 
     /// The control file is present and parses, but the recorded pid is
     /// not alive. The operator should run `kota doctor --fix` (or restart
     /// the daemon) — keeping the stale lock around will keep masking the
     /// daemon's real state.
-    case staleControlFile(projectDir: String, pid: Int, baseURL: String)
+    case staleControlFile(scopeRoot: String, pid: Int, baseURL: String)
 
     /// The control file is fresh and the pid is alive, but the daemon
     /// never responded to `/identity`. Carries the base URL so the
     /// operator can confirm "yes, that is the URL I expect" without
     /// inspecting the control file by hand.
-    case unreachable(projectDir: String, baseURL: String, pid: Int)
+    case unreachable(scopeRoot: String, baseURL: String, pid: Int)
 
     /// The daemon responded with HTTP 401 or 403. The token in the
     /// control file is no longer valid — most often a stale file
     /// pointing at a daemon process that was restarted under a different
     /// token. Does not reveal the token in the message.
-    case tokenRejected(projectDir: String, baseURL: String, status: Int)
+    case tokenRejected(scopeRoot: String, baseURL: String, status: Int)
 
-    /// The daemon responded with `/identity`, but its `projectDir` does
-    /// not match the operator-selected `projectDir`. This is the exact
+    /// The daemon responded with `/identity`, but its `scopeRoot` does
+    /// not match the operator-selected `scopeRoot`. This is the exact
     /// state the 2026-04-28 incident ended in — the operator selected
-    /// project /b but the running daemon was for project /a, so the menu
+    /// scope /b but the running daemon was for scope /a, so the menu
     /// bar showed "Daemon offline" even though KOTA was alive elsewhere.
-    /// Carries enough information for the operator to switch projects
+    /// Carries enough information for the operator to switch scopes
     /// or restart the daemon under the right root.
-    case wrongProject(
-        selectedDir: String,
-        daemonProjectName: String,
-        daemonProjectDir: String,
+    case wrongScope(
+        selectedScopeRoot: String,
+        daemonScopeName: String,
+        daemonScopeRoot: String,
         baseURL: String
     )
 
-    /// Connected to the daemon and `/identity.projectDir` matches the
-    /// selected project. The operator can trust the rest of the menu
+    /// Connected to the daemon and `/identity.scopeRoot` matches the
+    /// selected scope. The operator can trust the rest of the menu
     /// bar's view of this daemon.
     case connected(identity: ClientIdentity, baseURL: String)
 
@@ -125,24 +125,24 @@ enum DaemonConnectionDiagnostic: Equatable {
     /// type at all.
     var headline: String {
         switch self {
-        case .noProject:
-            return "No project selected"
-        case .noControlFile(let projectDir):
-            return "No daemon for \(displayName(projectDir))"
-        case .unreadableControlFile(let projectDir):
-            return "Unreadable daemon-control.json (\(displayName(projectDir)))"
-        case .staleControlFile(let projectDir, let pid, _):
-            return "Stale daemon for \(displayName(projectDir)) (pid \(pid) gone)"
-        case .unreachable(let projectDir, _, _):
-            return "Daemon not responding (\(displayName(projectDir)))"
-        case .tokenRejected(let projectDir, _, let status):
-            return "Daemon rejected token (HTTP \(status), \(displayName(projectDir)))"
-        case .wrongProject(_, let daemonProjectName, _, _):
-            return "Wrong project — daemon is on \(daemonProjectName)"
+        case .noScope:
+            return "No scope selected"
+        case .noControlFile(let scopeRoot):
+            return "No daemon for \(displayName(scopeRoot))"
+        case .unreadableControlFile(let scopeRoot):
+            return "Unreadable daemon-control.json (\(displayName(scopeRoot)))"
+        case .staleControlFile(let scopeRoot, let pid, _):
+            return "Stale daemon for \(displayName(scopeRoot)) (pid \(pid) gone)"
+        case .unreachable(let scopeRoot, _, _):
+            return "Daemon not responding (\(displayName(scopeRoot)))"
+        case .tokenRejected(let scopeRoot, _, let status):
+            return "Daemon rejected token (HTTP \(status), \(displayName(scopeRoot)))"
+        case .wrongScope(_, let daemonScopeName, _, _):
+            return "Wrong scope — daemon is on \(daemonScopeName)"
         case .connected(let identity, _):
-            return identity.projectName
+            return identity.scopeName
         case .remoteConnected(let identity, _):
-            return "Remote: \(identity.projectName)"
+            return "Remote: \(identity.scopeName)"
         case .remoteUnreachable(_, let reason):
             switch reason {
             case .tokenRejected(let status):
@@ -156,29 +156,29 @@ enum DaemonConnectionDiagnostic: Equatable {
     }
 
     /// Long-form line shown beneath the headline. Includes the daemon
-    /// base URL when known, the selected project path, and (for the
-    /// wrong-project case) both project paths so the operator can see the
+    /// base URL when known, the selected scope path, and (for the
+    /// wrong-scope case) both scope paths so the operator can see the
     /// mismatch directly.
     var detail: String {
         switch self {
-        case .noProject:
-            return "Pick a project directory to discover the daemon."
-        case .noControlFile(let projectDir):
-            return "\(projectDir)/.kota/daemon-control.json is missing."
-        case .unreadableControlFile(let projectDir):
-            return "\(projectDir)/.kota/daemon-control.json could not be parsed."
-        case .staleControlFile(let projectDir, _, let baseURL):
-            return "\(projectDir) → \(baseURL). Run `kota doctor --fix` to clear the lock."
-        case .unreachable(let projectDir, let baseURL, let pid):
-            return "\(projectDir) → \(baseURL) (pid \(pid)). The daemon process is alive but did not answer."
-        case .tokenRejected(let projectDir, let baseURL, _):
-            return "\(projectDir) → \(baseURL). The control-file token did not satisfy the daemon."
-        case .wrongProject(let selectedDir, _, let daemonProjectDir, let baseURL):
-            return "Selected: \(selectedDir)\nDaemon: \(daemonProjectDir) → \(baseURL)"
+        case .noScope:
+            return "Pick a scope directory to discover the daemon."
+        case .noControlFile(let scopeRoot):
+            return "\(scopeRoot)/.kota/daemon-control.json is missing."
+        case .unreadableControlFile(let scopeRoot):
+            return "\(scopeRoot)/.kota/daemon-control.json could not be parsed."
+        case .staleControlFile(let scopeRoot, _, let baseURL):
+            return "\(scopeRoot) → \(baseURL). Run `kota doctor --fix` to clear the lock."
+        case .unreachable(let scopeRoot, let baseURL, let pid):
+            return "\(scopeRoot) → \(baseURL) (pid \(pid)). The daemon process is alive but did not answer."
+        case .tokenRejected(let scopeRoot, let baseURL, _):
+            return "\(scopeRoot) → \(baseURL). The control-file token did not satisfy the daemon."
+        case .wrongScope(let selectedScopeRoot, _, let daemonScopeRoot, let baseURL):
+            return "Selected: \(selectedScopeRoot)\nDaemon: \(daemonScopeRoot) → \(baseURL)"
         case .connected(let identity, let baseURL):
-            return "\(identity.projectDir) → \(baseURL)"
+            return "\(identity.scopeRoot) → \(baseURL)"
         case .remoteConnected(let identity, let baseURL):
-            return "\(identity.projectDir) → \(baseURL)"
+            return "\(identity.scopeRoot) → \(baseURL)"
         case .remoteUnreachable(let baseURL, _):
             return baseURL
         case .remoteInvalidURL(let input):
@@ -204,9 +204,9 @@ enum DaemonConnectionDiagnostic: Equatable {
         switch self {
         case .connected, .remoteConnected:
             return .ok
-        case .noProject, .noControlFile:
+        case .noScope, .noControlFile:
             return .info
-        case .staleControlFile, .unreadableControlFile, .wrongProject,
+        case .staleControlFile, .unreadableControlFile, .wrongScope,
              .tokenRejected, .remoteInvalidURL:
             return .warn
         case .unreachable, .remoteUnreachable:
@@ -221,10 +221,10 @@ enum DaemonConnectionDiagnostic: Equatable {
         case error
     }
 
-    private func displayName(_ projectDir: String) -> String {
-        let url = URL(fileURLWithPath: projectDir)
+    private func displayName(_ scopeRoot: String) -> String {
+        let url = URL(fileURLWithPath: scopeRoot)
         let name = url.lastPathComponent
-        return name.isEmpty ? projectDir : name
+        return name.isEmpty ? scopeRoot : name
     }
 }
 
@@ -239,17 +239,17 @@ func isProcessAlive(pid: Int) -> Bool {
     return errno == EPERM
 }
 
-/// Reads `.kota/daemon-control.json` from the given project directory and
+/// Reads `.kota/daemon-control.json` from the given scope directory and
 /// classifies the result. Pure with respect to its inputs except for the
 /// pid-liveness check, which is injected so unit tests can simulate a
 /// stale lock without depending on a real OS process.
 func classifyDaemonControlFile(
-    projectDir: URL,
+    scopeRoot: URL,
     fileManager: FileManager = .default,
     decoder: JSONDecoder = JSONDecoder(),
     processIsAlive: (Int) -> Bool = isProcessAlive
 ) -> DaemonControlFileState {
-    let controlPath = projectDir
+    let controlPath = scopeRoot
         .appendingPathComponent(".kota")
         .appendingPathComponent("daemon-control.json")
     guard fileManager.fileExists(atPath: controlPath.path) else {
@@ -275,28 +275,28 @@ func classifyDaemonControlFile(
 /// test-constructible — see `AppStateTests` — but a pure helper still
 /// keeps the menu bar header classification reusable.)
 ///
-/// `selectedProjectDir` is the operator's chosen project (UserDefaults
-/// `projectDirectory`). `controlFileState` is the result of
+/// `selectedScopeRoot` is the operator's chosen scope (UserDefaults
+/// `scopeDirectory`). `controlFileState` is the result of
 /// `classifyDaemonControlFile`. `identityProbe` is what
 /// `DaemonClient.fetchIdentity` returned (or nil when no probe was
 /// attempted because we never had a connection in the first place).
 func deriveLocalDaemonDiagnostic(
-    selectedProjectDir: URL?,
+    selectedScopeRoot: URL?,
     controlFileState: DaemonControlFileState,
     identityProbe: DaemonIdentityProbe?
 ) -> DaemonConnectionDiagnostic {
-    guard let projectDir = selectedProjectDir else {
-        return .noProject
+    guard let scopeRoot = selectedScopeRoot else {
+        return .noScope
     }
-    let projectPath = projectDir.path
+    let scopePath = scopeRoot.path
     switch controlFileState {
     case .missing:
-        return .noControlFile(projectDir: projectPath)
+        return .noControlFile(scopeRoot: scopePath)
     case .unreadable:
-        return .unreadableControlFile(projectDir: projectPath)
+        return .unreadableControlFile(scopeRoot: scopePath)
     case .stale(let port, let pid):
         return .staleControlFile(
-            projectDir: projectPath,
+            scopeRoot: scopePath,
             pid: pid,
             baseURL: "http://127.0.0.1:\(port)"
         )
@@ -304,17 +304,17 @@ func deriveLocalDaemonDiagnostic(
         let baseURL = "http://127.0.0.1:\(port)"
         switch identityProbe {
         case .none, .some(.unreachable):
-            return .unreachable(projectDir: projectPath, baseURL: baseURL, pid: pid)
+            return .unreachable(scopeRoot: scopePath, baseURL: baseURL, pid: pid)
         case .some(.tokenRejected(let status)):
-            return .tokenRejected(projectDir: projectPath, baseURL: baseURL, status: status)
+            return .tokenRejected(scopeRoot: scopePath, baseURL: baseURL, status: status)
         case .some(.ok(let identity)):
-            if identity.projectDir == projectPath {
+            if identity.scopeRoot == scopePath {
                 return .connected(identity: identity, baseURL: baseURL)
             }
-            return .wrongProject(
-                selectedDir: projectPath,
-                daemonProjectName: identity.projectName,
-                daemonProjectDir: identity.projectDir,
+            return .wrongScope(
+                selectedScopeRoot: scopePath,
+                daemonScopeName: identity.scopeName,
+                daemonScopeRoot: identity.scopeRoot,
                 baseURL: baseURL
             )
         }

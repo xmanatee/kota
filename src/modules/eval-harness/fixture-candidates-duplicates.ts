@@ -31,8 +31,8 @@ function parseFixtureProvenance(path: string): { sourceRunId: string | null; id:
   };
 }
 
-export function collectDuplicateCoverage(projectDir: string): DuplicateCoverage {
-  const fixtureRoot = join(projectDir, "src/modules/eval-harness/fixtures");
+export function collectDuplicateCoverage(workspaceRoot: string): DuplicateCoverage {
+  const fixtureRoot = join(workspaceRoot, "src/modules/eval-harness/fixtures");
   const byRun = new Map<string, string[]>();
   if (existsSync(fixtureRoot)) {
     for (const entry of readdirSync(fixtureRoot, { withFileTypes: true })) {
@@ -49,7 +49,7 @@ export function collectDuplicateCoverage(projectDir: string): DuplicateCoverage 
   const taskReferencesByRunId = new Map<string, FixtureCandidateDuplicateReference[]>();
   const taskReferencesByFingerprint = new Map<string, FixtureCandidateDuplicateReference[]>();
   collectTaskDuplicateCoverage(
-    projectDir,
+    workspaceRoot,
     taskReferencesByRunId,
     taskReferencesByFingerprint,
   );
@@ -76,11 +76,11 @@ function pushDuplicateReference(
 }
 
 function collectTaskDuplicateCoverage(
-  projectDir: string,
+  workspaceRoot: string,
   taskReferencesByRunId: Map<string, FixtureCandidateDuplicateReference[]>,
   taskReferencesByFingerprint: Map<string, FixtureCandidateDuplicateReference[]>,
 ): void {
-  const tasksDir = join(projectDir, "data", "tasks");
+  const tasksDir = join(workspaceRoot, "data", "tasks");
   for (const state of REPO_TASK_STATES) {
     const stateDir = join(tasksDir, state);
     if (!existsSync(stateDir)) continue;
@@ -94,7 +94,7 @@ function collectTaskDuplicateCoverage(
       const reference: FixtureCandidateDuplicateReference = {
         kind: "task",
         id,
-        path: relative(projectDir, path),
+        path: relative(workspaceRoot, path),
         state,
         reason: "task already references this trace-derived eval candidate evidence",
       };

@@ -14,7 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 
 export type OwnerQuestionStatus = "pending" | "answered" | "dismissed" | "expired";
 
@@ -128,9 +128,9 @@ function normalizeStoredOwnerQuestion(
 }
 
 export class OwnerQuestionQueue {
-  private pbus: ProjectScopedEventBus | null;
+  private pbus: ScopedEventBus | null;
 
-  constructor(private dir: string, pbus?: ProjectScopedEventBus | null) {
+  constructor(private dir: string, pbus?: ScopedEventBus | null) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     this.pbus = pbus ?? null;
   }
@@ -328,8 +328,8 @@ export function getOwnerQuestionQueue(dir?: string): OwnerQuestionQueue {
 
 /**
  * Install a pre-built {@link OwnerQuestionQueue} as the module-level
- * singleton. Used by the per-project runtime bundle factory to register the
- * default project's instance without re-binding the queue directory outside
+ * singleton. Used by the per-scope runtime bundle factory to register the
+ * default scope's instance without re-binding the queue directory outside
  * the bundle.
  */
 export function setOwnerQuestionQueueInstance(queue: OwnerQuestionQueue): void {

@@ -1,5 +1,5 @@
 export * from './decoder-common';
-export * from './decoder-projects';
+export * from './decoder-scopes';
 export * from './decoder-scope-policy-types';
 export * from './decoder-scope-policy';
 export * from './decoder-setup';

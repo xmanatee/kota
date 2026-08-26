@@ -96,78 +96,78 @@ describe("requiresWriteScopeSnapshot", () => {
 });
 
 describe("listWorkflowMutatedPaths", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-write-scope-git-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(scopeRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
     execFileSync("git", ["config", "user.email", "t@example.com"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
     execFileSync("git", ["config", "commit.gpgsign", "false"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-    writeFileSync(join(projectDir, ".gitignore"), "ignored.txt\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+    writeFileSync(join(scopeRoot, ".gitignore"), "ignored.txt\n");
+    execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("returns [] when the tree is clean", () => {
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual([]);
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([]);
   });
 
   it("lists modifications to tracked files", () => {
-    writeFileSync(join(projectDir, "seed.txt"), "seed\nmore\n");
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["seed.txt"]);
+    writeFileSync(join(scopeRoot, "seed.txt"), "seed\nmore\n");
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual(["seed.txt"]);
   });
 
   it("lists staged additions of new files", () => {
-    const newPath = join(projectDir, "data", "tasks", "ready", "task-x.md");
+    const newPath = join(scopeRoot, "data", "tasks", "ready", "task-x.md");
     mkdirSync(dirname(newPath), { recursive: true });
     writeFileSync(newPath, "hello\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual([
+    execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([
       "data/tasks/ready/task-x.md",
     ]);
   });
 
   it("lists untracked files that `git add -A` would stage", () => {
-    writeFileSync(join(projectDir, "scratch.txt"), "scratch\n");
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["scratch.txt"]);
+    writeFileSync(join(scopeRoot, "scratch.txt"), "scratch\n");
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual(["scratch.txt"]);
   });
 
   it("lists untracked files in new subdirectories", () => {
-    const nested = join(projectDir, "src", "core", "new.ts");
+    const nested = join(scopeRoot, "src", "core", "new.ts");
     mkdirSync(dirname(nested), { recursive: true });
     writeFileSync(nested, "export {};\n");
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual(["src/core/new.ts"]);
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual(["src/core/new.ts"]);
   });
 
   it("excludes gitignored untracked files", () => {
-    writeFileSync(join(projectDir, "ignored.txt"), "shh\n");
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual([]);
+    writeFileSync(join(scopeRoot, "ignored.txt"), "shh\n");
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([]);
   });
 
   it("merges tracked mutations, staged additions, and untracked files", () => {
-    writeFileSync(join(projectDir, "seed.txt"), "seed\nmore\n");
-    const staged = join(projectDir, "data", "tasks", "ready", "task-x.md");
+    writeFileSync(join(scopeRoot, "seed.txt"), "seed\nmore\n");
+    const staged = join(scopeRoot, "data", "tasks", "ready", "task-x.md");
     mkdirSync(dirname(staged), { recursive: true });
     writeFileSync(staged, "hello\n");
     execFileSync("git", ["add", "data/tasks/ready/task-x.md"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    writeFileSync(join(projectDir, "scratch.txt"), "scratch\n");
-    expect(listWorkflowMutatedPaths(projectDir)).toEqual([
+    writeFileSync(join(scopeRoot, "scratch.txt"), "scratch\n");
+    expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([
       "data/tasks/ready/task-x.md",
       "scratch.txt",
       "seed.txt",
@@ -254,46 +254,46 @@ describe("diffMutatedPaths", () => {
 });
 
 describe("writeScope enforcement over mutated paths", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-write-scope-enforce-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(scopeRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
     execFileSync("git", ["config", "user.email", "t@example.com"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
     execFileSync("git", ["config", "commit.gpgsign", "false"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+    execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("flags an untracked file written outside the declared writeScope", () => {
-    writeFileSync(join(projectDir, "stowaway.ts"), "export {};\n");
+    writeFileSync(join(scopeRoot, "stowaway.ts"), "export {};\n");
     const violations = findWriteScopeViolations(
-      listWorkflowMutatedPaths(projectDir),
+      listWorkflowMutatedPaths(scopeRoot),
       ["data/tasks/"],
     );
     expect(violations).toEqual(["stowaway.ts"]);
   });
 
   it("accepts an untracked file inside the declared writeScope", () => {
-    const inScope = join(projectDir, "data", "tasks", "ready", "new.md");
+    const inScope = join(scopeRoot, "data", "tasks", "ready", "new.md");
     mkdirSync(dirname(inScope), { recursive: true });
     writeFileSync(inScope, "hello\n");
     const violations = findWriteScopeViolations(
-      listWorkflowMutatedPaths(projectDir),
+      listWorkflowMutatedPaths(scopeRoot),
       ["data/tasks/"],
     );
     expect(violations).toEqual([]);
@@ -301,29 +301,29 @@ describe("writeScope enforcement over mutated paths", () => {
 });
 
 describe("workflow scratch artifact handling", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-write-scope-scratch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(scopeRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
     execFileSync("git", ["config", "user.email", "t@example.com"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
     execFileSync("git", ["config", "commit.gpgsign", "false"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+    execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("identifies native harness scratch artifacts by exact path and directory", () => {
@@ -343,30 +343,30 @@ describe("workflow scratch artifact handling", () => {
   });
 
   it("removes untracked native harness scratch artifacts", () => {
-    mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
-    writeFileSync(join(projectDir, ".playwright-mcp", "console.log"), "tmp\n");
-    writeFileSync(join(projectDir, "x-article-body.txt"), "tmp\n");
+    mkdirSync(join(scopeRoot, ".playwright-mcp"), { recursive: true });
+    writeFileSync(join(scopeRoot, ".playwright-mcp", "console.log"), "tmp\n");
+    writeFileSync(join(scopeRoot, "x-article-body.txt"), "tmp\n");
 
-    expect(removeWorkflowScratchArtifacts(projectDir)).toEqual([
+    expect(removeWorkflowScratchArtifacts(scopeRoot)).toEqual([
       ".playwright-mcp",
       "x-article-body.txt",
     ]);
-    expect(existsSync(join(projectDir, ".playwright-mcp"))).toBe(false);
-    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".playwright-mcp"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "x-article-body.txt"))).toBe(false);
   });
 
   it("does not remove tracked files that match scratch artifact names", () => {
-    mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
-    writeFileSync(join(projectDir, ".playwright-mcp", "fixture.yml"), "tracked\n");
-    writeFileSync(join(projectDir, "x-article-body.txt"), "tracked\n");
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    mkdirSync(join(scopeRoot, ".playwright-mcp"), { recursive: true });
+    writeFileSync(join(scopeRoot, ".playwright-mcp", "fixture.yml"), "tracked\n");
+    writeFileSync(join(scopeRoot, "x-article-body.txt"), "tracked\n");
+    execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
     execFileSync("git", ["commit", "-q", "-m", "track scratch-shaped files"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
 
-    expect(removeWorkflowScratchArtifacts(projectDir)).toEqual([]);
-    expect(existsSync(join(projectDir, ".playwright-mcp", "fixture.yml"))).toBe(true);
-    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(true);
+    expect(removeWorkflowScratchArtifacts(scopeRoot)).toEqual([]);
+    expect(existsSync(join(scopeRoot, ".playwright-mcp", "fixture.yml"))).toBe(true);
+    expect(existsSync(join(scopeRoot, "x-article-body.txt"))).toBe(true);
   });
 });
 
@@ -396,18 +396,18 @@ describe("AgentWriteScopeViolationError", () => {
 });
 
 describe("writeWriteScopeViolationArtifact", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-write-scope-artifact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("writes a typed artifact under the run directory", () => {
@@ -428,11 +428,11 @@ describe("writeWriteScopeViolationArtifact", () => {
       scope: ["data/tasks/", "data/watchlist.yaml"],
       violations: ["src/core/foo.ts"],
       metadata,
-      projectDir,
+      scopeRoot,
     });
 
     const artifactPath = join(
-      projectDir,
+      scopeRoot,
       ".kota/runs/run-001/steps/explore.write-scope-violation.json",
     );
     expect(existsSync(artifactPath)).toBe(true);

@@ -15,9 +15,9 @@ import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 
 const POST_EXEC_ABORT_STARTED = "KOTA_RUNTIME_PROBE_PACKAGE_ABORT_STARTED";
 
-function runGit(projectDir: string, args: string[]): void {
+function runGit(workspaceRoot: string, args: string[]): void {
   const result = spawnSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -34,12 +34,12 @@ describe("Runtime Probe coredump containment", () => {
         tmpdir(),
         `kota-probe-coredump-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       );
-      const projectDir = join(parent, "project");
+      const workspaceRoot = join(parent, "project");
       const taskName = "task-package-abort.md";
-      const readyTask = join(projectDir, "data/tasks/ready", taskName);
-      const doingTask = join(projectDir, "data/tasks/doing", taskName);
-      const runDir = join(projectDir, ".kota/runs/test-run");
-      const packageLaunchMarker = join(projectDir, "package-abort-ran.txt");
+      const readyTask = join(workspaceRoot, "data/tasks/ready", taskName);
+      const doingTask = join(workspaceRoot, "data/tasks/doing", taskName);
+      const runDir = join(workspaceRoot, ".kota/runs/test-run");
+      const packageLaunchMarker = join(workspaceRoot, "package-abort-ran.txt");
       const taskContent = [
         "---",
         "title: Post-exec abort probe",
@@ -51,11 +51,11 @@ describe("Runtime Probe coredump containment", () => {
       mkdirSync(dirname(readyTask), { recursive: true });
       mkdirSync(runDir, { recursive: true });
       writeFileSync(readyTask, taskContent);
-      runGit(projectDir, ["init"]);
-      runGit(projectDir, ["config", "user.email", "test@example.com"]);
-      runGit(projectDir, ["config", "user.name", "Test User"]);
-      runGit(projectDir, ["add", "data/tasks/ready"]);
-      runGit(projectDir, ["commit", "-m", "seed trusted abort task"]);
+      runGit(workspaceRoot, ["init"]);
+      runGit(workspaceRoot, ["config", "user.email", "test@example.com"]);
+      runGit(workspaceRoot, ["config", "user.name", "Test User"]);
+      runGit(workspaceRoot, ["add", "data/tasks/ready"]);
+      runGit(workspaceRoot, ["commit", "-m", "seed trusted abort task"]);
       mkdirSync(dirname(doingTask), { recursive: true });
       renameSync(readyTask, doingTask);
       const abortProgram = [
@@ -65,7 +65,7 @@ describe("Runtime Probe coredump containment", () => {
         "process.abort()",
       ].join("; ");
       writeFileSync(
-        join(projectDir, "package.json"),
+        join(workspaceRoot, "package.json"),
         JSON.stringify({
           name: "post-exec-abort-probe",
           version: "0.0.0",
@@ -83,9 +83,9 @@ describe("Runtime Probe coredump containment", () => {
         const result = await runProbeIfDeclared(
           taskContent,
           doingTask,
-          projectDir,
+          workspaceRoot,
           runDir,
-          createWorkflowCommandRunner({ cwd: projectDir }),
+          createWorkflowCommandRunner({ cwd: workspaceRoot }),
         );
 
         expect(result).not.toBeNull();

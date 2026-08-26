@@ -18,10 +18,10 @@ import { resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
   makeApprovalScopeEntry as makeEntry,
-  type ApprovalScopeProjectRuntimeEntry as ProjectRuntimeEntry,
   REGISTERED_APPROVAL_SCOPE_TOOL_NAMES as REGISTERED_TOOL_NAMES,
   registerApprovalScopeTools,
-  registerApprovalScopeProjectProvider as registerProjectQueueProvider,
+  registerApprovalScopeProvider as registerScopeQueueProvider,
+  type ApprovalScopeRuntimeEntry as ScopeRuntimeEntry,
 } from "./execution-scope-tools.integration.js";
 import {
   handleApproveAllApprovals,
@@ -78,11 +78,11 @@ function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown
   };
 }
 
-describe("approval execution project scope", () => {
+describe("approval execution scope scope", () => {
   let rootDir: string;
   let originalCwd: string;
-  let defaultEntry: ProjectRuntimeEntry;
-  let projectB: ProjectRuntimeEntry;
+  let defaultEntry: ScopeRuntimeEntry;
+  let scopeB: ScopeRuntimeEntry;
   let contexts: ToolRunnerContext[];
   let toolOutputs: Array<{ tool: string; content: string }>;
 
@@ -93,10 +93,10 @@ describe("approval execution project scope", () => {
     resetApprovalQueue();
     contexts = [];
     toolOutputs = [];
-    defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
-    projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    process.chdir(defaultEntry.project.projectDir);
-    registerProjectQueueProvider([defaultEntry, projectB]);
+    defaultEntry = makeEntry(join(rootDir, "scope-a"), "Scope A");
+    scopeB = makeEntry(join(rootDir, "scope-b"), "Scope B");
+    process.chdir(defaultEntry.scope.scopeRoot);
+    registerScopeQueueProvider([defaultEntry, scopeB]);
     registerApprovalScopeTools(contexts, toolOutputs);
   });
 
@@ -112,8 +112,8 @@ describe("approval execution project scope", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("executes approved module and custom-tool persistence under the selected project cwd", async () => {
-    projectB.approvalQueue.enqueue(
+  it("executes approved module and custom-tool persistence under the selected scope cwd", async () => {
+    scopeB.approvalQueue.enqueue(
       "module_factory",
       {
         action: "create",
@@ -130,9 +130,9 @@ describe("approval execution project scope", () => {
         },
       },
       "moderate",
-      "create selected project manifest module",
+      "create selected scope manifest module",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       "custom_tool",
       {
         action: "create",
@@ -142,16 +142,16 @@ describe("approval execution project scope", () => {
         persist: true,
       },
       "moderate",
-      "create selected project custom tool",
+      "create selected scope custom tool",
     );
 
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(projectB.approvalQueue)),
+      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
       res,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
@@ -164,15 +164,15 @@ describe("approval execution project scope", () => {
         && entry.resolution.execution.status === "succeeded",
     )).toBe(true);
     expect(existsSync(
-      join(projectB.project.projectDir, ".kota", "modules", "approval-scope-mod", "manifest.json"),
+      join(scopeB.scope.scopeRoot, ".kota", "modules", "approval-scope-mod", "manifest.json"),
     )).toBe(true);
     expect(existsSync(
-      join(defaultEntry.project.projectDir, ".kota", "modules", "approval-scope-mod", "manifest.json"),
+      join(defaultEntry.scope.scopeRoot, ".kota", "modules", "approval-scope-mod", "manifest.json"),
     )).toBe(false);
     expect(existsSync(
-      join(projectB.project.projectDir, ".kota", "tools", "approval_scope_custom_tool.json"),
+      join(scopeB.scope.scopeRoot, ".kota", "tools", "approval_scope_custom_tool.json"),
     )).toBe(true);
     expect(existsSync(
-      join(defaultEntry.project.projectDir, ".kota", "tools", "approval_scope_custom_tool.json"),
+      join(defaultEntry.scope.scopeRoot, ".kota", "tools", "approval_scope_custom_tool.json"),
     )).toBe(false);
   });});

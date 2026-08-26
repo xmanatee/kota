@@ -29,16 +29,16 @@ function harnessError(text: string) {
 }
 
 describe("named agent handoff workflow integration", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let parentAgent: AgentDef;
   let reviewerAgent: AgentDef;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-named-agent-handoff-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "parent.md"), "Parent prompt.\n");
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Reviewer prompt.\n");
-    initHandoffPolicyGitProject(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-named-agent-handoff-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "parent.md"), "Parent prompt.\n");
+    writeFileSync(join(scopeRoot, "agents", "reviewer.md"), "Reviewer prompt.\n");
+    initHandoffPolicyGitProject(scopeRoot);
     parentAgent = {
       name: "parent",
       role: "Coordinate review handoffs.",
@@ -61,7 +61,7 @@ describe("named agent handoff workflow integration", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
   });
 
@@ -71,12 +71,12 @@ describe("named agent handoff workflow integration", () => {
       if (name === reviewerAgent.name) return reviewerAgent;
       return undefined;
     };
-    const policy = handoffScopePolicy(projectDir);
+    const policy = handoffScopePolicy(scopeRoot);
     const scopeId = policy.scopeId;
     const scopePolicyAuthority = handoffScopePolicyAuthority(policy);
     const bus = new EventBus();
-    const approvalQueue = handoffApprovalQueue(projectDir, scopeId, bus);
-    const authorityConfigPath = join(projectDir, ".machine", "config.json");
+    const approvalQueue = handoffApprovalQueue(scopeRoot, scopeId, bus);
+    const authorityConfigPath = join(scopeRoot, ".machine", "config.json");
     let parentWorkflowContext: AgentHarnessRunOptions["workflowContext"];
     registerAgentHarness({
       name: "handoff-fixture",
@@ -93,8 +93,7 @@ describe("named agent handoff workflow integration", () => {
             options.scopePolicyAuthority !== scopePolicyAuthority ||
             options.approvalQueue !== approvalQueue ||
             options.authorityConfigPath !== authorityConfigPath ||
-            options.sessionContext?.scopeId !== scopeId ||
-            options.sessionContext.projectId !== scopeId
+            options.sessionContext?.scopeId !== scopeId
           ) {
             return harnessError("child did not inherit workflow scope authority");
           }
@@ -152,7 +151,6 @@ describe("named agent handoff workflow integration", () => {
             budget: { max_turns: 2 },
             scope: {
               scope_id: options.workflowContext.scopeId,
-              project_id: options.workflowContext.projectId,
             },
             output_schema: {
               type: "object",
@@ -169,7 +167,6 @@ describe("named agent handoff workflow integration", () => {
             sessionId: "parent-session",
             toolUseId: "handoff-tool-use",
             scopeId: options.workflowContext.scopeId,
-            projectId: options.workflowContext.projectId,
             workflow: options.workflowContext,
           },
         );
@@ -258,16 +255,16 @@ describe("named agent handoff workflow integration", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
       { resolveAgentDef },
     );
 
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(scopeRoot);
     const { promise } = executeWorkflowRun(
       definition,
       { event: "runtime.idle", schemaRef: null, payload: {} },
       {
-        runContext: createTestRunContext(projectDir, {
+        runContext: createTestRunContext(scopeRoot, {
           event: "runtime.idle",
           schemaRef: null,
           payload: {},

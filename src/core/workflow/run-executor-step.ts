@@ -131,7 +131,6 @@ export async function executeWorkflowStep(
   const toolSession = {
     sessionId: `workflow:${randomUUID()}`,
     scopeId: deps.pbus.getScopeId(),
-    projectId: deps.pbus.getProjectId(),
   };
   registerSessionEnvironment(toolSession);
   progressContext.runTool = (name, input, toolContext) =>
@@ -210,7 +209,7 @@ export async function executeWorkflowStep(
     }
 
     const toolCalls = step.type === "agent"
-      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir, deps.log)
+      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.scopeRoot, deps.log)
       : undefined;
     const completed: WorkflowStepResult = {
       id: step.id,

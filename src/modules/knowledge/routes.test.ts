@@ -3,10 +3,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import type { KnowledgeEntry, KnowledgeProvider } from "#core/modules/provider-types.js";
-import { KnowledgeProjectStores } from "./project-scope.js";
 import { handleAddKnowledge, handleDeleteKnowledge, handleGetKnowledge, handleListKnowledge, handleSearchKnowledge, handleUpdateKnowledge } from "./routes.js";
+import { KnowledgeScopeStores } from "./scope.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -113,11 +113,11 @@ describe("knowledge-routes", () => {
       vi.mocked(getKnowledgeProvider).mockReturnValue(provider);
       const { res } = mockResponse();
       handleListKnowledge(
-        listRequest("?scope=project&tag=foo&type=note&status=active"),
+        listRequest("?scope=scope&tag=foo&type=note&status=active"),
         res,
       );
       expect(provider.list).toHaveBeenCalledWith({
-        scope: "project",
+        scope: "scope",
         tag: "foo",
         type: "note",
         status: "active",
@@ -206,25 +206,25 @@ describe("knowledge-routes", () => {
     });
   });
 
-  describe("project-scoped routing", () => {
-    it("isolates project entries and rejects unknown project ids", async () => {
-      const root = mkdtempSync(join(tmpdir(), "kota-knowledge-projects-"));
+  describe("scope-scoped routing", () => {
+    it("isolates scope entries and rejects unknown scope ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-knowledge-scopes-"));
       try {
         mkdirSync(join(root, "a"));
         mkdirSync(join(root, "b"));
-        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
-        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
-        const stores = new KnowledgeProjectStores({
-          defaultProjectDir: projectA.projectDir,
-          defaultProjectId: projectA.projectId,
-          projects: [projectA, projectB],
+        const scopeA = buildDirectoryScope({ scopeRoot: join(root, "a") });
+        const scopeB = buildDirectoryScope({ scopeRoot: join(root, "b") });
+        const stores = new KnowledgeScopeStores({
+          defaultScopeRoot: scopeA.scopeRoot,
+          defaultScopeId: scopeA.scopeId,
+          scopes: [scopeA, scopeB],
           globalDir: join(root, "global"),
         });
 
         const addA = mockResponse();
         await handleAddKnowledge(
-          makeRequest(`/api/knowledge?projectId=${projectA.projectId}`, {
-            title: "Alpha project entry",
+          makeRequest(`/api/knowledge?scopeId=${scopeA.scopeId}`, {
+            title: "Alpha scope entry",
             content: "private alpha notes",
           }),
           addA.res,
@@ -235,7 +235,7 @@ describe("knowledge-routes", () => {
 
         const searchA = mockResponse();
         await handleSearchKnowledge(
-          listRequest(`/search?q=alpha&projectId=${projectA.projectId}`),
+          listRequest(`/search?q=alpha&scopeId=${scopeA.scopeId}`),
           searchA.res,
           stores,
         );
@@ -246,7 +246,7 @@ describe("knowledge-routes", () => {
 
         const searchB = mockResponse();
         await handleSearchKnowledge(
-          listRequest(`/search?q=alpha&projectId=${projectB.projectId}`),
+          listRequest(`/search?q=alpha&scopeId=${scopeB.scopeId}`),
           searchB.res,
           stores,
         );
@@ -256,12 +256,12 @@ describe("knowledge-routes", () => {
         ).toEqual([]);
 
         const unknown = mockResponse();
-        handleListKnowledge(listRequest("?projectId=missing-project"), unknown.res, stores);
+        handleListKnowledge(listRequest("?scopeId=missing-scope"), unknown.res, stores);
         expect(unknown.result.status).toBe(404);
         expect(unknown.result.body).toEqual({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "missing-scope",
         });
       } finally {
         rmSync(root, { recursive: true, force: true });

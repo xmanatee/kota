@@ -301,16 +301,16 @@ export function serializeWatchlist(file: WatchlistFile): string {
   return lines.join("\n");
 }
 
-export function readWatchlist(projectDir: string): WatchlistFile {
-  const path = join(projectDir, WATCHLIST_FILE);
+export function readWatchlist(workspaceRoot: string): WatchlistFile {
+  const path = join(workspaceRoot, WATCHLIST_FILE);
   if (!existsSync(path)) {
     return { header: "", entries: [] };
   }
   return parseWatchlist(readFileSync(path, "utf-8"));
 }
 
-export function writeWatchlist(projectDir: string, file: WatchlistFile): void {
-  const path = join(projectDir, WATCHLIST_FILE);
+export function writeWatchlist(workspaceRoot: string, file: WatchlistFile): void {
+  const path = join(workspaceRoot, WATCHLIST_FILE);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, serializeWatchlist(file), "utf-8");
 }

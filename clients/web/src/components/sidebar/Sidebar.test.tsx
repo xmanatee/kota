@@ -1,4 +1,4 @@
-import { TestProjectProvider } from "@/lib/project-context";
+import { TestScopeProvider } from "@/lib/scope-context";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import fixture from "../../../../conformance/contract-fixture.json";
@@ -26,9 +26,9 @@ function renderSidebar(
     ...overrides,
   };
   return render(
-    <TestProjectProvider>
+    <TestScopeProvider>
       <Sidebar {...props} />
-    </TestProjectProvider>,
+    </TestScopeProvider>,
   );
 }
 
@@ -73,7 +73,7 @@ describe("Sidebar shared UI navigation", () => {
     ).toBeInTheDocument();
 
     view.rerender(
-      <TestProjectProvider>
+      <TestScopeProvider>
         <Sidebar
           collapsed={false}
           onToggle={noop}
@@ -87,7 +87,7 @@ describe("Sidebar shared UI navigation", () => {
           selectedSurfaceId={null}
           onSurfaceSelect={noop}
         />
-      </TestProjectProvider>,
+      </TestScopeProvider>,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("daemon unavailable");
     expect(screen.queryByText("Overview")).not.toBeInTheDocument();

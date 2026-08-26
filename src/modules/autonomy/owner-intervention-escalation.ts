@@ -40,12 +40,12 @@ export {
 } from "./owner-intervention-escalation-types.js";
 
 export function detectRecurringOwnerInterventionPatterns(
-  projectDir: string,
+  workspaceRoot: string,
   config?: OwnerInterventionEscalationConfig,
 ): OwnerInterventionEscalationDetection {
   const normalized = normalizeOwnerInterventionEscalationConfig(config);
   const report = buildOwnerInterventionReport({
-    projectDir,
+    workspaceRoot,
     windowStartMs: normalized.nowMs - normalized.windowMs,
     windowEndMs: normalized.nowMs,
     includeEscalation: false,

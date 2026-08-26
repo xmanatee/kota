@@ -1,17 +1,17 @@
 /**
- * Focused tests for the eval-harness project-scoped module event.
+ * Focused tests for the eval-harness scope-scoped module event.
  *
  * The cross-cutting invariant — every module event picks an explicit scope —
  * is enforced at construction time by the helper signatures and at runtime
  * by `EventBus.emit` (see `src/core/events/module-event.test.ts`). This file
  * pins the eval-harness contract: the aggregate score event is declared as
- * project-scoped, raw-bus emits without scope attribution fail loudly, and
- * routing through a `ProjectScopedEventBus` injects the wrapper's id.
+ * scope-scoped, raw-bus emits without scope attribution fail loudly, and
+ * routing through a `ScopedEventBus` injects the wrapper's id.
  */
 
 import { describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   type EvalHarnessSetCompletedPayload,
   evalHarnessSetCompleted,
@@ -47,11 +47,10 @@ const SAMPLE: EvalHarnessSetCompletedPayload = {
 };
 
 describe("evalHarnessSetCompleted", () => {
-  it("is project-scoped and prepends scope selectors to the declared field set", () => {
-    expect(evalHarnessSetCompleted.scope).toBe("project");
+  it("is scope-scoped and prepends scope selectors to the declared field set", () => {
+    expect(evalHarnessSetCompleted.scope).toBe("scope");
     expect(evalHarnessSetCompleted.fields).toEqual([
       "scopeId",
-      "projectId",
       "fixtureCount",
       "repeatCount",
       "passAtK",
@@ -72,17 +71,16 @@ describe("evalHarnessSetCompleted", () => {
     // with a payload that genuinely omits scope attribution.
     expect(() =>
       bus.emit(evalHarnessSetCompleted, SAMPLE as unknown as never),
-    ).toThrow(/project-scoped/);
+    ).toThrow(/scope-scoped/);
   });
 
-  it("ProjectScopedEventBus.emit injects scopeId and projectId and routes to underlying subscribers", () => {
+  it("ScopedEventBus.emit injects scopeId and routes to underlying subscribers", () => {
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, "test-project");
-    const received: { scopeId: string; projectId: string; fixtureCount: number }[] = [];
+    const pbus = new ScopedEventBus(bus, "test-scope");
+    const received: { scopeId: string; fixtureCount: number }[] = [];
     bus.on(evalHarnessSetCompleted, (payload) =>
       received.push({
         scopeId: payload.scopeId,
-        projectId: payload.projectId,
         fixtureCount: payload.fixtureCount,
       }),
     );
@@ -90,14 +88,14 @@ describe("evalHarnessSetCompleted", () => {
     pbus.emit(evalHarnessSetCompleted, SAMPLE);
 
     expect(received).toEqual([
-      { scopeId: "test-project", projectId: "test-project", fixtureCount: 1 },
+      { scopeId: "test-scope", fixtureCount: 1 },
     ]);
   });
 
-  it("ProjectScopedEventBus.on filters subscribers to the wrapper's project", () => {
+  it("ScopedEventBus.on filters subscribers to the wrapper's scope", () => {
     const bus = new EventBus();
-    const pbusA = new ProjectScopedEventBus(bus, "project-a");
-    const pbusB = new ProjectScopedEventBus(bus, "project-b");
+    const pbusA = new ScopedEventBus(bus, "scope-a");
+    const pbusB = new ScopedEventBus(bus, "scope-b");
     const aReceived: number[] = [];
     const bReceived: number[] = [];
     pbusA.on(evalHarnessSetCompleted, (payload) =>

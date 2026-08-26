@@ -44,19 +44,19 @@ function trigger(files: string[]) {
   };
 }
 
-function runCycle(projectDir: string, files: string[]) {
+function runCycle(workspaceRoot: string, files: string[]) {
   const inputs = collectScopeImprovementInputs({
-    projectDir,
-    state: emptyScopeImprovementState(deriveDirectoryScopeId(projectDir)),
+    workspaceRoot,
+    state: emptyScopeImprovementState(deriveDirectoryScopeId(workspaceRoot)),
     trigger: trigger(files),
     now: NOW,
-    scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+    scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
   });
   const candidates = discoverScopeImprovementCandidates(inputs);
   const evidence = gatherScopeImprovementEvidence({ inputs, candidates });
   const recommendations = recommendScopeImprovements({ inputs, evidence });
   const actions = applyScopeImprovementRecommendations({
-    projectDir,
+    workspaceRoot,
     runId: "test-run",
     inputs,
     recommendations,
@@ -65,43 +65,43 @@ function runCycle(projectDir: string, files: string[]) {
 }
 
 describe("scope improvement actions", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   function track(label: string): string {
     const dir = makeScope(label);
-    projectDirs.push(dir);
+    scopeRoots.push(dir);
     return dir;
   }
 
   it("stages owner questions for post-integration publication", () => {
-    const projectDir = track("question");
-    const result = runCycle(projectDir, ["plans/trip.txt"]);
+    const workspaceRoot = track("question");
+    const result = runCycle(workspaceRoot, ["plans/trip.txt"]);
 
     expect(result.actions.ownerQuestionIds).toEqual([]);
     expect(result.actions.applied).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "owner-question-pending" })]),
     );
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
   });
 
   it("commits the task drop when one proposal changes to an owner question", () => {
-    const projectDir = track("task-to-question");
+    const workspaceRoot = track("task-to-question");
     const inputs = collectScopeImprovementInputs({
-      projectDir,
-      state: emptyScopeImprovementState(deriveDirectoryScopeId(projectDir)),
+      workspaceRoot,
+      state: emptyScopeImprovementState(deriveDirectoryScopeId(workspaceRoot)),
       trigger: trigger(["src/feature.ts"]),
       now: NOW,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
     });
     const signature = "scope-guidance-choice";
     const created = applyScopeImprovementRecommendations({
-      projectDir,
+      workspaceRoot,
       runId: "task-run",
       inputs,
       recommendations: [{
@@ -123,7 +123,7 @@ describe("scope improvement actions", () => {
     const taskId = created.createdTaskIds[0]!;
 
     const changed = applyScopeImprovementRecommendations({
-      projectDir,
+      workspaceRoot,
       runId: "question-run",
       inputs,
       recommendations: [{
@@ -141,7 +141,7 @@ describe("scope improvement actions", () => {
       expect.arrayContaining([expect.objectContaining({ kind: "dropped-task", taskId })]),
     );
     expect(
-      existsSync(join(projectDir, "data", "tasks", "dropped", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "dropped", `${taskId}.md`)),
     ).toBe(true);
   });
 

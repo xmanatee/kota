@@ -47,16 +47,16 @@ describe("owner-decisions daemon client", () => {
     const { transport, requests, posts } = makeTransport();
     const client = ownerDecisionsModule.daemonClient!(transport).ownerDecisions!;
 
-    await client.list({ status: "all", projectId: "project-b" });
-    await client.show("d/1", { projectId: "project-b" });
-    await client.answer("d/1", { kind: "single-choice", optionId: "yes" }, { projectId: "project-b" });
-    await client.cancel("d/1", "stale", { projectId: "project-b" });
+    await client.list({ status: "all", scopeId: "scope-b" });
+    await client.show("d/1", { scopeId: "scope-b" });
+    await client.answer("d/1", { kind: "single-choice", optionId: "yes" }, { scopeId: "scope-b" });
+    await client.cancel("d/1", "stale", { scopeId: "scope-b" });
 
     expect(requests).toEqual([
-      "/owner-decisions?status=all&projectId=project-b",
-      "/owner-decisions/d%2F1?projectId=project-b",
-      "/owner-decisions/d%2F1/answer?projectId=project-b",
-      "/owner-decisions/d%2F1/cancel?projectId=project-b",
+      "/owner-decisions?status=all&scopeId=scope-b",
+      "/owner-decisions/d%2F1?scopeId=scope-b",
+      "/owner-decisions/d%2F1/answer?scopeId=scope-b",
+      "/owner-decisions/d%2F1/cancel?scopeId=scope-b",
     ]);
     expect(posts.map((post) => JSON.parse(post.body ?? "{}"))).toEqual([
       { selectedValue: { kind: "single-choice", optionId: "yes" } },

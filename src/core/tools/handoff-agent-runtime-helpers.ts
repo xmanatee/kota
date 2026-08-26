@@ -20,8 +20,7 @@ export function currentScope(
   context: ToolRunnerContext | undefined,
 ): AgentHandoffRequest["scope"] {
   const scopeId = context?.scopeId ?? context?.workflow?.scopeId ?? deriveDirectoryScopeId(cwd);
-  const projectId = context?.projectId ?? context?.workflow?.projectId ?? scopeId;
-  return { scopeId, projectId };
+  return { scopeId };
 }
 
 export function createChildAbortController(

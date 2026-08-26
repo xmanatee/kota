@@ -33,8 +33,8 @@ export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
       "ownerAsk",
       "actions",
     ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectBlockedOperation, { projectDir, nowMs: Date.now() }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(inspectBlockedOperation, { workspaceRoot, nowMs: Date.now() }),
 });
 
 type DeterministicPromotion = { promotions: MoveTaskResult[] };
@@ -48,8 +48,8 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   },
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { projectDir }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot }),
 });
 
 export function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
@@ -94,9 +94,9 @@ export const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
   run: async (ctx) => {
     const resolution = inspectOwnerDecisionResolution.outputRequired(ctx);
     return await ctx.runBlocking(applyAskOutcomeOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       candidate: ownerAskCandidateForWorkspace(
-        ctx.projectDir,
+        ctx.workspaceRoot,
         resolution.candidate,
       ),
       approved: resolution.approved,
@@ -113,8 +113,8 @@ export const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
     (applyOutcome.output(ctx) ?? []).some((application) => application.kind === "resolved"),
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { projectDir }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot }),
 });
 
 export const instructOperatorCapture = typedCodeStep<{
@@ -131,9 +131,9 @@ export const instructOperatorCapture = typedCodeStep<{
     expectStructuredOutput<{ instructions: OperatorCaptureInstruction[] }>(raw, [
       "instructions",
     ]),
-  run: ({ projectDir, runBlocking }) =>
+  run: ({ workspaceRoot, runBlocking }) =>
     runBlocking(instructOperatorCaptureOperation, {
-      projectDir,
+      workspaceRoot,
       nowMs: Date.now(),
     }),
 });

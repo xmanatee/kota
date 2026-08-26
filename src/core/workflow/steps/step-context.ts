@@ -13,7 +13,7 @@ import {
   resolveEventSchemaReference,
 } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { assess } from "#core/tools/guardrails.js";
 import { executeTool, getToolEffect, type ToolResult } from "#core/tools/index.js";
@@ -121,14 +121,14 @@ export function createStepContext(
   stepOutputList: unknown[],
   deps: {
     /** Isolated repository checkout used by the running step. */
-    projectDir: string;
-    /** Canonical project and runtime-state root for this scope. */
-    scopeDir: string;
+    workspaceRoot: string;
+    /** Canonical repository and runtime-state root for this scope. */
+    scopeRoot: string;
     config?: KotaConfig;
     authorityConfigPath?: string;
     runtimeResources?: WorkflowRuntimeResources;
     bus: EventBus;
-    pbus: ProjectScopedEventBus;
+    pbus: ScopedEventBus;
     store: WorkflowRunStore;
     deadLetterQueue?: DeadLetterQueueStore;
     approvalQueue?: ApprovalQueue;
@@ -158,7 +158,7 @@ export function createStepContext(
     deps.pbus.getScopeId(),
   );
   const runCommand = createWorkflowCommandRunner({
-    cwd: deps.projectDir,
+    cwd: deps.workspaceRoot,
     ...(deps.runtimeResources !== undefined
       ? { env: deps.runtimeResources.env }
       : {}),
@@ -178,8 +178,8 @@ export function createStepContext(
       metadata,
       deps.pbus,
       deps.currentStepId ?? "unknown",
-      deps.scopeDir,
-      options.cwd ?? deps.projectDir,
+      deps.scopeRoot,
+      options.cwd ?? deps.workspaceRoot,
       options.sessionContext?.sessionId,
       deps.runtimeResources,
       deps.approvalQueue,
@@ -191,7 +191,7 @@ export function createStepContext(
         harness,
         {
           ...options,
-          projectDir: context.projectDir,
+          scopeRoot: context.scopeRoot,
           authorityConfigPath: context.authorityConfigPath,
           workflowContext: context.workflow,
         },
@@ -204,7 +204,7 @@ export function createStepContext(
       harness,
       {
         ...options,
-        projectDir: context.projectDir,
+        scopeRoot: context.scopeRoot,
         authorityConfigPath: context.authorityConfigPath,
         workflowContext: context.workflow,
         ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
@@ -225,8 +225,9 @@ export function createStepContext(
     ...(deps.approvalQueue !== undefined
       ? { approvalQueue: deps.approvalQueue }
       : {}),
-    projectDir: deps.projectDir,
-    scopeDir: deps.scopeDir,
+    scopeId: deps.pbus.getScopeId(),
+    workspaceRoot: deps.workspaceRoot,
+    scopeRoot: deps.scopeRoot,
     agentRuntime: resolveAgentRuntime(deps.config),
     ...(deps.runtimeResources !== undefined
       ? { runtimeResources: deps.runtimeResources }
@@ -256,8 +257,8 @@ export function createStepContext(
         metadata,
         deps.pbus,
         stepId,
-        deps.scopeDir,
-        deps.projectDir,
+        deps.scopeRoot,
+        deps.workspaceRoot,
         toolContext?.sessionId,
         deps.runtimeResources,
         deps.approvalQueue,
@@ -279,13 +280,12 @@ export function createStepContext(
         ...(authority !== undefined ? { scopePolicyAuthority: authority } : {}),
         ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
         ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
-        projectDir: context.projectDir,
+        scopeRoot: context.scopeRoot,
         cwd: context.cwd,
         ...(context.env !== undefined ? { env: context.env } : {}),
         authorityConfigPath: context.authorityConfigPath,
         workflowContext: context.workflow,
         scopeId: context.scopeId,
-        projectId: context.projectId,
       };
       if (scopePolicy !== undefined) {
         if (deps.approvalQueue === undefined) {
@@ -381,7 +381,7 @@ export function createStepContext(
       deps.pbus.emit("runtime.restart_requested", payload);
     },
     readPrompt: (promptPath) => {
-      return readFileSync(resolve(deps.projectDir, promptPath), "utf-8");
+      return readFileSync(resolve(deps.workspaceRoot, promptPath), "utf-8");
     },
     readRuntimeState: () => deps.store.readState(),
     ...(deps.deadLetterQueue !== undefined

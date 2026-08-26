@@ -6,7 +6,7 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
   mockedExecuteWithAgentSDK,
-  projectDir,
+  scopeRoot,
   stateDir,
   wait,
 } from "./daemon-test-support.integration.js";
@@ -14,7 +14,7 @@ import {
 describe("Daemon runtime state", () => {
   it("records completed autonomous runs in daemon state", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -65,7 +65,7 @@ describe("Daemon runtime state", () => {
     const daemon = makeDaemon({ pollIntervalMs: 100, workflows: [] });
     // Write through a second scheduler instance to prove the hosted runtime
     // observes the same persisted scope schedule.
-    const scheduler = new Scheduler(projectDir, stateDir);
+    const scheduler = new Scheduler(scopeRoot, stateDir);
     scheduler.add("Test reminder", new Date(Date.now() - 1000));
 
     const startPromise = daemon.start();
@@ -74,13 +74,13 @@ describe("Daemon runtime state", () => {
     await daemon.stop();
     await startPromise;
 
-    const fired = new Scheduler(projectDir, stateDir)
+    const fired = new Scheduler(scopeRoot, stateDir)
       .list()
       .filter((item) => item.status === "fired");
     expect(fired.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("saves daemon state in the project-local state dir", async () => {
+  it("saves daemon state in the scope-local state directory", async () => {
     const daemon = makeDaemon({ workflows: [] });
     const startPromise = daemon.start();
     await daemon.stop();

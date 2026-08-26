@@ -16,7 +16,7 @@ const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: string,
   id: string,
   attrs: {
@@ -29,7 +29,7 @@ function writeTask(
     dependsOn?: string[];
   },
 ): void {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
   const title = attrs.title ?? id;
@@ -76,7 +76,7 @@ function writeWriterIntegration(
       version: 1,
       runId: id,
       workflow,
-      projectId: "test-project",
+      scopeId: "test-scope",
       targetBranch: "main",
       baseHead: "base",
       integratedFromHead: "base",
@@ -227,53 +227,53 @@ describe("classifyTaskShape", () => {
 });
 
 describe("aggregateAutonomyReport", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `autonomy-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runsDir = join(projectDir, ".kota", "runs");
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("aggregates open queue priority and area mix", () => {
-    writeTask(projectDir, "backlog", "task-arch-1", { priority: "p1", area: "architecture" });
-    writeTask(projectDir, "backlog", "task-client-1", {
+    writeTask(workspaceRoot, "backlog", "task-arch-1", { priority: "p1", area: "architecture" });
+    writeTask(workspaceRoot, "backlog", "task-client-1", {
       priority: "p2",
       area: "client",
       taskClass: "Product",
     });
-    writeTask(projectDir, "ready", "task-modules-1", {
+    writeTask(workspaceRoot, "ready", "task-modules-1", {
       priority: "p1",
       area: "modules",
       taskClass: "Platform",
     });
-    writeTask(projectDir, "doing", "task-doing-1", {
+    writeTask(workspaceRoot, "doing", "task-doing-1", {
       priority: "p2",
       area: "client",
       taskClass: "Safety",
     });
-    writeTask(projectDir, "blocked", "task-blocked-1", {
+    writeTask(workspaceRoot, "blocked", "task-blocked-1", {
       priority: "p1",
       area: "architecture",
       taskClass: "Meta",
       body: "## Unblock Precondition\n\nkind: owner-decision\nslot: a\nquestion: Q?\n",
     });
-    writeTask(projectDir, "done", "task-done-old", {
+    writeTask(workspaceRoot, "done", "task-done-old", {
       priority: "p2",
       area: "modules",
       updatedAt: new Date(NOW - 30 * MS_PER_DAY).toISOString(),
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -299,18 +299,18 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("surfaces open tasks waiting on hard predecessor task ids", () => {
-    writeTask(projectDir, "ready", "task-dependent", {
+    writeTask(workspaceRoot, "ready", "task-dependent", {
       priority: "p2",
       area: "modules",
       dependsOn: ["task-enabler"],
     });
-    writeTask(projectDir, "backlog", "task-enabler", {
+    writeTask(workspaceRoot, "backlog", "task-enabler", {
       priority: "p2",
       area: "modules",
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -327,19 +327,19 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("includes done tasks updated within the window", () => {
-    writeTask(projectDir, "done", "task-done-recent", {
+    writeTask(workspaceRoot, "done", "task-done-recent", {
       priority: "p2",
       area: "modules",
       updatedAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
-    writeTask(projectDir, "done", "task-done-old", {
+    writeTask(workspaceRoot, "done", "task-done-old", {
       priority: "p2",
       area: "modules",
       updatedAt: new Date(NOW - 30 * MS_PER_DAY).toISOString(),
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -349,11 +349,11 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("classifies explorer task additions by area", () => {
-    writeTask(projectDir, "backlog", "task-strategic-add", {
+    writeTask(workspaceRoot, "backlog", "task-strategic-add", {
       priority: "p1",
       area: "architecture",
     });
-    writeTask(projectDir, "backlog", "task-fanout-add", {
+    writeTask(workspaceRoot, "backlog", "task-fanout-add", {
       priority: "p2",
       area: "client",
     });
@@ -374,7 +374,7 @@ describe("aggregateAutonomyReport", () => {
     ]);
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -390,7 +390,7 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("uses runtime integration evidence when explorer output omits addedTaskFiles", () => {
-    writeTask(projectDir, "backlog", "task-explorer-fallback", {
+    writeTask(workspaceRoot, "backlog", "task-explorer-fallback", {
       priority: "p1",
       area: "modules",
     });
@@ -410,7 +410,7 @@ describe("aggregateAutonomyReport", () => {
     ]);
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -424,12 +424,12 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("links builder commits to task area and priority", () => {
-    writeTask(projectDir, "done", "task-builder-arch", {
+    writeTask(workspaceRoot, "done", "task-builder-arch", {
       priority: "p1",
       area: "architecture",
       updatedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
     });
-    writeTask(projectDir, "done", "task-builder-client", {
+    writeTask(workspaceRoot, "done", "task-builder-client", {
       priority: "p2",
       area: "client",
       updatedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
@@ -460,7 +460,7 @@ describe("aggregateAutonomyReport", () => {
     writeWriterIntegration(runsDir, clientRunId, "builder");
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -505,7 +505,7 @@ describe("aggregateAutonomyReport", () => {
     writeWriterIntegration(runsDir, ghostRunId, "builder");
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -516,29 +516,29 @@ describe("aggregateAutonomyReport", () => {
   });
 
   it("groups blockers by precondition kind", () => {
-    writeTask(projectDir, "blocked", "task-owner", {
+    writeTask(workspaceRoot, "blocked", "task-owner", {
       priority: "p1",
       area: "architecture",
       body: "## Unblock Precondition\n\nkind: owner-decision\nslot: foo\nquestion: Want this?\n",
     });
-    writeTask(projectDir, "blocked", "task-capture", {
+    writeTask(workspaceRoot, "blocked", "task-capture", {
       priority: "p2",
       area: "client",
       body: "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/screenshot.png\ndescription: capture\n",
     });
-    writeTask(projectDir, "blocked", "task-task-done", {
+    writeTask(workspaceRoot, "blocked", "task-task-done", {
       priority: "p2",
       area: "core",
       body: "## Unblock Precondition\n\nkind: task-done\nref: task-other\n",
     });
-    writeTask(projectDir, "blocked", "task-missing-section", {
+    writeTask(workspaceRoot, "blocked", "task-missing-section", {
       priority: "p2",
       area: "core",
       body: "## Problem\n\nNo precondition section.\n",
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -570,7 +570,7 @@ describe("aggregateAutonomyReport", () => {
     }
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -606,7 +606,7 @@ describe("aggregateAutonomyReport", () => {
     }
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -638,7 +638,7 @@ describe("aggregateAutonomyReport", () => {
       current: emptyAutonomyIssueProjection(),
       observations: [observation],
     }).projection;
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
       current: projected,
       updates: [
         {
@@ -652,7 +652,7 @@ describe("aggregateAutonomyReport", () => {
     }));
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -665,7 +665,7 @@ describe("aggregateAutonomyReport", () => {
       { label: "runtime", count: 2 },
       { label: "tool-friction", count: 2 },
     ]);
-    expect(report.health.byScope).toEqual([{ scope: "project", count: 2 }]);
+    expect(report.health.byScope).toEqual([{ scope: "scope", count: 2 }]);
     expect(report.health.bySource).toEqual([
       { source: "workflow:builder", count: 2 },
     ]);
@@ -709,7 +709,7 @@ describe("aggregateAutonomyReport", () => {
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

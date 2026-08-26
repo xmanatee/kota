@@ -35,7 +35,7 @@ import {
   type AcpServerOptions,
 	acpSessionInfo,
 	normalizeAcpError,
-	resolveProjectForCwd,
+	resolveScopeForCwd,
 } from "./server-support.js";
 
 export type { AcpServerOptions, WritableProtocolStream } from "./server-support.js";
@@ -155,9 +155,9 @@ export class AgentClientProtocolServer {
     const daemon = this.options.daemonFactory();
     if (!daemon) throw daemonUnavailable();
 
-    const projects = await daemon.listProjects();
-    const project = resolveProjectForCwd(projects, params.cwd);
-    const session = await daemon.createSession(project);
+    const scopes = await daemon.listScopes();
+    const scope = resolveScopeForCwd(scopes, params.cwd);
+    const session = await daemon.createSession(scope);
     this.sessions.add(session.sessionId);
     return { sessionId: session.sessionId };
   }
@@ -167,12 +167,12 @@ export class AgentClientProtocolServer {
     const daemon = this.options.daemonFactory();
     if (!daemon) throw daemonUnavailable();
 
-    const projects = await daemon.listProjects();
-    const selectedProjects = params.cwd === undefined
-      ? projects.projects
-      : [resolveProjectForCwd(projects, params.cwd)];
+    const scopes = await daemon.listScopes();
+    const selectedScopes = params.cwd === undefined
+      ? scopes.scopes
+      : [resolveScopeForCwd(scopes, params.cwd)];
     const sessions = (
-      await Promise.all(selectedProjects.map((project) => daemon.listSessions(project)))
+      await Promise.all(selectedScopes.map((scope) => daemon.listSessions(scope)))
     ).flat();
     return {
       sessions: sessions
@@ -188,13 +188,13 @@ export class AgentClientProtocolServer {
     const daemon = this.options.daemonFactory();
     if (!daemon) throw daemonUnavailable();
 
-    const projects = await daemon.listProjects();
-    const project = resolveProjectForCwd(projects, params.cwd);
-    const known = (await daemon.listSessions(project))
+    const scopes = await daemon.listScopes();
+    const scope = resolveScopeForCwd(scopes, params.cwd);
+    const known = (await daemon.listSessions(scope))
       .find((session) => session.sessionId === params.sessionId);
     if (!known) throw sessionNotFound(params.sessionId);
     if (!known.live) {
-      await daemon.resumeSession(project, params.sessionId);
+      await daemon.resumeSession(scope, params.sessionId);
     }
     this.sessions.add(params.sessionId);
     return {};

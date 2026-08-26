@@ -39,7 +39,7 @@ struct SessionsView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(isCreatingSession || appState.projectDir == nil)
+                .disabled(isCreatingSession || appState.scopeRoot == nil)
             }
             .padding(.horizontal, 12)
             .padding(.top, 8)

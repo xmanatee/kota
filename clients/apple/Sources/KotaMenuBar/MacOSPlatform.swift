@@ -15,12 +15,12 @@ struct MacOSPlatform: PlatformAffordances {
     }
 
     @MainActor
-    func pickProjectDirectory() async -> URL? {
+    func pickScopeDirectory() async -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Select your KOTA project directory (the folder containing .kota/)"
+        panel.message = "Select your KOTA scope directory (the folder containing .kota/)"
         panel.prompt = "Select"
         return panel.runModal() == .OK ? panel.url : nil
     }
@@ -36,7 +36,7 @@ struct MacOSPlatform: PlatformAffordances {
 
     var supportsQuit: Bool { true }
 
-    var supportsNativeProjectPicker: Bool { true }
+    var supportsNativeScopePicker: Bool { true }
 
     @MainActor
     func quitApp() {

@@ -65,7 +65,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     sessionStartTime: 0,
     sessionId: "session-test",
     sessionLabel: undefined,
-    projectDir: process.cwd(),
+    scopeRoot: process.cwd(),
     scopeId: "scope-test",
     context: new Context("KOTA"),
     client: {} as never,
@@ -104,7 +104,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     historySource: "user",
     conversationId: null,
     resumeConversationId: undefined,
-    projectContext: "",
+    scopeContext: "",
     instructionContext: "",
     modelTiers: undefined,
     modelOutputTokenLimits: undefined,
@@ -176,10 +176,9 @@ describe("runSend MCP declaration refresh", () => {
     expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
     expect(mockExecuteToolCalls.mock.calls[0][1]).toMatchObject({
       sessionId: "session-test",
-      projectDir: process.cwd(),
+      scopeRoot: process.cwd(),
       cwd: process.cwd(),
       scopeId: "scope-test",
-      projectId: "scope-test",
     });
   });
 });

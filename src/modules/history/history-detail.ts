@@ -109,7 +109,7 @@ export function normalizeHistoryShowOptions(
 
 export function buildHistoryDetailQuery(
   request: HistoryDetailRequest,
-  projectId?: string,
+  scopeId?: string,
 ): string {
   const params = new URLSearchParams();
   params.set("view", request.view);
@@ -118,7 +118,7 @@ export function buildHistoryDetailQuery(
     params.set("limit", String(request.limit));
     params.set("contentLimit", String(request.contentLimit));
   }
-  if (projectId) params.set("projectId", projectId);
+  if (scopeId) params.set("scopeId", scopeId);
   return `?${params.toString()}`;
 }
 

@@ -17,13 +17,13 @@ Group=kota
 WorkingDirectory=/var/lib/kota
 EnvironmentFile=/etc/kota/telegram-assistant.env
 Environment=NODE_ENV=production
-Environment=KOTA_PROJECT_DIR=/var/lib/kota
+Environment=KOTA_SCOPE_ROOT=/var/lib/kota
 Environment=KOTA_DAEMON_LOG_FORMAT=json
 
 # The KOTA binary path is templated by install.sh based on the host.
 # Operators who install without the script must replace this with the
 # absolute path to `kota` (or `node /path/to/bin/kota.mjs`).
-ExecStart=/usr/local/bin/kota daemon --project-dir /var/lib/kota
+ExecStart=/usr/local/bin/kota daemon --scope-root /var/lib/kota
 
 # The daemon's own supervisor exits with RESTART_EXIT_CODE on recovery;
 # systemd handles hard crashes via Restart=on-failure.

@@ -17,9 +17,9 @@ import {
 
 const boundaryStates = new Map<string, ProgressBoundaryState>();
 
-function git(projectDir: string, args: string[]): string {
+function git(workspaceRoot: string, args: string[]): string {
   return execFileSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
@@ -53,52 +53,52 @@ function taskFixture(args: {
   ].join("\n");
 }
 
-function write(projectDir: string, path: string, content: string): void {
-  const absolute = join(projectDir, path);
+function write(workspaceRoot: string, path: string, content: string): void {
+  const absolute = join(workspaceRoot, path);
   mkdirSync(dirname(absolute), { recursive: true });
   writeFileSync(absolute, content, "utf8");
 }
 
 function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: "backlog" | "ready" | "blocked" | "done" | "dropped",
   id: string,
   options: Omit<Parameters<typeof taskFixture>[0], "id" | "state"> = {},
 ): void {
   write(
-    projectDir,
+    workspaceRoot,
     `data/tasks/${state}/${id}.md`,
     taskFixture({ id, state, ...options }),
   );
 }
 
 function moveTask(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   from: "backlog" | "ready" | "blocked" | "done" | "dropped",
   to: "backlog" | "ready" | "blocked" | "done" | "dropped",
   options: Omit<Parameters<typeof taskFixture>[0], "id" | "state"> = {},
 ): void {
-  const fromPath = join(projectDir, "data", "tasks", from, `${id}.md`);
-  const toPath = join(projectDir, "data", "tasks", to, `${id}.md`);
+  const fromPath = join(workspaceRoot, "data", "tasks", from, `${id}.md`);
+  const toPath = join(workspaceRoot, "data", "tasks", to, `${id}.md`);
   renameSync(fromPath, toPath);
   writeFileSync(toPath, taskFixture({ id, state: to, ...options }), "utf8");
 }
 
 function makeProject(label: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), `kota-semantic-reflection-${label}-`));
+  const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-semantic-reflection-${label}-`));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
-  mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
-  write(projectDir, ".gitignore", ".kota/\n");
-  git(projectDir, ["init", "--quiet"]);
-  return projectDir;
+  mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
+  write(workspaceRoot, ".gitignore", ".kota/\n");
+  git(workspaceRoot, ["init", "--quiet"]);
+  return workspaceRoot;
 }
 
-function commit(projectDir: string, message: string): void {
-  git(projectDir, ["add", "."]);
-  git(projectDir, [
+function commit(workspaceRoot: string, message: string): void {
+  git(workspaceRoot, ["add", "."]);
+  git(workspaceRoot, [
     "-c",
     "user.email=kota@example.test",
     "-c",
@@ -111,69 +111,69 @@ function commit(projectDir: string, message: string): void {
   ]);
 }
 
-async function inspect(projectDir: string, scopeDir = projectDir) {
+async function inspect(workspaceRoot: string, scopeRoot = workspaceRoot) {
   const result = await inspectProgressSemanticBoundary({
-    projectDir,
-    scopeDir,
-    stateDir: join(scopeDir, ".kota"),
-    progressBoundaryState: boundaryStates.get(projectDir) ?? null,
-    runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+    workspaceRoot,
+    scopeRoot,
+    stateDir: join(scopeRoot, ".kota"),
+    progressBoundaryState: boundaryStates.get(workspaceRoot) ?? null,
+    runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
   });
-  if (result.nextState !== null) boundaryStates.set(projectDir, result.nextState);
+  if (result.nextState !== null) boundaryStates.set(workspaceRoot, result.nextState);
   return result;
 }
 
 describe("semantic progress reflection", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
     boundaryStates.clear();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   function track(label: string): string {
-    const projectDir = makeProject(label);
-    projectDirs.push(projectDir);
-    return projectDir;
+    const workspaceRoot = makeProject(label);
+    scopeRoots.push(workspaceRoot);
+    return workspaceRoot;
   }
 
   it("parks a clean isolated snapshot while the canonical scope is dirty", async () => {
-    const scopeDir = track("dirty-canonical");
-    write(scopeDir, "README.md", "# Canonical\n");
-    commit(scopeDir, "seed canonical scope");
-    write(scopeDir, "owner-draft.txt", "not committed\n");
+    const scopeRoot = track("dirty-canonical");
+    write(scopeRoot, "README.md", "# Canonical\n");
+    commit(scopeRoot, "seed canonical scope");
+    write(scopeRoot, "owner-draft.txt", "not committed\n");
 
-    const projectDir = track("clean-snapshot");
-    write(projectDir, "README.md", "# Snapshot\n");
-    commit(projectDir, "seed isolated snapshot");
+    const workspaceRoot = track("clean-snapshot");
+    write(workspaceRoot, "README.md", "# Snapshot\n");
+    commit(workspaceRoot, "seed isolated snapshot");
 
-    await expect(inspect(projectDir, scopeDir)).resolves.toMatchObject({
+    await expect(inspect(workspaceRoot, scopeRoot)).resolves.toMatchObject({
       shouldEmit: false,
       reason: expect.stringContaining("canonical worktree is clean"),
     });
   });
 
   it("emits one parked-queue review and ignores five later build commits", async () => {
-    const projectDir = track("parked-build-restraint");
-    writeTask(projectDir, "ready", "task-delivery");
-    writeTask(projectDir, "backlog", "task-strategic-anchor", { anchor: true });
-    commit(projectDir, "seed actionable queue");
-    expect((await inspect(projectDir)).shouldEmit).toBe(false);
+    const workspaceRoot = track("parked-build-restraint");
+    writeTask(workspaceRoot, "ready", "task-delivery");
+    writeTask(workspaceRoot, "backlog", "task-strategic-anchor", { anchor: true });
+    commit(workspaceRoot, "seed actionable queue");
+    expect((await inspect(workspaceRoot)).shouldEmit).toBe(false);
 
-    moveTask(projectDir, "task-delivery", "ready", "done");
-    commit(projectDir, "complete delivery task");
-    const parked = await inspect(projectDir);
+    moveTask(workspaceRoot, "task-delivery", "ready", "done");
+    commit(workspaceRoot, "complete delivery task");
+    const parked = await inspect(workspaceRoot);
     expect(parked).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "parked-queue", inputRevision: 1 },
     });
 
     for (let index = 1; index <= 5; index += 1) {
-      write(projectDir, `src/build-${index}.ts`, `export const build${index} = ${index};\n`);
-      commit(projectDir, `successful build ${index}`);
-      expect(await inspect(projectDir)).toMatchObject({
+      write(workspaceRoot, `src/build-${index}.ts`, `export const build${index} = ${index};\n`);
+      commit(workspaceRoot, `successful build ${index}`);
+      expect(await inspect(workspaceRoot)).toMatchObject({
         shouldEmit: false,
         reason: "no accepted semantic progress boundary",
       });
@@ -181,14 +181,14 @@ describe("semantic progress reflection", () => {
   });
 
   it("emits a task-disposition boundary when a task becomes blocked", async () => {
-    const projectDir = track("blocked");
-    writeTask(projectDir, "ready", "task-needs-input");
-    commit(projectDir, "seed ready task");
-    await inspect(projectDir);
+    const workspaceRoot = track("blocked");
+    writeTask(workspaceRoot, "ready", "task-needs-input");
+    commit(workspaceRoot, "seed ready task");
+    await inspect(workspaceRoot);
 
-    moveTask(projectDir, "task-needs-input", "ready", "blocked");
-    commit(projectDir, "block task");
-    expect(await inspect(projectDir)).toMatchObject({
+    moveTask(workspaceRoot, "task-needs-input", "ready", "blocked");
+    commit(workspaceRoot, "block task");
+    expect(await inspect(workspaceRoot)).toMatchObject({
       shouldEmit: true,
       payload: {
         boundary: "task-disposition",
@@ -201,13 +201,13 @@ describe("semantic progress reflection", () => {
   });
 
   it("emits once when an owner decision resolves without a Git commit", async () => {
-    const projectDir = track("owner-decision");
-    write(projectDir, "README.md", "# Fixture\n");
-    commit(projectDir, "seed fixture");
-    await inspect(projectDir);
+    const workspaceRoot = track("owner-decision");
+    write(workspaceRoot, "README.md", "# Fixture\n");
+    commit(workspaceRoot, "seed fixture");
+    await inspect(workspaceRoot);
 
     write(
-      projectDir,
+      workspaceRoot,
       ".kota/owner-decisions/a1b2c3d4.json",
       `${JSON.stringify({
         id: "a1b2c3d4",
@@ -217,7 +217,7 @@ describe("semantic progress reflection", () => {
         updatedAt: "2026-08-15T12:00:00.000Z",
       })}\n`,
     );
-    const resolved = await inspect(projectDir);
+    const resolved = await inspect(workspaceRoot);
     expect(resolved).toMatchObject({
       shouldEmit: true,
       payload: {
@@ -226,24 +226,24 @@ describe("semantic progress reflection", () => {
         evidenceRefs: [".kota/owner-decisions/a1b2c3d4.json"],
       },
     });
-    expect((await inspect(projectDir)).shouldEmit).toBe(false);
+    expect((await inspect(workspaceRoot)).shouldEmit).toBe(false);
   });
 
   it("emits a strategic-completion boundary for a completed P1 initiative", async () => {
-    const projectDir = track("strategic-completion");
-    writeTask(projectDir, "ready", "task-milestone", {
+    const workspaceRoot = track("strategic-completion");
+    writeTask(workspaceRoot, "ready", "task-milestone", {
       priority: "p1",
       strategic: true,
     });
-    commit(projectDir, "seed strategic task");
-    await inspect(projectDir);
+    commit(workspaceRoot, "seed strategic task");
+    await inspect(workspaceRoot);
 
-    moveTask(projectDir, "task-milestone", "ready", "done", {
+    moveTask(workspaceRoot, "task-milestone", "ready", "done", {
       priority: "p1",
       strategic: true,
     });
-    commit(projectDir, "complete strategic milestone");
-    expect(await inspect(projectDir)).toMatchObject({
+    commit(workspaceRoot, "complete strategic milestone");
+    expect(await inspect(workspaceRoot)).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "strategic-completion", inputRevision: 1 },
     });

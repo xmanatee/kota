@@ -21,7 +21,7 @@ import type { Server } from "node:http";
 import { resolve } from "node:path";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import {
-  warnIgnoredUntrustedProjectConfig,
+  warnIgnoredUntrustedScopeConfig,
   warnUnknownConfigKeys,
 } from "#core/config/config-warnings.js";
 import { initEventBus } from "#core/events/event-bus.js";
@@ -80,7 +80,7 @@ export function localWebClient(ctx: ModuleContext): WebClient {
         printWebWarning,
         runtimeLoader.getRegisteredConfigKeys(),
       );
-      warnIgnoredUntrustedProjectConfig(ctx.cwd, printWebWarning);
+      warnIgnoredUntrustedScopeConfig(ctx.cwd, printWebWarning);
 
       const webUiDir = resolve(ctx.cwd, "clients/web/dist");
       const webUiBuilt = existsSync(webUiDir);

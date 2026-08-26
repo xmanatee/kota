@@ -18,7 +18,7 @@ describe("SlackBot interactive admission", () => {
       ...clients,
       allowedUserIds: ["U-OWNER"],
       inboundSignals: {
-        getProjectId: () => "project-slack",
+        getScopeId: () => "scope-slack",
         config: { prefixes: ["!task"], trustedUserIds: ["U-OWNER"] },
         events,
       },
@@ -84,7 +84,7 @@ describe("SlackBot interactive admission", () => {
     const bot = makeBot({
       allowedUserIds: ["U-OWNER"],
       inboundSignals: {
-        getProjectId: () => "project-slack",
+        getScopeId: () => "scope-slack",
         config: { prefixes: ["!task"], trustedUserIds: ["U-TRUSTED"] },
         events,
       },

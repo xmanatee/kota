@@ -130,7 +130,7 @@ function makeSocialInboundHandler(
     const emitted = emitSocialInboundSignal(
       ctx.events,
       socialDeliveryToInboundSignal(delivery.value, {
-        projectId: deriveDirectoryScopeId(ctx.cwd),
+        scopeId: deriveDirectoryScopeId(ctx.cwd),
         receivedAt,
         connector,
       }),
@@ -143,7 +143,7 @@ function makeSocialInboundHandler(
     jsonResponse(res, 200, {
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: emitted.payload.projectId,
+      scopeId: emitted.payload.scopeId,
       provider: emitted.payload.provider,
       channel: emitted.payload.channel,
       sourceId: emitted.payload.sourceId,

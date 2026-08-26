@@ -19,8 +19,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
+    scopeRoot: "/repo",
+    scopeName: "repo",
     controlFile: { kind: "fresh", pid: 1234, baseURL: "http://127.0.0.1:8765" },
     runProjection: {
       available: true,
@@ -77,7 +77,7 @@ function setupRequirement(
     kind: "secret",
     title: "GitHub token",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "secret",
     setup: { mode: "form", fields: [] },
     state: "missing",
@@ -109,7 +109,7 @@ function client(args: {
 } = {}): KotaClient {
   const blockedContent = args.blockedContent ?? {};
   return {
-    forProject() {
+    forScope() {
       return this as KotaClient;
     },
     approvals: {
@@ -217,7 +217,7 @@ describe("operator inbox", () => {
   it("renders a clear inbox when no attention items exist", async () => {
     const snapshot = await buildOperatorInboxSnapshot({
       client: client(),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     });
     expect(snapshot.items).toHaveLength(0);
@@ -236,7 +236,7 @@ describe("operator inbox", () => {
         setup: [setupRequirement()],
         runs: [failedRun()],
       }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status({
         daemonRunning: false,
         controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
@@ -264,7 +264,7 @@ describe("operator inbox", () => {
   it("surfaces hidden setup visibility without inventing requirement rows", async () => {
     const snapshot = await buildOperatorInboxSnapshot({
       client: client({ setupVisibility: "hidden" }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     });
 
@@ -281,7 +281,7 @@ describe("operator inbox", () => {
           "task-malformed": "## Source / Intent\n\nNo unblock section.\n",
         },
       }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     })).rejects.toThrow(/missing typed unblock precondition/);
   });

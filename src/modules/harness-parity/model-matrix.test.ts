@@ -54,7 +54,7 @@ describe("harness-parity model matrix", () => {
 
   function matrixDeps() {
     return {
-      projectDir: evalFixturesRoot,
+      scopeRoot: evalFixturesRoot,
       scenariosRoot,
       evalFixturesRoot,
       defaultOutBaseDir: outRoot,

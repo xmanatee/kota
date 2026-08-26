@@ -62,20 +62,20 @@ function builderRun(input: {
 }
 
 describe("workflow dead-letter supersession", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let deadLetterQueue: DeadLetterQueueStore;
   let runStore: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "workflow-dlq-supersession-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "workflow-dlq-supersession-"));
     deadLetterQueue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
     );
-    runStore = new WorkflowRunStore(projectDir);
+    runStore = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function persistRun(metadata: WorkflowRunMetadata): void {

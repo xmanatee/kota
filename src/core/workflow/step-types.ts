@@ -46,7 +46,7 @@ export type WorkflowAgentStep = WorkflowProgressStep & {
    * `promptPath` is resolved against this root by the step executor and the
    * repair loop so workflows contributed by KOTA's own modules keep reading
    * their prompts from KOTA's install tree even when the daemon is running
-   * against an external project.
+   * against an external scope.
    */
   moduleRoot: string;
   /**

@@ -3,7 +3,7 @@ import { buildRuntimeUiSurface } from "./ui-surface.js";
 
 export const workflowUiSurfaceSource: UiSurfaceSource = {
   sourceId: "runs",
-  project: async (context) => {
+  scope: async (context) => {
     const [workflowStatus, runs, definitions, approvals, ownerQuestions, sessions] =
       await Promise.all([
         context.read("workflow status", () => context.client.workflow.status()),

@@ -7,7 +7,7 @@
   "budgetMs": 180000,
   "triggerPayload": {
     "_runId": "fixture-research-retry-agent-call-replay-2026-04-25",
-    "projectId": "fixture-research-retry",
+    "scopeId": "fixture-research-retry",
     "candidateCount": 1,
     "attemptableCount": 1,
     "counts": {

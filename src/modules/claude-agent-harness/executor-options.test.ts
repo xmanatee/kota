@@ -55,7 +55,7 @@ describe("agent-sdk executor options and lifecycle", () => {
     });
   });
 
-  it("projects the agent-owned write scope into the SDK sandbox allowlist", () => {
+  it("scopes the agent-owned write scope into the SDK sandbox allowlist", () => {
     const options = buildQueryOptions({
       cwd: "/tmp/project",
       agentWriteScope: ["data/tasks/"],

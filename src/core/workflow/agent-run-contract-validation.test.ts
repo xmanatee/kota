@@ -67,14 +67,14 @@ function unsupported(
 }
 
 describe("resolved workflow agent run-contract validation", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agent: AgentDef;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
-    projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-agent-contract-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Review the input.\n");
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-workflow-agent-contract-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "reviewer.md"), "Review the input.\n");
     agent = {
       name: "reviewer",
       role: "Review structured input.",
@@ -87,7 +87,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   function definition(
@@ -97,7 +97,7 @@ describe("resolved workflow agent run-contract validation", () => {
     return registerWorkflowDefinition(DEFINITION_PATH, {
       repository: "read",
       name: "contract-fixture",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       triggers: [{ event: "manual" }],
       steps: [{
         id: "review",
@@ -125,7 +125,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
     expect(() => validateWorkflowDefinitions([
       definition(harness.name, { autonomyMode: "passive" }),
-    ], projectDir, options())).toThrow(
+    ], scopeRoot, options())).toThrow(
       /contract-fixture.*steps\[0\].*native-passive-fixture.*autonomyMode="passive".*cannot enforce read-only tool effects/,
     );
   });
@@ -142,7 +142,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
     expect(() => validateWorkflowDefinitions([
       definition(harness.name, { thinkingEnabled: true }),
-    ], projectDir, options())).toThrow(
+    ], scopeRoot, options())).toThrow(
       /native-thinking-fixture.*thinkingEnabled\/thinkingBudget.*Portable thinking controls are unavailable/,
     );
   });
@@ -160,7 +160,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
     const [validated] = validateWorkflowDefinitions(
       [definition(harness.name, { model: "step-model" })],
-      projectDir,
+      scopeRoot,
       { ...options(), agentModels: { reviewer: "operator-model" } },
     );
 
@@ -191,7 +191,7 @@ describe("resolved workflow agent run-contract validation", () => {
       () => {},
       () => {},
       {
-        projectDir,
+        scopeRoot,
         config: { agentModels: { reviewer: "operator-model" } } as never,
         log: () => {},
       },
@@ -221,7 +221,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
     expect(() => validateWorkflowDefinitions(
       [definition(harness.name, {})],
-      projectDir,
+      scopeRoot,
       options(),
     )).not.toThrow();
     expect(readiness).not.toHaveBeenCalled();
@@ -239,7 +239,7 @@ describe("resolved workflow agent run-contract validation", () => {
     const nested = registerWorkflowDefinition(DEFINITION_PATH, {
       repository: "read",
       name: "nested-contract-fixture",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       triggers: [{ event: "manual" }],
       steps: [{
         id: "for-each-review",
@@ -258,7 +258,7 @@ describe("resolved workflow agent run-contract validation", () => {
 
     expect(() => validateWorkflowDefinitions(
       [nested],
-      projectDir,
+      scopeRoot,
       options(),
     )).toThrow(/nested-contract-fixture.*steps\[0\]\.steps\[0\].*nested-passive-fixture/);
   });
@@ -295,7 +295,7 @@ describe("resolved workflow agent run-contract validation", () => {
           }],
         },
       }),
-    ], projectDir, options())).toThrow(
+    ], scopeRoot, options())).toThrow(
       /steps\[0\]\.repairLoop\.checks\[0\].*hosted-judge-fixture.*disallowedTools.*cannot filter judge tools/,
     );
   });

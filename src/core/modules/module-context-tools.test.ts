@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import { legacyEffect } from "#core/tools/effect.js";
 import { executeTool } from "#core/tools/index.js";
 import {
@@ -46,17 +46,17 @@ describe("tools as factory function", () => {
   });
 
   it("tool runner can access ctx.getSecret via closure", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "module-context-factory-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-factory-"));
     try {
-      const store = getProjectSecretStore(projectDir);
+      const store = getScopeSecretStore(scopeRoot);
       store.set(
         "KOTA_MODULE_CONTEXT_FACTORY_TOKEN",
         "my-secret-token",
-        "project",
+        "scope",
       );
 
       const loader = createRuntimeModuleLoader({});
-      loader.setCwd(projectDir);
+      loader.setCwd(scopeRoot);
 
       const mod: KotaModule = {
         name: "secret-factory",
@@ -78,7 +78,7 @@ describe("tools as factory function", () => {
       const result = await executeTool("secret_tool", {});
       expect(result.content).toBe("found");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

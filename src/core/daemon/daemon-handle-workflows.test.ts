@@ -5,7 +5,7 @@ describe("daemon workflow pause handling", () => {
   it("persists operator intent when dispatch is only runtime-paused", () => {
     const setDispatchPaused = vi.fn();
     const handle = buildDaemonWorkflowHandle(
-      { projectRegistry: {} } as never,
+      { scopeRegistry: {} } as never,
       () => ({
         workflowRuntime: {
           getDispatchPauseStatus: () => ({
@@ -28,7 +28,7 @@ describe("daemon workflow pause handling", () => {
   it("does not rewrite an existing operator pause", () => {
     const setDispatchPaused = vi.fn();
     const handle = buildDaemonWorkflowHandle(
-      { projectRegistry: {} } as never,
+      { scopeRegistry: {} } as never,
       () => ({
         workflowRuntime: {
           getDispatchPauseStatus: () => ({

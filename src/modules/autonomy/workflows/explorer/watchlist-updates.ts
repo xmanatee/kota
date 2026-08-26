@@ -229,12 +229,12 @@ export type ApplyWatchlistUpdatesOptions = {
 };
 
 export function applyWatchlistUpdates(
-  projectDir: string,
+  workspaceRoot: string,
   payload: WatchlistUpdatesPayload,
   options: ApplyWatchlistUpdatesOptions = {},
 ): WatchlistApplyResult[] {
   const now = options.now ?? (() => new Date().toISOString());
-  const file = readWatchlist(projectDir);
+  const file = readWatchlist(workspaceRoot);
   let entries = file.entries;
   const results: WatchlistApplyResult[] = [];
 
@@ -270,7 +270,7 @@ export function applyWatchlistUpdates(
     results.push({ url: update.url, classification: classification.kind });
   }
 
-  writeWatchlist(projectDir, {
+  writeWatchlist(workspaceRoot, {
     header: file.header,
     entries,
   });

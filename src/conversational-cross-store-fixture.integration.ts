@@ -1,7 +1,7 @@
 /**
  * Shared fixture for the cross-store conversational integration tests.
  *
- * Builds a temp project root with real `MemoryStore`, `KnowledgeStore`,
+ * Builds a temp scope root with real `MemoryStore`, `KnowledgeStore`,
  * and `RepoTasksDefaultStore` instances, plus production
  * `CaptureProviderImpl` / `RecallProviderImpl` / `RetractProviderImpl` /
  * `AnswerProviderImpl` providers wired to the real first-party
@@ -42,7 +42,7 @@ import type {
 } from "#core/modules/provider-types.js";
 import { registerTool } from "#core/tools/index.js";
 import {
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
 import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
@@ -94,7 +94,7 @@ export const SEEDED_KNOWLEDGE_BODY =
   "The recall seam ranks hits across stores using min-max normalization.";
 
 export type CrossStoreFixture = {
-  projectRoot: string;
+  scopeRoot: string;
   memoryStore: MemoryStore;
   knowledgeStore: KnowledgeStore;
   tasksProvider: RepoTasksDefaultStore;
@@ -105,12 +105,12 @@ export type CrossStoreFixture = {
   answerHistoryStore: DiskAnswerHistoryStore;
 };
 
-export function makeCrossStoreProjectRoot(prefix: string): string {
+export function makeCrossStoreScopeRoot(prefix: string): string {
   const scopeDir = mkdtempSync(join(tmpdir(), prefix));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "conversational-cross-store",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
@@ -173,18 +173,18 @@ export function buildCrossStoreFixture(
   prefix: string,
   options: BuildCrossStoreFixtureOptions = {},
 ): CrossStoreFixture {
-  const projectRoot = makeCrossStoreProjectRoot(prefix);
-  const memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+  const scopeRoot = makeCrossStoreScopeRoot(prefix);
+  const memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
   const knowledgeStore = new KnowledgeStore(
-    projectRoot,
-    join(projectRoot, ".kota-global", "data"),
+    scopeRoot,
+    join(scopeRoot, ".kota-global", "data"),
   );
   knowledgeStore.create({
     title: SEEDED_KNOWLEDGE_TITLE,
     content: SEEDED_KNOWLEDGE_BODY,
     tags: [],
   });
-  const tasksProvider = new RepoTasksDefaultStore(projectRoot);
+  const tasksProvider = new RepoTasksDefaultStore(scopeRoot);
   const historyProvider = createEmptyHistoryProvider();
 
   const captureProvider = new CaptureProviderImpl({
@@ -192,7 +192,7 @@ export function buildCrossStoreFixture(
   });
   captureProvider.register(createMemoryCaptureContributor(memoryStore));
   captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-  const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+  const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
   captureProvider.register(createTasksCaptureContributor(mutationTarget));
   captureProvider.register(createInboxCaptureContributor(mutationTarget));
 
@@ -207,7 +207,7 @@ export function buildCrossStoreFixture(
   // mirrors the answer module's `onLoad` so the conversational fixture
   // exercises the same five-source seam every operator surface sees.
   const answerHistoryStore = new DiskAnswerHistoryStore({
-    rootDir: answerHistoryRootForProject(join(projectRoot, ".kota")),
+    rootDir: answerHistoryRootForScope(join(scopeRoot, ".kota")),
   });
   recallProvider.register(createAnswerRecallContributor(answerHistoryStore));
 
@@ -244,7 +244,7 @@ export function buildCrossStoreFixture(
   });
 
   return {
-    projectRoot,
+    scopeRoot,
     memoryStore,
     knowledgeStore,
     tasksProvider,

@@ -1,14 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
 } from "./autonomy-issue-projection.js";
-import { createTestProjectRuntime } from "./autonomy-runtime.test-helpers.js";
+import { createTestScopeRuntime } from "./autonomy-runtime.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
 import {
   buildAutonomyHealthReviewFromSignals,
@@ -20,16 +20,15 @@ const NOW = "2026-08-14T09:00:00.000Z";
 
 export type ScopedHealthSignal = AutonomyHealthSignal & {
   scopeId: string;
-  projectId: string;
 };
 
 export function makeRuntime(
-  projectDir: string,
+  scopeRoot: string,
   scopeId: string,
   bus: EventBus,
-): ProjectRuntime {
-  return createTestProjectRuntime({
-    project: { projectId: scopeId, projectDir, displayName: scopeId },
+): ScopeRuntime {
+  return createTestScopeRuntime({
+    scope: { scopeId: scopeId, scopeRoot, displayName: scopeId },
     bus,
     onLog: () => {},
     installSingletons: false,
@@ -37,7 +36,7 @@ export function makeRuntime(
 }
 
 export function writeRun(
-  runtime: ProjectRuntime,
+  runtime: ScopeRuntime,
   metadata: WorkflowRunMetadata,
 ): void {
   const runDir = join(runtime.runStore.runsDir, metadata.id);
@@ -64,8 +63,8 @@ export function interruptedBuilderRun(id: string): WorkflowRunMetadata {
   };
 }
 
-export function emitReview(runtime: ProjectRuntime, taskId: string): void {
-  const runDir = join(runtime.project.projectDir, ".kota", "runs", "shared-review-run");
+export function emitReview(runtime: ScopeRuntime, taskId: string): void {
+  const runDir = join(runtime.scope.scopeRoot, ".kota", "runs", "shared-review-run");
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, "review-scrutiny.json"),
@@ -91,9 +90,9 @@ export function emitReview(runtime: ProjectRuntime, taskId: string): void {
   });
 }
 
-export function emitTrajectory(runtime: ProjectRuntime): void {
+export function emitTrajectory(runtime: ScopeRuntime): void {
   const artifactPath = join(
-    runtime.project.projectDir,
+    runtime.scope.scopeRoot,
     ".kota/runs/trajectory-run/steps/build.trajectory-diagnostics.json",
   );
   mkdirSync(join(artifactPath, ".."), { recursive: true });
@@ -113,7 +112,7 @@ export function emitTrajectory(runtime: ProjectRuntime): void {
     diagnostics: [{
       code: "missing_final_verification_after_edit",
       severity: "warning",
-      summary: `${runtime.project.projectId} missed final verification.`,
+      summary: `${runtime.scope.scopeId} missed final verification.`,
       frameIndexes: [3],
       details: ["lastEditFrame=3"],
     }],
@@ -141,7 +140,7 @@ export function emitTrajectory(runtime: ProjectRuntime): void {
 }
 
 export function applyScopeSignals(
-  projectDir: string,
+  scopeRoot: string,
   signals: readonly ScopedHealthSignal[],
 ): void {
   const review = buildAutonomyHealthReviewFromSignals({
@@ -150,21 +149,21 @@ export function applyScopeSignals(
     sourceEventName: "autonomy.health.signal",
     reason: "multi-scope-runtime-fixture",
   });
-  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const currentProjection = readAutonomyIssueProjection(scopeRoot);
   const repositoryActions = stageAutonomyHealthReviewActions({
-    projectDir,
+    workspaceRoot: scopeRoot,
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: scopeRoot,
     review,
   });
   const finalized = finalizeAutonomyHealthReviewActions({
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: scopeRoot,
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(scopeRoot, ".kota", "owner-questions"),
     ),
     review,
     repositoryActions,
   });
-  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  materializeAutonomyIssueProjection(scopeRoot, finalized.projection);
 }

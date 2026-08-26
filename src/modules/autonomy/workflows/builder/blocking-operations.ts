@@ -5,7 +5,7 @@ import {
 import { checkTargetTaskResolved } from "./task-state-repair-checks.js";
 
 export type BuilderRepairCheckOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   taskId: string;
 };
 
@@ -28,7 +28,7 @@ export function runBuilderRepairCheckInWorker(
   input: BuilderRepairCheckOperationInput,
 ): BuilderRepairCheckOperationResult {
   return captureRepairCheck(() =>
-    checkTargetTaskResolved(input.projectDir, input.taskId)
+    checkTargetTaskResolved(input.workspaceRoot, input.taskId)
   );
 }
 

@@ -46,23 +46,23 @@ export class AgentWriteScopeViolationError extends Error {
   }
 }
 
-function gitOutput(projectDir: string, args: readonly string[]): string {
+function gitOutput(scopeRoot: string, args: readonly string[]): string {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function gitNulPaths(projectDir: string, args: readonly string[]): string[] {
-  const output = gitOutput(projectDir, args);
+function gitNulPaths(scopeRoot: string, args: readonly string[]): string[] {
+  const output = gitOutput(scopeRoot, args);
   return output.length === 0 ? [] : output.slice(0, -1).split("\0");
 }
 
-function hasHead(projectDir: string): boolean {
+function hasHead(scopeRoot: string): boolean {
   const result = spawnSync("git", ["rev-parse", "--verify", "HEAD"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
@@ -79,19 +79,19 @@ function hasHead(projectDir: string): boolean {
  * untracked out-of-scope file fails the ownership gate instead of sneaking
  * into the commit.
  */
-export function listWorkflowMutatedPaths(projectDir: string): string[] {
-  gitOutput(projectDir, ["rev-parse", "--is-inside-work-tree"]);
-  if (hasHead(projectDir)) {
-    return readWorkspaceChanges(projectDir).map((change) => change.path);
+export function listWorkflowMutatedPaths(scopeRoot: string): string[] {
+  gitOutput(scopeRoot, ["rev-parse", "--is-inside-work-tree"]);
+  if (hasHead(scopeRoot)) {
+    return readWorkspaceChanges(scopeRoot).map((change) => change.path);
   }
-  const tracked = gitNulPaths(projectDir, [
+  const tracked = gitNulPaths(scopeRoot, [
     "diff",
     "--cached",
     "--name-only",
     "--no-renames",
     "-z",
   ]);
-  const untracked = gitNulPaths(projectDir, [
+  const untracked = gitNulPaths(scopeRoot, [
     "ls-files",
     "--others",
     "--exclude-standard",
@@ -113,10 +113,10 @@ export function findWorkflowScratchArtifactPaths(
     .sort();
 }
 
-function trackedWorkflowScratchArtifacts(projectDir: string): Set<string> {
+function trackedWorkflowScratchArtifacts(scopeRoot: string): Set<string> {
   let output = "";
   try {
-    output = gitOutput(projectDir, [
+    output = gitOutput(scopeRoot, [
       "ls-files",
       "--",
       ...WORKFLOW_SCRATCH_ARTIFACT_ROOTS,
@@ -135,13 +135,13 @@ function hasTrackedPathUnder(root: string, trackedPaths: ReadonlySet<string>): b
   return false;
 }
 
-export function removeWorkflowScratchArtifacts(projectDir: string): string[] {
-  const trackedPaths = trackedWorkflowScratchArtifacts(projectDir);
+export function removeWorkflowScratchArtifacts(scopeRoot: string): string[] {
+  const trackedPaths = trackedWorkflowScratchArtifacts(scopeRoot);
   const removed: string[] = [];
 
   for (const root of WORKFLOW_SCRATCH_ARTIFACT_ROOTS) {
     if (hasTrackedPathUnder(root, trackedPaths)) continue;
-    const absoluteRoot = resolve(projectDir, root);
+    const absoluteRoot = resolve(scopeRoot, root);
     if (!existsSync(absoluteRoot)) continue;
     rmSync(absoluteRoot, { recursive: true, force: true });
     removed.push(root);
@@ -149,7 +149,7 @@ export function removeWorkflowScratchArtifacts(projectDir: string): string[] {
 
   for (const path of WORKFLOW_SCRATCH_ARTIFACT_EXACT_PATHS) {
     if (trackedPaths.has(path)) continue;
-    const absolutePath = resolve(projectDir, path);
+    const absolutePath = resolve(scopeRoot, path);
     if (!existsSync(absolutePath)) continue;
     rmSync(absolutePath, { force: true });
     removed.push(path);
@@ -159,17 +159,17 @@ export function removeWorkflowScratchArtifacts(projectDir: string): string[] {
 }
 
 export function tryListWorkflowMutatedPaths(
-  projectDir: string,
+  scopeRoot: string,
 ): string[] | undefined {
   const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
   });
   if (result.error !== undefined) throw result.error;
   if (result.status !== 0 || result.stdout.trim() !== "true") return undefined;
-  return listWorkflowMutatedPaths(projectDir);
+  return listWorkflowMutatedPaths(scopeRoot);
 }
 
 /**
@@ -229,12 +229,12 @@ export function findWriteScopeViolations(
   scope: AgentWriteScope,
   runtimeWriteScopes: readonly string[] = [],
 ): string[] {
-  const projectMutations = runtimeWriteScopes.length === 0
+  const workspaceMutations = runtimeWriteScopes.length === 0
     ? [...mutated]
     : mutated.filter((path) => !pathInScope(path, runtimeWriteScopes));
-  if (scope === "deny-all") return projectMutations.sort();
+  if (scope === "deny-all") return workspaceMutations.sort();
   if (scope.length === 0) return [];
-  return projectMutations.filter((path) => !pathInScope(path, scope)).sort();
+  return workspaceMutations.filter((path) => !pathInScope(path, scope)).sort();
 }
 
 /**
@@ -248,10 +248,10 @@ export function writeWriteScopeViolationArtifact(args: {
   scope: AgentWriteScope;
   violations: readonly string[];
   metadata: WorkflowRunMetadata;
-  projectDir: string;
+  scopeRoot: string;
 }): void {
   const filePath = join(
-    resolve(args.projectDir, args.metadata.runDir),
+    resolve(args.scopeRoot, args.metadata.runDir),
     "steps",
     `${args.stepId}.write-scope-violation.json`,
   );

@@ -18,7 +18,7 @@ export function builderRepairChecks(): WorkflowRepairCheck[] {
       type: "code" as const,
       run: (ctx) =>
         runBuilderRepairCheck(withWorkflowBlockingOperation(ctx), {
-          projectDir: workflowWorkspaceDir(ctx),
+          workspaceRoot: workflowWorkspaceDir(ctx),
           taskId: String(ctx.trigger.payload.taskId),
         }),
     },

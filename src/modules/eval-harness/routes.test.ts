@@ -52,7 +52,7 @@ function mockRequest(body: string): IncomingMessage {
   } as unknown as IncomingMessage;
 }
 
-function makeFakeCtx(projectDir: string): ModuleContext {
+function makeFakeCtx(workspaceRoot: string): ModuleContext {
   const events = {
     emit: () => {},
     subscribe: () => () => {},
@@ -60,28 +60,28 @@ function makeFakeCtx(projectDir: string): ModuleContext {
     subscribeExternal: () => () => {},
     listenerCount: () => 0,
   } as unknown as ModuleContext["events"];
-  return { cwd: projectDir, events } as unknown as ModuleContext;
+  return { cwd: workspaceRoot, events } as unknown as ModuleContext;
 }
 
 describe("evalHarnessRoutes POST /api/eval/run", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "eval-routes-"));
-    mkdirSync(join(projectDir, "src/modules/eval-harness/fixtures"), {
+    workspaceRoot = mkdtempSync(join(tmpdir(), "eval-routes-"));
+    mkdirSync(join(workspaceRoot, "src/modules/eval-harness/fixtures"), {
       recursive: true,
     });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function findRunHandler(): (
     req: IncomingMessage,
     res: ServerResponse,
   ) => Promise<void> {
-    const ctx = makeFakeCtx(projectDir);
+    const ctx = makeFakeCtx(workspaceRoot);
     const routes = evalHarnessRoutes(ctx);
     const route = routes.find(
       (r) => r.method === "POST" && r.path === "/api/eval/run",
@@ -160,7 +160,7 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
   });
 
   it("registers the AGY suite route and rejects an empty candidate list", async () => {
-    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+    const route = evalHarnessRoutes(makeFakeCtx(workspaceRoot)).find(
       (candidate) =>
         candidate.method === "POST" &&
         candidate.path === "/api/eval/agy-models",
@@ -182,7 +182,7 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
   });
 
   it("rejects AGY host execution before dispatching the suite", async () => {
-    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+    const route = evalHarnessRoutes(makeFakeCtx(workspaceRoot)).find(
       (candidate) =>
         candidate.method === "POST" &&
         candidate.path === "/api/eval/agy-models",
@@ -210,7 +210,7 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
   });
 
   it("rejects AGY containers without Google provider egress", async () => {
-    const route = evalHarnessRoutes(makeFakeCtx(projectDir)).find(
+    const route = evalHarnessRoutes(makeFakeCtx(workspaceRoot)).find(
       (candidate) =>
         candidate.method === "POST" &&
         candidate.path === "/api/eval/agy-models",

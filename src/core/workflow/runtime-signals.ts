@@ -7,11 +7,11 @@ export const PAUSE_SIGNAL_FILE = "dispatch-paused";
 export const RELOAD_SIGNAL_FILE = "definitions-reload-request";
 
 export function checkAbortSignal(
-  projectDir: string,
+  scopeRoot: string,
   abortActiveRuns: () => number,
   log: (message: string) => void,
 ): void {
-  const signalPath = join(projectDir, ".kota", ABORT_SIGNAL_FILE);
+  const signalPath = join(scopeRoot, ".kota", ABORT_SIGNAL_FILE);
   if (!existsSync(signalPath)) return;
   try {
     rmSync(signalPath);
@@ -26,12 +26,12 @@ export function checkAbortSignal(
 }
 
 export function checkReloadSignal(
-  projectDir: string,
+  scopeRoot: string,
   loadDefinitions: () => WorkflowDefinition[],
   onReloaded: (defs: WorkflowDefinition[]) => void,
   log: (message: string) => void,
 ): void {
-  const signalPath = join(projectDir, ".kota", RELOAD_SIGNAL_FILE);
+  const signalPath = join(scopeRoot, ".kota", RELOAD_SIGNAL_FILE);
   if (!existsSync(signalPath)) return;
   try {
     rmSync(signalPath);

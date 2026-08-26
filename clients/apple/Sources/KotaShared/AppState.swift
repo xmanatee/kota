@@ -188,26 +188,26 @@ public final class AppState: ObservableObject {
     @Published var uiSurfaceEventsConnected = false
     @Published var liveUiLogEntries: [String: [UiLogEntry]] = [:]
 
-    /// Active project id used to scope every project-scoped daemon route
+    /// Active directory scope used to qualify every scope-aware daemon route
     /// (`/status`, `/workflow/runs`, `/workflow/trigger`, `/sessions`,
     /// …). `nil` until the first identity refresh resolves the registry's
-    /// default. Reseeds to `identity.projects.defaultProjectId` if the
+    /// default. Reseeds to `identity.scopeRegistry.defaultScopeId` if the
     /// current selection is no longer in the registry, matching the web
-    /// `ProjectProvider` behavior. Operator-driven switches go through
-    /// `setActiveProjectId(_:)`.
-    @Published public private(set) var activeProjectId: String?
+    /// `ScopeProvider` behavior. Operator-driven switches go through
+    /// `setActiveScopeId(_:)`.
+    @Published public private(set) var activeScopeId: String?
 
     /// Operator-facing classification of the current connection. Replaces
     /// the historical "Daemon offline" collapse with a discriminated state
-    /// that names which project, base URL, pid, and failure mode the menu
+    /// that names which scope, base URL, pid, and failure mode the menu
     /// bar should render. Updated on every refresh — see
     /// `deriveLocalDaemonDiagnostic` / `deriveRemoteDaemonDiagnostic`.
-    @Published var diagnostic: DaemonConnectionDiagnostic = .noProject
+    @Published var diagnostic: DaemonConnectionDiagnostic = .noScope
 
-    @Published var projectDir: URL? {
+    @Published var scopeRoot: URL? {
         didSet {
-            if let dir = projectDir {
-                UserDefaults.standard.set(dir.path, forKey: "projectDirectory")
+            if let dir = scopeRoot {
+                UserDefaults.standard.set(dir.path, forKey: "scopeDirectory")
             }
         }
     }
@@ -260,8 +260,8 @@ public final class AppState: ObservableObject {
         self.notifications = notifications
         self.platform = platform
         self.liveUiUpdatesEnabled = startPollingOnInit
-        if let stored = UserDefaults.standard.string(forKey: "projectDirectory") {
-            projectDir = URL(fileURLWithPath: stored)
+        if let stored = UserDefaults.standard.string(forKey: "scopeDirectory") {
+            scopeRoot = URL(fileURLWithPath: stored)
         }
         remoteURL = UserDefaults.standard.string(forKey: "remoteDaemonURL") ?? ""
         if startPollingOnInit {
@@ -357,19 +357,19 @@ public final class AppState: ObservableObject {
     }
 
     private func refreshLocal() async {
-        guard let dir = projectDir else {
+        guard let dir = scopeRoot else {
             health = .offline
-            diagnostic = .noProject
+            diagnostic = .noScope
             resetOfflineDaemonState()
             return
         }
 
-        let controlFileState = classifyDaemonControlFile(projectDir: dir)
+        let controlFileState = classifyDaemonControlFile(scopeRoot: dir)
         switch controlFileState {
         case .missing, .unreadable, .stale:
             health = .offline
             diagnostic = deriveLocalDaemonDiagnostic(
-                selectedProjectDir: dir,
+                selectedScopeRoot: dir,
                 controlFileState: controlFileState,
                 identityProbe: nil
             )
@@ -379,15 +379,15 @@ public final class AppState: ObservableObject {
             break
         }
 
-        let connected = client.refreshConnection(projectDir: dir)
+        let connected = client.refreshConnection(scopeRoot: dir)
         guard connected else {
             // The control file went away (or became unreadable) between the
             // classification above and the connection refresh — fall through
             // to the same offline rendering instead of pretending we tried.
             health = .offline
             diagnostic = deriveLocalDaemonDiagnostic(
-                selectedProjectDir: dir,
-                controlFileState: classifyDaemonControlFile(projectDir: dir),
+                selectedScopeRoot: dir,
+                controlFileState: classifyDaemonControlFile(scopeRoot: dir),
                 identityProbe: nil
             )
             resetOfflineDaemonState()
@@ -396,7 +396,7 @@ public final class AppState: ObservableObject {
 
         await fetchAll()
         diagnostic = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeRoot: dir,
             controlFileState: controlFileState,
             identityProbe: lastIdentityProbe
         )
@@ -417,24 +417,28 @@ public final class AppState: ObservableObject {
         isLoadingUiSurfaces = false
         liveUiLogEntries = [:]
         stopUiSurfaceEventStream()
-        activeProjectId = nil
+        activeScopeId = nil
         lastIdentityProbe = nil
         clearOnDemandForOffline()
     }
 
-    /// Switch the active project. Throws if `projectId` is not in the
-    /// current registry — the caller (project selector view) should
+    /// Switch the active directory scope. The selector only passes ids backed
+    /// by a directory, so an unknown or non-directory id is a programming
     /// only ever pass a known id, so an unknown id is a programming
-    /// error, not a runtime fallback. Switching clears project-scoped
+    /// error, not a runtime fallback. Switching clears scope-bound
     /// runtime state immediately so a stale row can never paint the
-    /// new project's view, then triggers an immediate refresh.
-    public func setActiveProjectId(_ projectId: String) {
-        guard let identity, identity.projects.projects.contains(where: { $0.projectId == projectId }) else {
-            assertionFailure("setActiveProjectId(\(projectId)): not in identity.projects")
+    /// new scope's view, then triggers an immediate refresh.
+    public func setActiveScopeId(_ scopeId: String) {
+        guard let identity,
+              identity.scopeRegistry.scopes.contains(where: {
+                  $0.scopeId == scopeId && $0.directoryRoot != nil
+              })
+        else {
+            assertionFailure("setActiveScopeId(\(scopeId)): not a directory-backed scope")
             return
         }
-        guard projectId != activeProjectId else { return }
-        activeProjectId = projectId
+        guard scopeId != activeScopeId else { return }
+        activeScopeId = scopeId
         activeRuns = []
         pendingApprovals = []
         pendingOwnerQuestions = []
@@ -862,10 +866,10 @@ public final class AppState: ObservableObject {
     }
 
     private func fetchAll() async {
-        // Resolve identity + capabilities + projects first so the active
-        // project id is up to date before the project-scoped fetches
+        // Resolve identity and capabilities first so the active directory
+        // scope is up to date before scope-aware fetches
         // fan out. Without this, the very first poll after launch would
-        // send `?projectId=` empty (default project) while the operator
+        // send `?scopeId=` empty (the default scope) while the operator
         // had previously selected a non-default one.
         let identityResult: Result<ClientIdentity, Error>
         do { identityResult = .success(try await client.fetchIdentity()) }
@@ -875,17 +879,17 @@ public final class AppState: ObservableObject {
         case .success(let id):
             identity = id
             lastIdentityProbe = .ok(id)
-            reconcileActiveProjectId(with: id.projects)
+            reconcileActiveScopeId(with: id.scopeRegistry)
         case .failure(let error):
             identity = nil
             lastIdentityProbe = classifyIdentityFailure(error)
-            activeProjectId = nil
+            activeScopeId = nil
         }
 
-        let scopedId = activeProjectId
+        let scopedId = activeScopeId
 
         async let statusResult: Result<DaemonStatusResponse, Error> = {
-            do { return .success(try await client.fetchStatus(projectId: scopedId)) }
+            do { return .success(try await client.fetchStatus(scopeId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let approvalsResult: Result<ApprovalsResponse, Error> = {
@@ -901,11 +905,11 @@ public final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
         async let sessionsResult: Result<SessionsResponse, Error> = {
-            do { return .success(try await client.fetchSessions(projectId: scopedId)) }
+            do { return .success(try await client.fetchSessions(scopeId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let recentRunsResult: Result<RunHistoryResponse, Error> = {
-            do { return .success(try await client.fetchRecentRuns(projectId: scopedId)) }
+            do { return .success(try await client.fetchRecentRuns(scopeId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let capabilitiesResult: Result<CapabilityReadinessResponse, Error> = {
@@ -913,7 +917,7 @@ public final class AppState: ObservableObject {
             catch { return .failure(error) }
         }()
         async let definitionsResult: Result<WorkflowDefinitionsResponse, Error> = {
-            do { return .success(try await client.fetchWorkflowDefinitions(projectId: scopedId)) }
+            do { return .success(try await client.fetchWorkflowDefinitions(scopeId: scopedId)) }
             catch { return .failure(error) }
         }()
         async let surfacesResult: Result<UiSurfaceBundle, Error> = {
@@ -999,7 +1003,7 @@ public final class AppState: ObservableObject {
     func refreshUiSurfaceBundle() async {
         isLoadingUiSurfaces = true
         do {
-            let bundle = try await client.fetchUiSurfaceBundle(scopeId: activeProjectId)
+            let bundle = try await client.fetchUiSurfaceBundle(scopeId: activeScopeId)
             applyUiSurfaceBundle(bundle)
         } catch {
             uiSurfaceError = DaemonErrorPresenter.message(for: error)
@@ -1042,7 +1046,7 @@ public final class AppState: ObservableObject {
     }
 
     func pickUiPath() async -> URL? {
-        await platform.pickProjectDirectory()
+        await platform.pickScopeDirectory()
     }
 
     private func applyUiSurfaceBundle(_ bundle: UiSurfaceBundle) {
@@ -1184,33 +1188,37 @@ public final class AppState: ObservableObject {
     }
 
     func triggerWorkflow(name: String, payload: Data? = nil) async throws {
-        _ = try await client.triggerWorkflow(name: name, payload: payload, projectId: activeProjectId)
+        _ = try await client.triggerWorkflow(name: name, payload: payload, scopeId: activeScopeId)
         await refresh()
     }
 
     func createSession(autonomyMode: AutonomyMode? = nil) async -> String? {
-        return try? await client.createSession(autonomyMode: autonomyMode, projectId: activeProjectId)
+        return try? await client.createSession(autonomyMode: autonomyMode, scopeId: activeScopeId)
     }
 
     func endSession(_ id: String) async {
-        try? await client.deleteSession(id: id, projectId: activeProjectId)
+        try? await client.deleteSession(id: id, scopeId: activeScopeId)
         await refresh()
     }
 
     func setSessionAutonomyMode(id: String, mode: AutonomyMode) async {
-        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode, projectId: activeProjectId)
+        _ = try? await client.setSessionAutonomyMode(id: id, mode: mode, scopeId: activeScopeId)
         await refresh()
     }
 
-    /// Reseed `activeProjectId` from the latest registry projection.
+    /// Reseed `activeScopeId` from the latest registry projection.
     /// Reused by the polling loop and by tests that drive the registry
-    /// directly. Mirrors the web `ProjectProvider` behavior — preserves
-    /// an existing valid selection, falls back to `defaultProjectId`
+    /// directly. Mirrors the web `ScopeProvider` behavior — preserves
+    /// an existing valid selection, falls back to `defaultScopeId`
     /// when the prior selection is no longer in the registry.
-    func reconcileActiveProjectId(with projection: ProjectRegistryProjection) {
-        let knownIds = Set(projection.projects.map { $0.projectId })
-        if let current = activeProjectId, knownIds.contains(current) { return }
-        activeProjectId = projection.defaultProjectId
+    func reconcileActiveScopeId(with projection: ScopeRegistryProjection) {
+        let directoryScopeIds = Set(
+            projection.scopes.compactMap { $0.directoryRoot == nil ? nil : $0.scopeId }
+        )
+        if let current = activeScopeId, directoryScopeIds.contains(current) { return }
+        activeScopeId = directoryScopeIds.contains(projection.defaultScopeId)
+            ? projection.defaultScopeId
+            : directoryScopeIds.first
     }
 
     public func openDashboard() {
@@ -1220,7 +1228,7 @@ public final class AppState: ObservableObject {
 
     func pauseWorkflowDispatch() async {
         do {
-            _ = try await client.pauseWorkflow(projectId: activeProjectId)
+            _ = try await client.pauseWorkflow(scopeId: activeScopeId)
             await refresh()
         } catch {
             health = .error(DaemonErrorPresenter.message(for: error))
@@ -1229,16 +1237,16 @@ public final class AppState: ObservableObject {
 
     func resumeWorkflowDispatch() async {
         do {
-            _ = try await client.resumeWorkflow(projectId: activeProjectId)
+            _ = try await client.resumeWorkflow(scopeId: activeScopeId)
             await refresh()
         } catch {
             health = .error(DaemonErrorPresenter.message(for: error))
         }
     }
 
-    public func promptForProjectDirectory() async {
-        if let url = await platform.pickProjectDirectory() {
-            projectDir = url
+    public func promptForScopeDirectory() async {
+        if let url = await platform.pickScopeDirectory() {
+            scopeRoot = url
             startPolling()
         }
     }

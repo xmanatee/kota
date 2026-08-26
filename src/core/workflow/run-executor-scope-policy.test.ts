@@ -31,34 +31,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -96,11 +96,11 @@ afterEach(() => {
 
 describe("workflow scope policy execution", () => {
   it("threads live scope policy into workflow tool execution", async () => {
-    const projectDir = join(
+    const workspaceRoot = join(
       tmpdir(),
       `kota-run-executor-policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     try {
       registerTool(
         {
@@ -117,28 +117,28 @@ describe("workflow scope policy execution", () => {
         "run-executor-scope-policy-test",
         { effect: localWriteEffect() },
       );
-      const policy = policyFor(projectDir, true);
+      const policy = policyFor(workspaceRoot, true);
       const runTool = vi.fn(async () => ({ content: "bypassed policy" }));
       const definition: WorkflowDefinition = {
         name: "scope-policy-test",
         enabled: true,
         repository: "none",
         definitionPath: "src/modules/test/workflows/scope-policy/workflow.ts",
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         triggers: [],
         steps: [{
           id: "write",
           type: "tool",
           tool: POLICY_WRITE_TOOL,
-          input: { path: join(projectDir, "output.txt") },
+          input: { path: join(workspaceRoot, "output.txt") },
         }],
         tags: [],
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        runContext: makeRunContext(projectDir, TRIGGER),
+        runContext: makeRunContext(workspaceRoot, TRIGGER),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
         runTool,
         scopePolicyAuthority: authorityFor(policy),
@@ -152,16 +152,16 @@ describe("workflow scope policy execution", () => {
       expect(runTool).not.toHaveBeenCalled();
     } finally {
       deregisterTool(POLICY_WRITE_TOOL);
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("cancels and quarantines an opaque native harness after a restrictive revision", async () => {
-    const projectDir = join(
+    const workspaceRoot = join(
       tmpdir(),
       `kota-run-executor-live-policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     try {
       const harnessName = "run-executor-live-scope-policy";
       let markHarnessStarted = () => {};
@@ -174,8 +174,8 @@ describe("workflow scope policy execution", () => {
       });
       let lateWriterAccepted: boolean | undefined;
       let childTerminationSignal: NodeJS.Signals | null = null;
-      const childStartedPath = join(projectDir, "native-child-started.txt");
-      const lateMutationPath = join(projectDir, "after-restriction.txt");
+      const childStartedPath = join(workspaceRoot, "native-child-started.txt");
+      const lateMutationPath = join(workspaceRoot, "after-restriction.txt");
       registerAgentHarness({
         name: harnessName,
         description: "runs an opaque native process with a confirmed stop barrier",
@@ -210,7 +210,7 @@ describe("workflow scope policy execution", () => {
               lateMutationPath,
             ],
             {
-              cwd: projectDir,
+              cwd: workspaceRoot,
               ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
               stdio: ["pipe", "pipe", "pipe"],
             },
@@ -264,22 +264,22 @@ describe("workflow scope policy execution", () => {
           };
         },
       });
-      writeFileSync(join(projectDir, "prompt.md"), "Wait for policy changes.\n");
-      const scopeId = deriveDirectoryScopeId(projectDir);
-      const authority = mutableAuthority(scopeId, policyFor(projectDir, false));
+      writeFileSync(join(workspaceRoot, "prompt.md"), "Wait for policy changes.\n");
+      const scopeId = deriveDirectoryScopeId(workspaceRoot);
+      const authority = mutableAuthority(scopeId, policyFor(workspaceRoot, false));
       const definition: WorkflowDefinition = {
         name: "live-scope-policy-test",
         enabled: true,
         repository: "none",
         definitionPath: "src/modules/test/workflows/live-scope-policy/workflow.ts",
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         triggers: [],
         steps: [{
           id: "agent",
           type: "agent",
           harness: harnessName,
           promptPath: "prompt.md",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           model: "test-model",
           effort: "low",
           autonomyMode: "autonomous",
@@ -289,9 +289,9 @@ describe("workflow scope policy execution", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        runContext: makeRunContext(projectDir, TRIGGER),
+        runContext: makeRunContext(workspaceRoot, TRIGGER),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
         scopePolicyAuthority: authority,
       });
@@ -306,7 +306,7 @@ describe("workflow scope policy execution", () => {
         }),
       ]);
       expect(existsSync(childStartedPath)).toBe(true);
-      authority.restrict(policyFor(projectDir, true));
+      authority.restrict(policyFor(workspaceRoot, true));
       const result = await promise;
       await harnessFinished;
       await new Promise((resolve) => setTimeout(resolve, 350));
@@ -322,7 +322,7 @@ describe("workflow scope policy execution", () => {
       expect(childTerminationSignal).toBe("SIGKILL");
       expect(existsSync(lateMutationPath)).toBe(false);
       const eventsPath = join(
-        projectDir,
+        workspaceRoot,
         result.metadata.runDir,
         "steps",
         "agent.events.jsonl",
@@ -332,16 +332,16 @@ describe("workflow scope policy execution", () => {
       expect(events).not.toContain("late-native-write");
       expect(events).not.toContain("stale success");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("releases authority listeners when a KOTA-controlled harness ignores a step timeout", async () => {
-    const projectDir = join(
+    const workspaceRoot = join(
       tmpdir(),
       `kota-run-executor-policy-timeout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     try {
       const harnessName = "run-executor-opaque-timeout";
       let markHarnessStarted = () => {};
@@ -378,22 +378,22 @@ describe("workflow scope policy execution", () => {
           };
         },
       });
-      writeFileSync(join(projectDir, "prompt.md"), "Wait past the timeout.\n");
-      const scopeId = deriveDirectoryScopeId(projectDir);
-      const authority = mutableAuthority(scopeId, policyFor(projectDir, false));
+      writeFileSync(join(workspaceRoot, "prompt.md"), "Wait past the timeout.\n");
+      const scopeId = deriveDirectoryScopeId(workspaceRoot);
+      const authority = mutableAuthority(scopeId, policyFor(workspaceRoot, false));
       const definition: WorkflowDefinition = {
         name: "opaque-timeout-policy-test",
         enabled: true,
         repository: "none",
         definitionPath: "src/modules/test/workflows/opaque-timeout/workflow.ts",
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         triggers: [],
         steps: [{
           id: "agent",
           type: "agent",
           harness: harnessName,
           promptPath: "prompt.md",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           model: "test-model",
           effort: "low",
           autonomyMode: "autonomous",
@@ -403,9 +403,9 @@ describe("workflow scope policy execution", () => {
       };
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        runContext: makeRunContext(projectDir, TRIGGER),
+        runContext: makeRunContext(workspaceRoot, TRIGGER),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
         scopePolicyAuthority: authority,
       });
@@ -418,14 +418,14 @@ describe("workflow scope policy execution", () => {
       releaseHarness();
       await harnessFinished;
       const events = readFileSync(
-        join(projectDir, result.metadata.runDir, "steps", "agent.events.jsonl"),
+        join(workspaceRoot, result.metadata.runDir, "steps", "agent.events.jsonl"),
         "utf-8",
       );
       expect(events).toContain("agent.started");
       expect(events).not.toContain("late.after-timeout");
       expect(events).not.toContain("stale success after timeout");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });
@@ -437,8 +437,8 @@ function authorityFor(policy: ResolvedScopePolicy): ScopePolicyAuthority {
   };
 }
 
-function policyFor(projectDir: string, readOnly: boolean): ResolvedScopePolicy {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function policyFor(workspaceRoot: string, readOnly: boolean): ResolvedScopePolicy {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   return resolveScopePolicy({
     projection: {
       rootScopeId: "global",
@@ -449,7 +449,7 @@ function policyFor(projectDir: string, readOnly: boolean): ResolvedScopePolicy {
           scopeId,
           displayName: "Fixture",
           parentScopeId: "global",
-          directoryRoot: projectDir,
+          directoryRoot: workspaceRoot,
         },
       ],
     },

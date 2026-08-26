@@ -137,7 +137,7 @@ function baseRecord(
 
 function workflowAttributes(payload: StepCompletedPayload): SecurityLogAttributes {
   return {
-    "project.id": payload.projectId,
+    "scope.id": payload.scopeId,
     "workflow.name": payload.workflow,
     "workflow.run_id": payload.runId,
     "workflow.step.id": payload.stepId,
@@ -149,12 +149,12 @@ function workflowAttributes(payload: StepCompletedPayload): SecurityLogAttribute
 }
 
 function readToolTelemetryArtifact(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
   stepId: string,
   onEnrichmentError: SecurityLogLogger,
 ): ToolTelemetryArtifact | undefined {
-  const filePath = join(resolve(projectDir, runDir), "steps", `${stepId}.tool-telemetry.json`);
+  const filePath = join(resolve(scopeRoot, runDir), "steps", `${stepId}.tool-telemetry.json`);
   if (!existsSync(filePath)) return undefined;
   try {
     return JSON.parse(readFileSync(filePath, "utf-8")) as ToolTelemetryArtifact;
@@ -166,12 +166,12 @@ function readToolTelemetryArtifact(
 }
 
 function readAgentStepSessionId(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
   stepId: string,
   onEnrichmentError: SecurityLogLogger,
 ): string | undefined {
-  const filePath = join(resolve(projectDir, runDir), "steps", `${stepId}.json`);
+  const filePath = join(resolve(scopeRoot, runDir), "steps", `${stepId}.json`);
   if (!existsSync(filePath)) return undefined;
   try {
     const artifact = JSON.parse(readFileSync(filePath, "utf-8")) as AgentStepResultArtifact;
@@ -271,7 +271,7 @@ export function createSecurityLogExporter(config: TracingConfig): SecurityLogExp
 
 export class SecurityLogEmitter {
   constructor(
-    private readonly projectDir: string,
+    private readonly scopeRoot: string,
     private readonly exporter: SecurityLogExporter,
     private readonly onExportError: SecurityLogLogger = () => {},
   ) {}
@@ -289,7 +289,7 @@ export class SecurityLogEmitter {
 
   onApprovalRequested(payload: ApprovalRequestedPayload): void {
     this.publish(baseRecord("approval.requested", "WARN", {
-      "project.id": payload.projectId,
+      "scope.id": payload.scopeId,
       "approval.id": payload.id,
       "tool.name": payload.tool,
       "tool.risk": payload.risk,
@@ -302,7 +302,7 @@ export class SecurityLogEmitter {
 
   onApprovalResolved(payload: ApprovalResolvedPayload): void {
     this.publish(baseRecord("approval.resolved", "INFO", {
-      "project.id": payload.projectId,
+      "scope.id": payload.scopeId,
       "approval.id": payload.id,
       "approval.approved": payload.approved,
       "approval.outcome": payload.approved ? "approved" : "rejected",
@@ -330,7 +330,7 @@ export class SecurityLogEmitter {
   onStepCompleted(payload: StepCompletedPayload): void {
     if (payload.stepType !== "agent") return;
     const artifact = readToolTelemetryArtifact(
-      this.projectDir,
+      this.scopeRoot,
       payload.runDir,
       payload.stepId,
       this.onExportError,
@@ -338,7 +338,7 @@ export class SecurityLogEmitter {
     if (!artifact) return;
 
     const sessionId = readAgentStepSessionId(
-      this.projectDir,
+      this.scopeRoot,
       payload.runDir,
       payload.stepId,
       this.onExportError,

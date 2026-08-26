@@ -22,7 +22,7 @@ import {
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
-import { projectSetupStatusOntoManifest } from "./module-manifest.js";
+import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import {
   initProviderRegistry,
@@ -44,7 +44,7 @@ function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
     description,
     sanitize: (raw) => (typeof raw === "object" && raw !== null ? raw : undefined) as never,
     merge: (base, override) => ({ ...(base as object), ...(override as object) }) as never,
-    projectConfigSafety: "authority",
+    scopeConfigSafety: "authority",
     schemaSource: { relativePath: "test", typeName: "TestConfig" },
   };
 }
@@ -205,7 +205,7 @@ describe("ModuleLoader", () => {
           kind: "secret",
           title: "API credential",
           required: true,
-          scope: "project",
+          scope: "scope",
           owner: "manifest-mod",
           sensitivity: "secret",
           health: { capabilityIds: ["manifest-mod.api"] },
@@ -214,7 +214,7 @@ describe("ModuleLoader", () => {
             url: "https://example.invalid/settings",
             label: "Open settings",
           },
-          secretRefs: [{ name: "MANIFEST_MOD_TOKEN", scope: "project" }],
+          secretRefs: [{ name: "MANIFEST_MOD_TOKEN", scope: "scope" }],
         },
       ],
       routes: () => [{ method: "GET", path: "/api/manifest", handler: () => undefined }],
@@ -262,7 +262,7 @@ describe("ModuleLoader", () => {
             id: "manifest-mod.credential",
             description: "Fixture credential reference.",
             sensitivity: "credential",
-            retention: "project-durable",
+            retention: "scope-durable",
             redaction: "mask-secret",
           },
         ],
@@ -342,14 +342,14 @@ describe("ModuleLoader", () => {
     expect(JSON.stringify(manifest)).not.toContain("MANIFEST_MOD_TOKEN");
 
     if (!manifest) throw new Error("manifest projection missing");
-    const withSetupStatus = projectSetupStatusOntoManifest(manifest, [
+    const withSetupStatus = scopeSetupStatusOntoManifest(manifest, [
       {
         moduleName: "manifest-mod",
         requirementId: "api-credential",
         kind: "secret",
         title: "API credential",
         required: true,
-        scope: "project",
+        scope: "scope",
         sensitivity: "secret",
         setup: {
           mode: "url",
@@ -838,7 +838,7 @@ describe("ModuleLoader", () => {
     expect(routes[0]).toEqual({ method: "GET", path: "/api/test", handler });
   });
 
-  it("project module load failure throws from loadAll", async () => {
+  it("bundled module load failure throws from loadAll", async () => {
     const loader = new ModuleLoader({});
     const chunks: string[] = [];
     installRenderingCapture(chunks);
@@ -851,7 +851,7 @@ describe("ModuleLoader", () => {
         },
         { name: "good-mod" },
       ]),
-    ).rejects.toThrow("1 project module(s) failed to load");
+    ).rejects.toThrow("1 bundled module(s) failed to load");
 
     // Good module still loaded despite the throw
     expect(loader.getLoadedModules()).toEqual(["good-mod"]);
@@ -920,7 +920,7 @@ describe("ModuleLoader", () => {
 
     expect(goodSummary).toBeDefined();
     expect(goodSummary?.loadError).toBeUndefined();
-    expect(goodSummary?.source).toBe("project");
+    expect(goodSummary?.source).toBe("bundled");
 
     expect(badSummary).toBeDefined();
     expect(badSummary?.loadError).toBe("it broke");
@@ -1253,7 +1253,7 @@ describe("source reimport", () => {
     resetGroups();
     tmpDir = mkdtempSync(join(tmpdir(), "kota-reimport-"));
     globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
   });
 
   afterEach(() => {
@@ -1574,7 +1574,7 @@ describe("Module SDK — storage, config, skills", () => {
     expect(prompt).toContain("Use the helper tool for quick lookups.");
   });
 
-  it("loads packaged module skill content outside the project directory", async () => {
+  it("loads packaged module skill content outside the scope directory", async () => {
     const loader = new ModuleLoader({}, false);
     loader.setCwd(tmpDir);
     await loader.load({

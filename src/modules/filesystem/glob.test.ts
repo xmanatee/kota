@@ -85,19 +85,19 @@ describe("runGlob", () => {
 
   it("excludes cased .kota credential aliases", async () => {
     const originalCwd = process.cwd();
-    const projectDir = mkdtempSync(join(tmpdir(), "glob-protected-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "glob-protected-"));
     try {
-      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
-      writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
-      writeFileSync(join(projectDir, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
-      process.chdir(projectDir);
+      mkdirSync(join(scopeRoot, ".KOTA"), { recursive: true });
+      writeFileSync(join(scopeRoot, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      writeFileSync(join(scopeRoot, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
+      process.chdir(scopeRoot);
 
       const result = await runGlob({ pattern: "**/*", path: ".KOTA" });
 
       expect(result.content).toBe("No files matched.");
     } finally {
       process.chdir(originalCwd);
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

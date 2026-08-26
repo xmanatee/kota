@@ -63,16 +63,16 @@ function makeStubCtx(cwd: string, bus: EventBus): ModuleRuntimeContext {
 }
 
 describe("pushNotificationModule bus subscriptions", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalFetch: typeof globalThis.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
   let bus: EventBus;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-push-module-"));
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-module-"));
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota/push-tokens.json"),
+      join(scopeRoot, ".kota/push-tokens.json"),
       JSON.stringify({
         tokens: {
           "device-a": {
@@ -89,13 +89,13 @@ describe("pushNotificationModule bus subscriptions", () => {
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     bus = new EventBus();
-    pushNotificationModule.onLoad!(makeStubCtx(projectDir, bus));
+    pushNotificationModule.onLoad!(makeStubCtx(scopeRoot, bus));
   });
 
   afterEach(() => {
     pushNotificationModule.onUnload!();
     globalThis.fetch = originalFetch;
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   async function flushFetch(): Promise<void> {

@@ -1,4 +1,4 @@
-import { isOutsideProject, resolvePathFrom } from "./project-path-policy.js";
+import { isPathOutsideRoot, resolvePathFrom } from "./path-containment.js";
 
 export type EnvironmentOverrideClass =
   | "credential/token"
@@ -263,12 +263,12 @@ export function formatWorkingDirectoryReasons(
     ? resolvePathFrom(process.cwd(), cwdInput)
     : process.cwd();
 
-  if (cwdInput && isOutsideProject(cwdInput)) {
+  if (cwdInput && isPathOutsideRoot(cwdInput)) {
     reasons.push("project/root working directory override detected");
   }
 
   const changedDirectory = extractLeadingDirectoryChange(command);
-  if (changedDirectory && isOutsideProject(changedDirectory, commandStartDirectory)) {
+  if (changedDirectory && isPathOutsideRoot(changedDirectory, commandStartDirectory)) {
     reasons.push("project/root directory-changing command detected");
   }
 

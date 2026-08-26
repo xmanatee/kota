@@ -38,14 +38,14 @@ function emptyInspected(): RuntimeHealthAudit["inspected"] {
 }
 
 describe("autonomy-health-reviewer workflow", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-health-reviewer-workflow-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-health-reviewer-workflow-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("reviews health signals and audits persisted runtime evidence on a cadence", () => {
@@ -97,7 +97,7 @@ describe("autonomy-health-reviewer workflow", () => {
       signals: [],
     };
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "harness",
@@ -121,7 +121,7 @@ describe("autonomy-health-reviewer workflow", () => {
 
   it("writes the full runtime audit artifact before review uses compact output", async () => {
     const harness = new WorkflowTestHarness(autonomyHealthReviewerWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger: {
         event: "autonomy.runtime-health.audit.scheduled",
         payload: { scheduledAt: "2026-06-22T21:05:00.000Z" },
@@ -136,7 +136,7 @@ describe("autonomy-health-reviewer workflow", () => {
     expect(result.status).toBe("success");
     expect(output).not.toHaveProperty("audit");
     expect(output.artifactPath).toBe(
-      join(projectDir, ".kota", "runs", "harness", RUNTIME_HEALTH_AUDIT_ARTIFACT),
+      join(workspaceRoot, ".kota", "runs", "harness", RUNTIME_HEALTH_AUDIT_ARTIFACT),
     );
     expect(existsSync(output.artifactPath)).toBe(true);
     const artifact = JSON.parse(

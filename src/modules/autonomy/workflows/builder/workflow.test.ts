@@ -60,7 +60,7 @@ describe("targeted builder contract", () => {
     };
     expect(builderWorkflow.repository).toBe("write");
     expect(builderWorkflow.resources?.({
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       stateDir: "/repo/.kota",
       workflowName: "builder",
       trigger,
@@ -76,7 +76,7 @@ describe("targeted builder contract", () => {
     const payload = listBuilderTaskDispatches(root)[0]!;
     writeTask(root, "ready", "changed");
 
-    expect(inspectBuilderTaskTarget({ projectDir: root, payload })).toMatchObject({
+    expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({
       ready: false,
       taskId: "task-target",
       reason: "task contract changed after dispatch",
@@ -90,8 +90,8 @@ describe("targeted builder contract", () => {
     const invariant = builderWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing builder post-reconcile invariant");
     const input = {
-      projectDir: root,
-      scopeDir: root,
+      workspaceRoot: root,
+      repoRoot: root,
       stateDir: join(root, ".kota"),
       workflowName: "builder",
       trigger: {

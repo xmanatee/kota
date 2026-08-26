@@ -27,7 +27,7 @@ function summarizePattern(
 }
 
 export function buildOwnerInterventionEscalationReport(args: {
-  projectDir: string;
+  workspaceRoot: string;
   patterns: readonly OwnerInterventionPattern[];
   ignoredPatterns: readonly OwnerInterventionPattern[];
   belowThresholdPatterns: readonly OwnerInterventionPattern[];
@@ -37,7 +37,7 @@ export function buildOwnerInterventionEscalationReport(args: {
   return {
     activePatterns: args.patterns
       .map((pattern) => {
-        const proposal = proposeOwnerInterventionEscalation(args.projectDir, pattern);
+        const proposal = proposeOwnerInterventionEscalation(args.workspaceRoot, pattern);
         const reason = "reason" in proposal ? proposal.reason : pattern.codeActionableReason ?? pattern.kind;
         return summarizePattern(pattern, proposal.action, reason);
       })

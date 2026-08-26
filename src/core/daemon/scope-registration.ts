@@ -1,5 +1,4 @@
 import { JsonFileError } from "#core/util/json-file.js";
-import type { ProjectRuntime } from "./project-runtime.js";
 import { resolveLiveDirectoryScope } from "./scope-directory.js";
 import {
   type DirectoryScopeRegistrationInput,
@@ -8,6 +7,7 @@ import {
   type ScopeLifecycleOptions,
   type ScopeRegistrationResult,
 } from "./scope-lifecycle-types.js";
+import type { ScopeRuntime } from "./scope-runtime.js";
 
 export async function registerDirectoryScope(
   options: ScopeLifecycleOptions,
@@ -21,77 +21,77 @@ export async function registerDirectoryScope(
     };
   }
   const resolved = resolveLiveDirectoryScope({
-    projectDir: input.directoryRoot,
+    scopeRoot: input.directoryRoot,
     ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
   });
   if (!resolved.ok) {
     return { ok: false, reason: resolved.reason, message: resolved.message };
   }
-  const project = resolved.project;
-  const existing = options.registry.getByDir(project.projectDir)
-    ?? options.registry.get(project.projectId);
+  const scope = resolved.scope;
+  const existing = options.registry.getByRoot(scope.scopeRoot)
+    ?? options.registry.get(scope.scopeId);
   if (existing) {
     return {
       ok: false,
       reason: "duplicate_scope",
-      message: `Directory scope ${existing.projectId} is already registered`,
-      scopeId: existing.projectId,
+      message: `Directory scope ${existing.scopeId} is already registered`,
+      scopeId: existing.scopeId,
       existing: registeredDirectoryScope(
-        existing.projectId,
-        existing.projectDir,
+        existing.scopeId,
+        existing.scopeRoot,
         existing.displayName,
       ),
     };
   }
 
-  let runtime: ProjectRuntime;
+  let runtime: ScopeRuntime;
   try {
-    runtime = options.runtimes.createDetached(project);
+    runtime = options.runtimes.createDetached(scope);
   } catch (error) {
     return {
       ok: false,
       reason: "runtime_start_failed",
       message: errorMessage(error as Error),
-      scopeId: project.projectId,
+      scopeId: scope.scopeId,
     };
   }
 
   try {
     // Commit the durable authority before activation. Even paused workflow
     // startup performs recovery writes, so it cannot be used as a preflight.
-    options.registry.add(project);
+    options.registry.add(scope);
   } catch (error) {
     return {
       ok: false,
       reason: error instanceof JsonFileError ? "persistence_failed" : "runtime_start_failed",
       message: errorMessage(error as Error),
-      scopeId: project.projectId,
+      scopeId: scope.scopeId,
     };
   }
 
   try {
-    options.runState.registerProject({
-      id: project.projectId,
-      rootPath: project.projectDir,
-      displayName: project.displayName,
+    options.runState.registerScope({
+      id: scope.scopeId,
+      rootPath: scope.scopeRoot,
+      displayName: scope.displayName,
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
     try {
-      options.registry.remove(project.projectId);
+      options.registry.remove(scope.scopeId);
     } catch (rollbackError) {
       return {
         ok: false,
         reason: "rollback_failed",
         message: `${errorMessage(error as Error)}; rollback failed: ${errorMessage(rollbackError as Error)}`,
-        scopeId: project.projectId,
+        scopeId: scope.scopeId,
       };
     }
     return {
       ok: false,
       reason: "persistence_failed",
       message: errorMessage(error as Error),
-      scopeId: project.projectId,
+      scopeId: scope.scopeId,
     };
   }
 
@@ -107,14 +107,14 @@ export async function registerDirectoryScope(
         ok: false,
         reason: "rollback_failed",
         message: `${errorMessage(error as Error)}; rollback failed: ${rollbackFailure}`,
-        scopeId: project.projectId,
+        scopeId: scope.scopeId,
       };
     }
     return {
       ok: false,
       reason: "runtime_start_failed",
       message: errorMessage(error as Error),
-      scopeId: project.projectId,
+      scopeId: scope.scopeId,
     };
   }
 
@@ -122,24 +122,24 @@ export async function registerDirectoryScope(
 
   options.bus.emit("scope.lifecycle.changed", {
     transition: "registered",
-    affectedScopeId: project.projectId,
-    directoryRoot: project.projectDir,
-    displayName: project.displayName,
+    affectedScopeId: scope.scopeId,
+    directoryRoot: scope.scopeRoot,
+    displayName: scope.displayName,
   });
   return {
     ok: true,
     status: "registered",
     scope: registeredDirectoryScope(
-      project.projectId,
-      project.projectDir,
-      project.displayName,
+      scope.scopeId,
+      scope.scopeRoot,
+      scope.displayName,
     ),
   };
 }
 
 async function rollbackCommittedRegistration(
   options: ScopeLifecycleOptions,
-  runtime: ProjectRuntime,
+  runtime: ScopeRuntime,
   runtimeAdded: boolean,
 ): Promise<string | null> {
   const failures: string[] = [];
@@ -151,13 +151,13 @@ async function rollbackCommittedRegistration(
   }
   if (runtimeAdded) {
     try {
-      options.runtimes.remove(runtime.project.projectId);
+      options.runtimes.remove(runtime.scope.scopeId);
     } catch (error) {
       failures.push(`runtime registry: ${errorMessage(error as Error)}`);
     }
   }
   try {
-    options.registry.remove(runtime.project.projectId);
+    options.registry.remove(runtime.scope.scopeId);
   } catch (error) {
     failures.push(`scope registry: ${errorMessage(error as Error)}`);
   }

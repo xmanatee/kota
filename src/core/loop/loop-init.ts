@@ -9,9 +9,9 @@ import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/m
 import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
+import { discoverBundledModules } from "#core/modules/bundled-module-discovery.js";
 import { discoverModules } from "#core/modules/module-discovery.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
-import { discoverProjectModules } from "#core/modules/project-discovery.js";
 import {
   getHistoryProvider,
   getRenderingProvider,
@@ -36,7 +36,7 @@ export interface AgentLoopState {
   sessionStartTime: number;
   sessionId: string;
   sessionLabel: string | undefined;
-  projectDir: string;
+  scopeRoot: string;
   authorityConfigPath?: string;
   scopeId: string;
   context: Context;
@@ -78,7 +78,7 @@ export interface AgentLoopState {
   conversationId: string | null;
   /** Pending resume target captured from LoopOptions; consumed during module init. */
   resumeConversationId: string | undefined;
-  projectContext: string;
+  scopeContext: string;
   instructionContext: string;
   modelTiers: ModelTiers | undefined;
   modelOutputTokenLimits: ModelOutputTokenLimits | undefined;
@@ -95,7 +95,7 @@ export interface AgentLoopState {
 export async function runInitModules(state: AgentLoopState): Promise<void> {
   const config = resolveMcpConfig(state);
   if (config) {
-    state.mcpManager = new McpManager({ projectDir: state.projectDir });
+    state.mcpManager = new McpManager({ scopeRoot: state.scopeRoot });
     await state.mcpManager.initialize(config, {
       inputResolverAvailable: state.mcpInputResolver !== undefined,
       ...(state.mcpAuthorizationResolver
@@ -117,8 +117,8 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
         ...(previousModelProvider !== undefined ? { modelProvider: previousModelProvider } : {}),
         modelOutputTokenLimits: state.modelOutputTokenLimits,
         client: state.client,
-        cwd: state.projectDir,
-        projectContext: state.projectContext || undefined,
+        cwd: state.scopeRoot,
+        scopeContext: state.scopeContext || undefined,
         instructionContext: state.instructionContext || undefined,
         costTracker: state.costTracker,
         transport: state.transport,
@@ -139,11 +139,11 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
   }
 
   if (state.ownsModuleRuntime) {
-    const projectModules = await discoverProjectModules();
-    const modules = await discoverModules(state.projectDir, state.verbose);
+    const bundledModules = await discoverBundledModules();
+    const modules = await discoverModules(state.scopeRoot, state.verbose);
     if (state.closed) return;
-    for (const { name } of listManifestModules(state.projectDir)) addLoadedModule(name);
-    await state.moduleLoader.loadAll(projectModules, modules);
+    for (const { name } of listManifestModules(state.scopeRoot)) addLoadedModule(name);
+    await state.moduleLoader.loadAll(bundledModules, modules);
   }
 
   bindRenderingTransport(state);
@@ -156,7 +156,7 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
     state.context.appendSystemPrompt(skillsPrompt);
   }
 
-  const customToolCount = loadSavedTools(state.projectDir);
+  const customToolCount = loadSavedTools(state.scopeRoot);
   if (customToolCount > 0 && state.verbose) {
     state.transport.emit({ type: "status", message: `[kota] Loaded ${customToolCount} custom tool(s)` });
   }
@@ -168,17 +168,17 @@ export async function runInitModules(state: AgentLoopState): Promise<void> {
 }
 
 function resolveMcpConfig(state: AgentLoopState): { mcpServers: Record<string, McpServerConfig> } | null {
-  const projectConfig = McpManager.loadConfig(state.projectDir);
+  const scopeConfig = McpManager.loadConfig(state.scopeRoot);
   const sessionServers = state.mcpServers ?? {};
   const sessionEntries = Object.entries(sessionServers);
-  if (!projectConfig && sessionEntries.length === 0) return null;
+  if (!scopeConfig && sessionEntries.length === 0) return null;
 
   const mcpServers: Record<string, McpServerConfig> = {
-    ...(projectConfig?.mcpServers ?? {}),
+    ...(scopeConfig?.mcpServers ?? {}),
   };
   for (const [name, config] of sessionEntries) {
     if (Object.hasOwn(mcpServers, name)) {
-      throw new Error(`MCP server "${name}" is defined by both project config and session options`);
+      throw new Error(`MCP server "${name}" is defined by both scope config and session options`);
     }
     mcpServers[name] = config;
   }
@@ -264,7 +264,7 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
     return;
   }
   if (!state.conversationId) {
-    state.conversationId = history.create(state.model, state.projectDir, state.historySource);
+    state.conversationId = history.create(state.model, state.scopeRoot, state.historySource);
   }
   history.save(state.conversationId, snapshot.messages, snapshot.compactionCount, snapshot.lastInputTokens);
 }

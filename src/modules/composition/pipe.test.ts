@@ -86,9 +86,8 @@ describe("pipe tool", () => {
 
 		it("passes runner context to each nested tool", async () => {
 			const context = {
-				cwd: "/tmp/project-b",
-				scopeId: "project-b",
-				projectId: "project-b",
+				cwd: "/tmp/scope-b",
+				scopeId: "scope-b",
 				sessionId: "session-b",
 			};
 

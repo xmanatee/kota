@@ -62,7 +62,7 @@ function emptySimulationResult(): WorkflowSimulationResult {
 export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
   const stub = <T>(value: T) => async () => value;
   const base: KotaClient = {
-    forProject: () => {
+    forScope: () => {
       throw new Error("not implemented in test");
     },
     workflow: {
@@ -131,7 +131,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     },
     history: {
       list: stub({ conversations: [] }),
-      listDiscoveredProjectRecords: stub({ conversations: [] }),
+      listDiscoveredScopeRecords: stub({ conversations: [] }),
       show: stub({ found: false }),
       delete: stub({ ok: true }),
       search: stub({ ok: true, conversations: [] }),
@@ -197,7 +197,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       stop: stub({ ok: false, reason: "not_running" }),
       reload: stub({ ok: false, reason: "not_running" }),
     },
-    projects: {
+    scopes: {
       list: stub({ ok: false, reason: "daemon_required" }),
       use: stub({ ok: false, reason: "daemon_required" }),
     },

@@ -50,8 +50,8 @@ export type AgentStepResult = {
 export type AgentStepConfig = {
   model?: string;
   config?: KotaConfig;
-  projectDir: string;
-  workspaceDir?: string;
+  scopeRoot: string;
+  workspaceRoot?: string;
   authorityConfigPath?: string;
   runtimeResources?: WorkflowRuntimeResources;
   /** Runtime transaction authority. Focused executor fixtures may omit it. */
@@ -66,7 +66,6 @@ export type AgentStepConfig = {
   idempotencyStore?: IdempotencyStore;
   onProcessSpawn?: ProcessSpawnObserver;
   scopeId?: string;
-  projectId?: string;
   scopePolicyAuthority?: ScopePolicyAuthority;
   scopePolicySnapshot?: ScopePolicySnapshot;
   scopePolicy?: ResolvedScopePolicy;

@@ -173,7 +173,7 @@ function runLocalSimulation(
     : [];
   const toolNames = typeof ctx.listTools === "function" ? ctx.listTools() : [];
   return simulateAutomation({
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     definitions: getValidatedWorkflowDefinitions(ctx, ctx.cwd),
     moduleManifests,
     availableToolNames: new Set(toolNames),

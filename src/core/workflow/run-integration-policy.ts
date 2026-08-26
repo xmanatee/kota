@@ -253,8 +253,8 @@ export function verifyRunPostReconcileInvariant(
   const invariant = policy.postReconcile;
   if (!invariant) return { satisfied: true };
   return invariant({
-    projectDir: input.workspaceDir,
-    scopeDir: context.project.root,
+    workspaceRoot: input.workspaceDir,
+    repoRoot: context.scope.root,
     stateDir,
     workflowName: context.workflow,
     trigger: context.trigger,
@@ -329,13 +329,13 @@ export async function continueRunIntegration(
     harness,
     {
       ...contract.options,
-      projectDir: context.project.root,
+      scopeRoot: context.scope.root,
       cwd: context.sandbox.workspaceDir,
       agentWriteScope: continuation.agentWriteScope,
       agentOutputDir: context.resources.agentDir,
       env: { ...context.resources.env, GIT_OPTIONAL_LOCKS: "0" },
       authorityConfigPath,
-      mcpProjectConfigPolicy: "disabled",
+      mcpScopeConfigPolicy: "disabled",
       persistSession: false,
       enableFileCheckpointing: true,
     },

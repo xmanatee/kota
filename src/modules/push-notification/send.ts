@@ -41,11 +41,11 @@ type ExpoMessage = {
 };
 
 export async function sendPushNotifications(
-  projectDir: string,
+  scopeRoot: string,
   payload: ApprovalPushPayload,
   log: (msg: string) => void,
 ): Promise<void> {
-  const tokens = loadTokens(projectDir);
+  const tokens = loadTokens(scopeRoot);
   if (tokens.length === 0) return;
 
   const { approvalId, tool, risk, source } = payload;
@@ -67,11 +67,11 @@ export async function sendPushNotifications(
 }
 
 export async function sendDigestPushNotifications(
-  projectDir: string,
+  scopeRoot: string,
   payload: DigestPushPayload,
   log: (msg: string) => void,
 ): Promise<void> {
-  const tokens = loadTokens(projectDir);
+  const tokens = loadTokens(scopeRoot);
   if (tokens.length === 0) return;
 
   const body = previewBody(payload.body);
@@ -87,8 +87,8 @@ export async function sendDigestPushNotifications(
   await postMessages(messages, log);
 }
 
-function loadTokens(projectDir: string): string[] {
-  const store = loadStore(projectDir);
+function loadTokens(scopeRoot: string): string[] {
+  const store = loadStore(scopeRoot);
   return Object.values(store.tokens).map((entry) => entry.token);
 }
 

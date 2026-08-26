@@ -40,7 +40,7 @@ const workflow: WorkflowDefinitionInput = {
         );
         const currentProjection = decodeAutonomyIssueProjection(snapshot.value);
         const publication = publishImproverDisposition({
-          scopeDir: ctx.scopeDir,
+          scopeRoot: ctx.scopeRoot,
           sourceRunId: request.sourceRunId,
           currentProjection,
         });

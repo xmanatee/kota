@@ -8,23 +8,23 @@ import {
   type SecretGetResult,
   type SecretListResult,
   type SecretMutateResult,
-  type SecretProjectSelection,
   type SecretScope,
+  type SecretScopeSelection,
   type SecretsClient,
   secretMutationFailure,
 } from "./client.js";
 
-function secretPath(name: string, project?: SecretProjectSelection): string {
-  return `/api/secrets/${encodeURIComponent(name)}${scopeSelectorQuery(project)}`;
+function secretPath(name: string, selector?: SecretScopeSelection): string {
+  return `/api/secrets/${encodeURIComponent(name)}${scopeSelectorQuery(selector)}`;
 }
 
 function removeSecretPath(
   name: string,
   scope: SecretScope,
-  project?: SecretProjectSelection,
+  selector?: SecretScopeSelection,
 ): string {
   const params = new URLSearchParams({ scope });
-  appendScopeSelector(params, project);
+  appendScopeSelector(params, selector);
   return `/api/secrets/${encodeURIComponent(name)}?${encodeQueryParams(params)}`;
 }
 
@@ -42,26 +42,26 @@ async function mutateSecret(
 
 export function buildSecretsDaemonHandler(link: DaemonTransport): SecretsClient {
   return {
-    list: (project): Promise<SecretListResult> =>
+    list: (scopeSelector): Promise<SecretListResult> =>
       link.requestStrict<SecretListResult>(
         "GET",
-        `/api/secrets${scopeSelectorQuery(project)}`,
+        `/api/secrets${scopeSelectorQuery(scopeSelector)}`,
       ),
-    get: (name, project): Promise<SecretGetResult> =>
-      link.requestStrict<SecretGetResult>("GET", secretPath(name, project)),
-    set: (name, value, scope, project): Promise<SecretMutateResult> =>
+    get: (name, scopeSelector): Promise<SecretGetResult> =>
+      link.requestStrict<SecretGetResult>("GET", secretPath(name, scopeSelector)),
+    set: (name, value, scope, scopeSelector): Promise<SecretMutateResult> =>
       mutateSecret(() =>
         link.requestStrict<SecretMutateResult>(
           "PUT",
-          secretPath(name, project),
+          secretPath(name, scopeSelector),
           { value, scope },
         ),
       ),
-    remove: (name, scope, project): Promise<SecretMutateResult> =>
+    remove: (name, scope, scopeSelector): Promise<SecretMutateResult> =>
       mutateSecret(() =>
         link.requestStrict<SecretMutateResult>(
           "DELETE",
-          removeSecretPath(name, scope, project),
+          removeSecretPath(name, scope, scopeSelector),
         ),
       ),
   };

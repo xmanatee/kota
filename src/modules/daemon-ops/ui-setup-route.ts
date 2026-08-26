@@ -165,7 +165,7 @@ export function setupRouteBody(
 }
 
 export function scopedUiActionClient(client: KotaClient, scopeId: string): KotaClient {
-  return client.forScope?.(scopeId) ?? client.forProject(scopeId);
+  return client.forScope(scopeId);
 }
 
 export function scopedUiActionPath(path: string, scopeId: string): string {

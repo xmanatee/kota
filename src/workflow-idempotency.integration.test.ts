@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { installEventIdempotency } from "#core/daemon/idempotency-events.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRuntime, type WorkflowRuntimeConfig } from "#core/workflow/runtime.js";
@@ -25,19 +25,18 @@ async function waitUntil(predicate: () => boolean, message: string): Promise<voi
   throw new Error(message);
 }
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const scopeRoot = join(
     tmpdir(),
     `kota-workflow-idempotency-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  return projectDir;
+  mkdirSync(scopeRoot, { recursive: true });
+  return scopeRoot;
 }
 
 function inboundPayload(receivedAt: string): InboundSignalReceivedPayload {
   return {
     scopeId: "scope-a",
-    projectId: "scope-a",
     provider: "telegram",
     channel: "message",
     accountId: "acct-1",
@@ -61,22 +60,22 @@ function inboundPayload(receivedAt: string): InboundSignalReceivedPayload {
 }
 
 describe("workflow idempotency integration", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
   const runtimes: WorkflowRuntime[] = [];
   const runStates: RunStateDatabase[] = [];
 
   function createRuntime(
     config: Omit<
       WorkflowRuntimeConfig,
-      "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
-    > & { projectDir: string },
+      "scopeId" | "runState" | "runCoordinator" | "daemonEpoch"
+    > & { scopeRoot: string },
   ): WorkflowRuntime {
-    const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
+    const runState = new RunStateDatabase(join(config.scopeRoot, ".kota", "state"));
     runStates.push(runState);
-    const projectId = "scope-a";
-    runState.registerProject({
-      id: projectId,
-      rootPath: config.projectDir,
+    const scopeId = "scope-a";
+    runState.registerScope({
+      id: scopeId,
+      rootPath: config.scopeRoot,
       createdAt: "2026-08-25T10:00:00.000Z",
     });
     const daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
@@ -90,7 +89,7 @@ describe("workflow idempotency integration", () => {
     });
     runtime = new WorkflowRuntime({
       ...config,
-      projectId,
+      scopeId,
       runState,
       runCoordinator,
       daemonEpoch,
@@ -103,18 +102,18 @@ describe("workflow idempotency integration", () => {
       await runtime.stop(0);
     }
     for (const runState of runStates.splice(0)) runState.close();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const scopeRoot of scopeRoots.splice(0)) {
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("dedupes repeated inbound signals before queueing duplicate workflow runs", async () => {
-    const projectDir = makeProjectDir();
-    projectDirs.push(projectDir);
+    const scopeRoot = makeScopeRoot();
+    scopeRoots.push(scopeRoot);
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, "scope-a");
+    const pbus = new ScopedEventBus(bus, "scope-a");
     const idempotencyStore = new IdempotencyStore(
-      join(projectDir, ".kota", "idempotency"),
+      join(scopeRoot, ".kota", "idempotency"),
       "scope-a",
     );
     installEventIdempotency(bus, {
@@ -126,7 +125,7 @@ describe("workflow idempotency integration", () => {
     const runtime = createRuntime({
       bus,
       pbus,
-      projectDir,
+      scopeRoot,
       idempotencyStore,
       idleIntervalMs: 60_000,
       workflows: [

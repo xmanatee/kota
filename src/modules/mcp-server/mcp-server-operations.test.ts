@@ -45,8 +45,8 @@ vi.mock("#core/modules/module-loader.js", () => ({
   }),
 }));
 
-vi.mock("#core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("#core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 
 vi.mock("#core/modules/module-discovery.js", () => ({
@@ -168,8 +168,8 @@ describe("mcp-server local handler", () => {
 
   it("loads project and system modules before creating the server", async () => {
     const { ModuleLoader } = await import("#core/modules/module-loader.js");
-    const { discoverProjectModules } = await import(
-      "#core/modules/project-discovery.js"
+    const { discoverBundledModules } = await import(
+      "#core/modules/bundled-module-discovery.js"
     );
     const { discoverModules } = await import(
       "#core/modules/module-discovery.js"
@@ -180,7 +180,7 @@ describe("mcp-server local handler", () => {
 
     await localMcpServerClient().start({ name: "kota" });
 
-    expect(discoverProjectModules).toHaveBeenCalled();
+    expect(discoverBundledModules).toHaveBeenCalled();
     expect(discoverModules).toHaveBeenCalled();
     expect(MockedModuleLoader).toHaveBeenCalledOnce();
     expect(mockLoadAll).toHaveBeenCalledOnce();

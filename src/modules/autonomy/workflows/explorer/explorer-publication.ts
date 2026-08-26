@@ -35,11 +35,11 @@ export function decodeExplorerPublicationRequest(
 
 export function publishExplorerCompletion(args: {
   sourceRunId: string;
-  scopeDir: string;
+  scopeRoot: string;
 }): ExplorerState | null {
   const artifact = readOptionalJsonFile<{ exploredAt?: unknown }>(
     join(
-      args.scopeDir,
+      args.scopeRoot,
       ".kota",
       "runs",
       args.sourceRunId,

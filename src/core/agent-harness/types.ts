@@ -67,7 +67,6 @@ export type AgentHarnessWorkflowContext = {
   stepId: string;
   spanId: string;
   scopeId: string;
-  projectId: string;
 };
 
 /**
@@ -113,7 +112,7 @@ export type AgentHarnessRunOptions = {
    */
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   /** Canonical directory root of the selected directory-backed scope. */
-  projectDir?: string;
+  scopeRoot?: string;
   /** Execution working directory, which may be an isolated worktree. */
   cwd?: string;
   /**
@@ -144,12 +143,12 @@ export type AgentHarnessRunOptions = {
   disallowedTools?: string[];
   mcpServers?: AgentMcpServers;
   /**
-   * Controls automatic discovery of project-local MCP declarations. Adapters
+   * Controls automatic discovery of scope-local MCP declarations. Adapters
    * that do not discover project MCP config are unaffected. Internal agent
    * launches against mutable worktrees set this to `"disabled"` so ignored
    * config cannot create a subprocess before tool authorization runs.
    */
-  mcpProjectConfigPolicy?: "enabled" | "disabled";
+  mcpScopeConfigPolicy?: "enabled" | "disabled";
   /**
    * KOTA-native session supervision posture. The adapter maps this onto its
    * provider's native permission or KOTA-owned tool-runner gate. Adapters

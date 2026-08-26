@@ -8,23 +8,23 @@ import type {
 
 export const NOW = Date.parse("2026-07-07T12:00:00.000Z");
 
-export function createKnownStores(projectDir: string): void {
-  mkdirSync(join(projectDir, ".kota", "approvals"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "owner-questions"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), {
+export function createKnownStores(workspaceRoot: string): void {
+  mkdirSync(join(workspaceRoot, ".kota", "approvals"), { recursive: true });
+  mkdirSync(join(workspaceRoot, ".kota", "owner-questions"), { recursive: true });
+  mkdirSync(join(workspaceRoot, ".kota", "dead-letter-queue"), {
     recursive: true,
   });
-  writeDeadLetters(projectDir, []);
+  writeDeadLetters(workspaceRoot, []);
 }
 
 export function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: RepoTaskState,
   id: string,
   taskClass: RepoTaskFullRecord["taskClass"],
   priority: string,
 ): RepoTaskFullRecord {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const title = `${id} title`;
   const summary = `${id} summary`;
@@ -51,11 +51,11 @@ export function writeTask(
 }
 
 export function writeApproval(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   status: "pending" | "approved",
 ): void {
-  const dir = join(projectDir, ".kota", "approvals");
+  const dir = join(workspaceRoot, ".kota", "approvals");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${id}.json`),
@@ -77,12 +77,12 @@ export function writeApproval(
 }
 
 export function writeOwnerQuestion(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   status: "pending" | "answered",
   taskId: string,
 ): void {
-  const dir = join(projectDir, ".kota", "owner-questions");
+  const dir = join(workspaceRoot, ".kota", "owner-questions");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${id}.json`),
@@ -113,15 +113,14 @@ export function writeOwnerQuestion(
 }
 
 export function writeDeadLetters(
-  projectDir: string,
+  workspaceRoot: string,
   items: {
     id: string;
     status: "open" | "dismissed";
     scopeId: string;
-    projectId: string;
   }[],
 ): void {
-  const dir = join(projectDir, ".kota", "dead-letter-queue");
+  const dir = join(workspaceRoot, ".kota", "dead-letter-queue");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "items.json"),
@@ -148,12 +147,11 @@ export function writeDeadLetters(
 }
 
 export function runningRun(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   workflow: string,
   taskId: string,
   scopeId: string,
-  projectId: string,
 ): WorkflowRunMetadata {
   return {
     id,
@@ -162,11 +160,11 @@ export function runningRun(
     trigger: {
       event: "autonomy.queue.available",
       schemaRef: null,
-      payload: { taskId, scopeId, projectId },
+      payload: { taskId, scopeId },
     },
     startedAt: new Date(NOW).toISOString(),
     status: "running",
-    runDir: join(projectDir, ".kota", "runs", id),
+    runDir: join(workspaceRoot, ".kota", "runs", id),
     steps: [],
   } as WorkflowRunMetadata;
 }

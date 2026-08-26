@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { Daemon } from "#core/daemon/daemon.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
@@ -31,8 +31,8 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   }
 
   const useDashboard = process.stdout.isTTY === true && !logFormat;
-  const projectDir = resolveProjectDir(opts.projectDir);
-  const config = loadConfig(projectDir);
+  const scopeRoot = resolveScopeRoot(opts.scopeRoot);
+  const config = loadConfig(scopeRoot);
   const presetResolution = installDaemonPresetEnv(opts.preset, config.defaultPreset);
   const preset = presetResolution.preset;
   const effectiveHarness = resolveDaemonHarness(
@@ -49,13 +49,13 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   const eventBus = initEventBus();
   const loader = await loadRuntimeModules({
     config: effectiveConfig,
-    cwd: projectDir,
+    cwd: scopeRoot,
     verbose,
     eventBus,
   });
   const daemon = new Daemon({
     runtimeModuleHost: { eventBus, moduleLoader: loader },
-    projectDir,
+    scopeRoot: scopeRoot,
     verbose,
     config: effectiveConfig,
     idleIntervalMs: 30_000,
@@ -81,7 +81,7 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   await daemon.whenReady();
   const dashboard = new DaemonDashboard(() => ({
     ...daemon.getDashboardSnapshot(),
-    taskQueue: getRepoTaskQueueSnapshot(projectDir),
+    taskQueue: getRepoTaskQueueSnapshot(scopeRoot),
   }));
   dashboard.start();
   try {

@@ -15,13 +15,13 @@ import { gatherStatus, type StatusSnapshot } from "./status-cli.js";
 async function readStatus(context: UiSurfaceProjectionContext): Promise<StatusSnapshot> {
   const selected = context.scopeId.startsWith("dir:")
     ? undefined
-    : { projectId: context.scopeId };
+    : { scopeId: context.scopeId };
   return gatherStatus(context.cwd, selected);
 }
 
 const statusSource: UiSurfaceSource = {
   sourceId: "status",
-  project: async (context) => [
+  scope: async (context) => [
     buildStatusUiSurface(await readStatus(context), {
       explain: true,
       scopeId: context.scopeId,
@@ -31,14 +31,14 @@ const statusSource: UiSurfaceSource = {
 
 const scopesSource: UiSurfaceSource = {
   sourceId: "scopes",
-  project: async (context) => {
-    const [projects, sessions] = await Promise.all([
-      context.read("projects", () => context.client.projects.list()),
+  scope: async (context) => {
+    const [scopes, sessions] = await Promise.all([
+      context.read("scopes", () => context.client.scopes.list()),
       context.read("sessions", () => context.client.sessions.list()),
     ]);
     return [buildScopeUiSurface({
       scopeId: context.scopeId,
-      projects,
+      scopes,
       sessions,
     })];
   },
@@ -46,11 +46,11 @@ const scopesSource: UiSurfaceSource = {
 
 const inboxSource: UiSurfaceSource = {
   sourceId: "inbox",
-  project: async (context) => {
+  scope: async (context) => {
     const status = await readStatus(context);
     const inbox = await buildOperatorInboxSnapshot({
       client: context.client,
-      projectDir: context.cwd,
+      scopeRoot: context.cwd,
       status,
     });
     return [buildInboxUiSurface(inbox, context.scopeId)];
@@ -59,7 +59,7 @@ const inboxSource: UiSurfaceSource = {
 
 const continuitySource: UiSurfaceSource = {
   sourceId: "continuity",
-  project: async (context) => {
+  scope: async (context) => {
     const [
       tasks,
       workflowStatus,

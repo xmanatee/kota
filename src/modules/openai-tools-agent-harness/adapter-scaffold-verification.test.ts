@@ -13,9 +13,9 @@ import {
 
 describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
   it("rejects a final scaffold response after an edit path without verifier evidence", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-unverified-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-unverified-"));
     try {
-      writeFileSync(join(projectDir, "math.js"), "module.exports = 1;\n");
+      writeFileSync(join(scopeRoot, "math.js"), "module.exports = 1;\n");
       queueToolUse("scaffold_edit", "scaffold_edit", {
         path: "math.js",
         old_string: "module.exports = 1;",
@@ -24,7 +24,7 @@ describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
       queueEnd("done");
       executeToolMock.mockImplementation(async (name, input, context) => {
         if (name === "file_edit") {
-          return runFileEdit(input, { cwd: context?.cwd ?? projectDir });
+          return runFileEdit(input, { cwd: context?.cwd ?? scopeRoot });
         }
         throw new Error(`unexpected scaffold underlying tool call: ${name}`);
       });
@@ -34,7 +34,7 @@ describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
         model: "ollama/qwen2.5-coder",
         modelOutputTokenLimits: { "ollama/qwen2.5-coder": 2048 },
         effort: "low",
-        cwd: projectDir,
+        cwd: scopeRoot,
       });
 
       expect(result).toMatchObject({
@@ -42,11 +42,11 @@ describe("openaiToolsScaffoldAgentHarness verifier enforcement", () => {
         subtype: "scaffold_verification_required",
       });
       expect(result.text).toContain("scaffold_verify is required");
-      expect(readFileSync(join(projectDir, "math.js"), "utf-8")).toContain(
+      expect(readFileSync(join(scopeRoot, "math.js"), "utf-8")).toContain(
         "module.exports = 2;",
       );
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

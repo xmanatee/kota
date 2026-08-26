@@ -197,7 +197,7 @@ export function registerFollowCommand(wfCmd: Command): void {
         if (!resolvedId) {
           const firstActiveRunId = readWorkflowOperationalState({
             stateDir: store.rootDir,
-            projectDir: process.cwd(),
+            scopeRoot: process.cwd(),
           }).activeRuns[0]?.runId;
           if (!firstActiveRunId) {
             print(line(plain("No active run found and daemon is not running.")));
@@ -208,7 +208,7 @@ export function registerFollowCommand(wfCmd: Command): void {
         }
         await followRunLogs(
           store.runsDir,
-          { stateDir: store.rootDir, projectDir: process.cwd() },
+          { stateDir: store.rootDir, scopeRoot: process.cwd() },
           resolvedId,
           undefined,
         );

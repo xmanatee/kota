@@ -43,7 +43,7 @@ function attrsMatch(
 describe("WorkflowMetricsEmitter", () => {
   let provider: MeterProvider;
   let exporter: InMemoryMetricExporter;
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     exporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
@@ -55,8 +55,8 @@ describe("WorkflowMetricsEmitter", () => {
       resource: resourceFromAttributes({ "service.name": "kota-test" }),
       readers: [reader],
     });
-    projectDir = makeTmpDir();
-    mkdirSync(projectDir, { recursive: true });
+    scopeRoot = makeTmpDir();
+    mkdirSync(scopeRoot, { recursive: true });
   });
 
   afterEach(async () => {
@@ -65,7 +65,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("records run counter and duration histogram on workflow completion", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onWorkflowCompleted({
       workflow: "builder",
@@ -101,7 +101,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("records failure class counter when the run reports a classified failure", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onWorkflowCompleted({
       workflow: "explorer",
@@ -128,7 +128,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("records step cost and duration histograms for step completion", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onStepCompleted({
       workflow: "builder",
@@ -160,7 +160,7 @@ describe("WorkflowMetricsEmitter", () => {
 
   it("records repair-loop hits from the step output file", async () => {
     const runDir = ".kota/runs/run-4";
-    const stepsDir = join(projectDir, runDir, "steps");
+    const stepsDir = join(scopeRoot, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
     writeFileSync(
       join(stepsDir, "build.json"),
@@ -189,7 +189,7 @@ describe("WorkflowMetricsEmitter", () => {
       }),
     );
 
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
     emitter.onStepCompleted({
       workflow: "builder",
       runId: "run-4",
@@ -236,7 +236,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("ignores repair-loop enrichment when the step output file is missing", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
     emitter.onStepCompleted({
       workflow: "builder",
       runId: "run-5",
@@ -254,7 +254,7 @@ describe("WorkflowMetricsEmitter", () => {
 
   it("ignores scalar repair-iteration summaries", async () => {
     const runDir = ".kota/runs/run-scalar-repairs";
-    const stepsDir = join(projectDir, runDir, "steps");
+    const stepsDir = join(scopeRoot, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
     writeFileSync(
       join(stepsDir, "build.json"),
@@ -268,7 +268,7 @@ describe("WorkflowMetricsEmitter", () => {
       }),
     );
 
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
     emitter.onStepCompleted({
       workflow: "builder",
       runId: "run-scalar-repairs",
@@ -286,14 +286,14 @@ describe("WorkflowMetricsEmitter", () => {
 
   it("reports enrichment errors for unparseable step output files", async () => {
     const runDir = ".kota/runs/run-broken";
-    const stepsDir = join(projectDir, runDir, "steps");
+    const stepsDir = join(scopeRoot, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
     writeFileSync(join(stepsDir, "build.json"), "{ not json");
 
     const errors: Array<{ msg: string; err: unknown }> = [];
     const emitter = new WorkflowMetricsEmitter(
       provider.getMeter(METER_NAME),
-      projectDir,
+      scopeRoot,
       (msg, err) => {
         errors.push({ msg, err });
       },
@@ -313,7 +313,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("tags run, step, and cost metrics with autonomy_mode when present", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onWorkflowCompleted({
       workflow: "builder",
@@ -361,7 +361,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("records a transition data point on session autonomy change", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onSessionAutonomyChanged({
       sessionId: "sess-1",
@@ -396,7 +396,7 @@ describe("WorkflowMetricsEmitter", () => {
   });
 
   it("records daemon config reload attempts with reload attributes", async () => {
-    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
+    const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), scopeRoot);
 
     emitter.onDaemonConfigReload({
       timestamp: "2026-01-01T00:00:00.000Z",

@@ -8,7 +8,7 @@ import {
   getOwnerQuestionQueue,
   type OwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -23,7 +23,7 @@ import { registerOwnerDecisionCommands } from "./cli.js";
 import type {
   OwnerDecisionListFilter,
   OwnerDecisionMutateResult,
-  OwnerDecisionProjectScope,
+  OwnerDecisionScopeSelection,
   OwnerDecisionShowResult,
   OwnerDecisionsClient,
 } from "./client.js";
@@ -60,20 +60,20 @@ type OwnerDecisionQueues = {
 type OwnerDecisionRouteError = {
   error?: string;
   reason?: string;
-  projectId?: string;
+  scopeId?: string;
 };
 
 function resolveLocalQueues(selector?: ScopeSelector): OwnerDecisionQueues {
-  const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-  if (!projectScope) {
+  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+  if (!scopeProvider) {
     return {
       decisionStore: getOwnerDecisionStore(),
       questionQueue: getOwnerQuestionQueue(),
     };
   }
-  const projectId = selectedScopeSelectorId(selector);
-  const resolved = projectScope.resolveProjectRuntime(projectId);
-  if (!resolved.ok) throw new Error(`Unknown project: ${resolved.error.projectId}`);
+  const scopeId = selectedScopeSelectorId(selector);
+  const resolved = scopeProvider.resolveScopeRuntime(scopeId);
+  if (!resolved.ok) throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
   return {
     decisionStore: resolved.runtime.ownerDecisionStore,
     questionQueue: resolved.runtime.ownerQuestionQueue,
@@ -88,8 +88,8 @@ function listPath(filter?: OwnerDecisionListFilter): string {
   return query ? `/owner-decisions?${query}` : "/owner-decisions";
 }
 
-function projectQuery(project?: OwnerDecisionProjectScope): string {
-  return scopeSelectorQuery(project);
+function scopeQuery(scopeSelector?: OwnerDecisionScopeSelection): string {
+  return scopeSelectorQuery(scopeSelector);
 }
 
 async function readRouteError(res: Response): Promise<OwnerDecisionRouteError | null> {
@@ -113,8 +113,8 @@ async function mutateOwnerDecision(
   });
   if (res.status === 404) {
     const errBody = await readRouteError(res);
-    if (errBody?.reason === "unknown_project" && errBody.projectId) {
-      throw new Error(`Unknown project: ${errBody.projectId}`);
+    if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+      throw new Error(`Unknown scope: ${errBody.scopeId}`);
     }
     return { ok: false, reason: "not_found" };
   }
@@ -129,8 +129,8 @@ async function mutateOwnerDecision(
 function buildDaemonHandler(link: DaemonTransport): OwnerDecisionsClient {
   return {
     list: async (filter) => link.requestStrict("GET", listPath(filter)),
-    show: async (id, project): Promise<OwnerDecisionShowResult> => {
-      const res = await link.fetchRaw(`/owner-decisions/${encodeURIComponent(id)}${projectQuery(project)}`);
+    show: async (id, scopeSelector): Promise<OwnerDecisionShowResult> => {
+      const res = await link.fetchRaw(`/owner-decisions/${encodeURIComponent(id)}${scopeQuery(scopeSelector)}`);
       if (res.status === 404) return { found: false };
       if (!res.ok) {
         const errBody = await readRouteError(res);
@@ -139,16 +139,16 @@ function buildDaemonHandler(link: DaemonTransport): OwnerDecisionsClient {
       const data = (await res.json()) as Extract<OwnerDecisionShowResult, { found: true }>;
       return { found: true, decision: data.decision };
     },
-    answer: async (id, selectedValue, project) =>
+    answer: async (id, selectedValue, scopeSelector) =>
       mutateOwnerDecision(
         link,
-        `/owner-decisions/${encodeURIComponent(id)}/answer${projectQuery(project)}`,
+        `/owner-decisions/${encodeURIComponent(id)}/answer${scopeQuery(scopeSelector)}`,
         JSON.stringify({ selectedValue }),
       ),
-    cancel: async (id, reason, project) =>
+    cancel: async (id, reason, scopeSelector) =>
       mutateOwnerDecision(
         link,
-        `/owner-decisions/${encodeURIComponent(id)}/cancel${projectQuery(project)}`,
+        `/owner-decisions/${encodeURIComponent(id)}/cancel${scopeQuery(scopeSelector)}`,
         JSON.stringify({ reason }),
       ),
   };
@@ -160,13 +160,13 @@ function localHandler(): OwnerDecisionsClient {
       const queues = resolveLocalQueues(filter);
       return listOwnerDecisionsLocal(queues.decisionStore, filter?.status);
     },
-    async show(id, project) {
-      const queues = resolveLocalQueues(project);
+    async show(id, scopeSelector) {
+      const queues = resolveLocalQueues(scopeSelector);
       const decision = showOwnerDecisionLocal(queues.decisionStore, id);
       return decision ? { found: true, decision } : { found: false };
     },
-    async answer(id, selectedValue: OwnerDecisionSelectedValue, project) {
-      const queues = resolveLocalQueues(project);
+    async answer(id, selectedValue: OwnerDecisionSelectedValue, scopeSelector) {
+      const queues = resolveLocalQueues(scopeSelector);
       const decision = answerOwnerDecisionLocal(
         queues.decisionStore,
         queues.questionQueue,
@@ -176,8 +176,8 @@ function localHandler(): OwnerDecisionsClient {
       );
       return decision ? { ok: true, decision } : { ok: false, reason: "not_found" };
     },
-    async cancel(id, reason, project) {
-      const queues = resolveLocalQueues(project);
+    async cancel(id, reason, scopeSelector) {
+      const queues = resolveLocalQueues(scopeSelector);
       const decision = cancelOwnerDecisionLocal(
         queues.decisionStore,
         queues.questionQueue,

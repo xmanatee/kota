@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { projectHash } from "./schedule-parser.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
+import { scopeHash } from "./schedule-parser.js";
 import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 
 export type { Task, TaskPriority, TaskStatus } from "./task-store-types.js";
@@ -12,16 +12,16 @@ export class TaskStore {
   private tasks: Task[] = [];
   private nextId = 1;
   private filePath: string | null;
-  private project: string;
+  private scope: string;
   private loaded = false;
-  private pbus: ProjectScopedEventBus | null;
+  private pbus: ScopedEventBus | null;
 
   constructor(
-    projectDir?: string,
+    scopeRoot?: string,
     storageDir?: string | null,
-    pbus?: ProjectScopedEventBus | null,
+    pbus?: ScopedEventBus | null,
   ) {
-    this.project = projectDir || process.cwd();
+    this.scope = scopeRoot || process.cwd();
     this.pbus = pbus ?? null;
     if (storageDir === null) {
       // In-memory mode (no persistence)
@@ -29,10 +29,10 @@ export class TaskStore {
       this.loaded = true;
     } else {
       // Defer dir creation to persist() so constructing a TaskStore — for
-      // example as part of the per-project runtime bundle — does not touch
-      // the filesystem until the project actually writes a task.
-      const baseDir = storageDir || join(this.project, ".kota");
-      const hash = projectHash(this.project);
+      // example as part of the per-scope runtime bundle — does not touch
+      // the filesystem until the scope actually writes a task.
+      const baseDir = storageDir || join(this.scope, ".kota");
+      const hash = scopeHash(this.scope);
       this.filePath = join(baseDir, `tasks-${hash}.json`);
     }
   }
@@ -43,7 +43,7 @@ export class TaskStore {
     if (!this.filePath) return;
     const data = this.tryReadFile(this.filePath) ?? this.tryReadFile(`${this.filePath}.tmp`);
     if (!data) return;
-    if (data.project === this.project) {
+    if (data.scope === this.scope) {
       this.tasks = Array.isArray(data.tasks) ? data.tasks : [];
       this.nextId = this.deriveNextId(data.nextId, this.tasks);
     }
@@ -103,7 +103,7 @@ export class TaskStore {
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const data: TaskFileData = {
-      project: this.project,
+      scope: this.scope,
       tasks: this.tasks,
       nextId: this.nextId,
     };
@@ -208,7 +208,7 @@ export class TaskStore {
     this.nextId = 1;
     this.loaded = true;
     if (this.filePath && existsSync(this.filePath)) {
-      const data: TaskFileData = { project: this.project, tasks: [], nextId: 1 };
+      const data: TaskFileData = { scope: this.scope, tasks: [], nextId: 1 };
       writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
     }
     this.emitChanged();
@@ -264,15 +264,15 @@ export class TaskStore {
 
 let store: TaskStore | undefined;
 
-/** Initialize the task store for a specific project. Call once at session start. */
-export function initTaskStore(projectDir?: string, storageDir?: string | null): void {
-  store = new TaskStore(projectDir, storageDir);
+/** Initialize the task store for a specific scope. Call once at session start. */
+export function initTaskStore(scopeRoot?: string, storageDir?: string | null): void {
+  store = new TaskStore(scopeRoot, storageDir);
 }
 
 /**
  * Install a pre-built {@link TaskStore} as the module-level singleton.
- * Used by the per-project runtime bundle factory to register the default
- * project's instance without re-binding `projectDir` outside the bundle.
+ * Used by the per-scope runtime bundle factory to register the default
+ * scope's instance without re-binding `scopeRoot` outside the bundle.
  */
 export function setTaskStoreInstance(instance: TaskStore): void {
   store = instance;

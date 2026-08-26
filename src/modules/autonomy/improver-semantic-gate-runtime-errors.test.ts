@@ -65,9 +65,9 @@ function makeTmpDir(): string {
   return dir;
 }
 
-function makeContext(projectDir: string, runDirPath: string) {
+function makeContext(workspaceRoot: string, runDirPath: string) {
   return {
-    projectDir,
+    workspaceRoot,
     workflow: {
       name: "improver",
       runId: "test-run",
@@ -88,9 +88,9 @@ function makeContext(projectDir: string, runDirPath: string) {
   } as never;
 }
 
-function prepareStagedChange(projectDir: string): void {
-  writeFileSync(join(projectDir, "file.ts"), "export const changed = true;\n");
-  execFileSync("git", ["add", "file.ts"], { cwd: projectDir });
+function prepareStagedChange(workspaceRoot: string): void {
+  writeFileSync(join(workspaceRoot, "file.ts"), "export const changed = true;\n");
+  execFileSync("git", ["add", "file.ts"], { cwd: workspaceRoot });
 }
 
 type CodeCheck = {

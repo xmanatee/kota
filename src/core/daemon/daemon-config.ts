@@ -11,7 +11,7 @@ import type {
 } from "#core/modules/module-types.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
-import type { ConfiguredProjectInput } from "./scope-registry.js";
+import type { DirectoryScopeInput } from "./scope-registry.js";
 
 export type DaemonRuntimeModuleHost = {
   /** Event authority already bound to the runtime module lifecycle. */
@@ -24,21 +24,17 @@ export type DaemonConfig = {
   /** Atomic module-runtime authority; the loader must already be bound to this bus. */
   runtimeModuleHost?: DaemonRuntimeModuleHost;
   /**
-   * Single-project bootstrap shorthand. When `projects` is set, that array
-   * supplies the initial seed and `projectDir` is ignored. When neither is
+   * Single-scope bootstrap shorthand. When `scopes` is set, that array
+   * supplies the initial seed and `scopeRoot` is ignored. When neither is
    * set, the seed defaults to `process.cwd()`.
    */
-  projectDir?: string;
+  scopeRoot?: string;
   /**
-   * Initial multi-project seed. The first entry becomes the default only when
-   * no persisted registry exists. After bootstrap, `project-registry.json` is
-   * authoritative and live lifecycle mutations survive later config changes.
-   *
-   * Each configured project gets a runtime bundle through
-   * `ProjectRuntimeRegistry`; daemon-wide control surfaces keep a default
-   * project for compatibility with older single-project clients.
+   * Initial directory-scope seed. The first entry becomes the default only
+   * when no persisted registry exists. After bootstrap, `scope-registry.json`
+   * is authoritative and live lifecycle mutations survive config changes.
    */
-  projects?: readonly ConfiguredProjectInput[];
+  scopes?: readonly DirectoryScopeInput[];
   /** Override the operator-owned authority file path for tests or embedders. */
   authorityConfigPath?: string;
   model?: string;

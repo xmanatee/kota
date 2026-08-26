@@ -28,9 +28,9 @@ const TOUCHED_KEYS = [
   "KOTA_SESSION_ENV_ISOLATION_TEST",
 ] as const;
 
-const SESSION_A_PROJECT_A = { sessionId: "session-a", scopeId: "project-a" };
-const SESSION_B_PROJECT_A = { sessionId: "session-b", scopeId: "project-a" };
-const SESSION_A_PROJECT_B = { sessionId: "session-a", scopeId: "project-b" };
+const SESSION_A_PROJECT_A = { sessionId: "session-a", scopeId: "scope-a" };
+const SESSION_B_PROJECT_A = { sessionId: "session-b", scopeId: "scope-a" };
+const SESSION_A_PROJECT_B = { sessionId: "session-a", scopeId: "scope-b" };
 
 for (const key of TOUCHED_KEYS) {
   SAVED_ENV[key] = process.env[key];

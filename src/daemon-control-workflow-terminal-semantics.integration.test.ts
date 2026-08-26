@@ -31,16 +31,16 @@ describe("blocking workflow operation terminal semantics", () => {
   });
 
   it("records failure, transient recovery, and operator abort in run metadata", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-control-terminal-"));
-    roots.push(projectDir);
-    initializeControlFixtureRepo(projectDir);
-    const stateDir = join(projectDir, ".kota");
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-control-terminal-"));
+    roots.push(scopeRoot);
+    initializeControlFixtureRepo(scopeRoot);
+    const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
     resetScheduler();
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 10,
       pollIntervalMs: 60_000,

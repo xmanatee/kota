@@ -67,15 +67,15 @@ export function emptyAutonomyIssueProjection(): AutonomyIssueProjection {
   return { schemaVersion: 1, updatedAt: null, issues: [] };
 }
 
-function projectionPath(projectDir: string): string {
-  return join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE);
+function projectionPath(workspaceRoot: string): string {
+  return join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE);
 }
 
 export function readAutonomyIssueProjection(
-  projectDir: string,
+  workspaceRoot: string,
 ): AutonomyIssueProjection {
   const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(
-    projectionPath(projectDir),
+    projectionPath(workspaceRoot),
   );
   return decodeAutonomyIssueProjection(raw);
 }
@@ -142,18 +142,18 @@ export function recordAutonomyIssueDispositions(args: {
 }
 
 export function materializeAutonomyIssueProjection(
-  projectDir: string,
+  workspaceRoot: string,
   projection: AutonomyIssueProjection,
 ): void {
-  writeJsonFileAtomic(projectionPath(projectDir), projection);
+  writeJsonFileAtomic(projectionPath(workspaceRoot), projection);
 }
 
 export function listAutonomyIssues(
-  projectDir: string,
+  workspaceRoot: string,
   statuses?: readonly AutonomyIssueStatus[],
 ): AutonomyIssue[] {
   const selected = statuses === undefined ? null : new Set(statuses);
-  return readAutonomyIssueProjection(projectDir).issues.filter(
+  return readAutonomyIssueProjection(workspaceRoot).issues.filter(
     (issue) => selected === null || selected.has(issue.status),
   );
 }

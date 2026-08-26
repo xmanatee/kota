@@ -23,7 +23,7 @@ export function describeSecurityReviewRunTests(
 
     it("completes as an explicit no-op when the deterministic scan is empty", async () => {
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: { event: "autonomy.security-review.requested", payload: {} },
         stepMocks: {},
       });
@@ -37,7 +37,7 @@ export function describeSecurityReviewRunTests(
       expect(result.steps["revalidate-findings"].status).toBe("skipped");
       expect(result.steps["create-follow-up-tasks"].status).toBe("skipped");
       expect(
-        existsSync(join(fixture.projectDir, ".kota/runs/harness/security-review-outcome.json")),
+        existsSync(join(fixture.workspaceRoot, ".kota/runs/harness/security-review-outcome.json")),
       ).toBe(true);
     });
 
@@ -56,7 +56,7 @@ export function describeSecurityReviewRunTests(
       );
 
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: { event: SECURITY_REVIEW_DUE_EVENT, payload: {} },
         stepMocks: {},
       });
@@ -76,7 +76,7 @@ export function describeSecurityReviewRunTests(
       fixture.writeProjectFile("notes/no-matcher.md", "No security-sensitive content here.\n");
 
       const harness = new WorkflowTestHarness(securityReviewWorkflow, {
-        projectDir: fixture.projectDir,
+        workspaceRoot: fixture.workspaceRoot,
         trigger: {
           event: SECURITY_REVIEW_DUE_EVENT,
           payload: {
@@ -120,7 +120,7 @@ export function describeSecurityReviewRunTests(
       );
       const artifact = JSON.parse(
         readFileSync(
-          join(fixture.projectDir, ".kota/runs/harness/security-review-candidates.json"),
+          join(fixture.workspaceRoot, ".kota/runs/harness/security-review-candidates.json"),
           "utf-8",
         ),
       ) as {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentHarness } from "#core/agent-harness/index.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
@@ -63,9 +63,9 @@ async function flushAsyncNotifications(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const TEST_PROJECT: ConfiguredProject = {
-  projectId: "test-project",
-  projectDir: "/tmp/test",
+const TEST_SCOPE: DirectoryScope = {
+  scopeId: "test-scope",
+  scopeRoot: "/tmp/test",
   displayName: "KOTA",
 };
 
@@ -73,12 +73,12 @@ function makeStubClient(
   overrides: Partial<KotaClient> = {},
 ): KotaClient {
   const client = {
-    projects: {
+    scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
-        defaultProjectId: TEST_PROJECT.projectId,
-        activeProjectId: null,
-        projects: [TEST_PROJECT],
+        defaultScopeId: TEST_SCOPE.scopeId,
+        activeScopeId: null,
+        scopes: [TEST_SCOPE],
       })),
       use: vi.fn(),
     },
@@ -88,7 +88,7 @@ function makeStubClient(
       dismiss: vi.fn(),
     },
   } as Partial<KotaClient>;
-  client.forProject = vi.fn(() => client as KotaClient);
+  client.forScope = vi.fn(() => client as KotaClient);
   Object.assign(client, overrides);
   return client as KotaClient;
 }
@@ -157,7 +157,7 @@ describe("telegramModule notifications via onLoad", () => {
     const approvalsList = vi.fn(async () => ({
       approvals: [{
         id: "abc123",
-        scopeId: TEST_PROJECT.projectId,
+        scopeId: TEST_SCOPE.scopeId,
         kind: "tool_call" as const,
         tool: "bash",
         input: { redacted: true, reason: "tool-io" as const },
@@ -181,7 +181,7 @@ describe("telegramModule notifications via onLoad", () => {
       },
     })));
     bus.emit("approval.requested", {
-      projectId: TEST_PROJECT.projectId,
+      scopeId: TEST_SCOPE.scopeId,
       id: "abc123",
       tool: "bash",
       risk: "high",

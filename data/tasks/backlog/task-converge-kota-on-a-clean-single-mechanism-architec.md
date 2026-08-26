@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T05:59:57.000Z
+updated_at: 2026-08-26T09:44:42.000Z
 ---
 
 ## Problem
@@ -49,7 +49,7 @@ Tracked implementation tasks:
 
 The setup-metadata and Codex capability-truth prerequisites are complete. The
 builder-recovery security proposal was dropped and is not an implementation
-dependency. Queue paths and task frontmatter remain authoritative: sixteen of
+dependency. Queue paths and task frontmatter remain authoritative: fifteen of
 the tracked tasks remain open, the task-system separation is done, and the two
 findings against the retired proof executor are dropped with dispositions.
 
@@ -61,7 +61,7 @@ findings against the retired proof executor are dropped with dispositions.
 - [x] Stage 3 — make exploration and health improvement outcome-driven.
 - [x] Stage 4 — reduce the task system to objective integrity.
 - [x] Stage 5 — separate shipping, validation, and confidence cadences.
-- [ ] Stage 6 — complete the terminal project-to-scope migration.
+- [x] Stage 6 — complete the terminal project-to-scope migration.
 - [ ] Stage 7 — establish one authored daemon/client contract graph.
 - [ ] Stage 8 — narrow client ports and client-side owners.
 - [ ] Stage 9 — make runtime lifecycle host-owned.
@@ -223,6 +223,30 @@ assertion before it executed. Those mutations were removed; Stage 9 owns the
 host/shared-state defect and Stage 10 owns production-driver fixture isolation.
 The cadence is therefore explicit and observable without misrepresenting that
 known baseline defect as confidence.
+
+## Stage 6 Result
+
+Canonical scope identity now runs end to end through configuration, daemon and
+workflow ownership, event and durable-state records, trust and approval
+decisions, modules, command-line operations, and the web, mobile, and Apple
+clients. `ScopeId`, `ScopeRegistry`, `ScopeSelector`, `/scopes`, and `forScope`
+are the only KOTA mechanisms. The project-named aliases, routes, dual fields,
+precedence rules, client selectors, active filenames, and compatibility tests
+were removed; no external compatibility adapter was needed.
+
+Active mutable state contained no retired identity record requiring conversion.
+Immutable run artifacts and task history remain historical evidence, while no
+live reader accepts them as the current contract. The migration-time source
+search was deleted after it reached zero rather than becoming another default
+absence test. Types, schema generation, generated UI bindings, and decoders are
+the durable structural authorities.
+
+The production build, generated schema and binding checks, both TypeScript
+typechecks, repository and web lint, task validation, copied-fixture comparison,
+and diff validation passed. The behavioral cadences passed 11,229 owner tests,
+883 integration tests, and 364 evaluation tests. Web passed 153 tests and its
+production build, mobile passed 456 tests and typecheck, and Apple built and
+passed 309 tests.
 
 ## Finding Ownership
 

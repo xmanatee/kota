@@ -99,10 +99,10 @@ function renderTaskBody(body: string, marker: GeneratedWorkMarker): string {
 }
 
 export function findGeneratedWorkTask(
-  projectDir: string,
+  workspaceRoot: string,
   proposalKey: string,
 ): GeneratedWorkTaskRecord | null {
-  const matches = listFullRepoTasks(projectDir).flatMap((task) => {
+  const matches = listFullRepoTasks(workspaceRoot).flatMap((task) => {
     const marker = parseMarker(task.body);
     return marker?.key === proposalKey ? [{ task, marker }] : [];
   });
@@ -112,11 +112,11 @@ export function findGeneratedWorkTask(
   return matches[0] ?? null;
 }
 
-function chooseTaskId(projectDir: string, title: string, proposalKey: string): string {
+function chooseTaskId(workspaceRoot: string, title: string, proposalKey: string): string {
   const slug = slugifyTaskTitle(title);
   if (!slug) throw new Error("generated-work task title produced an empty slug");
   const preferred = `task-${slug}`;
-  if (!listFullRepoTasks(projectDir).some((task) => task.id === preferred)) {
+  if (!listFullRepoTasks(workspaceRoot).some((task) => task.id === preferred)) {
     return preferred;
   }
   return `${preferred}-${stableHash(proposalKey)}`;
@@ -146,7 +146,7 @@ function taskAttrs(args: {
 }
 
 export function writeGeneratedWorkTask(args: {
-  projectDir: string;
+  workspaceRoot: string;
   proposal: GeneratedWorkTaskProposal;
   existing: GeneratedWorkTaskRecord | null;
 }): GeneratedWorkProposalAction[] {
@@ -173,7 +173,7 @@ export function writeGeneratedWorkTask(args: {
     priorMarker = args.existing.marker;
     if (state !== "ready" && state !== "doing") {
       const fromState = state;
-      moveTaskById(args.projectDir, taskId, "ready");
+      moveTaskById(args.workspaceRoot, taskId, "ready");
       state = "ready";
       actions.push({
         kind: "reopened-task",
@@ -183,11 +183,11 @@ export function writeGeneratedWorkTask(args: {
       });
     }
   } else {
-    taskId = chooseTaskId(args.projectDir, args.proposal.title, args.proposal.proposalKey);
+    taskId = chooseTaskId(args.workspaceRoot, args.proposal.title, args.proposal.proposalKey);
     state = "ready";
   }
 
-  const existingFile = readVerifiedRepoTaskFile(args.projectDir, state, taskId);
+  const existingFile = readVerifiedRepoTaskFile(args.workspaceRoot, state, taskId);
   const marker = {
     key: args.proposal.proposalKey,
     provenance: mergeProvenance(priorMarker?.provenance ?? [], args.proposal.provenance),
@@ -199,11 +199,11 @@ export function writeGeneratedWorkTask(args: {
     ...(existingFile ? { existingContent: existingFile.content } : {}),
   });
   const content = serializeFlatFrontMatter(attrs, renderTaskBody(args.proposal.body, marker));
-  const path = join(getRepoTaskStateDir(args.projectDir, state), `${taskId}.md`);
+  const path = join(getRepoTaskStateDir(args.workspaceRoot, state), `${taskId}.md`);
   if (existingFile?.content !== content) {
     attrs.updated_at = new Date().toISOString();
     writeRepoTaskFile(
-      args.projectDir,
+      args.workspaceRoot,
       path,
       serializeFlatFrontMatter(attrs, renderTaskBody(args.proposal.body, marker)),
     );
@@ -218,13 +218,13 @@ export function writeGeneratedWorkTask(args: {
 }
 
 export function dropGeneratedWorkTask(
-  projectDir: string,
+  workspaceRoot: string,
   existing: GeneratedWorkTaskRecord | null,
 ): GeneratedWorkProposalAction[] {
   if (!existing || existing.task.state === "done" || existing.task.state === "dropped") {
     return [];
   }
-  moveTaskById(projectDir, existing.task.id, "dropped");
+  moveTaskById(workspaceRoot, existing.task.id, "dropped");
   return [{
     kind: "dropped-task",
     taskId: existing.task.id,

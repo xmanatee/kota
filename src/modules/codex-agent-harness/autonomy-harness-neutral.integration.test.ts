@@ -115,29 +115,29 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
 }
 
 describe("autonomy agent step on codex", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     spawnMock.mockReset();
     execFileSyncMock.mockReset();
     execFileSyncMock.mockReturnValue("Logged in using ChatGPT");
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-codex-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "Stay focused on the build.");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "Stay focused on the build.");
     writeFileSync(
-      join(projectDir, "AGENTS.md"),
+      join(scopeRoot, "AGENTS.md"),
       "# Project AGENTS\n\nPortable project rules live here.",
     );
-    mkdirSync(join(projectDir, ".kota/runs/run-codex-ok/steps"), {
+    mkdirSync(join(scopeRoot, ".kota/runs/run-codex-ok/steps"), {
       recursive: true,
     });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     vi.clearAllMocks();
   });
 
@@ -146,13 +146,13 @@ describe("autonomy agent step on codex", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeAgentStep(projectDir),
+      makeAgentStep(scopeRoot),
       makeMetadata(),
       { event: "autonomy.queue.available", schemaRef: null, payload: {} },
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result).toMatchObject({

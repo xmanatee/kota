@@ -124,20 +124,20 @@ function writeDiagnostics(
 }
 
 describe("buildProcessDisciplineReport", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = join(tmpdir(), `process-discipline-report-${Date.now()}`);
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = join(tmpdir(), `process-discipline-report-${Date.now()}`);
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("projects workflow agent trajectory diagnostics into grouped discipline records", () => {
+  it("scopes workflow agent trajectory diagnostics into grouped discipline records", () => {
     const runId = "2026-04-28T12-30-00-000Z-builder-discipline";
     const taskById = new Map([
       ["task-discipline", task("task-discipline", "done", "Safety", "autonomy")],

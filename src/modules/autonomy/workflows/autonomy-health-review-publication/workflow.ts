@@ -44,13 +44,13 @@ const publishReview = typedCodeStep<AutonomyHealthReviewPublicationResult>({
     );
     const currentProjection = decodeAutonomyIssueProjection(snapshot.value);
     const plan = planAutonomyHealthReviewPublication({
-      scopeDir: ctx.scopeDir,
+      scopeRoot: ctx.scopeRoot,
       sourceRunId: request.sourceRunId,
       scopeId: request.scopeId,
       currentProjection,
     });
     const publication = publishAutonomyHealthReview({
-      scopeDir: ctx.scopeDir,
+      scopeRoot: ctx.scopeRoot,
       sourceRunId: request.sourceRunId,
       scopeId: request.scopeId,
       currentProjection,

@@ -7,7 +7,7 @@
  * File layout under <stateDir>/daemon-chat-bindings.json:
  *
  *   { "bindings": [
- *       { "sessionId": "...", "projectId": "...",
+ *       { "sessionId": "...", "scopeId": "...",
  *         "conversationId": "...", "createdAt": "...",
  *         "lastActiveAt": "..." }
  *     ]
@@ -19,11 +19,11 @@
 
 import { join } from "node:path";
 import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 export type DaemonChatBinding = {
   sessionId: string;
-  projectId: ProjectId;
+  scopeId: ScopeId;
   conversationId: string;
   createdAt: string;
   lastActiveAt: string;
@@ -54,12 +54,12 @@ export class DaemonChatBindingStore {
       if (
         !b ||
         typeof b.sessionId !== "string" ||
-        typeof b.projectId !== "string" ||
+        typeof b.scopeId !== "string" ||
         typeof b.conversationId !== "string"
       ) continue;
       const normalized: DaemonChatBinding = {
         sessionId: b.sessionId,
-        projectId: b.projectId,
+        scopeId: b.scopeId,
         conversationId: b.conversationId,
         createdAt: b.createdAt ?? new Date().toISOString(),
         lastActiveAt: b.lastActiveAt ?? b.createdAt ?? new Date().toISOString(),
@@ -82,7 +82,7 @@ export class DaemonChatBindingStore {
     return this.byConversation.get(conversationId);
   }
 
-  put(sessionId: string, conversationId: string, projectId: ProjectId): DaemonChatBinding {
+  put(sessionId: string, conversationId: string, scopeId: ScopeId): DaemonChatBinding {
     const existing = this.bindings.get(sessionId);
     const now = new Date().toISOString();
     if (existing) {
@@ -91,9 +91,9 @@ export class DaemonChatBindingStore {
           `Binding mismatch for session ${sessionId}: already bound to ${existing.conversationId}, cannot rebind to ${conversationId}`,
         );
       }
-      if (existing.projectId !== projectId) {
+      if (existing.scopeId !== scopeId) {
         throw new Error(
-          `Binding mismatch for session ${sessionId}: already scoped to ${existing.projectId}, cannot rebind to ${projectId}`,
+          `Binding mismatch for session ${sessionId}: already scoped to ${existing.scopeId}, cannot rebind to ${scopeId}`,
         );
       }
       existing.lastActiveAt = now;
@@ -102,7 +102,7 @@ export class DaemonChatBindingStore {
     }
     const binding: DaemonChatBinding = {
       sessionId,
-      projectId,
+      scopeId,
       conversationId,
       createdAt: now,
       lastActiveAt: now,

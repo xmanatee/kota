@@ -122,7 +122,7 @@ describe("runtime navigator", () => {
         id: "evt-1",
         type: "workflow.started",
         payload: {
-          projectId: "scope-main",
+          scopeId: "scope-main",
           workflow: "builder",
           runId: "run-1",
           triggerEvent: "manual",

@@ -5,7 +5,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { ClientIdentity } from "#core/daemon/client-identity.js";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control-types.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { ConfiguredScope } from "#core/daemon/scope-registry.js";
 import { detectStrandedDaemonProcess } from "#core/daemon/stranded-daemon.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
@@ -24,11 +24,11 @@ import type {
 } from "./status-cli-types.js";
 
 export function classifyDaemonControlFile(
-  projectDir: string,
+  scopeRoot: string,
   options: { processIsAlive?: (pid: number) => boolean } = {},
 ): DaemonControlIdentity {
   const { processIsAlive = isProcessAlive } = options;
-  const controlPath = join(projectDir, ".kota", "daemon-control.json");
+  const controlPath = join(scopeRoot, ".kota", "daemon-control.json");
   if (!existsSync(controlPath)) {
     return { kind: "missing" };
   }
@@ -49,17 +49,17 @@ export function classifyDaemonControlFile(
 }
 
 export async function gatherStatus(
-  projectDir: string,
+  scopeRoot: string,
   options: StatusGatherOptions = {},
 ): Promise<StatusSnapshot> {
-  const stateDir = join(projectDir, ".kota");
+  const stateDir = join(scopeRoot, ".kota");
   const link = getDaemonTransport(stateDir);
-  const controlFile = classifyDaemonControlFile(projectDir);
-  const projectName = basename(projectDir) || projectDir;
+  const controlFile = classifyDaemonControlFile(scopeRoot);
+  const scopeName = basename(scopeRoot) || scopeRoot;
 
   if (link) {
-    const statusPath = options.projectId
-      ? `/status?projectId=${encodeURIComponent(options.projectId)}`
+    const statusPath = options.scopeId
+      ? `/status?scopeId=${encodeURIComponent(options.scopeId)}`
       : "/status";
     const status = await link.request<DaemonLiveStatus>("GET", statusPath);
     if (status) {
@@ -71,19 +71,19 @@ export async function gatherStatus(
         "/approvals?status=pending",
       );
       const identity = await link.request<ClientIdentity>("GET", "/identity");
-      const projectsView = await link.request<{
-        projects: ConfiguredProject[];
-        defaultProjectId: string;
-        activeProjectId: string | null;
-      }>("GET", "/projects");
-      const projectionProjectDir = resolveProjectionProjectDir(
-        projectsView,
-        options.projectId,
-        projectDir,
+      const scopesView = await link.request<{
+        scopes: ConfiguredScope[];
+        defaultScopeId: string;
+        activeScopeId: string | null;
+      }>("GET", "/scopes");
+      const projectionScopeRoot = resolveProjectionScopeRoot(
+        scopesView,
+        options.scopeId,
+        scopeRoot,
       );
       return liveStatusSnapshot({
-        projectDir,
-        projectName,
+        scopeRoot,
+        scopeName,
         controlFile,
         status,
         uptimeMs,
@@ -91,18 +91,18 @@ export async function gatherStatus(
           ? approvalResult.approvals.filter((a) => a.status === "pending").length
           : 0,
         identity,
-        projectsView,
-        explicitProjectId: options.projectId,
-        runProjection: readStatusRunProjection(stateDir, projectionProjectDir),
+        scopesView,
+        explicitScopeId: options.scopeId,
+        runProjection: readStatusRunProjection(stateDir, projectionScopeRoot),
       });
     }
   }
 
   return offlineStatusSnapshot(
-    projectDir,
-    projectName,
+    scopeRoot,
+    scopeName,
     controlFile,
-    readStatusRunProjection(stateDir, projectDir),
+    readStatusRunProjection(stateDir, scopeRoot),
   );
 }
 
@@ -163,9 +163,9 @@ function statusRunSandbox(sandbox: RunSandbox | null): StatusRunSandbox | null {
 
 export function readStatusRunProjection(
   stateDir: string,
-  projectDir: string,
+  scopeRoot: string,
 ): StatusRunProjection {
-  const projection = readRunOperationalProjection({ stateDir, projectDir });
+  const projection = readRunOperationalProjection({ stateDir, scopeRoot: scopeRoot });
   return {
     ...projection,
     runs: projection.runs.map((run) => ({
@@ -176,23 +176,23 @@ export function readStatusRunProjection(
 }
 
 function liveStatusSnapshot(args: {
-  projectDir: string;
-  projectName: string;
+  scopeRoot: string;
+  scopeName: string;
   controlFile: DaemonControlIdentity;
   status: DaemonLiveStatus;
   uptimeMs: number | undefined;
   pendingApprovals: number;
   identity: ClientIdentity | null;
-  projectsView: {
-    projects: ConfiguredProject[];
-    defaultProjectId: string;
-    activeProjectId: string | null;
+  scopesView: {
+    scopes: ConfiguredScope[];
+    defaultScopeId: string;
+    activeScopeId: string | null;
   } | null;
-  explicitProjectId: string | undefined;
+  explicitScopeId: string | undefined;
   runProjection: StatusRunProjection;
 }): StatusSnapshot {
-  const daemonProjectDir = args.identity?.projectDir;
-  const wrongProject = daemonProjectDir != null && daemonProjectDir !== args.projectDir;
+  const daemonScopeRoot = args.identity?.scopeRoot;
+  const wrongScope = daemonScopeRoot != null && daemonScopeRoot !== args.scopeRoot;
   const baseURL =
     args.controlFile.kind === "fresh" || args.controlFile.kind === "stale"
       ? args.controlFile.baseURL
@@ -201,7 +201,7 @@ function liveStatusSnapshot(args: {
     args.identity != null && baseURL != null
       ? resolveDashboardForStatus(args.identity.dashboard, baseURL)
       : undefined;
-  const scopedProject = resolveScopedProject(args.projectsView, args.explicitProjectId);
+  const selectedScope = resolveSelectedScope(args.scopesView, args.explicitScopeId);
 
   return {
     daemonRunning: true,
@@ -213,29 +213,29 @@ function liveStatusSnapshot(args: {
     ...(args.status.workflow.pause && { workflowPause: args.status.workflow.pause }),
     sessions: args.status.sessions.length,
     pendingApprovals: args.pendingApprovals,
-    projectDir: args.projectDir,
-    projectName: args.projectName,
+    scopeRoot: args.scopeRoot,
+    scopeName: args.scopeName,
     controlFile: args.controlFile,
-    ...(daemonProjectDir != null && { daemonProjectDir }),
-    ...(args.identity?.projectName != null && { daemonProjectName: args.identity.projectName }),
-    ...(scopedProject != null && { scopedProject }),
-    ...(wrongProject && { wrongProject }),
+    ...(daemonScopeRoot != null && { daemonScopeRoot }),
+    ...(args.identity?.scopeName != null && { daemonScopeName: args.identity.scopeName }),
+    ...(selectedScope != null && { selectedScope }),
+    ...(wrongScope && { wrongScope }),
     ...(dashboard != null && { dashboard }),
     runProjection: args.runProjection,
   };
 }
 
 function offlineStatusSnapshot(
-  projectDir: string,
-  projectName: string,
+  scopeRoot: string,
+  scopeName: string,
   controlFile: DaemonControlIdentity,
   runProjection: StatusRunProjection,
 ): StatusSnapshot {
-  const stateDir = join(projectDir, ".kota");
+  const stateDir = join(scopeRoot, ".kota");
   const queue = getApprovalQueue(join(stateDir, "approvals"));
-  const strandedDaemon = detectStrandedDaemonProcess(projectDir);
+  const strandedDaemon = detectStrandedDaemonProcess(scopeRoot);
   const pause = resolveWorkflowDispatchPause({
-    projectDir,
+    scopeRoot: scopeRoot,
     runtimePaused: false,
   });
   const activeRuns = runProjection.runs.filter(
@@ -251,8 +251,8 @@ function offlineStatusSnapshot(
     workflowPaused: pause.paused,
     sessions: 0,
     pendingApprovals: queue.count("pending"),
-    projectDir,
-    projectName,
+    scopeRoot,
+    scopeName,
     controlFile,
     ...(pause.paused && { workflowPause: pause }),
     ...(strandedDaemon.kind === "stranded" && {
@@ -262,43 +262,46 @@ function offlineStatusSnapshot(
   };
 }
 
-function resolveProjectionProjectDir(
+function resolveProjectionScopeRoot(
   view:
     | {
-        projects: ConfiguredProject[];
-        defaultProjectId: string;
-        activeProjectId: string | null;
+        scopes: ConfiguredScope[];
+        defaultScopeId: string;
+        activeScopeId: string | null;
       }
     | null,
-  explicitProjectId: string | undefined,
-  fallbackProjectDir: string,
+  explicitScopeId: string | undefined,
+  fallbackScopeRoot: string,
 ): string {
-  if (view === null) return fallbackProjectDir;
-  const target = explicitProjectId ?? view.activeProjectId ?? view.defaultProjectId;
-  const match = view.projects.find((project) => project.projectId === target);
+  if (view === null) return fallbackScopeRoot;
+  const target = explicitScopeId ?? view.activeScopeId ?? view.defaultScopeId;
+  const match = view.scopes.find((scope) => scope.scopeId === target);
   if (match === undefined) {
-    throw new Error(`Configured project "${target}" is missing from the project registry`);
+    throw new Error(`Configured scope "${target}" is missing from the scope registry`);
   }
-  return match.projectDir;
+  if (match.directoryRoot === undefined) {
+    throw new Error(`Configured scope "${target}" is not directory-backed`);
+  }
+  return match.directoryRoot;
 }
 
-function resolveScopedProject(
+function resolveSelectedScope(
   view:
     | {
-        projects: ConfiguredProject[];
-        defaultProjectId: string;
-        activeProjectId: string | null;
+        scopes: ConfiguredScope[];
+        defaultScopeId: string;
+        activeScopeId: string | null;
       }
     | null,
-  explicitProjectId: string | undefined,
-): { projectId: string; projectDir: string; displayName: string } | undefined {
-  if (!view || view.projects.length <= 1) return undefined;
-  const target = explicitProjectId ?? view.activeProjectId ?? view.defaultProjectId;
-  const match = view.projects.find((p) => p.projectId === target);
-  if (!match) return undefined;
+  explicitScopeId: string | undefined,
+): { scopeId: string; scopeRoot: string; displayName: string } | undefined {
+  if (!view || view.scopes.length <= 1) return undefined;
+  const target = explicitScopeId ?? view.activeScopeId ?? view.defaultScopeId;
+  const match = view.scopes.find((p) => p.scopeId === target);
+  if (!match?.directoryRoot) return undefined;
   return {
-    projectId: match.projectId,
-    projectDir: match.projectDir,
+    scopeId: match.scopeId,
+    scopeRoot: match.directoryRoot,
     displayName: match.displayName,
   };
 }

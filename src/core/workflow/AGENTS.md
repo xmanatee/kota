@@ -10,7 +10,7 @@ and publication.
   resolvers express domain exclusivity without workflow-specific locks.
 - `RunStateDatabase` is the only durable queue and the authority for admission,
   run attempts, logical resources, process identities, external effects, and
-  terminal publications. Project-scoped JSON state uses its revisioned state
+  terminal publications. Scope-scoped JSON state uses its revisioned state
   API; runs stage compare-and-set mutations that commit atomically with success
   publications. Run artifacts are evidence, not queue, lease, or shared state.
 - `RunCoordinator` owns daemon-wide capacity, global and project admission

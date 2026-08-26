@@ -204,7 +204,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     },
     history: {
       list: async () => ({ conversations: [] }),
-      listDiscoveredProjectRecords: async () => ({ conversations: [] }),
+      listDiscoveredScopeRecords: async () => ({ conversations: [] }),
       show: async () => ({ found: false as const }),
       delete: async () => ({ ok: true as const }),
       search: async () => ({ ok: true as const, conversations: [] }),
@@ -272,7 +272,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
         reason: "reload_failed" as const,
       }),
     },
-    projects: {
+    scopes: {
       list: async () => ({ ok: false as const, reason: "daemon_required" as const }),
       use: async () => ({ ok: false as const, reason: "daemon_required" as const }),
     },

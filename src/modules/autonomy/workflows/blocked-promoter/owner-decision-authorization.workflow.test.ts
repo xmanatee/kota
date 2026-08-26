@@ -81,35 +81,35 @@ function taskBody(question: string): string {
   ].join("\n");
 }
 
-function projectFixture(): { projectDir: string; taskPath: string } {
-  const projectDir = mkdtempSync(join(tmpdir(), "blocked-promoter-auth-"));
+function projectFixture(): { workspaceRoot: string; taskPath: string } {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "blocked-promoter-auth-"));
   writeFileSync(
-    join(projectDir, "package.json"),
+    join(workspaceRoot, "package.json"),
     JSON.stringify({ scripts: { "validate-tasks": "true" } }),
   );
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    const dir = join(projectDir, "data", "tasks", state);
+    const dir = join(workspaceRoot, "data", "tasks", state);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
   }
   const taskPath = join(
-    projectDir,
+    workspaceRoot,
     "data",
     "tasks",
     "blocked",
     "task-owner-decision.md",
   );
   writeFileSync(taskPath, taskBody("Should this task remain blocked?"));
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "test@example.com"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: workspaceRoot });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "-m", "initial", "--quiet"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  return { projectDir, taskPath };
+  return { workspaceRoot, taskPath };
 }
 
 async function useOwnerAnswer(answer: string): Promise<void> {
@@ -124,13 +124,13 @@ async function useOwnerAnswer(answer: string): Promise<void> {
 }
 
 async function resolveOwnerDecision(
-  projectDir: string,
+  workspaceRoot: string,
   answer: string,
 ): Promise<BlockedOwnerDecisionResolution> {
   await useOwnerAnswer(answer);
   const requestRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
     trigger: { event: "autonomy.queue.available", payload: {} },
-    projectDir,
+    workspaceRoot,
   }).run();
   const request = requestRun.emitted.find(
     (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
@@ -143,7 +143,7 @@ async function resolveOwnerDecision(
         event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
         payload: request,
       },
-      projectDir,
+      workspaceRoot,
       stepMocks: {
         "blocked-promoter-owner-decision-wait": awaitAnswered(),
       },
@@ -174,14 +174,14 @@ describe("blocked-promoter owner-decision authorization", () => {
   it.each(["yes", "approve"])(
     "keeps a negatively phrased task blocked after ambiguous '%s'",
     async (answer) => {
-      const { projectDir, taskPath } = projectFixture();
-      const resolution = await resolveOwnerDecision(projectDir, answer);
+      const { workspaceRoot, taskPath } = projectFixture();
+      const resolution = await resolveOwnerDecision(workspaceRoot, answer);
       const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
         trigger: {
           event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
           payload: resolution,
         },
-        projectDir,
+        workspaceRoot,
       }).run();
 
       expect(result.status).toBe("success");
@@ -194,15 +194,15 @@ describe("blocked-promoter owner-decision authorization", () => {
   );
 
   it("fails closed when the precondition changes during the owner wait", async () => {
-    const { projectDir, taskPath } = projectFixture();
-    const resolution = await resolveOwnerDecision(projectDir, "unblock");
+    const { workspaceRoot, taskPath } = projectFixture();
+    const resolution = await resolveOwnerDecision(workspaceRoot, "unblock");
     writeFileSync(taskPath, taskBody("Which variant should we pick?"));
     const result = await new WorkflowTestHarness(blockedPromoterWorkflow, {
       trigger: {
         event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
         payload: resolution,
       },
-      projectDir,
+      workspaceRoot,
     }).run();
 
     expect(result.status).toBe("failed");

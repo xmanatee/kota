@@ -1,5 +1,5 @@
 export { dispatchInboundSignalRoute } from "./routing-dispatch.js";
-export { inboundSignalRoutingStatus, projectRouteStatus } from "./routing-status.js";
+export { inboundSignalRoutingStatus, scopeRouteStatus } from "./routing-status.js";
 export type {
   InboundSignalAgentRouteTargetConfig,
   InboundSignalAgentTriggerOptions,

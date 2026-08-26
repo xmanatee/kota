@@ -22,9 +22,9 @@ describe("workflow agent machine-authority guard", () => {
   it("denies authority mutations through the CLI and direct control route", async () => {
     const guard = createWorkflowAgentGuards();
     for (const command of [
-      "pnpm kota project authority set scope-1 --trust trusted --reason unsafe",
-      "kota project authority set scope-1 --clear-policy --reason unsafe",
-      "node dist/cli.js project authority set scope-1 --trust trusted --reason unsafe",
+      "pnpm kota scope authority set scope-1 --trust trusted --reason unsafe",
+      "kota scope authority set scope-1 --clear-policy --reason unsafe",
+      "node dist/cli.js scope authority set scope-1 --trust trusted --reason unsafe",
       "curl -X PUT http://127.0.0.1:4310/scopes/scope-1/authority -d '{}';",
       "fetch('http://127.0.0.1:4310/scopes/scope-1/authority', { method: 'PUT' })",
     ]) {

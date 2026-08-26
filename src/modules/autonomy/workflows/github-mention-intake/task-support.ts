@@ -35,28 +35,28 @@ export type PreparedIntakeComment = {
 };
 
 export function createMentionTaskInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   taskTitle: string;
   taskSummary: string;
   taskBody: string;
 }): CreatedTaskReference {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   if (worktree.available && worktree.dirty) {
     throw new Error(
       `Repository has existing changes before GitHub mention intake can create a task: ${worktree.summary}`,
     );
   }
   const taskId = taskIdFromTitle(input.taskTitle);
-  const existing = showTask(input.projectDir, taskId);
+  const existing = showTask(input.workspaceRoot, taskId);
   if (existing.found) {
     return {
       kind: "existing",
       taskId,
-      path: join(getRepoTaskStateDir(input.projectDir, existing.state), `${taskId}.md`),
+      path: join(getRepoTaskStateDir(input.workspaceRoot, existing.state), `${taskId}.md`),
       title: input.taskTitle,
     };
   }
-  const result = createNormalizedTask(input.projectDir, {
+  const result = createNormalizedTask(input.workspaceRoot, {
     title: input.taskTitle,
     priority: "p2",
     area: "modules",
@@ -71,7 +71,7 @@ export function createMentionTaskInWorker(input: {
   const content = readFileSync(result.path, "utf-8");
   const { attrs } = parseFlatFrontMatter(content);
   writeRepoTaskFile(
-    input.projectDir,
+    input.workspaceRoot,
     result.path,
     serializeFlatFrontMatter(attrs, input.taskBody),
   );
@@ -85,7 +85,7 @@ export function createMentionTaskInWorker(input: {
 
 export const createMentionTaskOperation = defineWorkflowBlockingOperation<
   {
-    projectDir: string;
+    workspaceRoot: string;
     taskTitle: string;
     taskSummary: string;
     taskBody: string;

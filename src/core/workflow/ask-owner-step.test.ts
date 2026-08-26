@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { EventBus, getEventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { type AwaitedOwnerOutcome, askOwnerSteps } from "./ask-owner-step.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { type AwaitDelivery, readSuspension } from "./awaits-store.js";
@@ -65,13 +65,13 @@ function makeAskWorkflow(queue: OwnerQuestionQueue): WorkflowDefinition {
 }
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   definition: WorkflowDefinition,
   trigger: WorkflowRunTrigger,
   signal = new AbortController().signal,
 ): RunContext {
   const runId = `${definition.name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
   const agentDir = join(rootDir, "agent");
@@ -81,14 +81,14 @@ function makeRunContext(
   }
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: definition.name,
     trigger,
     sandbox: {
       runId,
       repository: "none",
       rootDir,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       tempDir,
       artifactDir,
     },
@@ -96,7 +96,7 @@ function makeRunContext(
       runId,
       attempt: 1,
       daemonEpoch: 1,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       runDir: rootDir,
       tempDir,
       artifactDir,
@@ -114,36 +114,36 @@ function makeRunContext(
 }
 
 describe("askOwnerSteps", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let queueDir: string;
   let queue: OwnerQuestionQueue;
   let bus: EventBus;
   let store: WorkflowRunStore;
   const log = vi.fn();
 
-  let pbus: ProjectScopedEventBus;
+  let pbus: ScopedEventBus;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "ask-owner-step-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "ask-owner-step-"));
     queueDir = mkdtempSync(join(tmpdir(), "ask-owner-queue-"));
-    store = new WorkflowRunStore(projectDir);
+    store = new WorkflowRunStore(workspaceRoot);
     resetEventBus();
     bus = initEventBus();
-    pbus = new ProjectScopedEventBus(bus, "test-project");
+    pbus = new ScopedEventBus(bus, "test-scope");
     queue = new OwnerQuestionQueue(queueDir, pbus);
     log.mockReset();
   });
 
   afterEach(() => {
     resetEventBus();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(queueDir, { recursive: true, force: true });
   });
 
   it("(a) answered: operator answers live; consume returns a typed answered outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir, definition, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, definition, TRIGGER),
       bus,
       store,
       log,
@@ -181,7 +181,7 @@ describe("askOwnerSteps", () => {
   it("(a') answered with suspicious payload: detector flags the answer and renders a banner", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir, definition, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, definition, TRIGGER),
       bus,
       store,
       log,
@@ -215,7 +215,7 @@ describe("askOwnerSteps", () => {
   it("(b) dismissed: operator dismisses; consume returns a typed dismissed outcome", async () => {
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir, definition, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, definition, TRIGGER),
       bus,
       store,
       log,
@@ -251,7 +251,7 @@ describe("askOwnerSteps", () => {
     const { promise } = executeWorkflowRun(
       definition,
       TRIGGER,
-      { runContext: makeRunContext(projectDir, definition, TRIGGER, abort.signal), bus, store, log },
+      { runContext: makeRunContext(workspaceRoot, definition, TRIGGER, abort.signal), bus, store, log },
       abort,
     );
 
@@ -322,7 +322,7 @@ describe("askOwnerSteps", () => {
     expect(resumeQueued.trigger.event).toBe("resume");
 
     const resumed = await executeWorkflowRun(definition, resumeQueued.trigger, {
-      runContext: makeRunContext(projectDir, definition, resumeQueued.trigger),
+      runContext: makeRunContext(workspaceRoot, definition, resumeQueued.trigger),
       bus: newBus,
       store,
       log,
@@ -345,7 +345,7 @@ describe("askOwnerSteps", () => {
     expect(getEventBus()).toBe(bus);
     const definition = makeAskWorkflow(queue);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir, definition, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, definition, TRIGGER),
       bus,
       store,
       log,

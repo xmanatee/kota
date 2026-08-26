@@ -80,7 +80,7 @@ const TASK_TEMPLATE = (
   ].join("\n");
 };
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "backlog-promoter-wf-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -104,9 +104,9 @@ describe("backlog-promoter workflow", () => {
 
   it("promotes the top backlog batch and writes a rationale artifact", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-p1-arch.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-p1-arch.md"),
       TASK_TEMPLATE("task-p1-arch", {
         priority: "p1",
         area: "architecture",
@@ -114,7 +114,7 @@ describe("backlog-promoter workflow", () => {
       }),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-p1-modules-old.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-p1-modules-old.md"),
       TASK_TEMPLATE("task-p1-modules-old", {
         priority: "p1",
         area: "modules",
@@ -122,17 +122,17 @@ describe("backlog-promoter workflow", () => {
       }),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-p3-cleanup.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-p3-cleanup.md"),
       TASK_TEMPLATE("task-p3-cleanup", {
         priority: "p3",
         area: "modules",
       }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
       contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
@@ -145,10 +145,10 @@ describe("backlog-promoter workflow", () => {
     // Ranking: both p1 strategic; older updated_at wins the tie.
     expect(promotedIds).toEqual(["task-p1-modules-old", "task-p1-arch"]);
     for (const id of promotedIds) {
-      expect(existsSync(join(projectDir, "data", "tasks", "ready", `${id}.md`))).toBe(true);
+      expect(existsSync(join(workspaceRoot, "data", "tasks", "ready", `${id}.md`))).toBe(true);
     }
     expect(
-      existsSync(join(projectDir, "data", "tasks", "backlog", "task-p3-cleanup.md")),
+      existsSync(join(workspaceRoot, "data", "tasks", "backlog", "task-p3-cleanup.md")),
     ).toBe(true);
 
     const writeRationaleOutput = result.steps["write-rationale"].output as {
@@ -180,9 +180,9 @@ describe("backlog-promoter workflow", () => {
 
   it("records blocked alternatives in the rationale even though they are not promoted", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-p2-fanout.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-p2-fanout.md"),
       TASK_TEMPLATE("task-p2-fanout", { priority: "p2", area: "client" }),
     );
     const blockedTask = TASK_TEMPLATE("task-p1-blocked-arch", {
@@ -190,14 +190,14 @@ describe("backlog-promoter workflow", () => {
       area: "architecture",
     }).replace("status: backlog", "status: blocked");
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-p1-blocked-arch.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-p1-blocked-arch.md"),
       blockedTask,
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
       contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
@@ -217,9 +217,9 @@ describe("backlog-promoter workflow", () => {
 
   it("does not treat task class or missing prose links as an execution gate", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-meta-invalid.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-meta-invalid.md"),
       TASK_TEMPLATE("task-meta-invalid", {
         priority: "p1",
         area: "autonomy",
@@ -229,17 +229,17 @@ describe("backlog-promoter workflow", () => {
       ].join("\n")),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-platform-valid.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-platform-valid.md"),
       TASK_TEMPLATE("task-platform-valid", {
         priority: "p2",
         area: "core",
       }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
       contextOverrides: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
@@ -253,32 +253,32 @@ describe("backlog-promoter workflow", () => {
       "task-platform-valid",
     ]);
     expect(
-      existsSync(join(projectDir, "data", "tasks", "backlog", "task-meta-invalid.md")),
+      existsSync(join(workspaceRoot, "data", "tasks", "backlog", "task-meta-invalid.md")),
     ).toBe(false);
     expect(
-      existsSync(join(projectDir, "data", "tasks", "ready", "task-meta-invalid.md")),
+      existsSync(join(workspaceRoot, "data", "tasks", "ready", "task-meta-invalid.md")),
     ).toBe(true);
     expect(
-      existsSync(join(projectDir, "data", "tasks", "ready", "task-platform-valid.md")),
+      existsSync(join(workspaceRoot, "data", "tasks", "ready", "task-platform-valid.md")),
     ).toBe(true);
   });
 
   it("skips promotion entirely when only blocked work exists", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const blockedTask = TASK_TEMPLATE("task-blocked", { priority: "p1" }).replace(
       "status: backlog",
       "status: blocked",
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-blocked.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-blocked.md"),
       blockedTask,
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 
@@ -291,16 +291,16 @@ describe("backlog-promoter workflow", () => {
 
   it("skips promotion when the worktree is dirty", async () => {
     await mockDirtyWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-foo.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
       TASK_TEMPLATE("task-foo", { priority: "p1" }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 

@@ -25,30 +25,30 @@ import {
   makeAgentStep,
   makeDefinition,
   makeHarness,
-  makeProjectDir,
+  makeScopeRoot,
   RESTRICTED_AGENT,
   readCapabilityArtifact,
-  removeProjectDir,
+  removeScopeRoot,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
 
 describe("workflow agent-step harness capability artifacts", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    removeProjectDir(projectDir);
+    removeScopeRoot(workspaceRoot);
   });
 
   it("writes a bounded capability artifact before a KOTA-controlled harness runs", async () => {
@@ -96,14 +96,14 @@ describe("workflow agent-step harness capability artifacts", () => {
       }),
     );
 
-    const step = makeAgentStep(projectDir, harnessName, {
+    const step = makeAgentStep(workspaceRoot, harnessName, {
       allowedTools: ["Read"],
       disallowedTools: ["Write"],
     });
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
-      { runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+      { runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -117,7 +117,7 @@ describe("workflow agent-step harness capability artifacts", () => {
     expect(run).toHaveBeenCalledTimes(1);
 
     const artifact = readCapabilityArtifact(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "agent",
     );
@@ -150,14 +150,14 @@ describe("workflow agent-step harness capability artifacts", () => {
 
   it("caps workflow autonomy and forwards the live resolved scope policy", async () => {
     const authorityConfigPath = "/operator/machine/config.json";
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const scopePolicy = resolveScopePolicy({
       projection: {
         rootScopeId: "global",
         defaultScopeId: scopeId,
         scopes: [
           { scopeId: "global", displayName: "Global" },
-          { scopeId, displayName: "Fixture", parentScopeId: "global", directoryRoot: projectDir },
+          { scopeId, displayName: "Fixture", parentScopeId: "global", directoryRoot: workspaceRoot },
         ],
       },
       scopeId,
@@ -179,10 +179,10 @@ describe("workflow agent-step harness capability artifacts", () => {
     registerAgentHarness(makeHarness(harnessName, run));
 
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
+      makeDefinition(workspaceRoot, makeAgentStep(workspaceRoot, harnessName)),
       TRIGGER,
       {
-        runContext: createTestRunContext(projectDir, TRIGGER),
+        runContext: createTestRunContext(workspaceRoot, TRIGGER),
         bus,
         store,
         log: () => {},
@@ -196,7 +196,7 @@ describe("workflow agent-step harness capability artifacts", () => {
   });
 
   it("passes restricted agent write scope into the runtime prompt", async () => {
-    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     let receivedPrompt = "";
     let receivedWriteScope: AgentHarnessRunOptions["agentWriteScope"];
     let receivedOutputDir: AgentHarnessRunOptions["agentOutputDir"];
@@ -218,12 +218,12 @@ describe("workflow agent-step harness capability artifacts", () => {
       }),
     );
 
-    const step = makeAgentStep(projectDir, harnessName, {
+    const step = makeAgentStep(workspaceRoot, harnessName, {
       agentName: RESTRICTED_AGENT.name,
     });
-    const runContext = createTestRunContext(projectDir, TRIGGER);
+    const runContext = createTestRunContext(workspaceRoot, TRIGGER);
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
         runContext,

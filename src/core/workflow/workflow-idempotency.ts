@@ -23,7 +23,7 @@ function explicitScope(
   payload: WorkflowRunTrigger["payload"],
   fallback: string,
 ): string {
-  return payloadString(payload, "scopeId") ?? payloadString(payload, "projectId") ?? fallback;
+  return payloadString(payload, "scopeId") ?? fallback;
 }
 
 function batchEventIds(payload: WorkflowRunTrigger["payload"]): string[] {

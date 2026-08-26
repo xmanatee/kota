@@ -28,7 +28,7 @@ import type { ModuleCapabilityManifestProjection } from "#core/modules/module-ma
  */
 export type ModuleListEntry = {
   name: string;
-  source: "project" | "installed" | "foreign";
+  source: "bundled" | "installed" | "foreign";
   status: "loaded" | "failed";
   version?: string;
   description?: string;
@@ -68,7 +68,7 @@ export interface ModulesClient {
  */
 export type ModuleInspectEntry = {
   name: string;
-  source: "project" | "installed" | "foreign";
+  source: "bundled" | "installed" | "foreign";
   version?: string;
   description?: string;
   status: "loaded" | "failed";

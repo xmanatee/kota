@@ -82,5 +82,5 @@ function buildRetractUiSurface(scopeId: string): UiSurface {
 
 export const retractUiSurfaceSource: UiSurfaceSource = {
   sourceId: "retract",
-  project: (context) => [buildRetractUiSurface(context.scopeId)],
+  scope: (context) => [buildRetractUiSurface(context.scopeId)],
 };

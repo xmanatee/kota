@@ -220,7 +220,7 @@ describe("createReplayAgentHarness", () => {
       "data/tasks/done/task-x.md (done)",
       "",
       "## Review context",
-      "Project root: /tmp/project",
+      "Scope root: /tmp/project",
       "Run directory: .kota/runs/replay-test-run",
       "",
       "## Diff summary",
@@ -269,7 +269,7 @@ describe("createReplayAgentHarness", () => {
       "src/foo.ts",
       "",
       "## Review context",
-      "Project root: /tmp/project",
+      "Scope root: /tmp/project",
       "Run directory: .kota/runs/replay-test-run",
     ].join("\n");
     const result = await harness.run({

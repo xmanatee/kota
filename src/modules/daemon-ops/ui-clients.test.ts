@@ -61,20 +61,19 @@ function daemonStartSurface(scopeId: string): UiSurface {
   };
 }
 
-function localClient(projectDir: string) {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function localClient(scopeRoot: string) {
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
   const client = {} as ModuleContext["client"];
   client.forScope = () => client;
-  client.forProject = () => client;
   const ctx = {
-    cwd: projectDir,
+    cwd: scopeRoot,
     client,
     getProvider: () => null,
     getContributedUiSurfaces: () => [{
       moduleName: "daemon-ops",
       source: {
         sourceId: "daemon-start-test",
-        project: () => [daemonStartSurface(scopeId)],
+        scope: () => [daemonStartSurface(scopeId)],
       },
     }],
   } as unknown as ModuleContext;
@@ -92,10 +91,10 @@ function mockChild(): MockChild {
   return child;
 }
 
-let projectDir: string;
+let scopeRoot: string;
 
 beforeEach(() => {
-  projectDir = mkdtempSync(join(tmpdir(), "kota-ui-daemon-start-"));
+  scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-daemon-start-"));
   spawnMock.mockReset();
   readLiveDaemonControlAddressMock.mockReset();
   isDaemonControlAddressReachableMock.mockReset();
@@ -103,14 +102,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  rmSync(projectDir, { recursive: true, force: true });
+  rmSync(scopeRoot, { recursive: true, force: true });
   vi.restoreAllMocks();
 });
 
 describe("local UI daemon start", () => {
   it("reports a child-process spawn failure instead of success", async () => {
     const child = mockChild();
-    const { client, input } = localClient(projectDir);
+    const { client, input } = localClient(scopeRoot);
     const resultPromise = client.executeAction(input);
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
 
@@ -133,7 +132,7 @@ describe("local UI daemon start", () => {
         resolveReadiness = resolve;
       }),
     );
-    const { client, input } = localClient(projectDir);
+    const { client, input } = localClient(scopeRoot);
     const resultPromise = client.executeAction(input);
     let settled = false;
     void resultPromise.then(() => {
@@ -160,7 +159,7 @@ describe("local UI daemon start", () => {
     vi.useFakeTimers();
     const child = mockChild();
     readLiveDaemonControlAddressMock.mockReturnValue(null);
-    const { client, input } = localClient(projectDir);
+    const { client, input } = localClient(scopeRoot);
     const resultPromise = client.executeAction(input);
     await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledOnce());
 

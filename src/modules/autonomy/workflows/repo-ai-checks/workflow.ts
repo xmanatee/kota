@@ -67,7 +67,7 @@ const discoverChecks = typedCodeStep<DiscoveredCheckRun>({
     const artifactDir = join(ctx.workflow.runDir, "repo-ai-checks");
     const artifactDirPath = join(ctx.workflow.runDirPath, "repo-ai-checks");
     return ctx.runBlocking(discoverRepoAiChecksOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       artifactDir,
       artifactDirPath,
       assessment,
@@ -107,7 +107,7 @@ const commentPolicy = typedCodeStep<RepoAiCheckCommentPolicy>({
   when: stepSucceeded("prepare-comment"),
   run: (ctx) => {
     const comment = prepareComment.outputRequired(ctx);
-    return assessCommentPolicy(ctx.projectDir, githubCommentInput(comment));
+    return assessCommentPolicy(ctx.workspaceRoot, githubCommentInput(comment));
   },
 });
 

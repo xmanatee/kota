@@ -78,7 +78,7 @@ describe("SlackBot", () => {
       const events = { emit: vi.fn() };
       const bot = makeBot({
         inboundSignals: {
-          getProjectId: () => "project-slack",
+          getScopeId: () => "scope-slack",
           config: { prefixes: ["!task"], trustedUserIds: ["U1"] },
           events,
         },
@@ -109,7 +109,7 @@ describe("SlackBot", () => {
       expect(events.emit).toHaveBeenCalledWith(
         inboundSignalReceived,
         expect.objectContaining({
-          projectId: "project-slack",
+          scopeId: "scope-slack",
           provider: "slack",
           channel: "slack.message",
           actor: expect.objectContaining({ trust: "trusted" }),

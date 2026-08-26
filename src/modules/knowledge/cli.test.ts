@@ -89,7 +89,7 @@ function stubCtx(): ModuleContext {
 	} as unknown as ModuleContext;
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
 	const dir = join(
 		tmpdir(),
 		`kota-knowledge-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -136,24 +136,24 @@ async function captureStderr(fn: () => Promise<unknown>): Promise<string> {
 }
 
 describe("kota knowledge add", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let origCwd: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
-		projectDir = makeProjectDir();
+		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
-		process.chdir(projectDir);
+		process.chdir(scopeRoot);
 		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		store = new KnowledgeStore(projectDir);
+		store = new KnowledgeStore(scopeRoot);
 		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
@@ -193,7 +193,7 @@ describe("kota knowledge add", () => {
 			"--status",
 			"archived",
 			"--scope",
-			"project",
+			"scope",
 		]));
 		const id = output.trim();
 		const entry = store.read(id!);
@@ -244,24 +244,24 @@ describe("kota knowledge add", () => {
 });
 
 describe("kota knowledge export", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let origCwd: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
-		projectDir = makeProjectDir();
+		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
-		process.chdir(projectDir);
+		process.chdir(scopeRoot);
 		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		store = new KnowledgeStore(projectDir);
+		store = new KnowledgeStore(scopeRoot);
 		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
@@ -332,7 +332,7 @@ describe("kota knowledge export", () => {
 			expect(Array.isArray(entry.tags)).toBe(true);
 		}
 
-		const newDir = makeProjectDir();
+		const newDir = makeScopeRoot();
 		process.chdir(newDir);
 		resetProviderRegistry();
 		const reg2 = initProviderRegistry();
@@ -381,24 +381,24 @@ describe("kota knowledge export", () => {
 });
 
 describe("kota knowledge search", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let origCwd: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
-		projectDir = makeProjectDir();
+		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
-		process.chdir(projectDir);
+		process.chdir(scopeRoot);
 		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		store = new KnowledgeStore(projectDir);
+		store = new KnowledgeStore(scopeRoot);
 		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 		resetKnowledgeStore();
 		resetProviderRegistry();
 	});

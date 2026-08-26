@@ -19,55 +19,55 @@ import {
 } from "./recorder.test-helpers.js";
 
 describe("extractAgentStepRecording", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let fixtureDir: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-recorder-project-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-recorder-project-"));
     fixtureDir = mkdtempSync(join(tmpdir(), "kota-recorder-fixture-"));
-    initGitRepo(projectDir);
-    writeFileSync(join(projectDir, "README.md"), "init\n");
-    execSync("git add README.md", { cwd: projectDir });
-    execSync('git commit -q -m "init"', { cwd: projectDir });
+    initGitRepo(workspaceRoot);
+    writeFileSync(join(workspaceRoot, "README.md"), "init\n");
+    execSync("git add README.md", { cwd: workspaceRoot });
+    execSync('git commit -q -m "init"', { cwd: workspaceRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(fixtureDir, { recursive: true, force: true });
   });
 
   it("round-trips adds, modifies, renames, deletes, and run-dir writes", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-committing";
-    const runDirAbs = join(projectDir, ".kota", "runs", runId);
+    const runDirAbs = join(workspaceRoot, ".kota", "runs", runId);
 
     // Seed initial tracked state so the post-commit git operations produce a
     // realistic diff with a rename, add, modify, and delete.
     const renameBody =
       "A fairly long body so the commit-diff rename detector recognizes the " +
       "move as a rename even when one line changes at the end. ".repeat(10);
-    writeFile(projectDir, "data/tasks/ready/task-a.md", `${renameBody}v1\n`);
-    writeFile(projectDir, "docs/note.md", "before\n");
-    writeFile(projectDir, "to-delete.md", "gone\n");
-    execSync("git add -A", { cwd: projectDir });
-    execSync('git commit -q -m "pre"', { cwd: projectDir });
+    writeFile(workspaceRoot, "data/tasks/ready/task-a.md", `${renameBody}v1\n`);
+    writeFile(workspaceRoot, "docs/note.md", "before\n");
+    writeFile(workspaceRoot, "to-delete.md", "gone\n");
+    execSync("git add -A", { cwd: workspaceRoot });
+    execSync('git commit -q -m "pre"', { cwd: workspaceRoot });
 
-    mkdirSync(join(projectDir, "data/tasks/done"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
     execSync("git mv data/tasks/ready/task-a.md data/tasks/done/task-a.md", {
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
-    writeFile(projectDir, "data/tasks/done/task-a.md", `${renameBody}v2\n`);
-    writeFile(projectDir, "docs/note.md", "after\n");
-    writeFile(projectDir, "src/newfile.ts", "export const x = 1;\n");
-    execSync("git rm to-delete.md", { cwd: projectDir });
-    execSync("git add -A", { cwd: projectDir });
-    execSync('git commit -q -m "decomposer commit"', { cwd: projectDir });
+    writeFile(workspaceRoot, "data/tasks/done/task-a.md", `${renameBody}v2\n`);
+    writeFile(workspaceRoot, "docs/note.md", "after\n");
+    writeFile(workspaceRoot, "src/newfile.ts", "export const x = 1;\n");
+    execSync("git rm to-delete.md", { cwd: workspaceRoot });
+    execSync("git add -A", { cwd: workspaceRoot });
+    execSync('git commit -q -m "decomposer commit"', { cwd: workspaceRoot });
     const sha = execSync("git rev-parse HEAD", {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       encoding: "utf-8",
     }).trim();
 
     seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "decomposer",
       "decompose",
@@ -97,7 +97,7 @@ describe("extractAgentStepRecording", () => {
                 type: "tool_use",
                 name: "Write",
                 input: {
-                  file_path: join(projectDir, "docs/note.md"),
+                  file_path: join(workspaceRoot, "docs/note.md"),
                   content: "intermediate write",
                 },
               },
@@ -111,13 +111,13 @@ describe("extractAgentStepRecording", () => {
         }),
       ],
     );
-    seedWriterIntegration(projectDir, runId, {
+    seedWriterIntegration(workspaceRoot, runId, {
       publishedHead: sha,
       message: "decomposer commit",
     });
 
     const result = extractAgentStepRecording({
-      projectDir,
+      workspaceRoot,
       sourceRunId: runId,
       stepId: "decompose",
       fixtureDir,
@@ -164,16 +164,16 @@ describe("extractAgentStepRecording", () => {
       readFileSync(result.recordingPath, "utf-8"),
     ) as { sourceRunId: string };
     expect(written.sourceRunId).toBe(runId);
-    expect(result.skippedWritesOutsideProject).toEqual([]);
+    expect(result.skippedWritesOutsideWorkspace).toEqual([]);
   });
 
   it("preserves redacted step content markers and run artifacts without events", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-redacted";
-    writeFile(projectDir, "research-synthesis-result.json", "{}\n");
-    execSync("git add -A", { cwd: projectDir });
-    execSync('git commit -q -m "builder commit"', { cwd: projectDir });
+    writeFile(workspaceRoot, "research-synthesis-result.json", "{}\n");
+    execSync("git add -A", { cwd: workspaceRoot });
+    execSync('git commit -q -m "builder commit"', { cwd: workspaceRoot });
     const sha = execSync("git rev-parse HEAD", {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       encoding: "utf-8",
     }).trim();
 
@@ -183,7 +183,7 @@ describe("extractAgentStepRecording", () => {
       bytes: 211,
     };
     const runDir = seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "builder",
       "build",
@@ -198,7 +198,7 @@ describe("extractAgentStepRecording", () => {
       [],
     );
     rmSync(join(runDir, "steps", "build.events.jsonl"));
-    seedWriterIntegration(projectDir, runId, {
+    seedWriterIntegration(workspaceRoot, runId, {
       publishedHead: sha,
       message: "builder commit",
     });
@@ -210,7 +210,7 @@ describe("extractAgentStepRecording", () => {
     );
 
     const result = extractAgentStepRecording({
-      projectDir,
+      workspaceRoot,
       sourceRunId: runId,
       stepId: "build",
       fixtureDir,

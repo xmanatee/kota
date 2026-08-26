@@ -108,7 +108,7 @@ describe("startCallbackPoll", () => {
         .mockReturnValue(hang());
 
       const pending: Map<string, PendingMessage> = new Map([
-        ["oq1", { chatId: "99", messageId: 30, projectId: "test-project" }],
+        ["oq1", { chatId: "99", messageId: 30, scopeId: "test-scope" }],
       ]);
 
       const stop = startCallbackPoll(TOKEN, new Map(), pending, stubLog);
@@ -157,7 +157,7 @@ describe("startCallbackPoll", () => {
         .mockReturnValue(hang());
 
       const pending: Map<string, PendingMessage> = new Map([
-        ["oq2", { chatId: "99", messageId: 40, projectId: "test-project" }],
+        ["oq2", { chatId: "99", messageId: 40, scopeId: "test-scope" }],
       ]);
 
       const stop = startCallbackPoll(TOKEN, new Map(), pending, stubLog);

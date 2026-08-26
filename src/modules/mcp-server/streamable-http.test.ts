@@ -139,10 +139,10 @@ describe("Streamable HTTP MCP transport", () => {
 		});
 
 		const originalCwd = process.cwd();
-		const clientProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-client-cwd-"));
+		const clientScopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-client-cwd-"));
 		let response: Awaited<ReturnType<typeof handleStreamableHttpRequest>>;
 		try {
-			process.chdir(clientProjectDir);
+			process.chdir(clientScopeRoot);
 			response = await handleStreamableHttpRequest(server, {
 				method: "GET",
 				url: "/.well-known/mcp/server-card",

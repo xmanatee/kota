@@ -6,14 +6,14 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
   mockedExecuteWithAgentSDK,
-  projectDir,
+  scopeRoot,
   wait,
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon restart recovery", () => {
   it("records failed workflow status without requesting restart", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -50,7 +50,7 @@ describe("Daemon restart recovery", () => {
       await wait(120);
 
       const state = JSON.parse(
-        readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf8"),
+        readFileSync(join(scopeRoot, ".kota", "workflow-state.json"), "utf8"),
       ) as {
         workflows: Record<string, { lastCompletion?: { status: string } }>;
       };

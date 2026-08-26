@@ -221,7 +221,7 @@ async function prepareMcpApprovalExecution(
 		};
 	}
 
-	const mcpManager = new McpManager({ projectDir: cwd });
+	const mcpManager = new McpManager({ scopeRoot: cwd });
 	try {
 		await mcpManager.initialize({
 			mcpServers: { [declaration.server]: serverConfig },

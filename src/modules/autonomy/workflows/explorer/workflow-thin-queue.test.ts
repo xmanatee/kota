@@ -36,8 +36,8 @@ vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
   }),
   REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
   listFullRepoTasks: vi.fn(() => []),
-  getRepoTaskStateDir: vi.fn((projectDir: string, state: string) =>
-    `${projectDir}/data/tasks/${state}`,
+  getRepoTaskStateDir: vi.fn((workspaceRoot: string, state: string) =>
+    `${workspaceRoot}/data/tasks/${state}`,
   ),
 }));
 
@@ -92,7 +92,7 @@ describe("explorer workflow thin queue gating", () => {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
+      workspaceRoot: tempDir,
     });
 
     const result = await harness.run();
@@ -120,7 +120,7 @@ describe("explorer workflow thin queue gating", () => {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
+      workspaceRoot: tempDir,
     });
 
     const result = await harness.run();
@@ -148,7 +148,7 @@ describe("explorer workflow thin queue gating", () => {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
+      workspaceRoot: tempDir,
     });
 
     const result = await harness.run();
@@ -173,7 +173,7 @@ describe("explorer workflow thin queue gating", () => {
     const harness = new WorkflowTestHarness(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
+      workspaceRoot: tempDir,
       contextOverrides: { state },
     });
 

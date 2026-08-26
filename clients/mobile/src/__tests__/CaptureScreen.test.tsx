@@ -303,7 +303,7 @@ describe('CaptureScreen', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     };
     mockDaemon({ captureText: 'forced to inbox', captureResult: result });
     const { getByText, getAllByText } = render(<CaptureScreen />);
@@ -311,7 +311,7 @@ describe('CaptureScreen', () => {
     expect(getAllByText('inbox').length).toBeGreaterThan(0);
     expect(
       getByText(
-        'Capture into inbox failed: inbox writer cannot reach project root',
+        'Capture into inbox failed: inbox writer cannot reach scope root',
       ),
     ).toBeTruthy();
     expect(getByText(renderCaptureResultPlain(result))).toBeTruthy();
@@ -394,7 +394,7 @@ describe('CaptureScreen', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     };
 
     const cases: Array<{
@@ -475,7 +475,7 @@ describe('CaptureScreen', () => {
           captureResult: contributorFailed,
         }),
         expectedText:
-          'Capture into inbox failed: inbox writer cannot reach project root',
+          'Capture into inbox failed: inbox writer cannot reach scope root',
         proves:
           'CaptureScreen rendered contributor_failed with target badge and verbatim daemon message.',
       },

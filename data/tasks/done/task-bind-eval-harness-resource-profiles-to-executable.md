@@ -15,7 +15,7 @@ The eval-harness correctly treats resource profiles as load-bearing for
 pass^k regression gating, but today those profiles are caller-supplied facts
 rather than facts produced or verified by the executor. The cadence workflow
 hardcodes `autonomy-cadence` as 2 CPU cores and 4096 MB memory, and the
-subprocess executor remaps `HOME` / `KOTA_PROJECT_DIR` and enforces only a
+subprocess executor remaps `HOME` / `KOTA_SCOPE_ROOT` and enforces only a
 wall-clock budget. It does not prove that CPU allocation, CPU kill threshold,
 memory allocation, or memory kill threshold match the recorded profile.
 
@@ -51,7 +51,7 @@ or fails loudly before scoring.
   and explicit. A missing Docker/container backend should produce a typed
   preflight result, not a silent downgrade to host execution.
 - Preserve the current fixture isolation guarantees: fixture working dirs stay
-  outside the operator repo, `HOME` and `KOTA_PROJECT_DIR` remain remapped,
+  outside the operator repo, `HOME` and `KOTA_SCOPE_ROOT` remain remapped,
   and credentials do not leak into artifacts.
 - Keep cost signals out of agent-facing context. Resource profile facts are
   operator/evaluator evidence only.
@@ -73,7 +73,7 @@ or fails loudly before scoring.
 - Tests cover: verified profile accepted for gating, requested/observed
   mismatch rejected before baseline comparison, missing optional isolation
   backend producing a typed non-gating result, and current host-subprocess
-  fixture execution still remapping `HOME` / `KOTA_PROJECT_DIR`.
+  fixture execution still remapping `HOME` / `KOTA_SCOPE_ROOT`.
 - The eval-harness local `AGENTS.md` is updated only if the execution-profile
   contract changes the operator-facing rule; do not add a backend catalog.
 
@@ -111,7 +111,7 @@ Local evidence:
 - `src/modules/eval-harness/cadence-workflow.ts` currently records a static
   `CADENCE_PROFILE` for all cadence runs.
 - `src/modules/eval-harness/subprocess-executor.ts` remaps `HOME` and
-  `KOTA_PROJECT_DIR` and enforces a wall-clock budget, but it does not verify
+  `KOTA_SCOPE_ROOT` and enforces a wall-clock budget, but it does not verify
   or enforce CPU/memory allocation and kill thresholds.
 
 ## Initiative

@@ -38,7 +38,7 @@ const createTask = typedCodeStep<CreatedTaskReference>({
       throw new Error("cannot create a task for a non-create GitHub mention assessment");
     }
     return ctx.runBlocking(createMentionTaskOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       taskTitle: assessment.taskTitle,
       taskSummary: assessment.taskSummary,
       taskBody: assessment.taskBody,
@@ -69,7 +69,7 @@ const writeCommitMessage = typedCodeStep<{ written: boolean; path: string }>({
         `github-mention-intake: create ${task.taskId}`,
         "",
         `Captured trusted GitHub implementation mention from ${assessment.fields.repo}#${assessment.fields.issueNumber}.`,
-        `Task path: ${relative(ctx.projectDir, task.path)}`,
+        `Task path: ${relative(ctx.workspaceRoot, task.path)}`,
         "",
       ].join("\n"),
       "utf-8",
@@ -93,7 +93,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },
@@ -131,7 +131,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
     const body = boundedBody(
       taskReferenceResponse(assessment.fields, {
         ...task,
-        path: relative(ctx.projectDir, task.path),
+        path: relative(ctx.workspaceRoot, task.path),
       }),
     );
     assertOutboundGitHubCommentBodyIsSafe(body);

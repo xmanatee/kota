@@ -33,7 +33,7 @@ import { resetScheduler } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { EventJournal } from "#core/events/event-journal.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
   getKnowledgeProvider,
@@ -48,7 +48,7 @@ import {
   autonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
-  initializeRuntimeRoutingProject,
+  initializeRuntimeRoutingScope,
   waitForRuntimeEvidence,
 } from "#root/daemon-runtime-routing-fixture.integration.js";
 
@@ -69,16 +69,16 @@ async function fetchWithToken(
 
 describe("daemon runtime module load", () => {
   let rootDir: string;
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), "kota-runtime-load-"));
-    projectDir = join(rootDir, "project-a");
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(projectDir, { recursive: true });
+    scopeRoot = join(rootDir, "scope-a");
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
-    initializeRuntimeRoutingProject(projectDir);
+    initializeRuntimeRoutingScope(scopeRoot);
     resetEventBus();
     resetScheduler();
     resetProviderRegistry();
@@ -98,7 +98,7 @@ describe("daemon runtime module load", () => {
 
     const daemon = new Daemon({
       runtimeModuleHost: { eventBus: new EventBus(), moduleLoader: loader },
-      projectDir,
+      scopeRoot,
       stateDir,
     });
     await expect(daemon.start()).rejects.toThrow(/bound to a different EventBus authority/);
@@ -112,14 +112,13 @@ describe("daemon runtime module load", () => {
     const eventBus = initEventBus();
     const loader = await loadRuntimeModules({
       config,
-      cwd: projectDir,
+      cwd: scopeRoot,
       eventBus,
     });
     const sourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
     const initialHealthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
-      projectId: string;
     }> = [];
     const stopInitialHealthObservation = eventBus.on(
       autonomyHealthSignal,
@@ -131,7 +130,7 @@ describe("daemon runtime module load", () => {
 
     const daemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader: loader },
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -155,7 +154,7 @@ describe("daemon runtime module load", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { entries: unknown[] };
       expect(Array.isArray(body.entries)).toBe(true);
-      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
+      new ScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
         workflow: "builder",
         runId: "daemon-runtime-cold-start-event-run",
         status: "failed",
@@ -166,7 +165,6 @@ describe("daemon runtime module load", () => {
       expect(initialHealthSignals).toEqual([
         expect.objectContaining({
           scopeId,
-          projectId: scopeId,
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
@@ -179,7 +177,7 @@ describe("daemon runtime module load", () => {
 
     const restartedLoader = await loadRuntimeModules({
       config,
-      cwd: projectDir,
+      cwd: scopeRoot,
       eventBus,
     });
     const restartedSourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
@@ -198,13 +196,12 @@ describe("daemon runtime module load", () => {
 
     const healthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
-      projectId: string;
     }> = [];
-    const decisions: Array<{ scopeId: string; projectId: string; issueKey: string }> = [];
+    const decisions: Array<{ scopeId: string; issueKey: string }> = [];
     eventBus.on(autonomyHealthSignal, (payload) => healthSignals.push(payload));
     const restartedDaemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader: restartedLoader },
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -263,7 +260,7 @@ describe("daemon runtime module load", () => {
           resolve();
         });
       });
-      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
+      new ScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
         workflow: "builder",
         runId: "daemon-runtime-event-run",
         status: "failed",
@@ -274,19 +271,18 @@ describe("daemon runtime module load", () => {
       expect(healthSignals).toEqual([
         expect.objectContaining({
           scopeId,
-          projectId: scopeId,
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
       await decisionObserved;
       expect(decisions).toEqual([
-        expect.objectContaining({ scopeId, projectId: scopeId }),
+        expect.objectContaining({ scopeId }),
       ]);
       await waitForRuntimeEvidence(
-        () => readAutonomyIssueProjection(projectDir).issues.length === 1,
+        () => readAutonomyIssueProjection(scopeRoot).issues.length === 1,
         "scoped autonomy issue state was not materialized",
       );
-      expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+      expect(readAutonomyIssueProjection(scopeRoot).issues).toEqual([
         expect.objectContaining({
           status: "needs-decision",
           source: expect.objectContaining({ id: "builder" }),

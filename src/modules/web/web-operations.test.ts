@@ -107,7 +107,7 @@ describe("web local handler cold-start", () => {
     expect(res.body).toMatchObject({ status: "ok" });
   });
 
-  it("warns when serve ignores untrusted project config", async () => {
+  it("warns when serve ignores untrusted scope config", async () => {
     mkdirSync(join(cwd, ".kota"), { recursive: true });
     writeFileSync(
       join(cwd, ".kota", "config.json"),
@@ -126,10 +126,10 @@ describe("web local handler cold-start", () => {
     } finally {
       stderrSpy.mockRestore();
     }
-    expect(warnings).toContain("ignored untrusted project config");
+    expect(warnings).toContain("ignored untrusted scope config");
     expect(warnings).toContain(join(cwd, ".kota", "config.json"));
     expect(warnings).toContain("server/auth posture (serve)");
-    expect(warnings).toContain("trustedProjects");
+    expect(warnings).toContain("trustedScopes");
   });
 
   it("rejects unconfigured-posture session creation with the canonical resolver error", async () => {

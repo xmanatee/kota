@@ -10,7 +10,7 @@ import {
  */
 export type LogicalResourceAuthority = {
   withResourceAvailable<T>(input: {
-    projectId: string;
+    scopeId: string;
     resourceKey: string;
     operation: () => T;
   }): T;

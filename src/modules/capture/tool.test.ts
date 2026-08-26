@@ -55,7 +55,7 @@ describe("capture tool — runner success arms", () => {
     provider.register(fixedContributor("memory", memRecord));
     const runner = createCaptureToolRunner(() => provider);
 
-    const result = await runner({ text: "Note about projects", target: "memory" });
+    const result = await runner({ text: "Note about scopes", target: "memory" });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toBe("Captured: memory  mem-42");
   });

@@ -189,7 +189,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     });
   });
 
-  it("status serializes projectId into the query string", async () => {
+  it("status serializes scopeId into the query string", async () => {
     const live = {
       activeRuns: [],
       pendingRuns: [],
@@ -203,10 +203,10 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       respondFetch: () => jsonResponse(200, live),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await wf.status({ projectId: "project-b" });
+    await wf.status({ scopeId: "scope-b" });
     expect(calls[0]).toEqual({
       kind: "fetchRaw",
-      path: "/workflow/status?projectId=project-b",
+      path: "/workflow/status?scopeId=scope-b",
       init: { method: "GET" },
     });
   });
@@ -227,14 +227,14 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const { transport } = makeRecordingTransport({
       respondFetch: () =>
         jsonResponse(404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.status({ projectId: "ghost" })).rejects.toThrow(
-      "Unknown project: ghost",
+    await expect(wf.status({ scopeId: "ghost" })).rejects.toThrow(
+      "Unknown scope: ghost",
     );
   });
 
@@ -682,7 +682,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const summary = {
       runId: "trial-run",
       workflow: "wf-1",
-      sourceProjectPath: "/project",
+      sourceScopeRoot: "/project",
       reportDir: ".kota/runs/trial-run/workflow-trial",
       payload: { extra: "info" },
       repeat: 2,
@@ -705,7 +705,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       repeat: 2,
       compareWorkflows: ["wf-2"],
       comparePayloads: [{ extra: "variant" }],
-      projectId: "project-a",
+      scopeId: "scope-a",
     });
     expect(result).toEqual({ ok: true, summary });
     const call = calls[0] as { path: string; init: RequestInit };
@@ -717,7 +717,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       repeat: 2,
       compareWorkflows: ["wf-2"],
       comparePayloads: [{ extra: "variant" }],
-      projectId: "project-a",
+      scopeId: "scope-a",
     });
   });
 
@@ -739,14 +739,14 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     const { transport } = makeRecordingTransport({
       respondFetch: () =>
         jsonResponse(404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
     });
     const wf = workflowOpsModule.daemonClient!(transport).workflow!;
-    await expect(wf.trial("wf-1", { projectId: "ghost" })).rejects.toThrow(
-      "Unknown project: ghost",
+    await expect(wf.trial("wf-1", { scopeId: "ghost" })).rejects.toThrow(
+      "Unknown scope: ghost",
     );
   });
 
@@ -781,7 +781,6 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
         event: "inbound.signal.received",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           channel: "telegram",
         },
         eventId: "evt-1",
@@ -797,7 +796,6 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       event: "inbound.signal.received",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
       },
       eventId: "evt-1",
@@ -844,7 +842,6 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       event: "inbound.signal.received",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
       },
       eventId: "evt-1",
@@ -858,7 +855,6 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
       event: "inbound.signal.received",
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
       },
       eventId: "evt-1",

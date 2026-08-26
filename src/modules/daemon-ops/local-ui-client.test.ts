@@ -5,32 +5,31 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { createScopeScopedKotaClient } from "#core/server/project-scoped-kota-client.js";
+import { createScopedKotaClient } from "#core/server/scoped-kota-client.js";
 import { memoryUiSurfaceSource } from "#modules/memory/ui-surface.js";
 import daemonModule, { buildOperatorControlUiSurface } from "./index.js";
 
 function projectionClient(): ModuleRuntimeContext["client"] {
   const client = {
-    projects: {
+    scopes: {
       list: async () => ({
         ok: true as const,
-        projects: [],
-        defaultProjectId: "scope-default",
-        activeProjectId: null,
+        scopes: [],
+        defaultScopeId: "scope-default",
+        activeScopeId: null,
       }),
     },
   } as unknown as ModuleRuntimeContext["client"];
-  client.forProject = () => client;
   client.forScope = () => client;
   return client;
 }
 
-function stubContext(projectDir: string): ModuleRuntimeContext {
+function stubContext(scopeRoot: string): ModuleRuntimeContext {
   return {
-    cwd: projectDir,
+    cwd: scopeRoot,
     verbose: false,
     config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage(projectDir, "daemon"),
+    storage: new ModuleStorage(scopeRoot, "daemon"),
     registerGroup: () => {},
     getRoutes: () => [],
     getContributedWorkflows: () => [],
@@ -62,9 +61,9 @@ function stubContext(projectDir: string): ModuleRuntimeContext {
 
 describe("daemon-ops local UI client", () => {
   it("uses the module runtime's shared UI assembler", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-local-offline-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-local-offline-"));
     try {
-      const ctx = stubContext(projectDir);
+      const ctx = stubContext(scopeRoot);
       const getContributedUiSurfaces = vi.spyOn(ctx, "getContributedUiSurfaces");
       const local = daemonModule.localClient!(ctx);
       await expect(local.ui!.listSurfaces()).resolves.toEqual({
@@ -73,14 +72,14 @@ describe("daemon-ops local UI client", () => {
       });
       expect(getContributedUiSurfaces).toHaveBeenCalledOnce();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("executes local setup routes with the scope projected into the action", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-local-action-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-local-action-"));
     try {
-      const baseContext = stubContext(projectDir);
+      const baseContext = stubContext(scopeRoot);
       const baseStart = vi.fn(async () => ({
         ok: false as const,
         reason: "not_found" as const,
@@ -91,16 +90,15 @@ describe("daemon-ops local UI client", () => {
         setup: { start: baseStart },
       } as unknown as ModuleRuntimeContext["client"];
       const forScope = vi.fn((scopeId: string) =>
-        createScopeScopedKotaClient(baseClient, scopeId)
+        createScopedKotaClient(baseClient, scopeId)
       );
       baseClient.forScope = forScope;
-      baseClient.forProject = () => baseClient;
       const ctx = { ...baseContext, client: baseClient };
       ctx.getContributedUiSurfaces = vi.fn(() => [{
         moduleName: "test-ui",
         source: {
           sourceId: "operator-control",
-          project: () => [buildOperatorControlUiSurface("scope-z")],
+          scope: () => [buildOperatorControlUiSurface("scope-z")],
         },
       }]);
       const local = daemonModule.localClient!(ctx);
@@ -123,14 +121,14 @@ describe("daemon-ops local UI client", () => {
         { scopeId: "scope-z" },
       );
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("executes daemon UI action requests through the same scoped local client", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-control-action-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-control-action-"));
     try {
-      const baseContext = stubContext(projectDir);
+      const baseContext = stubContext(scopeRoot);
       const baseStart = vi.fn(async () => ({
         ok: true as const,
         actionId: "setup-action-1",
@@ -140,14 +138,13 @@ describe("daemon-ops local UI client", () => {
         ...baseContext.client,
         setup: { start: baseStart },
       } as unknown as ModuleRuntimeContext["client"];
-      baseClient.forScope = (scopeId) => createScopeScopedKotaClient(baseClient, scopeId);
-      baseClient.forProject = () => baseClient;
+      baseClient.forScope = (scopeId) => createScopedKotaClient(baseClient, scopeId);
       const ctx = { ...baseContext, client: baseClient };
       ctx.getContributedUiSurfaces = vi.fn(() => [{
         moduleName: "test-ui",
         source: {
           sourceId: "operator-control",
-          project: () => [buildOperatorControlUiSurface("scope-z")],
+          scope: () => [buildOperatorControlUiSurface("scope-z")],
         },
       }]);
       const route = daemonModule.controlRoutes!(ctx).find((candidate) =>
@@ -179,14 +176,14 @@ describe("daemon-ops local UI client", () => {
         { scopeId: "scope-z" },
       );
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("uses the projected scope for local namespace action execution", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-local-namespace-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-local-namespace-"));
     try {
-      const baseContext = stubContext(projectDir);
+      const baseContext = stubContext(scopeRoot);
       const baseList = vi.fn(async () => ({ entries: [] }));
       const scopedList = vi.fn(async () => ({ entries: [] }));
       const baseClient = {
@@ -199,9 +196,7 @@ describe("daemon-ops local UI client", () => {
       } as unknown as ModuleRuntimeContext["client"];
       const forScope = vi.fn(() => scopedClient);
       baseClient.forScope = forScope;
-      baseClient.forProject = () => scopedClient;
       scopedClient.forScope = () => scopedClient;
-      scopedClient.forProject = () => scopedClient;
       const ctx = { ...baseContext, client: baseClient };
       ctx.getContributedUiSurfaces = vi.fn(() => [{
         moduleName: "memory",
@@ -221,7 +216,7 @@ describe("daemon-ops local UI client", () => {
       expect(scopedList).toHaveBeenCalledTimes(2);
       expect(baseList).not.toHaveBeenCalled();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });

@@ -109,7 +109,7 @@ describe("geminiCliAgentHarness", () => {
       .not.toContain("onMessage");
   });
 
-  it("projects only the Gemini login locator when a trusted host replaces HOME", () => {
+  it("scopes only the Gemini login locator when a trusted host replaces HOME", () => {
     expect(resolveGeminiCliIsolatedHostAuthEnv({ HOME: "/operator" }))
       .toEqual({
         [GEMINI_CLI_HOME_ENV]: "/operator",

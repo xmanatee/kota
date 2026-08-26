@@ -100,8 +100,8 @@ function buildConfigUiSurface(
     parameters: writeParameters,
     confirmation: {
       mode: "required",
-      title: "Update project configuration?",
-      detail: "This writes one key in the project configuration.",
+      title: "Update scope configuration?",
+      detail: "This writes one key in the scope configuration.",
       confirmLabel: "Update configuration",
       risk: "medium",
     },
@@ -130,7 +130,7 @@ function buildConfigUiSurface(
 
 export const configUiSurfaceSource: UiSurfaceSource = {
   sourceId: "configuration",
-  project: async (context) => {
+  scope: async (context) => {
     const config = await context.read("configuration", () => context.client.config.validate());
     return [buildConfigUiSurface(context.scopeId, config)];
   },

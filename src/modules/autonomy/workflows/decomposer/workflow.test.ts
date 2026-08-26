@@ -54,25 +54,25 @@ const DECOMPOSITION_REVIEW = {
 } as const;
 
 function project(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-decomposer-workflow-"));
-  roots.push(projectDir);
-  return projectDir;
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-decomposer-workflow-"));
+  roots.push(workspaceRoot);
+  return workspaceRoot;
 }
 
 function failureFixture(
   errorKind: WorkflowStepErrorKind | undefined,
   taskId = TASK_ID,
 ): {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   trigger: ReturnType<typeof failedBuilderTrigger>;
 } {
-  const projectDir = project();
-  const task = writeActionableTask(projectDir, taskId);
+  const workspaceRoot = project();
+  const task = writeActionableTask(workspaceRoot, taskId);
   const metadata = failedBuilderMetadata(task, { errorKind });
   return {
-    projectDir,
-    stateDir: writeRunMetadata(projectDir, FAILED_RUN_ID, metadata),
+    workspaceRoot,
+    stateDir: writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata),
     trigger: failedBuilderTrigger(),
   };
 }
@@ -92,7 +92,7 @@ async function runFixture(
   stepMocks = decomposeStepMocks(),
 ) {
   return new WorkflowTestHarness(decomposerWorkflow, {
-    projectDir: fixture.projectDir,
+    workspaceRoot: fixture.workspaceRoot,
     trigger: fixture.trigger,
     stepMocks,
     contextOverrides: { runCommand: successfulWorkflowCommandRun },
@@ -133,7 +133,7 @@ describe("decomposer workflow", () => {
   it("derives RunState ownership from the failed builder's immutable task contract", () => {
     const fixture = failureFixture("step-timeout");
     const resources = decomposerWorkflow.resources?.({
-      projectDir: fixture.projectDir,
+      scopeRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
       trigger: fixture.trigger,
@@ -142,15 +142,15 @@ describe("decomposer workflow", () => {
 
     const state = new RunStateDatabase(fixture.stateDir);
     try {
-      state.registerProject({
-        id: "project-decomposer",
-        rootPath: fixture.projectDir,
+      state.registerScope({
+        id: "scope-decomposer",
+        rootPath: fixture.workspaceRoot,
         createdAt: "2026-08-25T01:00:00.000Z",
       });
       const { epoch } = state.beginDaemonSession("2026-08-25T01:00:00.500Z");
       state.admitRun({
         id: "run-decomposer",
-        projectId: "project-decomposer",
+        scopeId: "scope-decomposer",
         workflow: "decomposer",
         repository: "write",
         trigger: fixture.trigger,
@@ -164,7 +164,7 @@ describe("decomposer workflow", () => {
       ]);
       state.admitRun({
         id: "run-competing-builder",
-        projectId: "project-decomposer",
+        scopeId: "scope-decomposer",
         workflow: "builder",
         repository: "write",
         trigger: fixture.trigger,
@@ -183,7 +183,7 @@ describe("decomposer workflow", () => {
   it("rejects resource admission when source metadata lacks the task contract", () => {
     const fixture = failureFixture("step-timeout");
     const metadata = failedBuilderMetadata(
-      writeActionableTask(fixture.projectDir),
+      writeActionableTask(fixture.workspaceRoot),
       { errorKind: "step-timeout" },
     );
     metadata.trigger = {
@@ -191,11 +191,11 @@ describe("decomposer workflow", () => {
       schemaRef: null,
       payload: { taskId: TASK_ID },
     };
-    writeRunMetadata(fixture.projectDir, FAILED_RUN_ID, metadata);
+    writeRunMetadata(fixture.workspaceRoot, FAILED_RUN_ID, metadata);
 
     expect(() =>
       decomposerWorkflow.resources?.({
-        projectDir: fixture.projectDir,
+        scopeRoot: fixture.workspaceRoot,
         stateDir: fixture.stateDir,
         workflowName: "decomposer",
         trigger: fixture.trigger,
@@ -208,8 +208,8 @@ describe("decomposer workflow", () => {
     const invariant = decomposerWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing decomposer post-reconcile invariant");
     const input = {
-      projectDir: fixture.projectDir,
-      scopeDir: fixture.projectDir,
+      workspaceRoot: fixture.workspaceRoot,
+      repoRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
       trigger: fixture.trigger,
@@ -220,7 +220,7 @@ describe("decomposer workflow", () => {
 
     expect(invariant(input)).toEqual({ satisfied: true });
     writeActionableTask(
-      fixture.projectDir,
+      fixture.workspaceRoot,
       TASK_ID,
       "doing",
       "The task changed after decomposer admission.",
@@ -234,7 +234,7 @@ describe("decomposer workflow", () => {
   it("rejects unsupported triggers and malformed completion payloads", () => {
     const fixture = failureFixture("step-timeout");
     const resourceInput = {
-      projectDir: fixture.projectDir,
+      scopeRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
     };
@@ -295,7 +295,7 @@ describe("decomposer workflow", () => {
   it("skips a task whose immutable contract changed after builder admission", async () => {
     const fixture = failureFixture("step-timeout");
     writeActionableTask(
-      fixture.projectDir,
+      fixture.workspaceRoot,
       TASK_ID,
       "doing",
       "The task changed after the failed builder run.",
@@ -339,7 +339,7 @@ describe("decomposer workflow", () => {
       decomposeStepMocks({
         "review-decomposition": () => {
           writeActionableTask(
-            fixture.projectDir,
+            fixture.workspaceRoot,
             TASK_ID,
             "doing",
             "The task changed during semantic review.",

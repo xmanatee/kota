@@ -140,8 +140,8 @@ function aggregateExcluded(scopes: readonly ProgressReviewScopeEvidence[]): stri
 }
 
 export function collectProgressReviewEvidence(args: {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   eventJournal?: EventJournal;
   trigger: WorkflowRunTrigger;
@@ -168,8 +168,8 @@ export function collectProgressReviewEvidence(args: {
   const startedAt = new Date(startedAtMs).toISOString();
   const stateDir = args.stateDir;
   const target = selectEvidenceTarget(
-    args.projectDir,
-    args.scopeDir,
+    args.workspaceRoot,
+    args.scopeRoot,
     args.trigger,
     stateDir,
   );
@@ -258,8 +258,8 @@ export function collectProgressReviewEvidence(args: {
 }
 
 export type ProgressReviewEvidenceOperationInput = {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   trigger: WorkflowRunTrigger;
   nowIso: string;
@@ -272,8 +272,8 @@ export function collectProgressReviewEvidenceInWorker(
   input: ProgressReviewEvidenceOperationInput,
 ): ProgressReviewEvidencePacket {
   return collectProgressReviewEvidence({
-    projectDir: input.projectDir,
-    scopeDir: input.scopeDir,
+    workspaceRoot: input.workspaceRoot,
+    scopeRoot: input.scopeRoot,
     stateDir: input.stateDir,
     trigger: input.trigger,
     now: new Date(input.nowIso),

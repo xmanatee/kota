@@ -42,20 +42,20 @@ import {
 } from "./workflow-step-executor-fixture.integration.js";
 
 describe("executeAgentStep", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agentConfig: AgentStepConfig;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
-    agentConfig = { projectDir };
+    agentConfig = { scopeRoot };
     mockedExecuteWithAgentSDK.mockReset();
   });
 
@@ -64,7 +64,7 @@ describe("executeAgentStep", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -83,7 +83,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -101,7 +101,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -125,7 +125,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep(projectDir, { allowedTools: ["Read"] }),
+      makeStep(scopeRoot, { allowedTools: ["Read"] }),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -143,7 +143,7 @@ describe("executeAgentStep", () => {
 
     await executeAgentStep(
       makeDefinition(),
-      makeStep(projectDir, { disallowedTools: ["Bash", KOTA_OWNER_QUESTIONS_MCP_TOOL] }),
+      makeStep(scopeRoot, { disallowedTools: ["Bash", KOTA_OWNER_QUESTIONS_MCP_TOOL] }),
       makeMetadata(),
       TRIGGER,
       new AbortController(),
@@ -167,7 +167,7 @@ describe("executeAgentStep", () => {
       });
     });
 
-    const step = makeStep(projectDir);
+    const step = makeStep(scopeRoot);
     const rejectReason = new Error("external abort");
     setTimeout(() => abortController.abort(rejectReason), 10);
 

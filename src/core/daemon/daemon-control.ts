@@ -179,8 +179,8 @@ export class DaemonControlServer {
     return this.chatPool?.refreshGuardrails(config) ?? { refreshed: 0, unchanged: 0 };
   }
 
-  listChatSessionIds(projectId: string): string[] {
-    return this.chatPool?.list(projectId).map((session) => session.id) ?? [];
+  listChatSessionIds(scopeId: string): string[] {
+    return this.chatPool?.list(scopeId).map((session) => session.id) ?? [];
   }
   private serializeEvent(entry: BufferedEvent): string {
     const { event } = entry;

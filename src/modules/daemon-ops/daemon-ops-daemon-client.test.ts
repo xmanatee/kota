@@ -22,7 +22,7 @@
  *  5. `pid()` throws on `null` or missing `status.pid` with a message
  *     containing `"Daemon unreachable"`.
  *  6. `stop({ timeoutSec: 30 })` routes through `link.request("GET",
- *     "/status")`, reads the daemon pid, fetches identity for project-scoped
+ *     "/status")`, reads the daemon pid, fetches identity for scope-scoped
  *     failure evidence when a pid is available, and reports
  *     not-running/stale states through the shared stop result contract.
  *  7. `reload()` routes through `link.request("POST", "/reload")` and
@@ -196,8 +196,8 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
     ]);
   });
 
-  it("stop() records daemon-side failed stop evidence when identity exposes the project directory", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-stop-evidence-"));
+  it("stop() records daemon-side failed stop evidence when identity exposes the scope directory", async () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-daemon-stop-evidence-"));
     try {
       const deadPid = Number.MAX_SAFE_INTEGER;
       const { transport } = makeRecordingTransport((method, path) => {
@@ -206,9 +206,9 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
         }
         if (method === "GET" && path === "/identity") {
           return {
-            projectName: "repo",
-            projectDir,
-            projects: { scopes: [], defaultScopeId: null },
+            scopeName: "repo",
+            scopeRoot,
+            scopes: { scopes: [], defaultScopeId: null },
             daemonVersion: "0.1.0",
             pid: deadPid,
             startedAt: SAMPLE_DAEMON_STATUS.startedAt,
@@ -225,7 +225,7 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
         pid: deadPid,
       });
 
-      const evidencePath = join(projectDir, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
+      const evidencePath = join(scopeRoot, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
       expect(existsSync(evidencePath)).toBe(true);
       const record = JSON.parse(readFileSync(evidencePath, "utf-8").trim()) as {
         timeoutSec: number;
@@ -234,7 +234,7 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
       expect(record.timeoutSec).toBe(1);
       expect(record.result).toEqual({ ok: false, reason: "stale", pid: deadPid });
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

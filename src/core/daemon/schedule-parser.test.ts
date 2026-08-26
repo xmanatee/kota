@@ -4,30 +4,30 @@ import {
   matchesFilter,
   parseRepeat,
   parseTime,
-  projectHash,
+  scopeHash,
 } from "./schedule-parser.js";
 
-describe("projectHash", () => {
+describe("scopeHash", () => {
   it("returns a consistent hash for the same path", () => {
-    const a = projectHash("/home/user/project");
-    const b = projectHash("/home/user/project");
+    const a = scopeHash("/home/user/project");
+    const b = scopeHash("/home/user/project");
     expect(a).toBe(b);
   });
 
   it("returns different hashes for different paths", () => {
-    const a = projectHash("/home/user/project-a");
-    const b = projectHash("/home/user/project-b");
+    const a = scopeHash("/home/user/scope-a");
+    const b = scopeHash("/home/user/scope-b");
     expect(a).not.toBe(b);
   });
 
   it("returns a non-empty base-36 string", () => {
-    const h = projectHash("/test");
+    const h = scopeHash("/test");
     expect(h.length).toBeGreaterThan(0);
     expect(/^[0-9a-z]+$/.test(h)).toBe(true);
   });
 
   it("handles empty string", () => {
-    const h = projectHash("");
+    const h = scopeHash("");
     expect(h.length).toBeGreaterThan(0);
   });
 });

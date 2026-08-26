@@ -43,7 +43,7 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
     ]),
   run: (ctx) =>
     ctx.runBlocking(applyScopeImprovementRecommendationsOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       runId: ctx.workflow.runId,
       inputs: collectInputs.outputRequired(ctx),
       recommendations: recommend.outputRequired(ctx).recommendations,
@@ -141,12 +141,12 @@ const validateChanges = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await ctx.runBlocking(taskQueueValidationOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
     });
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

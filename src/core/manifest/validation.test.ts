@@ -106,7 +106,7 @@ describe("validateManifest edge cases", () => {
 		];
 		for (const name of reservedNames) {
 			const errors = validateManifest({ name });
-			expect(errors.some((e) => e.message.includes("project module")), `${name} should conflict`).toBe(true);
+			expect(errors.some((e) => e.message.includes("installed module")), `${name} should conflict`).toBe(true);
 		}
 	});
 

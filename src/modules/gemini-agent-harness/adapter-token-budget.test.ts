@@ -197,12 +197,10 @@ describe("geminiAgentHarness token budget", () => {
       stepId: "build",
       spanId: "run-1:build",
       scopeId: "scope-1",
-      projectId: "scope-1",
     };
     const sessionContext = {
       sessionId: "session-1",
       scopeId: "scope-1",
-      projectId: "scope-1",
     };
 
     const result = await geminiAgentHarness.run({
@@ -225,7 +223,6 @@ describe("geminiAgentHarness token budget", () => {
         cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",
-        projectId: "scope-1",
         tokenBudget,
       }),
     );

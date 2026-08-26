@@ -60,12 +60,12 @@ export async function executeRepairAgentIteration(
     "utf-8",
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
-  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
+  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.scopeRoot);
   const systemPrompt = buildKotaSystemPrompt(
     agentConfig.config,
     promptBody,
     contextStartDir,
-    agentConfig.projectDir,
+    agentConfig.scopeRoot,
   );
   const harness = resolveAgentHarness(step.harness);
   const repairSessionId = harness.unsupportedRunOptions?.some(
@@ -73,7 +73,7 @@ export async function executeRepairAgentIteration(
   )
     ? undefined
     : resumeSessionId;
-  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
   const scopedAgent = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
     : undefined;

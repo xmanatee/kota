@@ -36,7 +36,7 @@ export type SearchFilters = {
 	tag?: string;
 	status?: string;
 	since?: string;
-	scope?: "project" | "global" | "all";
+	scope?: "scope" | "global" | "all";
 };
 
 /** Result of rebuilding the semantic search index. */
@@ -91,7 +91,7 @@ export interface KnowledgeProvider {
 		type?: string;
 		tags?: string[];
 		status?: string;
-		scope?: "project" | "global";
+		scope?: "scope" | "global";
 		meta?: Record<string, string>;
 		provenance?: WorkMemoryProvenance;
 		freshness?: WorkMemoryFreshness;

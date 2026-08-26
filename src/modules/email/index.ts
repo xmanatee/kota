@@ -129,14 +129,14 @@ const emailModule: KotaModule = {
         id: "email.smtp-routing",
         description: "SMTP host, sender, recipient, and event-filter routing configuration.",
         sensitivity: "personal",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "metadata-only",
       },
       {
         id: "email.smtp-credentials",
         description: "SMTP username and password references resolved through the shared secret provider.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -160,9 +160,9 @@ const emailModule: KotaModule = {
       kind: "config",
       title: "SMTP routing config",
       description:
-        "Project SMTP host and email routing fields used for operator notifications.",
+        "Scope SMTP host and email routing fields used for operator notifications.",
       required: true,
-      scope: "project",
+      scope: "scope",
       owner: "email",
       sensitivity: "none",
       setup: {
@@ -235,7 +235,7 @@ const emailModule: KotaModule = {
       description:
         "Optional SMTP username and password values stored through the shared secret provider.",
       required: false,
-      scope: "project",
+      scope: "scope",
       owner: "email",
       sensitivity: "secret",
       setup: {
@@ -245,8 +245,8 @@ const emailModule: KotaModule = {
         pendingTtlMs: 30 * 60 * 1000,
       },
       secretRefs: [
-        { name: "SMTP_USER", scope: "project" },
-        { name: "SMTP_PASS", scope: "project" },
+        { name: "SMTP_USER", scope: "scope" },
+        { name: "SMTP_PASS", scope: "scope" },
       ],
     },
   ] satisfies ModuleSetupRequirement[],

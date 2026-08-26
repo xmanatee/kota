@@ -9,7 +9,7 @@ import {
   type OwnerQuestionQueue,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -24,7 +24,7 @@ import { registerOwnerQuestionCommands } from "./cli.js";
 import type {
   OwnerQuestionListFilter,
   OwnerQuestionMutateResult,
-  OwnerQuestionProjectScope,
+  OwnerQuestionScopeSelection,
   OwnerQuestionsClient,
   OwnerQuestionsListResult,
 } from "./client.js";
@@ -46,12 +46,12 @@ export { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 const RESOLUTION_SOURCE = "cli";
 
 function resolveLocalOwnerQuestionQueue(selector?: ScopeSelector): OwnerQuestionQueue {
-  const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-  if (!projectScope) return getOwnerQuestionQueue();
-  const projectId = selectedScopeSelectorId(selector);
-  const resolved = projectScope.resolveProjectRuntime(projectId);
+  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+  if (!scopeProvider) return getOwnerQuestionQueue();
+  const scopeId = selectedScopeSelectorId(selector);
+  const resolved = scopeProvider.resolveScopeRuntime(scopeId);
   if (!resolved.ok) {
-    throw new Error(`Unknown project: ${resolved.error.projectId}`);
+    throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
   }
   return resolved.runtime.ownerQuestionQueue;
 }
@@ -64,8 +64,8 @@ function ownerQuestionsListPath(filter?: OwnerQuestionListFilter): string {
   return query ? `/owner-questions?${query}` : "/owner-questions";
 }
 
-function ownerQuestionProjectQuery(project?: OwnerQuestionProjectScope): string {
-  return scopeSelectorQuery(project);
+function ownerQuestionScopeQuery(scopeSelector?: OwnerQuestionScopeSelection): string {
+  return scopeSelectorQuery(scopeSelector);
 }
 
 /**
@@ -92,16 +92,16 @@ function buildOwnerQuestionsDaemonHandler(
         ownerQuestionsListPath(filter),
       );
     },
-    answer: async (id, answer, project): Promise<OwnerQuestionMutateResult> =>
+    answer: async (id, answer, scopeSelector): Promise<OwnerQuestionMutateResult> =>
       mutateOwnerQuestion(
         link,
-        `/owner-questions/${encodeURIComponent(id)}/answer${ownerQuestionProjectQuery(project)}`,
+        `/owner-questions/${encodeURIComponent(id)}/answer${ownerQuestionScopeQuery(scopeSelector)}`,
         JSON.stringify({ answer }),
       ),
-    dismiss: async (id, reason, project): Promise<OwnerQuestionMutateResult> =>
+    dismiss: async (id, reason, scopeSelector): Promise<OwnerQuestionMutateResult> =>
       mutateOwnerQuestion(
         link,
-        `/owner-questions/${encodeURIComponent(id)}/dismiss${ownerQuestionProjectQuery(project)}`,
+        `/owner-questions/${encodeURIComponent(id)}/dismiss${ownerQuestionScopeQuery(scopeSelector)}`,
         JSON.stringify(reason !== undefined ? { reason } : {}),
       ),
   };
@@ -119,8 +119,8 @@ async function mutateOwnerQuestion(
   });
   if (res.status === 404) {
     const errBody = await readOwnerQuestionRouteError(res);
-    if (errBody?.reason === "unknown_project" && errBody.projectId) {
-      throw new Error(`Unknown project: ${errBody.projectId}`);
+    if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+      throw new Error(`Unknown scope: ${errBody.scopeId}`);
     }
     return { ok: false, reason: "not_found" };
   }
@@ -141,7 +141,7 @@ async function mutateOwnerQuestion(
 type OwnerQuestionRouteErrorBody = {
   error?: string;
   reason?: string;
-  projectId?: string;
+  scopeId?: string;
 };
 
 async function readOwnerQuestionRouteError(
@@ -180,12 +180,12 @@ const ownerQuestionsModule: KotaModule = {
         if (status === "all") return { questions: queue.list() };
         return { questions: queue.list(status) };
       },
-      async answer(id, answer, project) {
-        const item = resolveLocalOwnerQuestionQueue(project).answer(id, answer, RESOLUTION_SOURCE);
+      async answer(id, answer, scopeSelector) {
+        const item = resolveLocalOwnerQuestionQueue(scopeSelector).answer(id, answer, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
-      async dismiss(id, reason, project) {
-        const item = resolveLocalOwnerQuestionQueue(project).dismiss(id, reason, RESOLUTION_SOURCE);
+      async dismiss(id, reason, scopeSelector) {
+        const item = resolveLocalOwnerQuestionQueue(scopeSelector).dismiss(id, reason, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
     };

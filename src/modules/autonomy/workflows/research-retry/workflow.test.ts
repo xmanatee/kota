@@ -114,7 +114,7 @@ function researchRetryTrigger(): WorkflowRunTrigger {
     event: "autonomy.blocked-research.attemptable",
     schemaRef: null,
     payload: {
-      projectId: "project-research-retry",
+      scopeId: "scope-research-retry",
       candidateCount: 1,
       attemptableCount: 1,
       counts: {
@@ -172,18 +172,18 @@ describe("research-retry workflow", () => {
       (entry) => entry.id === "task-queue-valid",
     );
     if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-command-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-command-"));
     const runCommand = vi.fn(successfulWorkflowCommandRun);
 
     await check.run(
-      { projectDir, runCommand } as unknown as WorkflowStepContext,
+      { workspaceRoot, runCommand } as unknown as WorkflowStepContext,
       {} as never,
     );
 
     expect(runCommand).toHaveBeenCalledWith({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
   });
 
@@ -388,12 +388,12 @@ describe("research-retry workflow", () => {
     const { writeMarkerForCandidate, computeResourceFingerprint } = await import(
       "./precondition.js"
     );
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
     execFileSync("git", ["init", "-q", "-b", "main"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
-    const blockedDir = join(projectDir, "data", "tasks", "blocked");
+    const blockedDir = join(workspaceRoot, "data", "tasks", "blocked");
     mkdirSync(blockedDir, { recursive: true });
     const taskFile = join(blockedDir, "task-x.md");
     const initialUrls = [
@@ -417,7 +417,7 @@ describe("research-retry workflow", () => {
     );
 
     const result = writeMarkerForCandidate({
-      projectDir,
+      workspaceRoot,
       candidateId: "task-x",
       attemptedAt: "2026-04-23T00:00:00.000Z",
     });
@@ -433,8 +433,8 @@ describe("research-retry workflow", () => {
 
   it("writeMarkerForCandidate is a no-op when the task moved out of blocked", async () => {
     const { writeMarkerForCandidate } = await import("./precondition.js");
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
-    const doneDir = join(projectDir, "data", "tasks", "done");
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
+    const doneDir = join(workspaceRoot, "data", "tasks", "done");
     mkdirSync(doneDir, { recursive: true });
     const taskFile = join(doneDir, "task-y.md");
     writeFileSync(
@@ -454,7 +454,7 @@ describe("research-retry workflow", () => {
     );
 
     const result = writeMarkerForCandidate({
-      projectDir,
+      workspaceRoot,
       candidateId: "task-y",
     });
 

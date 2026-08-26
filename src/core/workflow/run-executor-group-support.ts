@@ -1,5 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import {
   type ActiveTimeoutSnapshot,
@@ -29,7 +29,7 @@ export type GroupStepDeps = {
   agentConfig: AgentStepConfig;
   acc: StepAccumulators;
   bus: EventBus;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   log: (message: string) => void;
   contextDeps: Parameters<typeof createStepContext>[6];
   previousOutput: WorkflowStepContext["previousOutput"];

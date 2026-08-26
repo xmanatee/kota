@@ -41,8 +41,8 @@ function makeProgram(): Command {
   return program;
 }
 
-function writeTask(projectDir: string, id: string): void {
-  const dir = join(projectDir, "data", "tasks", "backlog");
+function writeTask(workspaceRoot: string, id: string): void {
+  const dir = join(workspaceRoot, "data", "tasks", "backlog");
   mkdirSync(dir, { recursive: true });
   const updatedAt = new Date("2026-07-07T12:00:00.000Z").toISOString();
   const content =
@@ -52,8 +52,8 @@ function writeTask(projectDir: string, id: string): void {
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
-function writeApproval(projectDir: string): void {
-  const dir = join(projectDir, ".kota", "approvals");
+function writeApproval(workspaceRoot: string): void {
+  const dir = join(workspaceRoot, ".kota", "approvals");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "approval-terminal-control.json"),
@@ -74,9 +74,9 @@ function writeApproval(projectDir: string): void {
   );
 }
 
-function writeRunningRun(projectDir: string, scopeId: string): void {
+function writeRunningRun(workspaceRoot: string, scopeId: string): void {
   const id = "run-active-terminal-control";
-  const dir = join(projectDir, ".kota", "runs", id);
+  const dir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "metadata.json"),
@@ -91,7 +91,6 @@ function writeRunningRun(projectDir: string, scopeId: string): void {
           payload: {
             taskId: "task-arch-1",
             scopeId,
-            projectId: "project-a",
           },
         },
         startedAt: new Date().toISOString(),
@@ -107,11 +106,11 @@ function writeRunningRun(projectDir: string, scopeId: string): void {
 }
 
 function writeRunWithoutTrigger(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   status: "running" | "success",
 ): void {
-  const dir = join(projectDir, ".kota", "runs", id);
+  const dir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(dir, { recursive: true });
   const startedAt = new Date().toISOString();
   writeFileSync(
@@ -153,31 +152,31 @@ async function captureNoColorStdout(
 }
 
 describe("kota report CLI supervision load", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let origCwd: string;
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-report-cli-load-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-report-cli-load-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("renders the supervision-load section", async () => {
-    writeTask(projectDir, "task-arch-1");
+    writeTask(workspaceRoot, "task-arch-1");
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "report"]);
@@ -189,7 +188,7 @@ describe("kota report CLI supervision load", () => {
   });
 
   it("--json emits the structured supervision-load payload", async () => {
-    writeTask(projectDir, "task-arch-1");
+    writeTask(workspaceRoot, "task-arch-1");
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "report", "--json"]);
@@ -223,7 +222,7 @@ describe("kota report CLI supervision load", () => {
   });
 
   it("keeps historical terminal runs without trigger metadata reportable", async () => {
-    writeRunWithoutTrigger(projectDir, "run-historical-no-trigger", "success");
+    writeRunWithoutTrigger(workspaceRoot, "run-historical-no-trigger", "success");
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "report", "--json"]);
@@ -240,7 +239,7 @@ describe("kota report CLI supervision load", () => {
   });
 
   it("rejects an active run whose current metadata omits its trigger", async () => {
-    writeRunWithoutTrigger(projectDir, "run-active-no-trigger", "running");
+    writeRunWithoutTrigger(workspaceRoot, "run-active-no-trigger", "running");
 
     await expect(
       makeProgram().parseAsync(["node", "kota", "report", "--json"]),
@@ -250,8 +249,8 @@ describe("kota report CLI supervision load", () => {
   });
 
   it("strips terminal controls from approval-derived top references", async () => {
-    writeTask(projectDir, "task-arch-1");
-    writeApproval(projectDir);
+    writeTask(workspaceRoot, "task-arch-1");
+    writeApproval(workspaceRoot);
 
     const out = await captureNoColorStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "report"]);
@@ -266,9 +265,9 @@ describe("kota report CLI supervision load", () => {
   });
 
   it("strips terminal controls from active-run workstream scope ids", async () => {
-    writeTask(projectDir, "task-arch-1");
+    writeTask(workspaceRoot, "task-arch-1");
     writeRunningRun(
-      projectDir,
+      workspaceRoot,
       `scope${CSI_RED}red${CSI_RESET}${OSC_TITLE}${C1_CSI_GREEN}green${RIGHT_TO_LEFT_OVERRIDE}`,
     );
 

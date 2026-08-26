@@ -58,13 +58,13 @@ type StepMockValue = StepMockLiteral | StepMockResolver;
 export type HarnessOptions = {
   trigger?: HarnessTrigger;
   /**
-   * Project directory passed to code steps. Omitted means the harness uses the
+   * Scope directory passed to code steps. Omitted means the harness uses the
    * OS temp directory rather than the caller's live repo.
    */
-  projectDir?: string;
+  workspaceRoot?: string;
   /**
    * Mutable checkout passed to workflow step contexts. Omitted means code
-   * steps see the same checkout as projectDir.
+   * steps see the same checkout as workspaceRoot.
    */
   workspaceDir?: string;
   runtimeResources?: WorkflowRuntimeResources;
@@ -128,10 +128,10 @@ export class WorkflowTestHarness {
   }
 
   async run(): Promise<HarnessRunResult> {
-    const projectDir = this.#options.projectDir ?? tmpdir();
+    const workspaceRoot = this.#options.workspaceRoot ?? tmpdir();
     const state = new HarnessExecutionState(this.#workflow, this.#options, {
-      projectDir,
-      workspaceDir: this.#options.workspaceDir ?? projectDir,
+      workspaceRoot,
+      workspaceDir: this.#options.workspaceDir ?? workspaceRoot,
       runtimeResources: this.#options.runtimeResources,
       trigger: {
         event: this.#options.trigger?.event ?? "runtime.idle",

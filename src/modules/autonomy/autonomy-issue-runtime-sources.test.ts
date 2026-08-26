@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import {
   EventedDeadLetterQueueStore,
-  projectScopedDeadLetterChangedPublisher,
+  scopedDeadLetterChangedPublisher,
 } from "#core/daemon/dead-letter-queue-events.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import {
   applyHealthReviewSignals,
@@ -19,24 +19,24 @@ import type { AutonomyHealthSignal } from "./health-signal.js";
 const NOW = "2026-08-13T10:00:00.000Z";
 
 describe("runtime-owned autonomy issue observations", () => {
-  let projectDir: string;
-  let pbus: ProjectScopedEventBus;
+  let scopeRoot: string;
+  let pbus: ScopedEventBus;
   let signals: AutonomyHealthSignal[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-issue-runtime-sources-"));
-    ({ pbus, signals } = wireAutonomyIssueSourceFixture(projectDir));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-issue-runtime-sources-"));
+    ({ pbus, signals } = wireAutonomyIssueSourceFixture(scopeRoot));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("links the retained progress-reviewer incident runs until every canonical item is terminal", () => {
     const store = new EventedDeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(scopeRoot, ".kota", "dead-letter-queue"),
       () => new Date(NOW),
-      projectScopedDeadLetterChangedPublisher(pbus),
+      scopedDeadLetterChangedPublisher(pbus),
     );
     const productionRunIds = [
       "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul",
@@ -51,7 +51,7 @@ describe("runtime-owned autonomy issue observations", () => {
     const projectNewSignals = (reason: string) => {
       for (const signal of signals.slice(processedSignalCount)) {
         const result = applyHealthReviewSignals({
-          projectDir,
+          scopeRoot,
           signals: [signal],
           generatedAt: signal.createdAt,
           reason,
@@ -116,7 +116,7 @@ describe("runtime-owned autonomy issue observations", () => {
     expect(applied.filter((action) => action.kind === "decision-requested")).toEqual([
       expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
     ]);
-    expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
+    expect(readAutonomyIssueProjection(scopeRoot).issues[0]).toMatchObject({
       semanticRevision: 1,
       occurrenceCount: 8,
     });
@@ -133,7 +133,7 @@ describe("runtime-owned autonomy issue observations", () => {
     );
     expect(signals.at(-1)?.summary).toContain("commit 532ab1ae");
     expect(applied.at(-1)).toMatchObject({ kind: "resolved", transition: "cleared" });
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(scopeRoot).issues[0]!;
     expect(issue.status).toBe("resolved");
     expect(issue.occurrenceCount).toBe(8);
     expect(issue.links.deadLetterIds).toEqual(items.map((item) => item.id).sort());
@@ -141,7 +141,7 @@ describe("runtime-owned autonomy issue observations", () => {
 
   it("publishes trajectory diagnostics when their owning step completes", () => {
     const artifactPath = join(
-      projectDir,
+      scopeRoot,
       ".kota",
       "runs",
       "builder-run",
@@ -206,7 +206,7 @@ describe("runtime-owned autonomy issue observations", () => {
   });
 
   it("publishes thin scrutiny from the review step that owns the record", () => {
-    const runDir = join(projectDir, ".kota", "runs", "review-run");
+    const runDir = join(scopeRoot, ".kota", "runs", "review-run");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "review-scrutiny.json"),

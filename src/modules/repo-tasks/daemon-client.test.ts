@@ -299,7 +299,7 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     ).toEqual({ ok: false, reason: "invalid_slug", message: "bad slug" });
   });
 
-  it("project-scoped create sends projectId in the query, not the JSON body", async () => {
+  it("scope-scoped create sends scopeId in the query, not the JSON body", async () => {
     const { transport, calls } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/ready/t1.md" }),
     });
@@ -309,9 +309,9 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
       priority: "p2",
       area: "core",
       state: "ready",
-      projectId: "project-a",
+      scopeId: "scope-a",
     });
-    expect(calls[0]!.path).toBe("/api/tasks/normalized?projectId=project-a");
+    expect(calls[0]!.path).toBe("/api/tasks/normalized?scopeId=scope-a");
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
       title: "Hello",
       priority: "p2",
@@ -367,25 +367,25 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     );
   });
 
-  it("project-scoped search and reindex append projectId to their query strings", async () => {
+  it("scope-scoped search and reindex append scopeId to their query strings", async () => {
     const { transport, calls } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(200, { ok: true, tasks: [] }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     await contributed.tasks!.search("query terms", {
       semantic: false,
-      projectId: "project-a",
+      scopeId: "scope-a",
     });
     expect(calls[0]!.path).toBe(
-      "/tasks/search?q=query+terms&semantic=false&projectId=project-a",
+      "/tasks/search?q=query+terms&semantic=false&scopeId=scope-a",
     );
 
     const { transport: reindexTransport, calls: reindexCalls } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(200, { indexed: 1, failed: 0 }),
     });
     const reindexClient = repoTasksModule.daemonClient!(reindexTransport);
-    await reindexClient.tasks!.reindex({ projectId: "project-a" });
-    expect(reindexCalls[0]!.path).toBe("/tasks/reindex?projectId=project-a");
+    await reindexClient.tasks!.reindex({ scopeId: "scope-a" });
+    expect(reindexCalls[0]!.path).toBe("/tasks/reindex?scopeId=scope-a");
   });
 
   it("reindex POSTs /tasks/reindex and returns the body verbatim", async () => {

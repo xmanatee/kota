@@ -21,12 +21,12 @@ export type CoreKotaConfig = {
   skipConfirmations?: boolean;
 
   /**
-   * Operator-owned project trust list. Only persisted global config can grant
-   * trust to target project `.kota/config.json`; project config and caller
+   * Operator-owned scope trust list. Only persisted global config can grant
+   * trust to a target scope's `.kota/config.json`; scope config and caller
    * overrides cannot provide machine authority.
    * Entries must be absolute paths, with `~/` accepted for the operator home.
    */
-  trustedProjects?: string[];
+  trustedScopes?: string[];
 
   /** Machine-owned scope policies, mutated through the daemon authority service. */
   scopePolicies?: ScopePolicyFragment[];
@@ -86,7 +86,7 @@ export type CoreKotaConfig = {
   defaultAgentHarness?: string;
 
   /**
-   * Default preset id for this project. Selects harness + default model +
+   * Default preset id for this scope. Selects harness + default model +
    * fast/balanced/capable tier mapping + default reasoning effort + auth
    * contract together. Resolution priority: `--preset` flag > `KOTA_PRESET`
    * env > this field > shipped default preset. Must match a shipped preset

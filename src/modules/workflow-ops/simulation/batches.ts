@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
@@ -41,17 +41,17 @@ export function eventFromQueuedBatchFlush(
 export function createBatchSimulationState(
   definitions: readonly WorkflowDefinition[],
 ): BatchSimulationState {
-  const tempProjectDir = mkdtempSync(join(tmpdir(), "kota-workflow-simulation-"));
+  const tempScopeRoot = mkdtempSync(join(tmpdir(), "kota-workflow-simulation-"));
   const bus = new EventBus();
-  const store = new WorkflowRunStore(tempProjectDir);
+  const store = new WorkflowRunStore(tempScopeRoot);
   const queuedFlushes: QueuedBatchFlushPreview[] = [];
-  const scopedBuses = new Map<string, ProjectScopedEventBus>();
+  const scopedBuses = new Map<string, ScopedEventBus>();
   let currentScopeId = "default";
 
-  const projectBus = (): ProjectScopedEventBus => {
+  const scopeBus = (): ScopedEventBus => {
     const existing = scopedBuses.get(currentScopeId);
     if (existing) return existing;
-    const created = new ProjectScopedEventBus(bus, currentScopeId);
+    const created = new ScopedEventBus(bus, currentScopeId);
     scopedBuses.set(currentScopeId, created);
     return created;
   };
@@ -63,7 +63,7 @@ export function createBatchSimulationState(
       queuedFlushes.push({ definition, runTrigger });
     },
     () => {},
-    projectBus,
+    scopeBus,
     () => {},
   );
   manager.setup([...definitions]);
@@ -77,7 +77,7 @@ export function createBatchSimulationState(
     },
     cleanup() {
       manager.clearAll();
-      rmSync(tempProjectDir, { recursive: true, force: true });
+      rmSync(tempScopeRoot, { recursive: true, force: true });
     },
   };
 }

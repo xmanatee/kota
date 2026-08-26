@@ -6,17 +6,17 @@ function terminalTaskId(path: string): string | null {
 }
 
 export function checkTargetTaskResolved(
-  projectDir: string,
+  workspaceRoot: string,
   taskId: string,
 ): string {
-  const task = listFullRepoTasks(projectDir).find((candidate) => candidate.id === taskId);
+  const task = listFullRepoTasks(workspaceRoot).find((candidate) => candidate.id === taskId);
   if (!task || !["done", "blocked", "dropped"].includes(task.state)) {
     throw new Error(
       `Builder must move targeted task ${taskId} to done, blocked, or dropped before stopping.`,
     );
   }
 
-  const completedTaskIds = listWorkflowMutatedPaths(projectDir)
+  const completedTaskIds = listWorkflowMutatedPaths(workspaceRoot)
     .map(terminalTaskId)
     .filter((candidate): candidate is string => candidate !== null);
   if (!completedTaskIds.includes(taskId)) {

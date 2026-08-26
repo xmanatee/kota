@@ -105,8 +105,8 @@ export function formatRepoHygieneFindings(findings: readonly RepoHygieneFinding[
     .join("\n\n");
 }
 
-export function checkRepoHygiene(projectDir: string): string {
-  const diff = readWorkflowDiff(projectDir, ["."]);
+export function checkRepoHygiene(workspaceRoot: string): string {
+  const diff = readWorkflowDiff(workspaceRoot, ["."]);
   if (!diff.trim()) return "OK: no staged changes";
   const findings = detectRepoHygieneInDiff(diff);
   const errors = findings.filter((finding) => finding.severity === "error");

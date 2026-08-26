@@ -33,16 +33,16 @@ function completion(
 }
 
 describe("workflow completion state races", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-completion-race-"));
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-completion-race-"));
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("preserves independent completion updates from concurrent run handles", () => {

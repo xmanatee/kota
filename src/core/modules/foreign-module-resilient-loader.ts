@@ -18,14 +18,14 @@ const DEFAULT_BACKOFF_BASE_MS = 2_000;
 
 export async function startResilientStdioModule(
   config: StdioForeignModuleConfig,
-  projectCwd: string,
+  scopeRoot: string,
   moduleConfig?: KempInit["config"],
 ): Promise<KotaModule> {
   const maxRestarts = config.maxRestarts ?? DEFAULT_MAX_RESTARTS;
   const pingTimeoutMs = config.pingTimeoutMs ?? DEFAULT_PING_TIMEOUT_MS;
   const pingIntervalMs = config.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
   const backoffBase = config.restartBackoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
-  const resolvedCwd = resolve(projectCwd);
+  const resolvedCwd = resolve(scopeRoot);
 
   const raw = await createRawForeignModule(
     new StdioTransport(config, resolvedCwd),

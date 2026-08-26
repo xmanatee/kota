@@ -15,14 +15,14 @@ import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { beginApprovalExecutionActivity } from "./approval-execution-activity.js";
-import { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeDrainBlocker } from "./scope-drain-inspection.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
 import { mockPendingWorkflowBuffers } from "./scope-lifecycle-test-support.integration.js";
 import { deriveDirectoryScopeId, ScopeRegistry } from "./scope-registry.js";
+import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
-function projectDir(name: string): string {
+function scopeRoot(name: string): string {
   return mkdtempSync(join(tmpdir(), `kota-scope-lifecycle-${name}-`));
 }
 
@@ -34,33 +34,33 @@ afterEach(() => {
 
 describe("ScopeLifecycleService", () => {
   it("fails closed, reports every drain disposition, and leaves removal non-destructive", async () => {
-    const scopeA = projectDir("a");
-    const scopeB = projectDir("b");
-    const stateDir = projectDir("state");
+    const scopeA = scopeRoot("a");
+    const scopeB = scopeRoot("b");
+    const stateDir = scopeRoot("state");
     const bus = new EventBus();
-    const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir: scopeA }] });
+    const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] });
     const scopeAId = deriveDirectoryScopeId(scopeA);
     const runState = new RunStateDatabase(join(stateDir, "run-state"));
     openRunStates.push(runState);
     const startedAt = new Date().toISOString();
     const initialProject = registry.get(scopeAId);
     if (!initialProject) throw new Error("initial scope fixture missing");
-    runState.registerProject({
-      id: initialProject.projectId,
-      rootPath: initialProject.projectDir,
+    runState.registerScope({
+      id: initialProject.scopeId,
+      rootPath: initialProject.scopeRoot,
       displayName: initialProject.displayName,
       createdAt: startedAt,
     });
     const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
-    let runtimes!: ProjectRuntimeRegistry;
+    let runtimes!: ScopeRuntimeRegistry;
     const runCoordinator = new RunCoordinator({
       store: runState,
       daemonEpoch,
       concurrency: 4,
       execute: (run, signal) =>
-        runtimes.get(run.projectId).workflowRuntime.executeAdmittedRun(run, signal),
+        runtimes.get(run.scopeId).workflowRuntime.executeAdmittedRun(run, signal),
     });
-    runtimes = ProjectRuntimeRegistry.create({
+    runtimes = ScopeRuntimeRegistry.create({
       registry,
       bus,
       workflows: [
@@ -104,7 +104,7 @@ describe("ScopeLifecycleService", () => {
     writeFileSync(notDirectory, "file");
     expect(await lifecycle.registerDirectoryScope({ directoryRoot: notDirectory }))
       .toMatchObject({ ok: false, reason: "not_directory" });
-    const inaccessible = projectDir("inaccessible");
+    const inaccessible = scopeRoot("inaccessible");
     chmodSync(inaccessible, 0o000);
     expect(await lifecycle.registerDirectoryScope({ directoryRoot: inaccessible }))
       .toMatchObject({ ok: false, reason: "directory_inaccessible" });
@@ -112,7 +112,7 @@ describe("ScopeLifecycleService", () => {
     expect(registry.list()).toHaveLength(1);
 
     const failedRunStateRegistration = vi
-      .spyOn(runState, "registerProject")
+      .spyOn(runState, "registerScope")
       .mockImplementationOnce(() => {
         throw new Error("run-state persistence failed");
       });
@@ -132,7 +132,7 @@ describe("ScopeLifecycleService", () => {
     expect(registryRemove).toHaveBeenCalledWith(deriveDirectoryScopeId(scopeB));
     expect(registry.list()).toHaveLength(1);
     expect(runtimes.size()).toBe(1);
-    expect(new ScopeRegistry({ stateDir, projects: [{ projectDir: scopeA }] }).list())
+    expect(new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] }).list())
       .toHaveLength(1);
     failedStart.mockRestore();
     registryRemove.mockRestore();
@@ -140,7 +140,7 @@ describe("ScopeLifecycleService", () => {
 
     const startAfterPersistence = vi.spyOn(host, "start");
     const failedPersistence = vi.spyOn(registry, "add").mockImplementationOnce(() => {
-      throw new JsonFileError("project-registry.json", "write", "persistence failed");
+      throw new JsonFileError("scope-registry.json", "write", "persistence failed");
     });
     expect(await lifecycle.registerDirectoryScope({ directoryRoot: scopeB }))
       .toMatchObject({ ok: false, reason: "persistence_failed" });
@@ -148,7 +148,7 @@ describe("ScopeLifecycleService", () => {
     expect(registry.list()).toHaveLength(1);
     expect(runtimes.size()).toBe(1);
     expect(host.hostedCount()).toBe(1);
-    expect(new ScopeRegistry({ stateDir, projects: [{ projectDir: scopeA }] }).list())
+    expect(new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] }).list())
       .toHaveLength(1);
     failedPersistence.mockRestore();
     startAfterPersistence.mockRestore();

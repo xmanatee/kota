@@ -14,10 +14,10 @@ export type RepoWorktreeStatus = {
   headSha: string;
 };
 
-export function getRepoHeadSha(projectDir: string): string {
+export function getRepoHeadSha(repoRoot: string): string {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: projectDir,
+      cwd: repoRoot,
       env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -27,10 +27,10 @@ export function getRepoHeadSha(projectDir: string): string {
   }
 }
 
-export async function getRepoHeadShaAsync(projectDir: string): Promise<string> {
+export async function getRepoHeadShaAsync(repoRoot: string): Promise<string> {
   try {
     const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
-      cwd: projectDir,
+      cwd: repoRoot,
       env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
     });
@@ -50,13 +50,13 @@ function summarizeEntries(entries: string[]): string {
   return `${shown.join(", ")}${suffix}`;
 }
 
-export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
+export function getRepoWorktreeStatus(repoRoot: string): RepoWorktreeStatus {
   try {
     const output = execFileSync(
       "git",
       ["status", "--porcelain=v1", "--untracked-files=all"],
       {
-        cwd: projectDir,
+        cwd: repoRoot,
         env: withProtectedGitBareRepositoryEnv(),
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
@@ -70,7 +70,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
       entries,
       fingerprint: entries.join("\n"),
       summary: summarizeEntries(entries),
-      headSha: getRepoHeadSha(projectDir),
+      headSha: getRepoHeadSha(repoRoot),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -87,7 +87,7 @@ export function getRepoWorktreeStatus(projectDir: string): RepoWorktreeStatus {
 }
 
 export async function getRepoWorktreeStatusAsync(
-  projectDir: string,
+  repoRoot: string,
 ): Promise<RepoWorktreeStatus> {
   try {
     const [{ stdout }, headSha] = await Promise.all([
@@ -95,12 +95,12 @@ export async function getRepoWorktreeStatusAsync(
         "git",
         ["status", "--porcelain=v1", "--untracked-files=all"],
         {
-          cwd: projectDir,
+          cwd: repoRoot,
           env: withProtectedGitBareRepositoryEnv(),
           encoding: "utf8",
         },
       ),
-      getRepoHeadShaAsync(projectDir),
+      getRepoHeadShaAsync(repoRoot),
     ]);
     const output = stdout.trim();
     const entries = output ? output.split("\n").map((line) => line.trim()) : [];

@@ -18,7 +18,6 @@ type CodeHookPayload = {
 
 type ChannelPayload = {
   scopeId: string;
-  projectId: string;
   channel: string;
   conversationId: string;
   sourceStatus?: string;
@@ -27,7 +26,7 @@ type ChannelPayload = {
 
 const channelEvent = defineDaemonWideModuleEvent<ChannelPayload>(
   "inbound.signal.received",
-  ["scopeId", "projectId", "channel", "conversationId", "sourceStatus", "accessToken"],
+  ["scopeId", "channel", "conversationId", "sourceStatus", "accessToken"],
   {
     sensitivity: "sensitive",
     filterablePaths: ["channel", "sourceStatus"],
@@ -36,7 +35,6 @@ const channelEvent = defineDaemonWideModuleEvent<ChannelPayload>(
       additionalProperties: true,
       properties: {
         scopeId: { type: "string" },
-        projectId: { type: "string" },
         channel: { type: "string" },
         conversationId: { type: "string" },
         sourceStatus: { type: "string", required: false },
@@ -138,7 +136,6 @@ describe("handleWorkflowExplain", () => {
         event: "inbound.signal.received",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           channel: "telegram",
           conversationId: "thread-1",
           sourceStatus: "blocked",
@@ -171,7 +168,6 @@ describe("handleWorkflowExplain", () => {
       ],
       redactedSamplePayload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
         sourceStatus: "blocked",

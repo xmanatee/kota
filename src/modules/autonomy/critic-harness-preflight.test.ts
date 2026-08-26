@@ -31,11 +31,11 @@ function makeParentStep(harness: string): WorkflowAgentStep {
 }
 
 function makeContext(
-  projectDir: string,
+  workspaceRoot: string,
   runDir: string,
 ): WorkflowStepContext {
   return {
-    projectDir,
+    workspaceRoot,
     workflow: {
       name: "builder",
       runId: "run-critic-preflight",
@@ -65,38 +65,38 @@ function makeContext(
 }
 
 describe("critic harness tool-control preflight", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-critic-harness-preflight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runDir = join(projectDir, ".kota/runs/run-critic-preflight");
-    mkdirSync(join(projectDir, "data/tasks/doing"), { recursive: true });
+    runDir = join(workspaceRoot, ".kota/runs/run-critic-preflight");
+    mkdirSync(join(workspaceRoot, "data/tasks/doing"), { recursive: true });
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
-      join(projectDir, "data/tasks/doing/task-preflight.md"),
+      join(workspaceRoot, "data/tasks/doing/task-preflight.md"),
       "---\nid: task-preflight\ntitle: Preflight\nstatus: doing\npriority: p1\narea: architecture\nsummary: Exercise critic preflight.\n---\n\n## Done When\n\n- The critic runs.\n",
     );
-    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "test@example.com"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
     execFileSync("git", ["config", "user.name", "Test User"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
     execFileSync("git", ["commit", "--allow-empty", "-m", "initial"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.clearAllMocks();
   });
 
@@ -133,7 +133,7 @@ describe("critic harness tool-control preflight", () => {
     if (check.type !== "code") throw new Error("expected code repair check");
 
     await expect(
-      check.run(makeContext(projectDir, runDir), makeParentStep(harness.name)),
+      check.run(makeContext(workspaceRoot, runDir), makeParentStep(harness.name)),
     ).rejects.toThrow(/critic-unsupported-tool-control.*canUseTool/);
     expect(run).not.toHaveBeenCalled();
   });

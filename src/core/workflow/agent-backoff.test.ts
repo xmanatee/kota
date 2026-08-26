@@ -10,7 +10,7 @@ import type { WorkflowDefinition } from "./types.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 describe("AgentBackoffManager", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let store: WorkflowRunStore;
   let runState: RunStateDatabase;
   let coordinator: RunCoordinator;
@@ -33,8 +33,8 @@ describe("AgentBackoffManager", () => {
       store,
       runState,
       coordinator,
-      projectId: "test-project",
-      projectDir,
+      scopeId: "test-scope",
+      scopeRoot,
       getScopeId: () => "test-scope",
       getActiveBackoff: () => manager.getActive(),
       workflowUsesAgent: () => true,
@@ -44,12 +44,12 @@ describe("AgentBackoffManager", () => {
   }
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
-    store = new WorkflowRunStore(projectDir);
-    runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
-    runState.registerProject({
-      id: "test-project",
-      rootPath: projectDir,
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
+    store = new WorkflowRunStore(scopeRoot);
+    runState = new RunStateDatabase(join(scopeRoot, ".kota", "state"));
+    runState.registerScope({
+      id: "test-scope",
+      rootPath: scopeRoot,
       createdAt: "2026-05-12T12:00:00.000Z",
     });
     const { epoch } = runState.beginDaemonSession("2026-05-12T12:00:00.000Z");
@@ -71,7 +71,7 @@ describe("AgentBackoffManager", () => {
   afterEach(() => {
     vi.useRealTimers();
     runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("escalates repeated same-kind failures even after the prior backoff expired", () => {
@@ -164,7 +164,7 @@ describe("AgentBackoffManager", () => {
     const definition: WorkflowDefinition = {
       name: "builder",
       enabled: true,
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       repository: "none",
       tags: [],
       definitionPath: "builder.test.ts",

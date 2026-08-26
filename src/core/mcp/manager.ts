@@ -100,7 +100,7 @@ export type McpManagerInitializeOptions = {
 };
 
 export type McpManagerOptions = {
-  projectDir?: string;
+  scopeRoot?: string;
   remoteTaskStore?: RemoteMcpTaskStore;
 };
 
@@ -563,8 +563,8 @@ export class McpManager {
 
   constructor(options: McpManagerOptions = {}) {
     this.remoteTaskStore = options.remoteTaskStore ??
-      (options.projectDir
-        ? new FileRemoteMcpTaskStore(options.projectDir)
+      (options.scopeRoot
+        ? new FileRemoteMcpTaskStore(options.scopeRoot)
         : new MemoryRemoteMcpTaskStore());
   }
 

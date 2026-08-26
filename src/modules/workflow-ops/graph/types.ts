@@ -84,7 +84,7 @@ export type AutomationSchemaSummary = {
   name: string;
   version: number;
   declared: boolean;
-  scope?: "project" | "daemon";
+  scope?: "scope" | "daemon";
   module?: string;
   sensitivity?: "public" | "internal" | "sensitive" | "secret";
   filterablePaths: readonly string[];

@@ -19,8 +19,8 @@ export function safeTrialSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "attempt";
 }
 
-function shouldCopyPath(sourceProjectDir: string, path: string): boolean {
-  const rel = relative(sourceProjectDir, path);
+function shouldCopyPath(sourceScopeRoot: string, path: string): boolean {
+  const rel = relative(sourceScopeRoot, path);
   if (!rel) return true;
   const parts = rel.split("/");
   if (parts.includes(".git") || parts.includes("node_modules")) return false;
@@ -44,15 +44,15 @@ function shouldCopyPath(sourceProjectDir: string, path: string): boolean {
   return true;
 }
 
-export function copyProjectForTrial(sourceProjectDir: string, attemptId: string): string {
+export function copyScopeToTrialWorkspace(sourceScopeRoot: string, attemptId: string): string {
   const root = join(tmpdir(), `kota-workflow-trial-${safeTrialSegment(attemptId)}-${Date.now()}`);
-  const trialProjectDir = join(root, basename(sourceProjectDir));
-  cpSync(sourceProjectDir, trialProjectDir, {
+  const trialWorkspaceRoot = join(root, basename(sourceScopeRoot));
+  cpSync(sourceScopeRoot, trialWorkspaceRoot, {
     recursive: true,
-    filter: (src) => shouldCopyPath(sourceProjectDir, src),
+    filter: (src) => shouldCopyPath(sourceScopeRoot, src),
   });
-  ensureDir(join(trialProjectDir, ".kota"));
-  return trialProjectDir;
+  ensureDir(join(trialWorkspaceRoot, ".kota"));
+  return trialWorkspaceRoot;
 }
 
 function gitOutput(cwd: string, args: readonly string[]): string {
@@ -64,13 +64,13 @@ function gitOutput(cwd: string, args: readonly string[]): string {
 	}).trim();
 }
 
-export function assertIsolatedTrialProjectRoot(
-	sourceProjectDir: string,
-	trialProjectDir: string,
+export function assertIsolatedTrialWorkspace(
+	sourceScopeRoot: string,
+	trialWorkspaceRoot: string,
 ): void {
 	try {
-		const source = realpathSync(sourceProjectDir);
-		const trial = realpathSync(trialProjectDir);
+		const source = realpathSync(sourceScopeRoot);
+		const trial = realpathSync(trialWorkspaceRoot);
 		const tempRoot = realpathSync(tmpdir());
 		const relativeToTemp = relative(tempRoot, trial);
 		const parent = resolve(trial, "..");

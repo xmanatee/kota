@@ -25,7 +25,7 @@ describe("runDelegate runner context", () => {
     setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
-  it("passes selected project context through the bounded shell runner", async () => {
+  it("passes selected scope context through the bounded shell runner", async () => {
     let receivedInput: Record<string, unknown> | undefined;
     let receivedContext: ToolRunnerContext | undefined;
     registerTool(
@@ -65,9 +65,8 @@ describe("runDelegate runner context", () => {
     const result = await runDelegate(
       { task: "Run a nested shell command", mode: "execute" },
       {
-        cwd: "/tmp/project-b",
-        scopeId: "project-b",
-        projectId: "project-b",
+        cwd: "/tmp/scope-b",
+        scopeId: "scope-b",
         sessionId: "session-b",
         toolUseId: "parent-tool",
       },
@@ -79,14 +78,13 @@ describe("runDelegate runner context", () => {
       timeout_ms: 60_000,
     });
     expect(receivedContext).toMatchObject({
-      cwd: "/tmp/project-b",
-      scopeId: "project-b",
-      projectId: "project-b",
+      cwd: "/tmp/scope-b",
+      scopeId: "scope-b",
       sessionId: "session-b",
       toolUseId: "toolu_shell",
     });
     expect(stream.mock.calls[0][0].system[0].text).toContain(
-      "Working directory: /tmp/project-b",
+      "Working directory: /tmp/scope-b",
     );
   });
 });

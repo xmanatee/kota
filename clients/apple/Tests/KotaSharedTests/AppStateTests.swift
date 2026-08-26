@@ -8,7 +8,7 @@ import XCTest
 ///     `webUIURL`) — `MenuBarView` hides the "Open Dashboard" action
 ///     based on these and they were previously only covered by the
 ///     contract decoder, never against the live state container.
-///   - offline reset — `refresh()` with no `projectDir` and no
+///   - offline reset — `refresh()` with no `scopeRoot` and no
 ///     `remoteURL` must wipe every cached on-demand body so a stale
 ///     digest/answer/capture never paints over the disconnected state.
 ///   - notification fan-out — the second pass through
@@ -61,11 +61,11 @@ final class AppStateTests: XCTestCase {
     }
 
     private func clearMenuBarUserDefaults() {
-        // The production `init` reads `projectDirectory` and
+        // The production `init` reads `scopeDirectory` and
         // `remoteDaemonURL` from the shared `UserDefaults`. A previous
         // test run could have planted stale values in the test-process
         // suite, so wipe them before each construction.
-        UserDefaults.standard.removeObject(forKey: "projectDirectory")
+        UserDefaults.standard.removeObject(forKey: "scopeDirectory")
         UserDefaults.standard.removeObject(forKey: "remoteDaemonURL")
         UserDefaults.standard.removeObject(forKey: "notificationsEnabled")
     }
@@ -91,12 +91,12 @@ final class AppStateTests: XCTestCase {
         )
 
         state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+            scopeRegistry: makeScopeRegistry(
+                defaultScopeId: "p-test",
+                directoryScopes: [
+                    directoryScope(scopeId: "p-test", displayName: "kota", directoryRoot: "/Users/op/Desktop/mono/apps/kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -110,12 +110,12 @@ final class AppStateTests: XCTestCase {
         )
 
         state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+            scopeRegistry: makeScopeRegistry(
+                defaultScopeId: "p-test",
+                directoryScopes: [
+                    directoryScope(scopeId: "p-test", displayName: "kota", directoryRoot: "/Users/op/Desktop/mono/apps/kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -131,7 +131,7 @@ final class AppStateTests: XCTestCase {
 
     // MARK: - Offline reset clears every cached on-demand body
 
-    func testRefreshWithNoProjectClearsEveryCachedBody() async {
+    func testRefreshWithNoScopeClearsEveryCachedBody() async {
         let state = makeState(notifications: RecordingNotifications())
 
         // Seed every cached on-demand body. If a future on-demand surface
@@ -156,12 +156,12 @@ final class AppStateTests: XCTestCase {
             )
         ]
         state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/x",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/x",
+            scopeRegistry: makeScopeRegistry(
+                defaultScopeId: "p-test",
+                directoryScopes: [
+                    directoryScope(scopeId: "p-test", displayName: "kota", directoryRoot: "/Users/op/Desktop/mono/apps/kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -206,7 +206,7 @@ final class AppStateTests: XCTestCase {
         state.answerShowMissing = true
         state.answerShowError = "stale"
         state.isLoadingAnswerShow = true
-        state.projectDir = nil
+        state.scopeRoot = nil
         state.remoteURL = ""
 
         await state.refresh()
@@ -216,7 +216,7 @@ final class AppStateTests: XCTestCase {
         } else {
             XCTFail("offline branch must set health to .offline")
         }
-        XCTAssertEqual(state.diagnostic, .noProject)
+        XCTAssertEqual(state.diagnostic, .noScope)
         XCTAssertTrue(state.activeRuns.isEmpty)
         XCTAssertTrue(state.recentRuns.isEmpty)
         XCTAssertNil(state.identity)
@@ -264,37 +264,37 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.isLoadingAnswerShow)
     }
 
-    // MARK: - Active project selection
+    // MARK: - Active scope selection
 
-    func testReconcileActiveProjectIdSeedsDefaultThenPreservesValidSelection() {
+    func testReconcileActiveScopeIdSeedsDefaultThenPreservesValidSelection() {
         let state = makeState(notifications: RecordingNotifications())
-        let projection = ProjectRegistryProjection(
-            defaultProjectId: "p-default",
-            projects: [
-                ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
-                ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+        let projection = makeScopeRegistry(
+            defaultScopeId: "p-default",
+            directoryScopes: [
+                directoryScope(scopeId: "p-default", displayName: "kota", directoryRoot: "/tmp/kota"),
+                directoryScope(scopeId: "p-other", displayName: "other", directoryRoot: "/tmp/other"),
             ]
         )
-        XCTAssertNil(state.activeProjectId)
-        state.reconcileActiveProjectId(with: projection)
-        XCTAssertEqual(state.activeProjectId, "p-default")
+        XCTAssertNil(state.activeScopeId)
+        state.reconcileActiveScopeId(with: projection)
+        XCTAssertEqual(state.activeScopeId, "p-default")
 
         // A subsequent reconcile with the same registry preserves the
-        // current selection — the operator has not changed projects.
-        state.reconcileActiveProjectId(with: projection)
-        XCTAssertEqual(state.activeProjectId, "p-default")
+        // current selection — the operator has not changed scopes.
+        state.reconcileActiveScopeId(with: projection)
+        XCTAssertEqual(state.activeScopeId, "p-default")
     }
 
-    func testReconcileActiveProjectIdResetsWhenSelectionDropsOutOfRegistry() {
+    func testReconcileActiveScopeIdResetsWhenSelectionDropsOutOfRegistry() {
         let state = makeState(notifications: RecordingNotifications())
         state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/tmp/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-default",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
-                    ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+            scopeName: "kota",
+            scopeRoot: "/tmp/kota",
+            scopeRegistry: makeScopeRegistry(
+                defaultScopeId: "p-default",
+                directoryScopes: [
+                    directoryScope(scopeId: "p-default", displayName: "kota", directoryRoot: "/tmp/kota"),
+                    directoryScope(scopeId: "p-other", displayName: "other", directoryRoot: "/tmp/other"),
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -302,32 +302,32 @@ final class AppStateTests: XCTestCase {
             startedAt: "t",
             dashboard: .available(path: "/")
         )
-        state.setActiveProjectId("p-other")
-        XCTAssertEqual(state.activeProjectId, "p-other")
+        state.setActiveScopeId("p-other")
+        XCTAssertEqual(state.activeScopeId, "p-other")
 
         // After a config reload the registry no longer carries `p-other`.
         // The selection must collapse back to the registry's default
         // rather than render daemon rows belonging to a now-unknown id.
-        let shrunken = ProjectRegistryProjection(
-            defaultProjectId: "p-default",
-            projects: [
-                ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
+        let shrunken = makeScopeRegistry(
+            defaultScopeId: "p-default",
+            directoryScopes: [
+                directoryScope(scopeId: "p-default", displayName: "kota", directoryRoot: "/tmp/kota"),
             ]
         )
-        state.reconcileActiveProjectId(with: shrunken)
-        XCTAssertEqual(state.activeProjectId, "p-default")
+        state.reconcileActiveScopeId(with: shrunken)
+        XCTAssertEqual(state.activeScopeId, "p-default")
     }
 
-    func testSetActiveProjectIdClearsProjectScopedStateImmediately() {
+    func testSetActiveScopeIdClearsScopeScopedStateImmediately() {
         let state = makeState(notifications: RecordingNotifications())
         state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/tmp/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-default",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-default", projectDir: "/tmp/kota", displayName: "kota"),
-                    ConfiguredProjectEntry(projectId: "p-other", projectDir: "/tmp/other", displayName: "other"),
+            scopeName: "kota",
+            scopeRoot: "/tmp/kota",
+            scopeRegistry: makeScopeRegistry(
+                defaultScopeId: "p-default",
+                directoryScopes: [
+                    directoryScope(scopeId: "p-default", displayName: "kota", directoryRoot: "/tmp/kota"),
+                    directoryScope(scopeId: "p-other", displayName: "other", directoryRoot: "/tmp/other"),
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -335,30 +335,30 @@ final class AppStateTests: XCTestCase {
             startedAt: "t",
             dashboard: .available(path: "/")
         )
-        state.reconcileActiveProjectId(with: state.identity!.projects)
-        XCTAssertEqual(state.activeProjectId, "p-default")
+        state.reconcileActiveScopeId(with: state.identity!.scopeRegistry)
+        XCTAssertEqual(state.activeScopeId, "p-default")
         state.activeRuns = [ActiveRun(runId: "r1", workflow: "builder", startedAt: "t")]
         state.recentRuns = [RunSummary(id: "r0", workflow: "builder", status: "success", startedAt: "t", durationMs: 1)]
 
-        state.setActiveProjectId("p-other")
-        XCTAssertEqual(state.activeProjectId, "p-other")
+        state.setActiveScopeId("p-other")
+        XCTAssertEqual(state.activeScopeId, "p-other")
         XCTAssertTrue(state.activeRuns.isEmpty)
         XCTAssertTrue(state.recentRuns.isEmpty)
     }
 
-    // MARK: - Project-scoped URL builder
+    // MARK: - Scope-scoped URL builder
 
-    func testWithProjectAppendsQueryParam() {
-        XCTAssertEqual(DaemonClient.withProject("/status", projectId: "p-1"), "/status?projectId=p-1")
+    func testWithScopeAppendsQueryParam() {
+        XCTAssertEqual(DaemonClient.withScope("/status", scopeId: "p-1"), "/status?scopeId=p-1")
         XCTAssertEqual(
-            DaemonClient.withProject("/workflow/runs?limit=10", projectId: "p-1"),
-            "/workflow/runs?limit=10&projectId=p-1"
+            DaemonClient.withScope("/workflow/runs?limit=10", scopeId: "p-1"),
+            "/workflow/runs?limit=10&scopeId=p-1"
         )
-        XCTAssertEqual(DaemonClient.withProject("/status", projectId: nil), "/status")
-        XCTAssertEqual(DaemonClient.withProject("/status", projectId: ""), "/status")
+        XCTAssertEqual(DaemonClient.withScope("/status", scopeId: nil), "/status")
+        XCTAssertEqual(DaemonClient.withScope("/status", scopeId: ""), "/status")
         XCTAssertEqual(
-            DaemonClient.withProject("/sessions", projectId: "p with spaces"),
-            "/sessions?projectId=p%20with%20spaces"
+            DaemonClient.withScope("/sessions", scopeId: "p with spaces"),
+            "/sessions?scopeId=p%20with%20spaces"
         )
     }
 

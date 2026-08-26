@@ -32,7 +32,7 @@ describe("ScopeAuthorityService", () => {
       trust: true,
       policy: {
         scopeId,
-        reason: "Start external projects under supervision.",
+        reason: "Start external scopes under supervision.",
         autonomy: { defaultMode: "supervised", maxMode: "supervised" },
         writes: { mode: "scope-directory" },
         externalEffects: { networkWrite: "deny", networkDestructive: "deny" },
@@ -181,7 +181,7 @@ describe("ScopeAuthorityService", () => {
 
     expect(result).toMatchObject({ ok: false, reason: "persistence_failed" });
     expect(fixture.persistence.read()).toMatchObject({
-      trustedProjects: [],
+      trustedScopes: [],
       scopePolicies: [],
       metadata: { revision: 0, audit: [] },
     });
@@ -189,7 +189,7 @@ describe("ScopeAuthorityService", () => {
 
   it("returns a typed parent conflict for forbidden child widening", () => {
     const fixture = createFixture({
-      trustedProjects: [],
+      trustedScopes: [],
       scopePolicies: [{
         scopeId: "global",
         reason: "Machine policy caps all children at supervised mode.",
@@ -358,12 +358,12 @@ function createFixture(
 ) {
   const root = mkdtempSync(join(tmpdir(), "kota-scope-authority-"));
   tempRoots.push(root);
-  const projectDir = join(root, "external-project");
+  const scopeRoot = join(root, "external-project");
   const stateDir = join(root, "daemon-state");
-  mkdirSync(projectDir, { recursive: true });
-  const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir }] });
+  mkdirSync(scopeRoot, { recursive: true });
+  const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot }] });
   const persistence = new FakeAuthorityPersistence(initial ?? {
-    trustedProjects: [],
+    trustedScopes: [],
     scopePolicies: [],
     metadata: { schema: 1, revision: 0, audit: [] },
   });

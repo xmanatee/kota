@@ -20,7 +20,7 @@ final class AnswerHistoryStateTests: XCTestCase {
     }
 
     private func makeState() -> AppState {
-        UserDefaults.standard.removeObject(forKey: "projectDirectory")
+        UserDefaults.standard.removeObject(forKey: "scopeDirectory")
         UserDefaults.standard.removeObject(forKey: "remoteDaemonURL")
         UserDefaults.standard.removeObject(forKey: "notificationsEnabled")
         let state = AppState(

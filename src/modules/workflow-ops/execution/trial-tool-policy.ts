@@ -40,17 +40,17 @@ function pathIsWithinRoot(root: string, path: string): boolean {
 }
 
 function scopeTrialPath(
-  trialProjectDir: string,
+  trialWorkspaceRoot: string,
   rawPath: string,
   label: string,
 ): TrialPathResult {
   const scoped = isAbsolute(rawPath)
     ? resolve(rawPath)
-    : resolve(trialProjectDir, rawPath);
-  if (!pathIsWithinRoot(trialProjectDir, scoped)) {
+    : resolve(trialWorkspaceRoot, rawPath);
+  if (!pathIsWithinRoot(trialWorkspaceRoot, scoped)) {
     return {
       ok: false,
-      message: `${label} resolves outside the isolated trial project: ${rawPath}`,
+      message: `${label} resolves outside the isolated trial scope: ${rawPath}`,
     };
   }
   return { ok: true, path: scoped };
@@ -59,19 +59,19 @@ function scopeTrialPath(
 function scopePathField(
   input: TrialToolInput,
   field: string,
-  trialProjectDir: string,
+  trialWorkspaceRoot: string,
   fallback?: string,
 ): TrialToolScopeResult {
   const raw = input[field] ?? fallback;
   if (raw === undefined || typeof raw !== "string") return { ok: true, input };
-  const scoped = scopeTrialPath(trialProjectDir, raw, field);
+  const scoped = scopeTrialPath(trialWorkspaceRoot, raw, field);
   if (!scoped.ok) return { ok: false, message: scoped.message };
   return { ok: true, input: { ...input, [field]: scoped.path } };
 }
 
 function scopeMultiEditInput(
   input: TrialToolInput,
-  trialProjectDir: string,
+  trialWorkspaceRoot: string,
 ): TrialToolScopeResult {
   const edits = input.edits;
   if (!Array.isArray(edits)) return { ok: true, input };
@@ -86,7 +86,7 @@ function scopeMultiEditInput(
       scopedEdits.push(edit);
       continue;
     }
-    const scoped = scopeTrialPath(trialProjectDir, path, "edits[].path");
+    const scoped = scopeTrialPath(trialWorkspaceRoot, path, "edits[].path");
     if (!scoped.ok) return { ok: false, message: scoped.message };
     scopedEdits.push({ ...edit, path: scoped.path });
   }
@@ -96,7 +96,7 @@ function scopeMultiEditInput(
 function scopeTrialToolInput(
   tool: string,
   input: TrialToolInput,
-  trialProjectDir: string,
+  trialWorkspaceRoot: string,
 ): TrialToolScopeResult {
   switch (tool) {
     case "file_read":
@@ -105,21 +105,21 @@ function scopeTrialToolInput(
     case "file_watch":
     case "view_image":
     case "notebook":
-      return scopePathField(input, "path", trialProjectDir);
+      return scopePathField(input, "path", trialWorkspaceRoot);
     case "multi_edit":
-      return scopeMultiEditInput(input, trialProjectDir);
+      return scopeMultiEditInput(input, trialWorkspaceRoot);
     case "find_replace":
-      return scopePathField(input, "files", trialProjectDir);
+      return scopePathField(input, "files", trialWorkspaceRoot);
     case "glob":
     case "grep":
     case "files_overview":
-      return scopePathField(input, "path", trialProjectDir, ".");
+      return scopePathField(input, "path", trialWorkspaceRoot, ".");
     case "repo_map":
-      return scopePathField(input, "directory", trialProjectDir, ".");
+      return scopePathField(input, "directory", trialWorkspaceRoot, ".");
     case "sqlite":
-      return scopePathField(input, "database", trialProjectDir);
+      return scopePathField(input, "database", trialWorkspaceRoot);
     case "shell":
-      return scopePathField(input, "cwd", trialProjectDir, ".");
+      return scopePathField(input, "cwd", trialWorkspaceRoot, ".");
     default:
       return { ok: true, input };
   }
@@ -167,7 +167,7 @@ function resolveTrialToolEffect(tool: string): TrialResolvedToolEffect | undefin
 
 export async function runTrialTool(
   args: {
-    trialProjectDir: string;
+    trialWorkspaceRoot: string;
     stepId: string;
     blockedExternalSideEffects: WorkflowTrialBlockedSideEffect[];
   },
@@ -186,7 +186,7 @@ export async function runTrialTool(
       throw new Error(`Blocked in workflow trial mode: ${reason}`);
     }
   }
-  const scoped = scopeTrialToolInput(name, input, args.trialProjectDir);
+  const scoped = scopeTrialToolInput(name, input, args.trialWorkspaceRoot);
   if (!scoped.ok) {
     if (resolvedEffect && resolvedEffect.effect.kind !== "read") {
       args.blockedExternalSideEffects.push(
@@ -201,7 +201,7 @@ export async function runTrialTool(
 }
 
 export function createTrialAgentToolGuard(args: {
-  trialProjectDir: string;
+  trialWorkspaceRoot: string;
   stepId: string;
   blockedExternalSideEffects: WorkflowTrialBlockedSideEffect[];
 }): AgentCanUseTool {
@@ -222,7 +222,7 @@ export function createTrialAgentToolGuard(args: {
         };
       }
     }
-    const scoped = scopeTrialToolInput(name, input, args.trialProjectDir);
+    const scoped = scopeTrialToolInput(name, input, args.trialWorkspaceRoot);
     if (!scoped.ok) {
       if (resolvedEffect && resolvedEffect.effect.kind !== "read") {
         args.blockedExternalSideEffects.push(

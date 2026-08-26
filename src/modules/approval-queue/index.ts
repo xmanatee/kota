@@ -19,9 +19,9 @@ import { registerApprovalCommands } from "./cli.js";
 import type {
 	ApprovalApproveResult,
 	ApprovalListFilter,
-	ApprovalProjectScope,
 	ApprovalRejectResult,
 	ApprovalResolutionProjection,
+	ApprovalScopeSelection,
 	ApprovalsClient,
 	ApprovalsListResult,
 } from "./client.js";
@@ -40,8 +40,8 @@ function approvalListPath(filter?: ApprovalListFilter): string {
 	return query ? `/approvals?${query}` : "/approvals";
 }
 
-function approvalProjectQuery(project?: ApprovalProjectScope): string {
-	return scopeSelectorQuery(project);
+function approvalScopeQuery(scopeSelector?: ApprovalScopeSelection): string {
+	return scopeSelectorQuery(scopeSelector);
 }
 
 const approvalQueueModule: KotaModule = {
@@ -92,18 +92,18 @@ function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 				approvalListPath(filter),
 			);
 		},
-		approve: async (id, reviewDigest, note, project): Promise<ApprovalApproveResult> => {
+		approve: async (id, reviewDigest, note, scopeSelector): Promise<ApprovalApproveResult> => {
 			return mutateApproval(
 				link,
-				`/approvals/${encodeURIComponent(id)}/approve${approvalProjectQuery(project)}`,
+				`/approvals/${encodeURIComponent(id)}/approve${approvalScopeQuery(scopeSelector)}`,
 				{ reviewDigest, note },
 				"approve",
 			);
 		},
-		reject: async (id, reason, project): Promise<ApprovalRejectResult> => {
+		reject: async (id, reason, scopeSelector): Promise<ApprovalRejectResult> => {
 			return mutateApproval(
 				link,
-				`/approvals/${encodeURIComponent(id)}/reject${approvalProjectQuery(project)}`,
+				`/approvals/${encodeURIComponent(id)}/reject${approvalScopeQuery(scopeSelector)}`,
 				{ reason },
 				"reject",
 			);
@@ -114,7 +114,7 @@ function buildApprovalsDaemonHandler(link: DaemonTransport): ApprovalsClient {
 type ApprovalRouteErrorBody = {
 	error?: string;
 	reason?: string;
-	projectId?: string;
+	scopeId?: string;
 };
 
 async function mutateApproval(
@@ -142,8 +142,8 @@ async function mutateApproval(
 	});
 	if (res.status === 404) {
 		const errBody = await readApprovalRouteError(res);
-		if (errBody?.reason === "unknown_project" && errBody.projectId) {
-			throw new Error(`Unknown project: ${errBody.projectId}`);
+		if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+			throw new Error(`Unknown scope: ${errBody.scopeId}`);
 		}
 		return { ok: false, reason: "not_found" };
 	}

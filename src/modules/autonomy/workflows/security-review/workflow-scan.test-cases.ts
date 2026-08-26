@@ -9,7 +9,7 @@ function externalFetchDueTargets(
   fixture: SecurityReviewProjectFixture,
   paths: readonly string[],
 ) {
-  return securityReviewDueTargetsFromPayload(fixture.projectDir, {
+  return securityReviewDueTargetsFromPayload(fixture.workspaceRoot, {
     changedSurfaces: [{ surface: "external-fetch", paths: [...paths] }],
   });
 }
@@ -53,10 +53,10 @@ export function describeSecurityReviewScanTests(): void {
       );
       fixture.writeProjectFile(
         "src/modules/autonomy/workflows/builder/workflow.ts",
-        "moveTaskById(projectDir, id, 'done');\n",
+        "moveTaskById(workspaceRoot, id, 'done');\n",
       );
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir, {
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot, {
         maxCandidates: 7,
         maxCandidatesPerSurface: 1,
       });
@@ -111,10 +111,10 @@ export function describeSecurityReviewScanTests(): void {
       );
       fixture.writeProjectFile(
         "src/modules/autonomy/workflows/builder/workflow.ts",
-        "moveTaskById(projectDir, id, 'done');\n",
+        "moveTaskById(workspaceRoot, id, 'done');\n",
       );
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir);
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot);
       const paths = result.candidates.map((candidate) => candidate.path);
 
       expect(result.maxCandidates).toBe(35);
@@ -148,7 +148,7 @@ export function describeSecurityReviewScanTests(): void {
         "../outside.ts",
       ]);
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir, {
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot, {
         maxCandidates: 1,
         maxCandidatesPerSurface: 1,
         dueTargets,
@@ -198,7 +198,7 @@ export function describeSecurityReviewScanTests(): void {
         "src/modules/web-access/b-due.ts",
       ]);
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir, {
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot, {
         maxCandidates: 2,
         maxCandidatesPerSurface: 1,
         dueTargets,
@@ -224,7 +224,7 @@ export function describeSecurityReviewScanTests(): void {
         "src/modules/web-access/b-due.ts",
       ]);
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir, {
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot, {
         maxCandidates: 1,
         maxCandidatesPerSurface: 1,
         dueTargets,
@@ -276,7 +276,7 @@ export function describeSecurityReviewScanTests(): void {
         "const apiKey = await get_secret('OPENAI_API_KEY');\n",
       );
 
-      const result = scanSecurityReviewCandidates(fixture.projectDir);
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot);
       const paths = result.candidates.map((candidate) => candidate.path);
 
       expect(paths).toEqual(

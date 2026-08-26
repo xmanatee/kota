@@ -33,7 +33,7 @@ export type AutonomyHealthReviewPublication = {
 };
 
 type PublicationInput = {
-  scopeDir: string;
+  scopeRoot: string;
   sourceRunId: string;
   scopeId: string;
 };
@@ -88,7 +88,7 @@ function readPublicationArtifact(
 ): AutonomyHealthReviewArtifact | null {
   const artifact = readOptionalJsonFile<unknown>(
     join(
-      args.scopeDir,
+      args.scopeRoot,
       ".kota",
       "runs",
       args.sourceRunId,
@@ -97,15 +97,10 @@ function readPublicationArtifact(
   );
   if (artifact === null) return null;
   const decoded = decodeArtifact(artifact);
-  for (const selector of [
-    decoded.review.scope.scopeId,
-    decoded.review.scope.projectId,
-  ]) {
-    if (selector !== undefined && selector !== args.scopeId) {
-      throw new Error(
-        "autonomy health review artifact does not belong to its runtime scope",
-      );
-    }
+  if (decoded.review.scope.scopeId !== args.scopeId) {
+    throw new Error(
+      "autonomy health review artifact does not belong to its runtime scope",
+    );
   }
   return decoded;
 }
@@ -156,7 +151,7 @@ export function planAutonomyHealthReviewPublication(
 
 /** Finalize canonical health state from a repository:none follow-up run. */
 export function publishAutonomyHealthReview(args: {
-  scopeDir: string;
+  scopeRoot: string;
   sourceRunId: string;
   scopeId: string;
   currentProjection: AutonomyIssueProjection;
@@ -176,7 +171,7 @@ export function publishAutonomyHealthReview(args: {
   const finalized = finalizeAutonomyHealthReviewActions({
     currentProjection: args.currentProjection,
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(args.scopeDir, ".kota", "owner-questions"),
+      join(args.scopeRoot, ".kota", "owner-questions"),
     ),
     review: artifact.review,
     repositoryActions: artifact.actions,

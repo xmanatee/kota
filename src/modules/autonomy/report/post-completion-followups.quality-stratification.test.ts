@@ -11,13 +11,13 @@ import {
 } from "./post-completion-followups.test-helpers.js";
 
 describe("post-completion follow-up quality stratification", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   let cleanupFixture: () => void;
 
   beforeEach(() => {
     const fixture = createPostCompletionFollowUpsFixture();
-    projectDir = fixture.projectDir;
+    workspaceRoot = fixture.workspaceRoot;
     runsDir = fixture.runsDir;
     cleanupFixture = fixture.cleanup;
   });
@@ -41,13 +41,13 @@ describe("post-completion follow-up quality stratification", () => {
         status: "success",
       });
       writeWriterIntegration(runsDir, runId, completedTaskId, commitSha);
-      writeTask(projectDir, "done", completedTaskId, {
+      writeTask(workspaceRoot, "done", completedTaskId, {
         priority: "p2",
         area: "autonomy",
         updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
         body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
       });
-      writeTask(projectDir, "ready", followUpTaskId, {
+      writeTask(workspaceRoot, "ready", followUpTaskId, {
         priority: "p2",
         area: "autonomy",
         title: `Fix regression follow-up ${suffix}`,
@@ -59,7 +59,7 @@ describe("post-completion follow-up quality stratification", () => {
     }
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -105,13 +105,13 @@ describe("post-completion follow-up quality stratification", () => {
       "task-completed-parent",
       "abc123def456",
     );
-    writeTask(projectDir, "done", "task-completed-parent", {
+    writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
       area: "autonomy",
       updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
-    writeTask(projectDir, "ready", "task-regression-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-regression-follow-up", {
       priority: "p2",
       area: "autonomy",
       title: "Fix runtime regression after completed parent",
@@ -120,7 +120,7 @@ describe("post-completion follow-up quality stratification", () => {
         "## Problem\n\nA runtime regression cites completed builder evidence.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n`,
     });
-    writeTask(projectDir, "ready", "task-security-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-security-follow-up", {
       priority: "p2",
       area: "security",
       title: "Fix security approval boundary after completed parent",
@@ -131,7 +131,7 @@ describe("post-completion follow-up quality stratification", () => {
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

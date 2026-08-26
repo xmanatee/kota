@@ -18,26 +18,26 @@ import type { RetractRequest, RetractResult } from "./client.js";
 import type {
   RetractContributor,
   RetractContributorResult,
-  RetractProjectContext,
   RetractProvider,
+  RetractScopeContext,
   RetractTarget,
 } from "./retract-types.js";
 
 export type RetractProviderOptions = {
-  resolveProjectContext?: (
-    projectId: string | null | undefined,
-  ) => RetractProjectContext | { error: "unknown_project"; projectId: string };
+  resolveScopeContext?: (
+    scopeId: string | null | undefined,
+  ) => RetractScopeContext | { error: "unknown_scope"; scopeId: string };
 };
 
 export class RetractProviderImpl implements RetractProvider {
   private readonly byTarget = new Map<RetractTarget, RetractContributor>();
   private readonly order: RetractTarget[] = [];
-  private readonly resolveProjectContext:
-    | NonNullable<RetractProviderOptions["resolveProjectContext"]>
+  private readonly resolveScopeContext:
+    | NonNullable<RetractProviderOptions["resolveScopeContext"]>
     | undefined;
 
   constructor(options: RetractProviderOptions = {}) {
-    this.resolveProjectContext = options.resolveProjectContext;
+    this.resolveScopeContext = options.resolveScopeContext;
   }
 
   register(contributor: RetractContributor): void {
@@ -53,12 +53,12 @@ export class RetractProviderImpl implements RetractProvider {
 
   async retract(
     request: RetractRequest,
-    project?: RetractProjectContext,
+    scope?: RetractScopeContext,
   ): Promise<RetractResult> {
-    const resolvedProject =
-      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(request));
-    if (resolvedProject && "error" in resolvedProject) {
-      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    const resolvedScope =
+      scope ?? this.resolveScopeContext?.(selectedScopeSelectorId(request));
+    if (resolvedScope && "error" in resolvedScope) {
+      throw new Error(`Unknown scope: ${resolvedScope.scopeId}`);
     }
     const contributor = this.byTarget.get(request.target);
     if (!contributor) {
@@ -66,7 +66,7 @@ export class RetractProviderImpl implements RetractProvider {
     }
     let outcome: RetractContributorResult;
     try {
-      outcome = await runContributor(contributor, request, resolvedProject);
+      outcome = await runContributor(contributor, request, resolvedScope);
     } catch (err) {
       return {
         ok: false,
@@ -90,24 +90,24 @@ export class RetractProviderImpl implements RetractProvider {
 function runContributor(
   contributor: RetractContributor,
   request: RetractRequest,
-  project?: RetractProjectContext,
+  scope?: RetractScopeContext,
 ): Promise<RetractContributorResult> {
   switch (request.target) {
     case "memory":
       if (contributor.target !== "memory")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ id: request.id, ...(project && { project }) });
+      return contributor.retract({ id: request.id, ...(scope && { scope }) });
     case "knowledge":
       if (contributor.target !== "knowledge")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ slug: request.slug, ...(project && { project }) });
+      return contributor.retract({ slug: request.slug, ...(scope && { scope }) });
     case "tasks":
       if (contributor.target !== "tasks")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ id: request.id, ...(project && { project }) });
+      return contributor.retract({ id: request.id, ...(scope && { scope }) });
     case "inbox":
       if (contributor.target !== "inbox")
         throw new Error("retract: contributor target mismatch");
-      return contributor.retract({ path: request.path, ...(project && { project }) });
+      return contributor.retract({ path: request.path, ...(scope && { scope }) });
   }
 }

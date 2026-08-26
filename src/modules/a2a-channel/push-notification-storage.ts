@@ -23,7 +23,7 @@ export type StoredPushNotificationConfig = {
   id: string;
   taskId: string;
   contextId: string;
-  projectId: string | null;
+  scopeId: string | null;
   url: string;
   token: string | null;
   authentication: A2APushNotificationAuthentication | null;
@@ -67,7 +67,7 @@ export function pushConfigMatchesSelector(
   selector: PushNotificationConfigSelector,
 ): boolean {
   if (config.taskId !== selector.taskId || config.id !== selector.configId) return false;
-  if (selector.projectId !== null && config.projectId !== selector.projectId) return false;
+  if (selector.scopeId !== null && config.scopeId !== selector.scopeId) return false;
   if (selector.contextId !== null && config.contextId !== selector.contextId) return false;
   return true;
 }
@@ -77,7 +77,7 @@ export function pushConfigMatchesFilter(
   filter: PushNotificationConfigListFilter,
 ): boolean {
   if (config.taskId !== filter.taskId) return false;
-  if (filter.projectId !== null && config.projectId !== filter.projectId) return false;
+  if (filter.scopeId !== null && config.scopeId !== filter.scopeId) return false;
   if (filter.contextId !== null && config.contextId !== filter.contextId) return false;
   return true;
 }
@@ -91,9 +91,9 @@ export function pushNotificationPageStart(pageToken: string | null): number {
   return parsed;
 }
 
-export function projectIdFromTaskMetadata(metadata: JsonObject): string | null {
-  const projectId = metadata.projectId;
-  return typeof projectId === "string" && projectId.length > 0 ? projectId : null;
+export function scopeIdFromTaskMetadata(metadata: JsonObject): string | null {
+  const scopeId = metadata.scopeId;
+  return typeof scopeId === "string" && scopeId.length > 0 ? scopeId : null;
 }
 
 export function pushSubscriptionKey(taskId: string, contextId: string): string {
@@ -114,7 +114,7 @@ function isStoredConfig(value: JsonValue): value is StoredPushNotificationConfig
   return typeof value.id === "string" &&
     typeof value.taskId === "string" &&
     typeof value.contextId === "string" &&
-    (typeof value.projectId === "string" || value.projectId === null) &&
+    (typeof value.scopeId === "string" || value.scopeId === null) &&
     typeof value.url === "string" &&
     (typeof value.token === "string" || value.token === null) &&
     (value.authentication === null || isAuthentication(value.authentication)) &&

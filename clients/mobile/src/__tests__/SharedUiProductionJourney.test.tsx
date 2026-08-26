@@ -244,7 +244,7 @@ describe('Android shared UI production journey', () => {
     const request = fetchCalls.find(
       (call) =>
         new URL(call.url).pathname === '/ui/surfaces' &&
-        !new URL(call.url).searchParams.has('projectId'),
+        !new URL(call.url).searchParams.has('scopeId'),
     );
     expect(request).toMatchObject({
       method: 'GET',

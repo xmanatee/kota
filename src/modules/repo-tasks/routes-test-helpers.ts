@@ -21,7 +21,7 @@ type JsonValue =
 
 type JsonObject = { readonly [key: string]: JsonValue };
 
-export function makeProjectDir(): string {
+export function makeScopeRoot(): string {
   const scopeDir = join(
     tmpdir(),
     `kota-task-routes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -29,24 +29,24 @@ export function makeProjectDir(): string {
   return createRepoTaskRuntimeSandbox(
     scopeDir,
     `route-test-${Math.random().toString(36).slice(2, 8)}`,
-  ).projectDir;
+  ).workspaceRoot;
 }
 
 export function resetRouteTestAuthority(): void {
   resetProviderRegistry();
 }
 
-export function mutationTarget(projectDir: string): RepoTaskMutationTarget {
-  return repoTaskRuntimeSandboxTarget(projectDir);
+export function mutationTarget(repoRoot: string): RepoTaskMutationTarget {
+  return repoTaskRuntimeSandboxTarget(repoRoot);
 }
 
 export function writeTaskFile(
-  projectDir: string,
+  repoRoot: string,
   state: string,
   slug: string,
   frontmatter: Record<string, string>,
 ): void {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(repoRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const fm = Object.entries(frontmatter)
     .map(([k, v]) => `${k}: ${v}`)

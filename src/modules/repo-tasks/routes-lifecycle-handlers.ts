@@ -67,14 +67,14 @@ export async function handleTaskCreate(
 export async function handleTaskShow(
   res: ServerResponse,
   id: string,
-  projectDir = process.cwd(),
+  repoRoot = process.cwd(),
 ): Promise<void> {
   if (!isRepoTaskId(id)) {
     jsonResponse(res, 400, { error: "Invalid task id" });
     return;
   }
 
-  const result = showTask(projectDir, id);
+  const result = showTask(repoRoot, id);
   if (!result.found) {
     jsonResponse(res, 404, { error: `Task "${id}" not found.` });
     return;

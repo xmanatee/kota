@@ -46,7 +46,7 @@ export function parseIntOption(value: string, name: string): number {
 export type ResumeConversationSelection = {
   id: string;
   record: ConversationRecord;
-  projectDir: string;
+  scopeRoot: string;
   savedCwd: string;
   cwdOverridden: boolean;
   explicit: boolean;
@@ -61,7 +61,7 @@ type ConversationRecordLookup =
   | { status: "ambiguous"; ids: string[] };
 
 type ConversationRecordResolveOptions = {
-  crossProject?: boolean;
+  crossScope?: boolean;
 };
 
 function resumeCwdHelp(): string {
@@ -150,8 +150,8 @@ export async function resolveConversationRecord(
     exitAmbiguousConversationPrefix(trimmed, activeLookup.ids);
   }
 
-  if (options.crossProject) {
-    const configuredLookup = await resolveRecordFromConfiguredProjects(
+  if (options.crossScope) {
+    const configuredLookup = await resolveRecordFromConfiguredScopes(
       client,
       trimmed,
     );
@@ -160,7 +160,7 @@ export async function resolveConversationRecord(
       exitAmbiguousConversationPrefix(trimmed, configuredLookup.ids);
     }
 
-    const localLookup = await resolveRecordFromDiscoveredProjectHistories(
+    const localLookup = await resolveRecordFromDiscoveredScopeHistories(
       client,
       trimmed,
     );
@@ -180,14 +180,14 @@ export async function resolveExplicitConversationResume(
   opts: { resumeHere?: boolean } = {},
 ): Promise<ResumeConversationSelection> {
   const record = await resolveConversationRecord(client, idOrPrefix, {
-    crossProject: true,
+    crossScope: true,
   });
   const savedCwd = record.cwd;
   if (opts.resumeHere) {
     return {
       id: record.id,
       record,
-      projectDir: process.cwd(),
+      scopeRoot: process.cwd(),
       savedCwd,
       cwdOverridden: true,
       explicit: true,
@@ -201,7 +201,7 @@ export async function resolveExplicitConversationResume(
   return {
     id: record.id,
     record,
-    projectDir: validation.cwd,
+    scopeRoot: validation.cwd,
     savedCwd,
     cwdOverridden: false,
     explicit: true,
@@ -233,16 +233,16 @@ function exitAmbiguousConversationPrefix(trimmed: string, ids: string[]): never 
   process.exit(1);
 }
 
-async function resolveRecordFromConfiguredProjects(
+async function resolveRecordFromConfiguredScopes(
   client: KotaClient,
   trimmed: string,
 ): Promise<ConversationRecordLookup | undefined> {
   try {
-    const projects = await client.projects.list();
-    if (!projects.ok) return undefined;
+    const scopes = await client.scopes.list();
+    if (!scopes.ok) return undefined;
     const conversations: ConversationRecord[] = [];
-    for (const project of projects.projects) {
-      const scoped = client.forProject(project.projectId);
+    for (const scope of scopes.scopes) {
+      const scoped = client.forScope(scope.scopeId);
       const listed = await scoped.history.list({ limit: 10_000 });
       conversations.push(...listed.conversations);
     }
@@ -252,12 +252,12 @@ async function resolveRecordFromConfiguredProjects(
   }
 }
 
-async function resolveRecordFromDiscoveredProjectHistories(
+async function resolveRecordFromDiscoveredScopeHistories(
   client: KotaClient,
   trimmed: string,
 ): Promise<ConversationRecordLookup | undefined> {
   try {
-    const { conversations } = await client.history.listDiscoveredProjectRecords({
+    const { conversations } = await client.history.listDiscoveredScopeRecords({
       limit: 10_000,
     });
     return resolveRecordFromList(conversations, trimmed);
@@ -275,7 +275,7 @@ export function reportResumeCwdSelection(
     stderr.write(
       line(
         span("[kota] Resume cwd override: ", "warn"),
-        plain(`using ${selection.projectDir} instead of saved cwd ${selection.savedCwd || "(not recorded)"}`),
+        plain(`using ${selection.scopeRoot} instead of saved cwd ${selection.savedCwd || "(not recorded)"}`),
       ),
     );
     return;
@@ -283,7 +283,7 @@ export function reportResumeCwdSelection(
   stderr.write(
     line(
       span("[kota] Resume cwd: ", "muted"),
-      plain(`using saved directory ${selection.projectDir}`),
+      plain(`using saved directory ${selection.scopeRoot}`),
     ),
   );
 }
@@ -325,8 +325,8 @@ function handleReplCommand(
           span("State: ", "muted"),
           plain(state),
           plain("  "),
-          span("Project: ", "muted"),
-          plain(session.projectDir),
+          span("Scope: ", "muted"),
+          plain(session.scopeRoot),
           plain("  "),
           span("Cost: ", "muted"),
           plain(session.getCostSummary()),
@@ -404,7 +404,7 @@ export async function interactiveMode(options: LoopOptions, config?: KotaConfig)
     }
 
     input = expandAlias(input, config?.aliases);
-    input = expandUserPromptReferences(input, session.projectDir).text;
+    input = expandUserPromptReferences(input, session.scopeRoot).text;
 
     try {
       await session.send(input);
@@ -454,7 +454,7 @@ export async function resolveRunContinue(
     return {
       id: record.id,
       record,
-      projectDir: process.cwd(),
+      scopeRoot: process.cwd(),
       savedCwd: record.cwd,
       cwdOverridden: false,
       explicit: false,
@@ -474,7 +474,7 @@ export async function runPipeLoop(piped: string): Promise<void> {
     provider: config.modelProvider?.type,
     baseUrl: config.modelProvider?.baseUrl,
     apiKey: config.modelProvider?.apiKey,
-    projectDir: process.cwd(),
+    scopeRoot: process.cwd(),
   });
   await runAgentLoop(piped, {
     autonomyMode: resolveChannelAutonomyMode(

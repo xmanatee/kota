@@ -89,7 +89,7 @@ export function aggregateAutonomyReport(
   const windowMs = windowDays * MS_PER_DAY;
   const windowStartMs = input.windowEndMs - windowMs;
 
-  const allTasks = listFullRepoTasks(input.projectDir);
+  const allTasks = listFullRepoTasks(input.workspaceRoot);
   const taskById = buildTaskLookup(allTasks);
   const openQueue = buildQueueBalance(
     allTasks.filter((t) =>
@@ -98,7 +98,7 @@ export function aggregateAutonomyReport(
       t.state === "doing" ||
       t.state === "blocked",
     ),
-    listRepoTaskDependencyWaits(input.projectDir, [
+    listRepoTaskDependencyWaits(input.workspaceRoot, [
       "backlog",
       "ready",
       "doing",
@@ -134,7 +134,7 @@ export function aggregateAutonomyReport(
     runs: priorRuns,
   });
   const ownerInterventions = buildOwnerInterventionReport({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     windowStartMs,
     windowEndMs: input.windowEndMs,
   });
@@ -165,7 +165,7 @@ export function aggregateAutonomyReport(
     priorPostCompletionFollowUpLinks,
   );
   const supervisionLoad = buildSupervisionLoadReport({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     runsDir: input.runsDir,
     runs: reportRuns,
     tasks: allTasks,
@@ -196,7 +196,7 @@ export function aggregateAutonomyReport(
     }),
     reviewScrutiny,
     reviewScrutinyEscalation: buildReviewScrutinyEscalationReport({
-      projectDir: input.projectDir,
+      workspaceRoot: input.workspaceRoot,
       detection: reviewScrutinyEscalationDetection,
       config: { nowMs: input.windowEndMs, windowMs },
     }),
@@ -233,7 +233,7 @@ export function aggregateAutonomyReport(
       postCompletionFollowUpLinks,
       priorPostCompletionFollowUpLinks,
     }),
-    health: buildAutonomyHealthBreakdown(input.projectDir),
+    health: buildAutonomyHealthBreakdown(input.workspaceRoot),
     blockers: buildBlockerMix(allTasks),
     cost: buildCostBreakdown(runs),
   };

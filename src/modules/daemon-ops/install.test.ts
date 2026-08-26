@@ -53,7 +53,7 @@ describe("buildLaunchdPlist structural assertions", () => {
   it("contains project and structured logging environment", () => {
     const content = buildLaunchdPlist("/my/project");
     expect(content).toContain("<key>EnvironmentVariables</key>");
-    expect(content).toContain("<key>KOTA_PROJECT_DIR</key>");
+    expect(content).toContain("<key>KOTA_SCOPE_ROOT</key>");
     expect(content).toContain("<string>/my/project</string>");
     expect(content).toContain("<key>KOTA_DAEMON_LOG_FORMAT</key>");
     expect(content).toContain("<string>json</string>");
@@ -139,7 +139,7 @@ describe("buildSystemdUnit structural assertions", () => {
 
   it("contains project and structured logging environment", () => {
     const content = buildSystemdUnit("/my/project");
-    expect(content).toContain('Environment="KOTA_PROJECT_DIR=/my/project"');
+    expect(content).toContain('Environment="KOTA_SCOPE_ROOT=/my/project"');
     expect(content).toContain('Environment="KOTA_DAEMON_LOG_FORMAT=json"');
   });
 

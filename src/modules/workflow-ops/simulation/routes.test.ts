@@ -49,12 +49,11 @@ describe("handleWorkflowSimulation", () => {
         event: "route.event",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
         },
       }),
       res,
       {
-        projectDir: "/tmp/kota-route-test",
+        scopeRoot: "/tmp/kota-route-test",
         definitions: [workflowDefinition()],
         moduleManifests: [],
       },

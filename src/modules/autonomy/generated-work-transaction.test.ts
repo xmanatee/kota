@@ -33,32 +33,32 @@ function questionProposal(): GeneratedWorkProposal {
 }
 
 describe("generated-work transaction", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  function projectDir(): string {
+  function workspaceRoot(): string {
     const dir = mkdtempSync(join(tmpdir(), "generated-work-transaction-"));
-    projectDirs.push(dir);
+    scopeRoots.push(dir);
     return dir;
   }
 
   it("does not enqueue an owner question while staging repository work", () => {
-    const dir = projectDir();
+    const dir = workspaceRoot();
     const proposal = questionProposal();
 
-    const staged = stageGeneratedWorkProposal({ projectDir: dir, proposal });
+    const staged = stageGeneratedWorkProposal({ workspaceRoot: dir, proposal });
 
     expect(staged.actions).toEqual([{ kind: "owner-question-pending" }]);
     expect(existsSync(join(dir, ".kota", "owner-questions"))).toBe(false);
 
     const queue = new OwnerQuestionQueue(join(dir, ".kota", "owner-questions"));
     const finalized = finalizeGeneratedWorkOwnerEffects({
-      projectDir: dir,
+      workspaceRoot: dir,
       ownerQuestionQueue: queue,
       proposal,
     });
@@ -67,11 +67,11 @@ describe("generated-work transaction", () => {
   });
 
   it("does not dismiss an existing question before publication", () => {
-    const dir = projectDir();
+    const dir = workspaceRoot();
     const proposal = questionProposal();
     const queue = new OwnerQuestionQueue(join(dir, ".kota", "owner-questions"));
     finalizeGeneratedWorkOwnerEffects({
-      projectDir: dir,
+      workspaceRoot: dir,
       ownerQuestionQueue: queue,
       proposal,
     });
@@ -83,7 +83,7 @@ describe("generated-work transaction", () => {
     };
 
     const staged = stageGeneratedWorkProposal({
-      projectDir: dir,
+      workspaceRoot: dir,
       proposal: resolution,
     });
 
@@ -92,7 +92,7 @@ describe("generated-work transaction", () => {
     ]);
     expect(queue.list("pending")).toHaveLength(1);
     finalizeGeneratedWorkOwnerEffects({
-      projectDir: dir,
+      workspaceRoot: dir,
       ownerQuestionQueue: queue,
       proposal: resolution,
     });

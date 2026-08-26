@@ -56,11 +56,11 @@ async function attachModuleSkills(
 }
 
 function resolveModuleSkillPromptPath(policy: LoadPhasePolicy, promptPath: string): string {
-  const projectPath = resolve(policy.cwd, promptPath);
-  if (existsSync(projectPath)) return projectPath;
-  if (!promptPath.startsWith("src/")) return projectPath;
+  const workspacePath = resolve(policy.cwd, promptPath);
+  if (existsSync(workspacePath)) return workspacePath;
+  if (!promptPath.startsWith("src/")) return workspacePath;
   const installPath = resolve(KOTA_INSTALL_ROOT, promptPath);
-  return existsSync(installPath) ? installPath : projectPath;
+  return existsSync(installPath) ? installPath : workspacePath;
 }
 
 async function attachModuleAgents(

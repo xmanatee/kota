@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -26,9 +26,9 @@ describe("workflow machine-authority isolation", () => {
   it("threads the machine config path into actual workflow filesystem execution", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-workflow-authority-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const authorityConfigPath = join(root, "operator", "config.json");
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(join(root, "operator"), { recursive: true });
     writeFileSync(authorityConfigPath, "operator-owned\n");
     registerTool(
@@ -46,13 +46,13 @@ describe("workflow machine-authority isolation", () => {
       {},
       [],
       {
-        projectDir,
-        scopeDir: projectDir,
+        scopeRoot,
+        workspaceRoot: scopeRoot,
         authorityConfigPath,
         bus,
-        pbus: new ProjectScopedEventBus(bus, "scope-a"),
-        store: new WorkflowRunStore(projectDir),
-        runContext: createTestRunContext(projectDir, trigger),
+        pbus: new ScopedEventBus(bus, "scope-a"),
+        store: new WorkflowRunStore(scopeRoot),
+        runContext: createTestRunContext(scopeRoot, trigger),
         runAgentHarness: unexpectedWorkflowAgentHarnessRun,
         currentStepId: "mutate",
       },

@@ -7,7 +7,7 @@ import type {
 } from "./types.js";
 
 export type ProgressReviewActionOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;

@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getKnowledgeProvider } from "#core/modules/provider-registry.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import type { KnowledgeProjectStores } from "./project-scope.js";
 import { resolveKnowledgeRouteProvider } from "./route-provider.js";
+import type { KnowledgeScopeStores } from "./scope.js";
 
 export function handleDeleteKnowledge(res: ServerResponse, id: string): void {
 	try {
@@ -22,10 +22,10 @@ export function handleDeleteKnowledgeScoped(
 	req: IncomingMessage,
 	res: ServerResponse,
 	id: string,
-	projectStores: KnowledgeProjectStores,
+	scopeStores: KnowledgeScopeStores,
 ): void {
 	try {
-		const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+		const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
 		if (!provider) return;
 		const ok = provider.delete(id);
 		if (!ok) {

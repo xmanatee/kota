@@ -14,16 +14,16 @@ const runStates: RunStateDatabase[] = [];
 function createRuntime(
   config: Omit<
     WorkflowRuntimeConfig,
-    "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
-  > & { projectDir: string },
+    "scopeId" | "runState" | "runCoordinator" | "daemonEpoch"
+  > & { scopeRoot: string },
   concurrency = 2,
 ): WorkflowRuntime {
-  const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
+  const runState = new RunStateDatabase(join(config.scopeRoot, ".kota", "state"));
   runStates.push(runState);
-  const projectId = "test-project";
-  runState.registerProject({
-    id: projectId,
-    rootPath: config.projectDir,
+  const scopeId = "test-scope";
+  runState.registerScope({
+    id: scopeId,
+    rootPath: config.scopeRoot,
     createdAt: "2026-08-25T10:00:00.000Z",
   });
   const daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
@@ -37,7 +37,7 @@ function createRuntime(
   });
   runtime = new WorkflowRuntime({
     ...config,
-    projectId,
+    scopeId,
     runState,
     runCoordinator,
     daemonEpoch,
@@ -63,21 +63,21 @@ async function waitUntil(
   throw new Error(message);
 }
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-idle-dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
+  execFileSync("git", ["add", ".gitignore"], { cwd: workspaceRoot, stdio: "ignore" });
   execFileSync(
     "git",
     ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "init"],
-    { cwd: projectDir, stdio: "ignore" },
+    { cwd: workspaceRoot, stdio: "ignore" },
   );
-  return projectDir;
+  return workspaceRoot;
 }
 
 const idleWorkflow: RegisteredWorkflowDefinitionInput = {
@@ -95,12 +95,12 @@ const idleWorkflow: RegisteredWorkflowDefinitionInput = {
   ],
 };
 
-function countIdleRuns(projectDir: string): number {
-  return countWorkflowRuns(projectDir, "idle-listener");
+function countIdleRuns(workspaceRoot: string): number {
+  return countWorkflowRuns(workspaceRoot, "idle-listener");
 }
 
-function countWorkflowRuns(projectDir: string, workflowName: string): number {
-  const runsDir = join(projectDir, ".kota", "runs");
+function countWorkflowRuns(workspaceRoot: string, workflowName: string): number {
+  const runsDir = join(workspaceRoot, ".kota", "runs");
   if (!existsSync(runsDir)) return 0;
   return readdirSync(runsDir).filter((runId) => {
     const metadataPath = join(runsDir, runId, "metadata.json");
@@ -110,21 +110,21 @@ function countWorkflowRuns(projectDir: string, workflowName: string): number {
 }
 
 describe("runtime idle dispatch", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
     for (const runState of runStates.splice(0)) runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("does not keep dispatching runtime.idle while repo state is unchanged", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 10,
       workflows: [idleWorkflow],
     });
@@ -133,31 +133,31 @@ describe("runtime idle dispatch", () => {
     await wait(120);
     await runtime.stop();
 
-    expect(countIdleRuns(projectDir)).toBe(1);
+    expect(countIdleRuns(workspaceRoot)).toBe(1);
   });
 
   it("dispatches runtime.idle again after the repo state changes", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 10,
       workflows: [idleWorkflow],
     });
 
     runtime.start();
     await wait(50);
-    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
-    writeFileSync(join(projectDir, "data", "inbox", "idea.md"), "New work\n");
+    mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "data", "inbox", "idea.md"), "New work\n");
     await wait(80);
     await runtime.stop();
 
-    expect(countIdleRuns(projectDir)).toBe(2);
+    expect(countIdleRuns(workspaceRoot)).toBe(2);
   });
 
   it("dispatches manually enqueued workflow runs immediately", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -183,14 +183,14 @@ describe("runtime idle dispatch", () => {
     await runtime.stop();
 
     expect(result.ok).toBe(true);
-    expect(countWorkflowRuns(projectDir, "manual-listener")).toBe(1);
+    expect(countWorkflowRuns(workspaceRoot, "manual-listener")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
 
   it("dispatches webhook-enqueued workflow runs immediately", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -221,14 +221,14 @@ describe("runtime idle dispatch", () => {
     await runtime.stop();
 
     expect(result.ok).toBe(true);
-    expect(countWorkflowRuns(projectDir, "webhook-listener")).toBe(1);
+    expect(countWorkflowRuns(workspaceRoot, "webhook-listener")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
 
   it("dedupes repeated webhook deliveries before appending duplicate queued runs", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -272,7 +272,7 @@ describe("runtime idle dispatch", () => {
   it("keeps explicitly keyed deliveries as separate queued runs", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -326,7 +326,7 @@ describe("runtime idle dispatch", () => {
     });
     const runtime = createRuntime({
       bus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -366,7 +366,7 @@ describe("runtime idle dispatch", () => {
     });
     const runtime = createRuntime({
       bus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -404,7 +404,7 @@ describe("runtime idle dispatch", () => {
     const processed: string[] = [];
     const runtime = createRuntime({
       bus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -442,13 +442,13 @@ describe("runtime idle dispatch", () => {
     await runtime.stop();
 
     expect(processed).toEqual(["ready"]);
-    expect(countWorkflowRuns(projectDir, "custom-event-listener")).toBe(1);
+    expect(countWorkflowRuns(workspaceRoot, "custom-event-listener")).toBe(1);
   });
 
   it("dispatches workflows emitted while coordinator capacity is occupied", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -521,8 +521,8 @@ describe("runtime idle dispatch", () => {
     try {
       await waitUntil(
         () =>
-          countWorkflowRuns(projectDir, "builder-like-agent-slot") === 1 &&
-          countWorkflowRuns(projectDir, "security-review") === 1 &&
+          countWorkflowRuns(workspaceRoot, "builder-like-agent-slot") === 1 &&
+          countWorkflowRuns(workspaceRoot, "security-review") === 1 &&
           runtime.getState().pendingRuns.length === 0,
         "Timed out waiting for emitted workflows to dispatch",
       );
@@ -530,8 +530,8 @@ describe("runtime idle dispatch", () => {
       await runtime.stop();
     }
 
-    expect(countWorkflowRuns(projectDir, "builder-like-agent-slot")).toBe(1);
-    expect(countWorkflowRuns(projectDir, "security-review")).toBe(1);
+    expect(countWorkflowRuns(workspaceRoot, "builder-like-agent-slot")).toBe(1);
+    expect(countWorkflowRuns(workspaceRoot, "security-review")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
   });
 

@@ -31,12 +31,12 @@ function writeTokenBudgetArtifact(runDirPath: string): void {
 
 describe("control monitor token-budget coverage", () => {
   let fixture: ControlCoverageFixture;
-  let projectDir: string;
+  let scopeRoot: string;
   let runDirPath: string;
 
   beforeEach(() => {
     fixture = createControlCoverageFixture("kota-control-coverage-token-budget");
-    projectDir = fixture.projectDir;
+    scopeRoot = fixture.workspaceRoot;
     runDirPath = fixture.runDirPath;
   });
 
@@ -80,7 +80,7 @@ describe("control monitor token-budget coverage", () => {
     writeTokenBudgetArtifact(runDirPath);
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -119,7 +119,7 @@ describe("control monitor token-budget coverage", () => {
     writeTokenBudgetArtifact(runDirPath);
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,

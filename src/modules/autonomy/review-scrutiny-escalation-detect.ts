@@ -232,7 +232,7 @@ export function detectRecurringReviewScrutinyPatternsFromReport(args: {
 }
 
 export function detectRecurringReviewScrutinyPatterns(
-  projectDir: string,
+  workspaceRoot: string,
   runsDir: string,
   config?: ReviewScrutinyEscalationConfig,
 ): ReviewScrutinyEscalationDetection {
@@ -245,7 +245,7 @@ export function detectRecurringReviewScrutinyPatterns(
   const report = collectReviewScrutinyReport({ runsDir, runs });
   return detectRecurringReviewScrutinyPatternsFromReport({
     report,
-    tasks: listFullRepoTasks(projectDir),
+    tasks: listFullRepoTasks(workspaceRoot),
     config: normalized,
   });
 }

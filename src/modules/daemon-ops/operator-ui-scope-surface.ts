@@ -9,19 +9,19 @@ import {
   shortId,
   unavailableRows,
 } from "#core/daemon/ui-surface-builders.js";
-import type { ProjectsListResult, SessionsListResult } from "./client.js";
+import type { ScopesListResult, SessionsListResult } from "./client.js";
 import type {
   UiActionParameterSpec,
   UiSurface,
   UiTableRow,
 } from "./operator-ui-types.js";
 
-function projectUseParameters(): UiActionParameterSpec {
+function scopeUseParameters(): UiActionParameterSpec {
   return {
     fields: [
       {
-        id: "projectId",
-        label: "Project id",
+        id: "scopeId",
+        label: "Scope id",
         input: "text",
         required: false,
       },
@@ -35,7 +35,7 @@ function projectUseParameters(): UiActionParameterSpec {
     schema: {
       type: "object",
       properties: {
-        projectId: { type: "string" },
+        scopeId: { type: "string" },
         clear: { type: "boolean", default: false },
       },
       additionalProperties: false,
@@ -77,7 +77,7 @@ function sessionAutonomyParameters(): UiActionParameterSpec {
 
 export function buildScopeUiSurface(args: {
   scopeId: string;
-  projects: SurfaceRead<ProjectsListResult>;
+  scopes: SurfaceRead<ScopesListResult>;
   sessions: SurfaceRead<SessionsListResult>;
 }): UiSurface {
   const { scopeId } = args;
@@ -98,26 +98,26 @@ export function buildScopeUiSurface(args: {
     },
     result: resultSpec("Session autonomy updated."),
   });
-  const projectRows: UiTableRow[] = args.projects.ok
-    ? args.projects.value.ok
+  const scopeRows: UiTableRow[] = args.scopes.ok
+    ? args.scopes.value.ok
       ? (() => {
-          const projectsView = args.projects.value;
-          return projectsView.projects.map((project) => {
+          const scopesView = args.scopes.value;
+          return scopesView.scopes.map((scope) => {
             const markers: string[] = [];
-            if (project.projectId === projectsView.activeProjectId) markers.push("active");
-            if (project.projectId === projectsView.defaultProjectId) markers.push("default");
+            if (scope.scopeId === scopesView.activeScopeId) markers.push("active");
+            if (scope.scopeId === scopesView.defaultScopeId) markers.push("default");
             return {
-              id: project.projectId,
+              id: scope.scopeId,
               cells: [
-                { columnId: "name", value: project.projectId, role: markers.includes("active") ? "info" : "neutral" },
+                { columnId: "name", value: scope.scopeId, role: markers.includes("active") ? "info" : "neutral" },
                 { columnId: "state", value: markers.length > 0 ? markers.join(", ") : "available", role: markers.includes("active") ? "success" : "muted" },
-                { columnId: "detail", value: `${project.displayName}  ${project.projectDir}`, role: "muted" },
+                { columnId: "detail", value: `${scope.displayName}  ${scope.scopeRoot}`, role: "muted" },
               ],
             };
           });
         })()
       : unavailableRows("daemon required")
-    : unavailableRows(args.projects.message);
+    : unavailableRows(args.scopes.message);
 
   const sessionRows: UiTableRow[] = args.sessions.ok
     ? args.sessions.value.sessions.length === 0
@@ -127,7 +127,7 @@ export function buildScopeUiSurface(args: {
           cells: [
             { columnId: "name", value: shortId(session.id), role: "info" },
             { columnId: "state", value: session.autonomyMode, role: "success" },
-            { columnId: "detail", value: `${session.projectId}  ${session.source ?? "daemon"}  last=${new Date(session.lastActive).toISOString()}`, role: "muted" },
+            { columnId: "detail", value: `${session.scopeId}  ${session.source ?? "daemon"}  last=${new Date(session.lastActive).toISOString()}`, role: "muted" },
           ],
           action: setSessionAutonomy,
         }))
@@ -136,24 +136,24 @@ export function buildScopeUiSurface(args: {
   const actions = [
     action({
       surfaceId: "scopes",
-      actionId: "projects.list",
+      actionId: "scopes.list",
       scopeId,
       label: "Reload scope registry",
-      operation: { kind: "client-namespace", namespace: "projects", method: "list" },
+      operation: { kind: "client-namespace", namespace: "scopes", method: "list" },
       result: resultSpec("Scope registry loaded."),
     }),
     action({
       surfaceId: "scopes",
-      actionId: "project.use",
+      actionId: "scope.use",
       scopeId,
       label: "Switch active scope",
       effect: "write",
-      operation: { kind: "client-namespace", namespace: "projects", method: "use" },
-      parameters: projectUseParameters(),
+      operation: { kind: "client-namespace", namespace: "scopes", method: "use" },
+      parameters: scopeUseParameters(),
       confirmation: {
         mode: "required",
         title: "Switch active scope",
-        detail: "Subsequent daemon reads without an explicit project override use this selection.",
+        detail: "Subsequent daemon reads without an explicit scope override use this selection.",
         confirmLabel: "Switch scope",
         risk: "low",
       },
@@ -200,13 +200,13 @@ export function buildScopeUiSurface(args: {
         entries: [
           {
             label: "Registry",
-            value: readValue(args.projects, (projects) => projects.ok ? `${projects.projects.length} configured` : "daemon required"),
-            role: readRole(args.projects),
+            value: readValue(args.scopes, (scopes) => scopes.ok ? `${scopes.scopes.length} configured` : "daemon required"),
+            role: readRole(args.scopes),
           },
           {
             label: "Active",
-            value: readValue(args.projects, (projects) => projects.ok ? projects.activeProjectId ?? projects.defaultProjectId : "unavailable"),
-            role: readRole(args.projects),
+            value: readValue(args.scopes, (scopes) => scopes.ok ? scopes.activeScopeId ?? scopes.defaultScopeId : "unavailable"),
+            role: readRole(args.scopes),
           },
           {
             label: "Sessions",
@@ -215,7 +215,7 @@ export function buildScopeUiSurface(args: {
           },
         ],
       },
-      { kind: "table", title: "Directory scopes", columns: NAME_STATE_DETAIL_COLUMNS, rows: projectRows },
+      { kind: "table", title: "Directory scopes", columns: NAME_STATE_DETAIL_COLUMNS, rows: scopeRows },
       { kind: "table", title: "Live sessions", columns: NAME_STATE_DETAIL_COLUMNS, rows: sessionRows },
       ...sessionLinks,
       { kind: "action-list", title: "Scope actions", actions },

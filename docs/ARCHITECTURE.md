@@ -18,8 +18,8 @@ adding a parallel surface.
   local runner. Harness-specific options stay adapter-private.
 - `scope` = a daemon-hosted runtime context. The root scope is global;
   directory-backed scopes are the first concrete child scopes and use stable
-  ids derived from their directory roots. Project is compatibility language for
-  directory-backed scopes, not the core abstraction.
+  ids derived from their directory roots. A scope is the only KOTA runtime
+  identity; external systems may retain their own domain terminology.
 - `daemon` = the long-lived runtime host. When running, it owns workflows,
   channels, sessions, stores, module runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
@@ -135,7 +135,7 @@ Run execution has one ownership chain:
 - `RunStateDatabase` is the durable authority for admission and queue state,
   run and attempt ownership, logical resources, process identities, external
   effects, and terminal publications.
-- `RunCoordinator` owns shared daemon admission, capacity, project pause,
+- `RunCoordinator` owns shared daemon admission, capacity, scope pause,
   cancellation, and child-run waits. A waiting parent releases capacity and
   reacquires it before continuing.
 - `RunLifecycle` creates or adopts the run sandbox, allocates resources,
@@ -158,8 +158,7 @@ disposition authority.
   scope.
 - `scope` protocol: stable id, display name, optional parent scope, optional
   directory root, and a registry projection. The daemon exposes a canonical
-  scope projection; project-named control surfaces are compatibility adapters
-  for directory-backed scopes.
+  scope projection; every control surface selects the same canonical identity.
 - `daemon` protocol: lifecycle, ownership of runtime state, module loading,
   and control-plane hosting.
 - `client` protocol: daemon discovery, capability-scoped control calls, and
@@ -183,8 +182,8 @@ Local source links point to representative contracts, not exhaustive catalogs.
 
 | Concept | Canonical Mechanism | Boundary |
 | --- | --- | --- |
-| Scope and project | `ScopeRegistry`, `ScopeAuthorityService`, and `ProjectScopedEventBus` in `src/core/daemon/` and `src/core/events/project-scope.ts`. | `scopeId` is canonical. The registry owns identity/lifecycle; one machine-owned, revisioned authority transaction owns trust and policy. Repo config cannot write authority. `projectId`, `/projects`, and project route parameters are compatibility language for directory-backed scopes. |
-| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scope-scoped events carry `scopeId` plus compatibility `projectId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
+| Scope | `ScopeRegistry`, `ScopeAuthorityService`, and `ScopedEventBus` in `src/core/daemon/` and `src/core/events/scope.ts`. | `scopeId` names every runtime boundary. The registry owns directory-scope identity and lifecycle; one machine-owned, revisioned authority transaction owns trust and policy. Repo config cannot write authority. |
+| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scoped events carry one `scopeId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
 | Durable event data | `EventJournal` in `src/core/events/event-journal.ts` wraps emitted events with identity, scope lineage, causality, trace, idempotency, retention, and redacted projection metadata. | The journal records event occurrence and replay metadata. It does not replace the live bus, duplicate workflow run logs, or own future dedupe and dead-letter queue semantics. |
 | Module | `KotaModule` in `src/core/modules/module-types.ts`. | Modules are the only integration unit. Provider-specific tools, workflows, channels, routes, setup requirements, effects, and stores stay module-owned. |
 | Tool and action | `ToolDef` plus `ToolEffect` guardrail metadata. | External writes must be represented as typed tools or action adapters with explicit effect metadata; prose approval is not an execution contract. |
@@ -199,7 +198,7 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Outbound HTTP | `OutboundHttpTransport` and the closed profiles in `src/core/outbound-http/`. | Core protocols and module adapters select explicit trust profiles; only the low-level dispatcher reaches host HTTP primitives. Vendor payloads, OAuth semantics, and agent-facing web/browser behavior stay in their owning modules. |
 | Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, `OwnerDecisionStore`, `ownerDecisionSteps`, `confirmedOwnerActionStep`, and the owner-decisions module client/CLI/API. | Owner questions ask for judgment; approvals gate dangerous effects; owner decisions persist reusable choices and authorize at most the intended later action. |
 | Store and evidence | Module-owned history, memory, knowledge, working memory, task, and run-artifact stores. | Git history and `.kota/runs/` are the review record. Do not create parallel changelogs, lesson stores, or ad hoc audit files. |
-| Workflow run | `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, `RunSandboxManager`, and `IntegrationQueue` in `src/core/workflow/`. | Durable admission and ownership are shared across workflows and projects. Repository isolation is per run; successful writers publish through one serialized integration path. Run artifacts are evidence, not a second queue or ownership store. |
+| Workflow run | `RunStateDatabase`, `RunCoordinator`, `RunLifecycle`, `RunSandboxManager`, and `IntegrationQueue` in `src/core/workflow/`. | Durable admission and ownership are shared across workflows and scopes. Repository isolation is per run; successful writers publish through one serialized integration path. Run artifacts are evidence, not a second queue or ownership store. |
 | UI contribution | `KotaModule.uiSurfaces` declares side-effect-free live sources. One scope-aware module-runtime assembler projects and validates `ui.surface.v1` for both `/ui/surfaces` and `KotaClient.ui`; shared conformance fixtures and native decoders consume that graph. | Capability modules own their reads and surface semantics. Operator-facing forms, actions, status, setup, approvals, owner requests, runs, launch controls, and module capabilities are declared once and rendered natively by each client. Typed actions carry parameter schemas, readiness, effects, confirmation metadata, and result/error contracts. Surfaces declare the domain events that refresh their projection, while log-stream nodes additionally identify which live event payloads clients append to that stream. |
 
 ## Context Gathering

@@ -42,20 +42,20 @@ type WorkspaceArtifactForTest = {
   }>;
 };
 
-let projectDir: string;
+let scopeRoot: string;
 
 beforeEach(() => {
-  projectDir = mkdtempSync(join(tmpdir(), "kota-composition-workspace-"));
+  scopeRoot = mkdtempSync(join(tmpdir(), "kota-composition-workspace-"));
 });
 
 afterEach(() => {
   clearAllWorkspaces();
-  rmSync(projectDir, { recursive: true, force: true });
+  rmSync(scopeRoot, { recursive: true, force: true });
 });
 
 function workflowContext(runId: string, toolUseId: string): ToolRunnerContext {
   return {
-    cwd: projectDir,
+    cwd: scopeRoot,
     sessionId: "session-1",
     toolUseId,
     workflow: {
@@ -64,13 +64,12 @@ function workflowContext(runId: string, toolUseId: string): ToolRunnerContext {
       stepId: "build",
       spanId: `${runId}:build`,
       scopeId: "scope-1",
-      projectId: "scope-1",
     },
   };
 }
 
 function artifactPath(runId: string): string {
-  return join(projectDir, ".kota", "runs", runId, COMPOSITION_WORKSPACES_ARTIFACT);
+  return join(scopeRoot, ".kota", "runs", runId, COMPOSITION_WORKSPACES_ARTIFACT);
 }
 
 function readArtifact(runId: string): WorkspaceArtifactForTest {
@@ -129,7 +128,7 @@ describe("workspace workflow artifacts", () => {
       value: "v",
     });
 
-    expect(existsSync(join(projectDir, ".kota"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".kota"))).toBe(false);
   });
 
   it("restores workflow workspace state from the current run snapshot", async () => {

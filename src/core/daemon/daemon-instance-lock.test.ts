@@ -90,7 +90,7 @@ describe("daemon instance lock", () => {
       }),
     );
     mockedIsProcessAlive.mockReturnValue(true);
-    mockedExecFileSync.mockReturnValue("node dist/cli.js daemon --project-dir /repo" as never);
+    mockedExecFileSync.mockReturnValue("node dist/cli.js daemon --scope-root /repo" as never);
 
     await expect(
       acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
@@ -186,14 +186,14 @@ describe("daemon instance lock", () => {
   });
 
   itPosix("rejects a symlinked default project state root without touching its target", async () => {
-    const projectDir = join(tmpDir, "project");
+    const scopeRoot = join(tmpDir, "project");
     const targetDir = join(tmpDir, "redirected-state");
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(targetDir, { mode: 0o777 });
     chmodSync(targetDir, 0o777);
-    symlinkSync(targetDir, join(projectDir, ".kota"), "dir");
+    symlinkSync(targetDir, join(scopeRoot, ".kota"), "dir");
 
-    await expect(new Daemon({ projectDir }).start()).rejects.toThrow(
+    await expect(new Daemon({ scopeRoot }).start()).rejects.toThrow(
       /default daemon state directory must not be a symbolic link/,
     );
     expect(fileMode(targetDir)).toBe(0o777);
@@ -201,13 +201,13 @@ describe("daemon instance lock", () => {
   });
 
   itPosix("rejects replacement of an anchored default state root", () => {
-    const projectDir = join(tmpDir, "project");
+    const scopeRoot = join(tmpDir, "project");
     const targetDir = join(tmpDir, "redirected-state");
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(targetDir, { mode: 0o777 });
     chmodSync(targetDir, 0o777);
-    const stateRoot = prepareDaemonStateRoot(projectDir, undefined);
-    renameSync(stateRoot.path, join(projectDir, "original-state"));
+    const stateRoot = prepareDaemonStateRoot(scopeRoot, undefined);
+    renameSync(stateRoot.path, join(scopeRoot, "original-state"));
     symlinkSync(targetDir, stateRoot.path, "dir");
 
     expect(() => writeControlFile(stateRoot, { ...owner, port: 3921 })).toThrow(
@@ -218,14 +218,14 @@ describe("daemon instance lock", () => {
   });
 
   itPosix("preserves explicitly configured external state-directory handling", () => {
-    const projectDir = join(tmpDir, "project");
+    const scopeRoot = join(tmpDir, "project");
     const targetDir = join(tmpDir, "operator-state");
     const configuredStateDir = join(tmpDir, "configured-state");
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(targetDir, { mode: 0o777 });
     chmodSync(targetDir, 0o777);
     symlinkSync(targetDir, configuredStateDir, "dir");
-    const stateRoot = prepareDaemonStateRoot(projectDir, configuredStateDir);
+    const stateRoot = prepareDaemonStateRoot(scopeRoot, configuredStateDir);
 
     writeControlFile(stateRoot, { ...owner, port: 3921 });
 

@@ -105,7 +105,7 @@ function buildHistoryUiSurface(
 
 export const historyUiSurfaceSource: UiSurfaceSource = {
   sourceId: "history-store",
-  project: async (context) => {
+  scope: async (context) => {
     const history = await context.read("history", () => context.client.history.list({ limit: 10 }));
     return [buildHistoryUiSurface(context.scopeId, history)];
   },

@@ -5,7 +5,7 @@
  * testable and reusable without importing the Scheduler class.
  */
 
-import { projectStorageIdentity } from "./project-storage-identity.js";
+import { scopeStorageIdentity } from "./scope-storage-identity.js";
 
 export type ScheduledItem = {
   id: number;
@@ -66,10 +66,10 @@ export function getPendingSummary(items: ScheduledItem[]): string | null {
 
 /**
  * Deterministic hash for project-scoping storage files.
- * Used by both Scheduler and TaskStore to derive per-project filenames.
+ * Used by both Scheduler and TaskStore to derive per-scope filenames.
  */
-export function projectHash(path: string): string {
-  const identity = projectStorageIdentity(path);
+export function scopeHash(path: string): string {
+  const identity = scopeStorageIdentity(path);
   let h = 5381;
   for (let i = 0; i < identity.length; i++) {
     h = ((h << 5) + h + identity.charCodeAt(i)) >>> 0;

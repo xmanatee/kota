@@ -1,7 +1,7 @@
 /**
  * Persistence layer for cited-answer envelopes.
  *
- * One file per call under `<projectStateRoot>/answer-history/<id>.json`.
+ * One file per call under `<scopeStateRoot>/answer-history/<id>.json`.
  * The store is the single record-keeping path for the answer module —
  * `AnswerProviderImpl` calls `appendAnswer` after every envelope (success
  * or failure) and a logged warning, not an exception, signals a failed
@@ -337,6 +337,6 @@ export function answerSearchPreview(record: AnswerHistoryRecord): string {
   return `${flat.slice(0, SEARCH_PREVIEW_MAX - 1)}…`;
 }
 
-export function answerHistoryRootForProject(projectStateRoot: string): string {
-  return join(projectStateRoot, ANSWER_HISTORY_DIR_NAME);
+export function answerHistoryRootForScope(scopeStateRoot: string): string {
+  return join(scopeStateRoot, ANSWER_HISTORY_DIR_NAME);
 }

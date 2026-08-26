@@ -13,7 +13,7 @@ export type DurableRunState =
 
 export type AdmittedRun = {
   id: string;
-  projectId: string;
+  scopeId: string;
   workflow: string;
   trigger: WorkflowRunTrigger;
   repository: RepositoryAccess;
@@ -36,7 +36,7 @@ export type RunAdmissionDisposition = Readonly<{
 
 export type StoredRun = {
   id: string;
-  projectId: string;
+  scopeId: string;
   workflow: string;
   trigger: WorkflowRunTrigger;
   repository: RepositoryAccess;
@@ -58,7 +58,7 @@ export type StoredRun = {
 export type RunPublication = Readonly<{
   id: string;
   runId: string;
-  projectId: string;
+  scopeId: string;
   event: string;
   payload: Readonly<Record<string, unknown>>;
   createdAt: string;
@@ -67,7 +67,7 @@ export type RunPublication = Readonly<{
 
 export type PendingRunPublication = Omit<RunPublication, "deliveredAt">;
 
-export type ProjectStateValue<T = unknown> = Readonly<{
+export type ScopeStateValue<T = unknown> = Readonly<{
   revision: number;
   value: T | null;
 }>;
@@ -134,7 +134,7 @@ export class PublicationIntentConflictError extends Error {
 
 export class StateValueConflictError extends Error {
   constructor(
-    readonly projectId: string,
+    readonly scopeId: string,
     readonly key: string,
     readonly expectedRevision: number,
     readonly actualRevision: number,
@@ -142,8 +142,8 @@ export class StateValueConflictError extends Error {
   ) {
     super(
       pendingRunId === undefined
-        ? `State value "${key}" in project "${projectId}" is at revision ${actualRevision}, expected ${expectedRevision}`
-        : `State value "${key}" in project "${projectId}" has a pending mutation owned by run "${pendingRunId}"`,
+        ? `State value "${key}" in scope "${scopeId}" is at revision ${actualRevision}, expected ${expectedRevision}`
+        : `State value "${key}" in scope "${scopeId}" has a pending mutation owned by run "${pendingRunId}"`,
     );
     this.name = "StateValueConflictError";
   }

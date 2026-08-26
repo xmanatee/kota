@@ -42,7 +42,6 @@ describe("EventJournal pruned references", () => {
       schemaRef: null,
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         workflow: "builder",
         runId: "builder-run",
         status: "success",
@@ -88,7 +87,6 @@ describe("EventJournal pruned references", () => {
       schemaRef: null,
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         workflow: "builder",
         runId: "builder-run",
         status: "success",

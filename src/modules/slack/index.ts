@@ -234,7 +234,7 @@ const slackModule: KotaModule = {
         id: "slack.webhook-url",
         description: "Slack Incoming Webhook URL reference used for notification delivery.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {

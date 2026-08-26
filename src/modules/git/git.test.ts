@@ -88,7 +88,7 @@ describe("git tool", () => {
 
 				const r = await runGit(
 					{ op: "status" },
-					{ cwd: scopedDir, scopeId: "scoped-project", projectId: "scoped-project" },
+					{ cwd: scopedDir, scopeId: "scoped-scope" },
 				);
 
 				expect(r.is_error).toBeUndefined();

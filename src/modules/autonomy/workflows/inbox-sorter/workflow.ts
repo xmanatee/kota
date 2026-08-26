@@ -32,8 +32,8 @@ const inspectInbox = typedCodeStep<InboxSorterAssessment>({
   type: "code",
   validate: (raw) =>
     expectStructuredOutput<InboxSorterAssessment>(raw, ["inboxCount", "needsAttention"]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectInboxSorterStateOperation, { projectDir }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(inspectInboxSorterStateOperation, { workspaceRoot }),
 });
 
 async function resolveInboxSorterShadowTarget(
@@ -58,7 +58,7 @@ async function resolveInboxSorterShadowTarget(
     shadowSemanticReviewTargetOperation,
     {
       kind: "workflow-mutations",
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
     },
   );
   return {
@@ -129,7 +129,7 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
                 await ctx.runCommand({
                   command: "pnpm",
                   args: ["run", "validate-tasks"],
-                  cwd: ctx.projectDir,
+                  cwd: ctx.workspaceRoot,
                 }),
               ),
           },

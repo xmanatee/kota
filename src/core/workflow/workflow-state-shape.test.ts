@@ -6,7 +6,7 @@ import { JsonFileError } from "#core/util/json-file.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-state-shape-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -28,16 +28,16 @@ const BUILDER: WorkflowDefinition = {
 };
 
 describe("workflow state shape: start / completion separation", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("start records lastStarted only; completion records lastCompletion", () => {
@@ -61,14 +61,14 @@ describe("workflow state shape: start / completion separation", () => {
     expect(finishedEntry?.lastCompletion?.startedAt).toBe(handle.metadata.startedAt);
     expect(finishedEntry?.lastCompletion?.completedAt).toBeDefined();
     const persisted = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "workflow-state.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "workflow-state.json"), "utf-8"),
     ) as Record<string, unknown>;
     expect(persisted).not.toHaveProperty("activeRuns");
     expect(persisted).not.toHaveProperty("pendingRuns");
   });
 
   it("rejects legacy flat workflow fields", () => {
-    const statePath = join(projectDir, ".kota", "workflow-state.json");
+    const statePath = join(workspaceRoot, ".kota", "workflow-state.json");
 
     // Simulate the bug's exact symptom: an active run's lastRunId carries
     // running-run identity while lastCompletedAt/lastStatus belong to an

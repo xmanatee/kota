@@ -254,7 +254,7 @@ describe('DaemonClient', () => {
         ok: false,
         reason: 'contributor_failed',
         target: 'inbox',
-        message: 'inbox writer cannot reach project root',
+        message: 'inbox writer cannot reach scope root',
       }),
     );
     const res = await client().capture('boom');
@@ -262,7 +262,7 @@ describe('DaemonClient', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     });
   });
 

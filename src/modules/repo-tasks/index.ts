@@ -24,15 +24,15 @@ import type {
 	RepoTasksClient,
 } from "./client.js";
 import { buildRepoTasksDaemonHandler } from "./daemon-client.js";
-import {
-	createRepoTasksProjectStores,
-	type RepoTasksProjectStores,
-} from "./project-scope.js";
 import { mutateRepoTask } from "./repo-task-mutation-boundary.js";
 import { getRepoTasksDir } from "./repo-tasks-domain.js";
 import { showTask } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 import { taskControlRoutes, taskRoutes } from "./routes.js";
+import {
+	createRepoTasksScopeStores,
+	type RepoTasksScopeStores,
+} from "./scope.js";
 import { repoTasksUiSurfaceSource } from "./ui-surface.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
@@ -44,21 +44,21 @@ const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 
 const DEFAULT_SEARCH_LIMIT = 20;
 
-function resolveRepoTasksProject(
-	projectStores: RepoTasksProjectStores,
-	projectId: string | undefined,
+function resolveRepoTasksScope(
+	scopeStores: RepoTasksScopeStores,
+	scopeId: string | undefined,
 ) {
-	const resolved = projectStores.resolve(projectId);
+	const resolved = scopeStores.resolve(scopeId);
 	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+		throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
 	}
 	return resolved;
 }
 
 function createLocalDefaultProviderResolver(
-	defaultProjectDir: string,
+	defaultScopeRoot: string,
 ): () => RepoTasksProvider {
-	const fallback = new RepoTasksDefaultStore(defaultProjectDir);
+	const fallback = new RepoTasksDefaultStore(defaultScopeRoot);
 	return () => {
 		try {
 			return getRepoTasksProvider();
@@ -91,54 +91,54 @@ const repoTasksModule: KotaModule = {
 
 	routes: (ctx) =>
 		taskRoutes(
-			createRepoTasksProjectStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
 		),
 	controlRoutes: (ctx) =>
 		taskControlRoutes(
-			createRepoTasksProjectStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
 		),
 
 	localClient: (ctx) => {
-		const projectStores = createRepoTasksProjectStores(
+		const scopeStores = createRepoTasksScopeStores(
 			ctx.cwd,
 			createLocalDefaultProviderResolver(ctx.cwd),
 		);
 		const handler: RepoTasksClient = {
-			async list(states, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				const tasksDir = getRepoTasksDir(resolved.projectDir);
+			async list(states, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
+				const tasksDir = getRepoTasksDir(resolved.scopeRoot);
 				const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
 				const tasks: RepoTaskListEntry[] = listTasksForStates(tasksDir, wanted);
 				return { tasks };
 			},
-			async show(id, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				return showTask(resolved.projectDir, id);
+			async show(id, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
+				return showTask(resolved.scopeRoot, id);
 			},
-			async move(id, toState, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async move(id, toState, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, {
 					kind: "move",
 					id,
 					state: toState,
 				});
 			},
-			async updateBody(id, body, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async updateBody(id, body, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "update-body", id, body });
 			},
 			async create(options) {
-				const { projectId, ...taskOptions } = options;
-				const resolved = resolveRepoTasksProject(projectStores, projectId);
+				const { scopeId, ...taskOptions } = options;
+				const resolved = resolveRepoTasksScope(scopeStores, scopeId);
 				return await mutateRepoTask(resolved, { kind: "create", options: taskOptions });
 			},
-			async capture(title, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async capture(title, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "capture", title });
 			},
 			async gc(options) {
-				const { projectId, ...gcOptions } = options ?? {};
-				const resolved = resolveRepoTasksProject(projectStores, projectId);
+				const { scopeId, ...gcOptions } = options ?? {};
+				const resolved = resolveRepoTasksScope(scopeStores, scopeId);
 				return await mutateRepoTask(resolved, { kind: "gc", options: gcOptions });
 			},
 			async search(query, filter): Promise<RepoTaskSearchResult> {
@@ -150,9 +150,9 @@ const repoTasksModule: KotaModule = {
 				if (filter?.states && filter.states.length > 0) {
 					opts.states = filter.states;
 				}
-				const resolved = resolveRepoTasksProject(projectStores, filter?.projectId);
+				const resolved = resolveRepoTasksScope(scopeStores, filter?.scopeId);
 				if (!semantic) {
-					const fallback = new RepoTasksDefaultStore(resolved.projectDir);
+					const fallback = new RepoTasksDefaultStore(resolved.scopeRoot);
 					return { ok: true, tasks: await fallback.searchTasks(query, opts) };
 				}
 				const provider = resolved.store;
@@ -166,8 +166,8 @@ const repoTasksModule: KotaModule = {
 					return { ok: false, reason: "semantic_unavailable" };
 				}
 			},
-			async reindex(project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async reindex(scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return resolved.store.reindex();
 			},
 		};

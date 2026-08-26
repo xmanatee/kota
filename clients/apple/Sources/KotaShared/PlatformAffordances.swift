@@ -16,14 +16,14 @@ public protocol PlatformAffordances {
     @discardableResult
     func openURL(_ url: URL) -> Bool
 
-    /// Prompts the operator to select a project directory. Returns
+    /// Prompts the operator to select a scope directory. Returns
     /// `nil` when the platform has no native picker (today: iOS, where
     /// `UIDocumentPicker` is sandboxed and the operator types the path
     /// in Settings instead). The macOS implementation runs an
     /// `NSOpenPanel`; the iOS implementation always returns `nil` and
-    /// the iOS Settings pane writes `projectDir` directly.
+    /// the iOS Settings pane writes `scopeRoot` directly.
     @MainActor
-    func pickProjectDirectory() async -> URL?
+    func pickScopeDirectory() async -> URL?
 
     /// Opens the platform-native settings surface for the app. macOS
     /// dispatches to the `Settings` scene declared in the menu-bar
@@ -38,11 +38,11 @@ public protocol PlatformAffordances {
     /// terminate themselves.
     var supportsQuit: Bool { get }
 
-    /// Returns `true` when `pickProjectDirectory()` opens a native
+    /// Returns `true` when `pickScopeDirectory()` opens a native
     /// folder picker that resolves to a real `URL`. macOS = `true`
     /// (NSOpenPanel); iOS = `false` (sandbox prevents arbitrary
     /// folder access — operator types the path in Settings).
-    var supportsNativeProjectPicker: Bool { get }
+    var supportsNativeScopePicker: Bool { get }
 
     /// Quits the host app. Implementations may no-op when
     /// `supportsQuit` is `false` so the FooterActionsView can hide
@@ -62,14 +62,14 @@ public struct InertPlatformAffordances: PlatformAffordances {
     public func openURL(_ url: URL) -> Bool { false }
 
     @MainActor
-    public func pickProjectDirectory() async -> URL? { nil }
+    public func pickScopeDirectory() async -> URL? { nil }
 
     @MainActor
     public func openAppSettings() {}
 
     public var supportsQuit: Bool { false }
 
-    public var supportsNativeProjectPicker: Bool { false }
+    public var supportsNativeScopePicker: Bool { false }
 
     @MainActor
     public func quitApp() {}

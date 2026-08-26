@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createGenerator } from "ts-json-schema-generator";
-import { discoverProjectModules } from "../modules/project-discovery.js";
+import { discoverBundledModules } from "../modules/bundled-module-discovery.js";
 import { getRegisteredConfigSlices } from "./config-slice.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -67,7 +67,7 @@ const inlinedBase = resolveRefs(kotaDef, baseGenerated.definitions ?? {}) as Rec
 const baseProperties = objectRecord(inlinedBase.properties) ?? {};
 
 // Discover modules to populate the global slice registry.
-await discoverProjectModules();
+await discoverBundledModules();
 
 const sliceProperties: Record<string, unknown> = {};
 for (const slice of getRegisteredConfigSlices()) {
@@ -97,10 +97,10 @@ const inlined = { ...inlinedBase, properties: mergedProperties };
 const modulesSchema = objectRecord(mergedProperties.modules);
 if (modulesSchema) {
   const moduleProperties = objectRecord(modulesSchema.properties) ?? {};
-  // Walk registered modules again — discoverProjectModules above only
+  // Walk registered modules again — discoverBundledModules above only
   // returned the modules and triggered slice registration; we now also
   // surface their `configSchema` fragments (for `config.modules.<name>`).
-  for (const mod of await discoverProjectModules()) {
+  for (const mod of await discoverBundledModules()) {
     if (mod.configSchema) moduleProperties[mod.name] = mod.configSchema;
   }
   if (Object.keys(moduleProperties).length > 0) {
@@ -115,7 +115,7 @@ const schema = {
   $id: "https://kota.dev/schema/kota-config.schema.json",
   title: "KotaConfig",
   description:
-    "KOTA configuration file. Project config overrides global config except trustedProjects, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
+    "KOTA configuration file. Scope config overrides global config except trustedScopes, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
   ...inlined,
 };
 

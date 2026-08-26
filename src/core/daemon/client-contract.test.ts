@@ -53,33 +53,21 @@ const FIXTURE_PATH = resolve(
   "../../../clients/conformance/contract-fixture.json",
 );
 
-type FixtureProjectEntry = {
-  projectId: string;
-  projectDir: string;
-  displayName: string;
-};
-
-type FixtureProjection = {
-  defaultProjectId: string;
-  projects: FixtureProjectEntry[];
-};
-
-type FixtureUnknownProjectError = {
+type FixtureUnknownScopeError = {
   error: string;
   reason: string;
-  projectId: string;
+  scopeId: string;
 };
 
 type Fixture = {
   identity: ClientIdentity;
   identityWithoutDashboard: ClientIdentity;
-  projects: FixtureProjection;
   scopes: ScopeRegistryProjection;
   scopePolicy: {
     resolved: ScopePolicyRouteResponse;
     negative_unknownOutcome: unknown;
   };
-  unknownProjectError: FixtureUnknownProjectError;
+  unknownScopeError: FixtureUnknownScopeError;
   capabilities: CapabilityReadinessResponse;
   workflowDefinitions: { definitions: WorkflowDefinitionSummary[] };
   errorBodies: {
@@ -90,10 +78,17 @@ type Fixture = {
   };
 };
 
-const FAKE_PROJECTS = {
-  defaultProjectId: "test-project-id",
-  projects: [
-    { projectId: "test-project-id", projectDir: "/tmp/kota", displayName: "kota" },
+const FAKE_SCOPES: ScopeRegistryProjection = {
+  rootScopeId: "global",
+  defaultScopeId: "test-scope-id",
+  scopes: [
+    { scopeId: "global", displayName: "Global" },
+    {
+      scopeId: "test-scope-id",
+      parentScopeId: "global",
+      directoryRoot: "/tmp/kota",
+      displayName: "kota",
+    },
   ],
 };
 
@@ -107,8 +102,8 @@ describe("thin-client contract — shared fixture", () => {
   describe("identity", () => {
     it("decodes the dashboard-available identity payload", () => {
       const id = fixture.identity;
-      expect(id.projectName).toBe("kota");
-      expect(id.projectDir).toBe("/Users/operator/projects/kota");
+      expect(id.scopeName).toBe("kota");
+      expect(id.scopeRoot).toBe("/Users/operator/projects/kota");
       expect(id.daemonVersion).toBe("0.1.0");
       expect(id.pid).toBe(12345);
       expect(id.startedAt).toBe("2026-04-29T01:00:00.000Z");
@@ -116,36 +111,24 @@ describe("thin-client contract — shared fixture", () => {
         throw new Error("expected dashboard.available=true in fixture");
       }
       expect(id.dashboard.path).toBe("/");
-      expect(id.projects.defaultProjectId).toBe("p-kota-fixture-default");
-      expect(id.projects.projects.map((p) => p.projectId)).toEqual([
+      expect(id.scopeRegistry.defaultScopeId).toBe("p-kota-fixture-default");
+      expect(id.scopeRegistry.scopes.map((scope) => scope.scopeId)).toEqual([
+        "global",
         "p-kota-fixture-default",
         "p-side-fixture",
       ]);
-      // Default projectId always names a real entry.
       expect(
-        id.projects.projects.some(
-          (p) => p.projectId === id.projects.defaultProjectId,
+        id.scopeRegistry.scopes.some(
+          (scope) => scope.scopeId === id.scopeRegistry.defaultScopeId,
         ),
       ).toBe(true);
     });
 
-    it("exposes the cross-project registry projection as a distinct top-level fixture", () => {
-      const projection = fixture.projects;
-      expect(projection.projects).toHaveLength(2);
-      expect(projection.projects[0].displayName).toBe("kota");
-      expect(projection.projects[1].displayName).toBe("side-project");
-      expect(
-        projection.projects.some(
-          (p) => p.projectId === projection.defaultProjectId,
-        ),
-      ).toBe(true);
-    });
-
-    it("exposes the typed unknown_project rejection envelope", () => {
-      const err = fixture.unknownProjectError;
-      expect(err.error).toBe("Unknown project");
-      expect(err.reason).toBe("unknown_project");
-      expect(err.projectId).toBe("p-not-configured");
+    it("exposes the typed unknown_scope rejection envelope", () => {
+      const err = fixture.unknownScopeError;
+      expect(err.error).toBe("Unknown scope");
+      expect(err.reason).toBe("unknown_scope");
+      expect(err.scopeId).toBe("p-not-configured");
     });
 
     it("exposes the canonical scope projection as a distinct top-level fixture", () => {
@@ -206,17 +189,17 @@ describe("thin-client contract — shared fixture", () => {
         message: "dash up",
       };
       const identity = buildClientIdentity({
-        projectDir: "/tmp/kota",
+        scopeRoot: "/tmp/kota",
         pid: 7777,
         startedAt: "2026-04-29T01:00:00.000Z",
         capabilities: {
           capabilities: [ready],
           summary: { ready: 1, unavailable: 0, init_failed: 0 },
         },
-        projects: FAKE_PROJECTS,
+        scopeRegistry: FAKE_SCOPES,
       });
-      expect(identity.projectName).toBe("kota");
-      expect(identity.projects.defaultProjectId).toBe("test-project-id");
+      expect(identity.scopeName).toBe("kota");
+      expect(identity.scopeRegistry.defaultScopeId).toBe("test-scope-id");
       if (!identity.dashboard.available) {
         throw new Error("expected dashboard.available=true");
       }
@@ -232,14 +215,14 @@ describe("thin-client contract — shared fixture", () => {
         message: "Run pnpm --filter @kota/web build to produce clients/web/dist.",
       };
       const identity = buildClientIdentity({
-        projectDir: "/tmp/kota",
+        scopeRoot: "/tmp/kota",
         pid: 7777,
         startedAt: "2026-04-29T01:00:00.000Z",
         capabilities: {
           capabilities: [unavailable],
           summary: { ready: 0, unavailable: 1, init_failed: 0 },
         },
-        projects: FAKE_PROJECTS,
+        scopeRegistry: FAKE_SCOPES,
       });
       if (identity.dashboard.available) {
         throw new Error("expected dashboard.available=false");
@@ -250,14 +233,14 @@ describe("thin-client contract — shared fixture", () => {
 
     it("buildClientIdentity reports not_contributed when the web module never registered a dashboard", () => {
       const identity = buildClientIdentity({
-        projectDir: "/tmp/kota",
+        scopeRoot: "/tmp/kota",
         pid: 7777,
         startedAt: "2026-04-29T01:00:00.000Z",
         capabilities: {
           capabilities: [],
           summary: { ready: 0, unavailable: 0, init_failed: 0 },
         },
-        projects: FAKE_PROJECTS,
+        scopeRegistry: FAKE_SCOPES,
       });
       if (identity.dashboard.available) {
         throw new Error("expected dashboard.available=false");

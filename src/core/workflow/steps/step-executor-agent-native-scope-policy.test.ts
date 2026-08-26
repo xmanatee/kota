@@ -19,28 +19,28 @@ import {
   makeAgentStep,
   makeDefinition,
   makeHarness,
-  makeProjectDir,
-  removeProjectDir,
+  makeScopeRoot,
+  removeScopeRoot,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
 
 describe("native workflow agent scope policy", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    removeProjectDir(projectDir);
+    removeScopeRoot(workspaceRoot);
   });
 
   it.each([
@@ -78,14 +78,14 @@ describe("native workflow agent scope policy", () => {
   ])("fails closed before native launch when $restriction cannot be enforced", async ({
     policyFragment,
   }) => {
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const scopePolicy = resolveScopePolicy({
       projection: {
         rootScopeId: "global",
         defaultScopeId: scopeId,
         scopes: [
           { scopeId: "global", displayName: "Global" },
-          { scopeId, displayName: "Fixture", parentScopeId: "global", directoryRoot: projectDir },
+          { scopeId, displayName: "Fixture", parentScopeId: "global", directoryRoot: workspaceRoot },
         ],
       },
       scopeId,
@@ -110,10 +110,10 @@ describe("native workflow agent scope policy", () => {
     );
 
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, makeAgentStep(projectDir, harnessName)),
+      makeDefinition(workspaceRoot, makeAgentStep(workspaceRoot, harnessName)),
       TRIGGER,
       {
-        runContext: createTestRunContext(projectDir, TRIGGER),
+        runContext: createTestRunContext(workspaceRoot, TRIGGER),
         bus,
         store,
         log: () => {},

@@ -34,7 +34,7 @@ export type ProgressReviewSemanticInput = {
 };
 
 export function inspectProgressReviewSemanticInput(args: {
-  scopeDir: string;
+  scopeRoot: string;
   state: Pick<TransactionalRunState, "read">;
   trigger: WorkflowRunTrigger;
 }): ProgressReviewSemanticInput {
@@ -63,7 +63,7 @@ export function inspectProgressReviewSemanticInput(args: {
   }
   const state = decodeProgressReviewConsumptionState(
     args.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
-    args.scopeDir,
+    args.scopeRoot,
   );
   return {
     automatic: true,
@@ -101,7 +101,7 @@ export function admitProgressReviewTrigger(
   }
   const state = decodeProgressReviewConsumptionState(
     input.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
-    input.projectDir,
+    input.scopeRoot,
   );
   const deliveryAttempt = Number.isInteger(payload.deliveryAttempt) &&
       payload.deliveryAttempt! >= 0

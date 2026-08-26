@@ -110,7 +110,7 @@ describe("github module", () => {
         throw new Error("expected token setup requirement");
       }
       expect(tokenRequirement.secretRefs).toEqual([
-        { name: "GITHUB_TOKEN", scope: "project" },
+        { name: "GITHUB_TOKEN", scope: "scope" },
       ]);
     });
 

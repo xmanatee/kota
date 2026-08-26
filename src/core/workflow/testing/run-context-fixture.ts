@@ -42,11 +42,11 @@ export function createTestTransactionalRunState(): TransactionalRunState {
 }
 
 export function createTestRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: WorkflowRunTrigger = DEFAULT_TRIGGER,
 ): RunContext {
   const runId = `test-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const rootDir = join(projectDir, ".kota", "test-runtime", runId);
+  const rootDir = join(workspaceRoot, ".kota", "test-runtime", runId);
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
   const agentDir = join(rootDir, "agent");
@@ -56,14 +56,14 @@ export function createTestRunContext(
   }
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test-workflow",
     trigger,
     sandbox: {
       repository: "read",
       runId,
       rootDir,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       tempDir,
       artifactDir,
       baseCommit: "0".repeat(40),
@@ -72,7 +72,7 @@ export function createTestRunContext(
       runId,
       attempt: 1,
       daemonEpoch: 1,
-      workspaceDir: projectDir,
+      workspaceDir: workspaceRoot,
       runDir: rootDir,
       tempDir,
       artifactDir,

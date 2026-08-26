@@ -5,7 +5,6 @@ export type WorkspaceScope =
       workflowName: string;
       runId: string;
       scopeId: string;
-      projectId: string;
     }
   | {
       kind: "session";
@@ -25,7 +24,6 @@ export type WorkspaceSource =
       stepId: string;
       spanId: string;
       scopeId: string;
-      projectId: string;
       toolUseId?: string;
       sessionId?: string;
     }

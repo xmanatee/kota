@@ -8,7 +8,7 @@ import { buildModuleListNode } from "./index.js";
 const MODULES: ModuleListEntry[] = [
   {
     name: "rendering",
-    source: "project",
+    source: "bundled",
     status: "loaded",
     version: "1.0.0",
     description: "Typed terminal rendering primitives + transport",
@@ -21,7 +21,7 @@ const MODULES: ModuleListEntry[] = [
   },
   {
     name: "autonomy",
-    source: "project",
+    source: "bundled",
     status: "loaded",
     version: "1.0.0",
     description: "Autonomous development workflows and agents",

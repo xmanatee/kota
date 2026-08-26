@@ -126,27 +126,27 @@ public final class DaemonClient {
     private(set) var connection: DaemonConnection?
     let decoder = JSONDecoder()
 
-    /// Append `projectId=<id>` to a path. Used by every project-scoped
-    /// daemon route — the daemon's `resolveProjectIdParam` reads this
+    /// Append `scopeId=<id>` to a path. Used by every scope-aware
+    /// daemon route — the daemon's scope selector reads this
     /// query parameter and rejects unknown ids with a typed
-    /// `UnknownProjectError` body. Pass `nil` (or omit) to call the
+    /// `UnknownScopeError` body. Pass `nil` (or omit) to call the
     /// route without scoping; the daemon resolves the registry's default.
-    static func withProject(_ path: String, projectId: String?) -> String {
-        guard let id = projectId, !id.isEmpty,
+    static func withScope(_ path: String, scopeId: String?) -> String {
+        guard let id = scopeId, !id.isEmpty,
               let encoded = id.addingPercentEncoding(
                 withAllowedCharacters: .urlQueryAllowed
               )
         else { return path }
         let separator = path.contains("?") ? "&" : "?"
-        return "\(path)\(separator)projectId=\(encoded)"
+        return "\(path)\(separator)scopeId=\(encoded)"
     }
 
     static func pathComponent(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
     }
 
-    func refreshConnection(projectDir: URL) -> Bool {
-        let controlPath = projectDir
+    func refreshConnection(scopeRoot: URL) -> Bool {
+        let controlPath = scopeRoot
             .appendingPathComponent(".kota")
             .appendingPathComponent("daemon-control.json")
         guard
@@ -165,29 +165,19 @@ public final class DaemonClient {
         connection = DaemonConnection(baseURL: url, token: token)
     }
 
-    func fetchStatus(projectId: String? = nil) async throws -> DaemonStatusResponse {
-        try await get(Self.withProject("/status", projectId: projectId))
+    func fetchStatus(scopeId: String? = nil) async throws -> DaemonStatusResponse {
+        try await get(Self.withScope("/status", scopeId: scopeId))
     }
 
     /// `GET /identity` — typed thin-client identity payload. Returns the
-    /// project the daemon is bound to, the daemon version, and the
+    /// directory-backed scope the daemon is bound to, the daemon version, and the
     /// dashboard availability discriminator. Mirrors the TypeScript
     /// `ClientIdentity` contract one-to-one.
     func fetchIdentity() async throws -> ClientIdentity {
         try await get("/identity")
     }
 
-    /// `GET /projects` — typed cross-project registry projection.
-    /// Identical to `identity.projects`; exposed as its own route so
-    /// clients that only need the registry shape don't have to fetch
-    /// the full identity payload.
-    func fetchProjects() async throws -> ProjectRegistryProjection {
-        try await get("/projects")
-    }
-
-    /// `GET /scopes` — canonical scope registry projection. `GET /projects`
-    /// stays as a directory-scope compatibility adapter for existing project
-    /// selectors.
+    /// `GET /scopes` — canonical hierarchical scope registry projection.
     func fetchScopes() async throws -> ScopeRegistryProjection {
         try await get("/scopes")
     }
@@ -209,33 +199,33 @@ public final class DaemonClient {
     /// `GET /workflow/definitions` — typed workflow definition catalog.
     /// Drives the workflow picker so the UI never asks the operator to
     /// type a free-text workflow name.
-    func fetchWorkflowDefinitions(projectId: String? = nil) async throws -> WorkflowDefinitionsResponse {
-        try await get(Self.withProject("/workflow/definitions", projectId: projectId))
+    func fetchWorkflowDefinitions(scopeId: String? = nil) async throws -> WorkflowDefinitionsResponse {
+        try await get(Self.withScope("/workflow/definitions", scopeId: scopeId))
     }
 
-    func fetchRecentRuns(limit: Int = 10, projectId: String? = nil) async throws -> RunHistoryResponse {
-        try await get(Self.withProject("/workflow/runs?limit=\(limit)", projectId: projectId))
+    func fetchRecentRuns(limit: Int = 10, scopeId: String? = nil) async throws -> RunHistoryResponse {
+        try await get(Self.withScope("/workflow/runs?limit=\(limit)", scopeId: scopeId))
     }
 
-    func fetchRunDetail(runId: String, projectId: String? = nil) async throws -> RunDetail {
-        try await get(Self.withProject("/workflow/runs/\(runId)", projectId: projectId))
+    func fetchRunDetail(runId: String, scopeId: String? = nil) async throws -> RunDetail {
+        try await get(Self.withScope("/workflow/runs/\(runId)", scopeId: scopeId))
     }
 
-    func pauseWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
-        try await post(Self.withProject("/workflow/pause", projectId: projectId), body: nil)
+    func pauseWorkflow(scopeId: String? = nil) async throws -> WorkflowControlResponse {
+        try await post(Self.withScope("/workflow/pause", scopeId: scopeId), body: nil)
     }
 
-    func resumeWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
-        try await post(Self.withProject("/workflow/resume", projectId: projectId), body: nil)
+    func resumeWorkflow(scopeId: String? = nil) async throws -> WorkflowControlResponse {
+        try await post(Self.withScope("/workflow/resume", scopeId: scopeId), body: nil)
     }
 
     /// `POST /workflow/trigger` — enqueue a manual workflow run. The
     /// daemon expects `{ name, payload? }`; the macOS surface forwards
     /// the picker's selected definition name and the operator-supplied
     /// JSON payload (validated up-front in `TriggerRequest.wireBody`).
-    func triggerWorkflow(name: String, payload: Data? = nil, projectId: String? = nil) async throws -> TriggerResponse {
+    func triggerWorkflow(name: String, payload: Data? = nil, scopeId: String? = nil) async throws -> TriggerResponse {
         let body = try TriggerRequest(name: name, payload: payload).wireBody()
-        return try await post(Self.withProject("/workflow/trigger", projectId: projectId), body: body)
+        return try await post(Self.withScope("/workflow/trigger", scopeId: scopeId), body: body)
     }
 
     func fetchSlashCommands() async throws -> SlashCommandsResponse {

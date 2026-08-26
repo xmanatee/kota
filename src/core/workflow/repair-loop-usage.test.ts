@@ -24,10 +24,10 @@ afterEach(() => {
 
 describe("repair-loop usage", () => {
   it("retains usage and backoff when a resumed repair result is an error", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-repair-usage-"));
-    roots.push(projectDir);
-    writeFileSync(join(projectDir, "prompt.md"), "Repair.\n", "utf8");
-    mkdirSync(join(projectDir, ".kota", "runs", "run-1"), { recursive: true });
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-repair-usage-"));
+    roots.push(scopeRoot);
+    writeFileSync(join(scopeRoot, "prompt.md"), "Repair.\n", "utf8");
+    mkdirSync(join(scopeRoot, ".kota", "runs", "run-1"), { recursive: true });
     const harnessName = `repair-usage-${Date.now()}`;
     const resumedSessionIds: Array<string | undefined> = [];
     registerAgentHarness({
@@ -59,7 +59,7 @@ describe("repair-loop usage", () => {
       model: "fixture-model",
       effort: "low",
       autonomyMode: "autonomous",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       promptPath: "prompt.md",
       repairLoop: {
         maxRepairAttempts: 1,
@@ -83,9 +83,10 @@ describe("repair-loop usage", () => {
       steps: [],
     };
     const context = {
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      workspaceRoot: scopeRoot,
+      scopeRoot: scopeRoot,
+      stateDir: join(scopeRoot, ".kota"),
       state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
@@ -93,7 +94,7 @@ describe("repair-loop usage", () => {
         definitionPath: "workflow.ts",
         runId: "run-1",
         runDir: metadata.runDir,
-        runDirPath: join(projectDir, metadata.runDir),
+        runDirPath: join(scopeRoot, metadata.runDir),
       },
       trigger: metadata.trigger,
       previousOutput: undefined,
@@ -101,7 +102,7 @@ describe("repair-loop usage", () => {
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
-      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+      runCommand: createWorkflowCommandRunner({ cwd: scopeRoot }),
       runTool: async () => ({ content: "unused" }),
       emit: vi.fn(),
       requestRestart: vi.fn(),
@@ -142,7 +143,7 @@ describe("repair-loop usage", () => {
       metadata,
       new AbortController(),
       vi.fn(),
-      { projectDir },
+      { scopeRoot },
     )).rejects.toMatchObject({
       name: AgentStepRuntimeError.name,
       kind: "rate_limit",
@@ -164,10 +165,10 @@ describe("repair-loop usage", () => {
   });
 
   it("starts a fresh repair call when the harness declares resume unsupported", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-repair-fresh-session-"));
-    roots.push(projectDir);
-    writeFileSync(join(projectDir, "prompt.md"), "Repair.\n", "utf8");
-    mkdirSync(join(projectDir, ".kota", "runs", "run-2"), { recursive: true });
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-repair-fresh-session-"));
+    roots.push(scopeRoot);
+    writeFileSync(join(scopeRoot, "prompt.md"), "Repair.\n", "utf8");
+    mkdirSync(join(scopeRoot, ".kota", "runs", "run-2"), { recursive: true });
     const harnessName = `repair-fresh-session-${Date.now()}`;
     const receivedSessionIds: Array<string | undefined> = [];
     registerAgentHarness({
@@ -204,7 +205,7 @@ describe("repair-loop usage", () => {
       model: "fixture-model",
       effort: "low",
       autonomyMode: "autonomous",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       promptPath: "prompt.md",
       repairLoop: {
         maxRepairAttempts: 1,
@@ -230,9 +231,10 @@ describe("repair-loop usage", () => {
       steps: [],
     };
     const context = {
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      workspaceRoot: scopeRoot,
+      scopeRoot: scopeRoot,
+      stateDir: join(scopeRoot, ".kota"),
       state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
@@ -240,7 +242,7 @@ describe("repair-loop usage", () => {
         definitionPath: "workflow.ts",
         runId: "run-2",
         runDir: metadata.runDir,
-        runDirPath: join(projectDir, metadata.runDir),
+        runDirPath: join(scopeRoot, metadata.runDir),
       },
       trigger: metadata.trigger,
       previousOutput: undefined,
@@ -248,7 +250,7 @@ describe("repair-loop usage", () => {
       stepResults: {},
       stepOutputList: [],
       runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
-      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+      runCommand: createWorkflowCommandRunner({ cwd: scopeRoot }),
       runTool: async () => ({ content: "unused" }),
       emit: vi.fn(),
       requestRestart: vi.fn(),
@@ -289,7 +291,7 @@ describe("repair-loop usage", () => {
       metadata,
       new AbortController(),
       vi.fn(),
-      { projectDir },
+      { scopeRoot },
     );
 
     expect(receivedSessionIds).toEqual([undefined]);

@@ -52,7 +52,7 @@ function makeTrigger(overrides: MentionPayload = {}) {
   const result = githubIssueCommentMentionToInboundSignal(
     makePayload() as GitHubIssueCommentMentionEventPayload,
     {
-      projectId: "project-test",
+      scopeId: "scope-test",
       occurredAt: "2026-05-25T02:45:00.000Z",
       receivedAt: "2026-05-25T02:45:02.000Z",
     },
@@ -76,7 +76,6 @@ function makeTrigger(overrides: MentionPayload = {}) {
     schemaRef: null,
     payload: {
       scopeId: signal.scopeId,
-      projectId: signal.projectId,
       routeId: "github-issue-comment-mentions",
       decision: "dispatched",
       sourceStatus: "active",

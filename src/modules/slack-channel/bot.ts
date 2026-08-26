@@ -8,7 +8,7 @@
 
 import type { ChannelSession } from "#core/channels/channel.js";
 import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { NullTransport } from "#core/loop/transport.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { admitSlackInteraction, admitSlackMessage, reportSlackAdmission } from "./admission.js";
@@ -60,13 +60,13 @@ export class SlackBot {
 
   listScopeSessionIds(scopeId: string): string[] {
     return [...this.sessions.entries()]
-      .filter(([, session]) => session.identity?.meta?.projectId === scopeId)
+      .filter(([, session]) => session.identity?.meta?.scopeId === scopeId)
       .map(([sessionKey]) => `slack:${sessionKey}`);
   }
 
   closeScopeSessions(scopeId: string): void {
     for (const [key, session] of this.sessions) {
-      if (session.identity?.meta?.projectId !== scopeId) continue;
+      if (session.identity?.meta?.scopeId !== scopeId) continue;
       session.agent.close();
       this.sessions.delete(key);
     }
@@ -212,7 +212,7 @@ export class SlackBot {
     try {
       session = this.getOrCreateSession(
         userId,
-        this.options.getDefaultProjectRuntime(),
+        this.options.getDefaultScopeRuntime(),
       );
       session.proxy.target = transport;
       session.lastActive = Date.now();
@@ -280,8 +280,8 @@ export class SlackBot {
     await handleSlackApprovalAction(this.options, payload);
   }
 
-  private getOrCreateSession(userId: string, runtime: ProjectRuntime): ChannelSession {
-    const sessionKey = `${userId}:${runtime.project.projectId}`;
+  private getOrCreateSession(userId: string, runtime: ScopeRuntime): ChannelSession {
+    const sessionKey = `${userId}:${runtime.scope.scopeId}`;
     let session = this.sessions.get(sessionKey);
     if (session) return session;
     session = createSlackChannelSession(this.options, userId, runtime);

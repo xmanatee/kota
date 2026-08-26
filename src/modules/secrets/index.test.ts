@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getProjectSecretStore, resetSecretStores } from "#core/config/secrets.js";
+import { getScopeSecretStore, resetSecretStores } from "#core/config/secrets.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModuleContext, ToolDef } from "#core/modules/module-types.js";
@@ -42,9 +42,9 @@ function logNoop(): ModuleContext["log"] {
   };
 }
 
-function makeContext(projectDir: string): ModuleContext {
+function makeContext(scopeRoot: string): ModuleContext {
   return {
-    cwd: projectDir,
+    cwd: scopeRoot,
     getSecret: (name: string) => (name === SECRET_NAME ? SECRET_VALUE : null),
     log: logNoop(),
   } as unknown as ModuleContext;
@@ -57,8 +57,8 @@ function contributedTools(ctx: ModuleContext): ToolDef[] {
   return [...(secretsModule.tools ?? [])];
 }
 
-function registerGetSecret(projectDir: string): ToolDef {
-  const entry = contributedTools(makeContext(projectDir)).find(
+function registerGetSecret(scopeRoot: string): ToolDef {
+  const entry = contributedTools(makeContext(scopeRoot)).find(
     (tool) => tool.tool.name === "get_secret",
   );
   if (!entry) throw new Error("secrets module did not contribute get_secret");
@@ -87,36 +87,35 @@ async function runGetSecret(
       approvalQueue,
       sessionId: sessionContext.sessionId,
       scopeId: sessionContext.scopeId,
-      projectId: sessionContext.scopeId,
       guardrailsConfig: supervisedGuardrailsConfig(getDefaultConfig()),
     },
   );
 }
 
 describe("secrets module get_secret tool gating", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalSecretValue: string | undefined;
   let approvalQueue: ApprovalQueue;
   let sessionContext: TestSessionContext;
   let otherSessionContext: TestSessionContext;
-  let otherProjectContext: TestSessionContext;
+  let otherScopeContext: TestSessionContext;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-secrets-tool-"));
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-secrets-tool-"));
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
     sessionContext = { sessionId: "secrets-session-a", scopeId };
     otherSessionContext = { sessionId: "secrets-session-b", scopeId };
-    otherProjectContext = {
+    otherScopeContext = {
       sessionId: "secrets-session-a",
-      scopeId: "secrets-project-b",
+      scopeId: "secrets-scope-b",
     };
     originalSecretValue = process.env[SECRET_NAME];
     delete process.env[SECRET_NAME];
     clearCustomTools();
     resetSecretStores();
-    getProjectSecretStore(projectDir).set(SECRET_NAME, SECRET_VALUE, "project");
+    getScopeSecretStore(scopeRoot).set(SECRET_NAME, SECRET_VALUE, "scope");
     approvalQueue = new ApprovalQueue(
-      join(projectDir, ".kota", "approvals"),
+      join(scopeRoot, ".kota", "approvals"),
       null,
       { scopeId },
     );
@@ -125,10 +124,10 @@ describe("secrets module get_secret tool gating", () => {
   afterEach(() => {
     unregisterSessionEnvironment(sessionContext);
     unregisterSessionEnvironment(otherSessionContext);
-    unregisterSessionEnvironment(otherProjectContext);
+    unregisterSessionEnvironment(otherScopeContext);
     clearCustomTools();
     resetSecretStores();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     if (originalSecretValue === undefined) {
       delete process.env[SECRET_NAME];
     } else {
@@ -137,7 +136,7 @@ describe("secrets module get_secret tool gating", () => {
   });
 
   it("declares credential injection as a non-safe effect", () => {
-    const entry = registerGetSecret(projectDir);
+    const entry = registerGetSecret(scopeRoot);
 
     expect(entry.effect).toEqual({
       kind: "write",
@@ -154,7 +153,7 @@ describe("secrets module get_secret tool gating", () => {
   });
 
   it("denies passive get_secret calls before creating a credential overlay", async () => {
-    registerGetSecret(projectDir);
+    registerGetSecret(scopeRoot);
 
     const results = await runGetSecret("passive", approvalQueue, sessionContext);
 
@@ -166,7 +165,7 @@ describe("secrets module get_secret tool gating", () => {
   });
 
   it("queues supervised get_secret calls before creating a credential overlay", async () => {
-    registerGetSecret(projectDir);
+    registerGetSecret(scopeRoot);
 
     const results = await runGetSecret(
       "supervised",
@@ -192,7 +191,7 @@ describe("secrets module get_secret tool gating", () => {
   });
 
   it("executes an approval into only its originating live session overlay", async () => {
-    registerGetSecret(projectDir);
+    registerGetSecret(scopeRoot);
     registerSessionEnvironment(sessionContext);
     registerSessionEnvironment(otherSessionContext);
     await runGetSecret("supervised", approvalQueue, sessionContext);
@@ -202,8 +201,7 @@ describe("secrets module get_secret tool gating", () => {
     if (!selection.ok) throw new Error("get_secret approval input was unavailable");
     const executionContext = {
       scopeId: sessionContext.scopeId,
-      projectId: sessionContext.scopeId,
-      cwd: projectDir,
+      cwd: scopeRoot,
     };
     const preflight = await prepareApprovalExecutionBatch(
       [selection.snapshot],
@@ -232,11 +230,11 @@ describe("secrets module get_secret tool gating", () => {
     expect(sessionEnvironmentForExecution(otherSessionContext)).toEqual({});
   });
 
-  it("injects only into the authorized live session and project", async () => {
-    registerGetSecret(projectDir);
+  it("injects only into the authorized live session and scope", async () => {
+    registerGetSecret(scopeRoot);
     registerSessionEnvironment(sessionContext);
     registerSessionEnvironment(otherSessionContext);
-    registerSessionEnvironment(otherProjectContext);
+    registerSessionEnvironment(otherScopeContext);
 
     const result = await executeTool(
       "get_secret",
@@ -251,18 +249,18 @@ describe("secrets module get_secret tool gating", () => {
       [SECRET_NAME]: SECRET_VALUE,
     });
     expect(sessionEnvironmentForExecution(otherSessionContext)).toEqual({});
-    expect(sessionEnvironmentForExecution(otherProjectContext)).toEqual({});
+    expect(sessionEnvironmentForExecution(otherScopeContext)).toEqual({});
   });
 
   it("rejects credential injection without an active scoped session", async () => {
-    registerGetSecret(projectDir);
+    registerGetSecret(scopeRoot);
 
     const result = await executeTool("get_secret", { name: SECRET_NAME });
 
     expect(result).toMatchObject({
       is_error: true,
       content: expect.stringContaining(
-        "Credential injection requires an active session and project scope",
+        "Credential injection requires an active session and scope identity",
       ),
     });
     expect(process.env[SECRET_NAME]).toBeUndefined();

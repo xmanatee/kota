@@ -131,8 +131,8 @@ export function getAuditStore(): AuditStore | null {
 	return _auditStore;
 }
 
-export function initAuditStore(projectDir: string): AuditStore {
-	_auditStore = new AuditStore(projectDir);
+export function initAuditStore(scopeRoot: string): AuditStore {
+	_auditStore = new AuditStore(scopeRoot);
 	return _auditStore;
 }
 

@@ -145,11 +145,11 @@ export async function runHandoffAgent(
         );
       }
       if (
-        runtime.projectId !== undefined &&
-        runtime.projectId !== current.projectId
+        runtime.scopeId !== undefined &&
+        runtime.scopeId !== current.scopeId
       ) {
         return errorResult(
-          `handoff runtime project "${runtime.projectId}" does not match current project "${current.projectId}"`,
+          `handoff runtime scope "${runtime.scopeId}" does not match current scope "${current.scopeId}"`,
         );
       }
       const scope = readScope(input, current);
@@ -202,7 +202,6 @@ export async function runHandoffAgent(
           cwd,
           autonomyMode: effectiveAutonomyMode,
           scopeId: scope.scopeId,
-          projectId: scope.projectId ?? scope.scopeId,
           ...(scopePolicy !== undefined ? { scopePolicy } : {}),
         },
         () => runAgentHarness(
@@ -213,7 +212,7 @@ export async function runHandoffAgent(
             ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
             modelOutputTokenLimits: runtime.modelOutputTokenLimits,
             systemPrompt,
-            projectDir: runtime.projectDir ?? cwd,
+            scopeRoot: runtime.scopeRoot ?? cwd,
             cwd,
             ...(runtime.env !== undefined ? { env: runtime.env } : {}),
             effort: agent.effort,
@@ -243,7 +242,6 @@ export async function runHandoffAgent(
             sessionContext: {
               sessionId: `handoff:${trace.causationId}`,
               scopeId: scope.scopeId,
-              projectId: scope.projectId ?? scope.scopeId,
             },
             ...(runtime.askOwner !== undefined ? { askOwner: runtime.askOwner } : {}),
             abortController: createChildAbortController(context),

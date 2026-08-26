@@ -1,4 +1,4 @@
-import type { ScopeId } from "#core/events/project-scope.js";
+import type { ScopeId } from "#core/events/scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ToolEffectKind, ToolEffectScope } from "#core/tools/effect.js";
 

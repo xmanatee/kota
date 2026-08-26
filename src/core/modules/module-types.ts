@@ -2,7 +2,7 @@
  * KotaModule protocol — the standard unit of functionality in KOTA.
  *
  * A module can register tools, CLI commands, HTTP routes, and event
- * subscriptions. Project and third-party modules use the same
+ * subscriptions. Scope and third-party modules use the same
  * protocol.
  */
 
@@ -10,7 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import type { CapabilityScope } from "#core/daemon/daemon-control-types.js";
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import type {
   ModuleEventDef,
@@ -38,7 +38,7 @@ export type HealthCheckResult = {
 };
 
 /** Discovery source of a module. */
-export type ModuleSource = "project" | "installed" | "foreign";
+export type ModuleSource = "bundled" | "installed" | "foreign";
 
 /** JSON-shaped input accepted only at module protocol boundaries. */
 export type ModuleBoundaryRecord = Record<string, unknown>;
@@ -151,7 +151,7 @@ export type CreateSessionOptions = {
   /** Explicit posture for host-created sessions; child sessions otherwise inherit their parent. */
   autonomyMode?: AutonomyMode;
   /** Host scope for a session created outside an existing parent session. */
-  projectId?: ProjectId;
+  scopeId?: ScopeId;
   /** Optional module-owned response transport. */
   transport?: Transport;
   historySource?: "user" | "action";

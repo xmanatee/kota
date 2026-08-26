@@ -71,7 +71,6 @@ describe("vercelAgentHarness — guardrails", () => {
       sessionContext: {
         sessionId: "vercel-session",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
     });
 
@@ -108,7 +107,6 @@ describe("vercelAgentHarness — guardrails", () => {
       sessionContext: {
         sessionId: "vercel-client-session",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
     });
 
@@ -185,12 +183,10 @@ describe("vercelAgentHarness — guardrails", () => {
       stepId: "build",
       spanId: "run-1:build",
       scopeId: "scope-1",
-      projectId: "scope-1",
     };
     const sessionContext = {
       sessionId: "session-1",
       scopeId: "scope-1",
-      projectId: "scope-1",
     };
 
     const { toolExecute } = await runAndCaptureToolExecute({
@@ -217,7 +213,6 @@ describe("vercelAgentHarness — guardrails", () => {
         cwd: executionCwd,
         workflow: workflowContext,
         scopeId: "scope-1",
-        projectId: "scope-1",
       }),
     );
   });

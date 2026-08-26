@@ -131,7 +131,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
     resolveAgentContract: (parentStep) =>
       resolveAgentJudgeRunContract(resolveCriticJudgeConfig(parentStep, options)),
     run: async (ctx, parentStep) => {
-      const reviewDir = ctx.projectDir;
+      const reviewDir = ctx.workspaceRoot;
       const resolvedConfig = resolveCriticJudgeConfig(parentStep, options);
       const workspaceRunDir = ctx.runtimeResources?.agentRunDir;
       const runDir = options?.runDirPath ?? workspaceRunDir ?? ctx.workflow.runDirPath;
@@ -211,7 +211,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         builderSummaryText,
         "",
         "## Review context",
-        `Project root: ${reviewDir}`,
+        `Workspace root: ${reviewDir}`,
         `Run directory: ${runDir}`,
         "Start from the task, final task state, changed files, and diff below.",
         "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.json (structured step outputs), steps/*.input.md, steps/*.tool-telemetry.json, and related repo files.",

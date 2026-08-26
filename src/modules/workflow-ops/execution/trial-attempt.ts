@@ -14,9 +14,9 @@ import type {
   WorkflowTrialEvent,
 } from "../client.js";
 import {
-	assertIsolatedTrialProjectRoot,
+	assertIsolatedTrialWorkspace,
   cloneTrialChangedFile,
-  copyProjectForTrial,
+  copyScopeToTrialWorkspace,
   diffTrialSnapshots,
   isTrialStoreMutation,
   isTrialTaskMutation,
@@ -44,10 +44,10 @@ function stepStatuses(
   }));
 }
 
-function initializeTrialRepository(projectDir: string): void {
+function initializeTrialRepository(workspaceRoot: string): void {
   const env = withProtectedGitBareRepositoryEnv();
   const run = (args: string[]) => execFileSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env,
     stdio: "ignore",
   });
@@ -64,24 +64,24 @@ function initializeTrialRepository(projectDir: string): void {
     "trial baseline",
   ]);
   writeFileSync(
-    join(projectDir, ".git", "info", "exclude"),
+    join(workspaceRoot, ".git", "info", "exclude"),
     [".kota/", ".worktrees/runs/", ""].join("\n"),
     "utf8",
   );
 }
 
 export async function runTrialAttempt(args: {
-  sourceProjectDir: string;
+  sourceScopeRoot: string;
   reportDirPath: string;
   variant: TrialVariant;
   repeatIndex: number;
   runtimeFactory: WorkflowTrialRuntimeFactory;
 }): Promise<WorkflowTrialAttemptReport> {
   const attemptId = `${safeTrialSegment(args.variant.label)}-${args.repeatIndex + 1}`;
-  const trialProjectDir = copyProjectForTrial(args.sourceProjectDir, attemptId);
-  initializeTrialRepository(trialProjectDir);
-	assertIsolatedTrialProjectRoot(args.sourceProjectDir, trialProjectDir);
-  const before = snapshotTrialFiles(trialProjectDir);
+  const trialWorkspaceRoot = copyScopeToTrialWorkspace(args.sourceScopeRoot, attemptId);
+  initializeTrialRepository(trialWorkspaceRoot);
+	assertIsolatedTrialWorkspace(args.sourceScopeRoot, trialWorkspaceRoot);
+  const before = snapshotTrialFiles(trialWorkspaceRoot);
   const attemptReportPath = join(args.reportDirPath, "attempts", `${attemptId}.json`);
   ensureDir(join(args.reportDirPath, "attempts"));
 
@@ -95,7 +95,7 @@ export async function runTrialAttempt(args: {
   let error: string | undefined;
 
   try {
-    runtime = await args.runtimeFactory(trialProjectDir, args.sourceProjectDir);
+    runtime = await args.runtimeFactory(trialWorkspaceRoot, args.sourceScopeRoot);
     const definition = runtime.workflows.find((item) => item.name === args.variant.workflow);
     if (!definition) {
       throw new WorkflowTrialRequestError(
@@ -112,13 +112,13 @@ export async function runTrialAttempt(args: {
       });
     });
     const runId = formatRunId(`${args.variant.workflow}-trial`);
-    const projectId = deriveDirectoryScopeId(trialProjectDir);
+    const scopeId = deriveDirectoryScopeId(trialWorkspaceRoot);
     host = new StandaloneRunHost({
       stateDir,
-      project: {
-        projectId,
-        projectDir: trialProjectDir,
-        displayName: projectId,
+      scope: {
+        scopeId,
+        scopeRoot: trialWorkspaceRoot,
+        displayName: scopeId,
       },
       bus,
       workflows: runtime.workflows,
@@ -128,7 +128,7 @@ export async function runTrialAttempt(args: {
       execution: (context) => ({
         runTool: (name, input, toolContext) => runTrialTool(
           {
-            trialProjectDir: context.sandbox.workspaceDir,
+            trialWorkspaceRoot: context.sandbox.workspaceDir,
             stepId: toolContext?.stepId ?? "unknown",
             blockedExternalSideEffects,
           },
@@ -136,7 +136,7 @@ export async function runTrialAttempt(args: {
           input,
         ),
         createAgentCanUseTool: (stepId) => createTrialAgentToolGuard({
-          trialProjectDir: context.sandbox.workspaceDir,
+          trialWorkspaceRoot: context.sandbox.workspaceDir,
           stepId,
           blockedExternalSideEffects,
         }),
@@ -168,7 +168,7 @@ export async function runTrialAttempt(args: {
     rmSync(stateDir, { force: true, recursive: true });
   }
 
-  const after = snapshotTrialFiles(trialProjectDir);
+  const after = snapshotTrialFiles(trialWorkspaceRoot);
   const changedFiles = diffTrialSnapshots(before, after);
   const status: WorkflowTrialAttemptReport["status"] = blockedExternalSideEffects.length > 0
     ? "blocked"
@@ -180,7 +180,7 @@ export async function runTrialAttempt(args: {
     workflow: args.variant.workflow,
     payload: projectTrialPayload(args.variant.payload),
     status,
-    trialProjectPath: trialProjectDir,
+    trialWorkspaceRoot: trialWorkspaceRoot,
     ...(metadata?.id !== undefined && { workflowRunId: metadata.id }),
     stepStatuses: stepStatuses(metadata),
     changedFiles,
@@ -189,7 +189,7 @@ export async function runTrialAttempt(args: {
     busEvents,
     queuedWorkflows,
     blockedExternalSideEffects,
-    reportPath: relative(args.sourceProjectDir, attemptReportPath),
+    reportPath: relative(args.sourceScopeRoot, attemptReportPath),
     ...(error !== undefined && { error }),
   };
   writeJsonFile(attemptReportPath, report);

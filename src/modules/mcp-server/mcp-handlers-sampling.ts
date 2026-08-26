@@ -22,7 +22,7 @@ export type SamplingOptions = {
 	enabled: boolean;
 	modelClient: ModelClient | null;
 	samplingModel: string;
-	projectDir: string;
+	scopeRoot: string;
 };
 
 export class SamplingHandler {
@@ -117,7 +117,7 @@ export class SamplingHandler {
 			const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 			const suffix = Math.random().toString(36).slice(2, 8);
 			const runId = `${stamp}-mcp-sampling-${suffix}`;
-			const runDir = join(this.options.projectDir, ".kota", "runs", runId);
+			const runDir = join(this.options.scopeRoot, ".kota", "runs", runId);
 
 			let costUsd = 0;
 			try {

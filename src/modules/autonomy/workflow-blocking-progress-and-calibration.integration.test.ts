@@ -34,37 +34,37 @@ const TASK_STATES = [
   "dropped",
 ] as const;
 
-function makeProjectDir(prefix: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), prefix));
+function makeScopeRoot(prefix: string): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), prefix));
   for (const state of TASK_STATES) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "kota@example.test"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
   execFileSync("git", ["config", "user.name", "KOTA Test"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  writeFileSync(join(projectDir, "README.md"), "worker-boundary fixture\n");
-  return projectDir;
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  writeFileSync(join(workspaceRoot, "README.md"), "worker-boundary fixture\n");
+  return workspaceRoot;
 }
 
-function commitFixture(projectDir: string): void {
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
+function commitFixture(workspaceRoot: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "-q", "-m", "initial"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }
 
 describe("progress and calibration blocking operations", () => {
   it("applies progress-review queue actions through a real worker", async () => {
-    const projectDir = makeProjectDir("kota-progress-action-worker-");
+    const workspaceRoot = makeScopeRoot("kota-progress-action-worker-");
     try {
-      commitFixture(projectDir);
+      commitFixture(workspaceRoot);
       const input: ProgressReviewActionOperationInput = {
-        projectDir,
+        workspaceRoot,
         runId: "progress-worker-boundary",
         evidence: {
           evidence: [
@@ -116,37 +116,37 @@ describe("progress and calibration blocking operations", () => {
       expect(
         existsSync(
           join(
-            projectDir,
+            workspaceRoot,
             "data/tasks/ready/task-exercise-progress-review-worker-boundary.md",
           ),
         ),
       ).toBe(true);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("uses the command rail for calibration inspection and a worker for mutation", async () => {
-    const projectDir = makeProjectDir("kota-calibration-repair-worker-");
+    const workspaceRoot = makeScopeRoot("kota-calibration-repair-worker-");
     try {
       const donePath = join(
-        projectDir,
+        workspaceRoot,
         "data",
         "tasks",
         "done",
         `${CALIBRATION_REPAIR_TASK_ID}.md`,
       );
       writeFileSync(donePath, `---\nid: ${CALIBRATION_REPAIR_TASK_ID}\n---\n`);
-      commitFixture(projectDir);
-      writeFileSync(join(projectDir, "post-fix.ts"), "export const fixed = true;\n");
-      commitFixture(projectDir);
+      commitFixture(workspaceRoot);
+      writeFileSync(join(workspaceRoot, "post-fix.ts"), "export const fixed = true;\n");
+      commitFixture(workspaceRoot);
       const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         encoding: "utf8",
       }).trim();
-      seedArtifact(projectDir, "post-fix", sourceRevision, "task-post-fix");
+      seedArtifact(workspaceRoot, "post-fix", sourceRevision, "task-post-fix");
       const context: CalibrationRepairContext = {
-        projectDir,
+        workspaceRoot,
         decisionReason: "Real-worker boundary fixture",
         driftKinds: ["pass-contradiction"],
         aggregate: {
@@ -165,7 +165,7 @@ describe("progress and calibration blocking operations", () => {
       };
       const proposal = await proposeCalibrationRepair(
         context,
-        createWorkflowCommandRunner({ cwd: projectDir }),
+        createWorkflowCommandRunner({ cwd: workspaceRoot }),
       );
       const applied = await runWorkflowBlockingOperation(
         applyCalibrationRepairOperation,
@@ -178,7 +178,7 @@ describe("progress and calibration blocking operations", () => {
       expect(
         existsSync(
           join(
-            projectDir,
+            workspaceRoot,
             "data",
             "tasks",
             "ready",
@@ -187,7 +187,7 @@ describe("progress and calibration blocking operations", () => {
         ),
       ).toBe(true);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });

@@ -59,7 +59,7 @@ interface DaemonContextValue {
   client: DaemonClient | null;
   saveSettings: (url: string, token: string) => Promise<void>;
   setPushNotificationsEnabled: (enabled: boolean) => Promise<void>;
-  setActiveProjectId: (projectId: string) => void;
+  setActiveScopeId: (scopeId: string) => void;
   refresh: () => void;
   refreshUi: () => Promise<void>;
   executeUiAction: (
@@ -100,7 +100,7 @@ const DaemonContext = createContext<DaemonContextValue>({
   client: null,
   saveSettings: async () => {},
   setPushNotificationsEnabled: async () => {},
-  setActiveProjectId: () => {},
+  setActiveScopeId: () => {},
   refresh: () => {},
   refreshUi: async () => {},
   executeUiAction: async () => ({
@@ -176,17 +176,17 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     pushRegisteredRef.current = false;
   }, [state.daemonUrl, state.token, state.settingsLoaded]);
 
-  // The reducer owns the active projectId; we mirror it through a ref so
+  // The reducer owns the active scopeId; we mirror it through a ref so
   // the polling loop reads the *latest* selection without re-running on
   // every change. Both `fetchAll` and the SSE handler dispatch updates
-  // through this ref so a project switch immediately routes new fetches
-  // to the chosen project.
-  const activeProjectIdRef = useRef<string | null>(null);
+  // through this ref so a scope switch immediately routes new fetches
+  // to the chosen scope.
+  const activeScopeIdRef = useRef<string | null>(null);
   useEffect(() => {
-    activeProjectIdRef.current = state.activeProjectId;
-  }, [state.activeProjectId]);
+    activeScopeIdRef.current = state.activeScopeId;
+  }, [state.activeScopeId]);
 
-  const fetchUiSurfaces = useCallback(async (projectId?: string) => {
+  const fetchUiSurfaces = useCallback(async (scopeId?: string) => {
     const requestId = ++uiRequestRef.current;
     const client = clientRef.current;
     if (!client) {
@@ -195,7 +195,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     }
     setUi((current) => ({ ...current, loading: true, error: null }));
     try {
-      const bundle = await client.getUiSurfaces(projectId);
+      const bundle = await client.getUiSurfaces(scopeId);
       if (requestId !== uiRequestRef.current) return;
       setUi((current) => ({
         ...current,
@@ -217,7 +217,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     if (uiRefreshTimerRef.current !== null) return;
     uiRefreshTimerRef.current = setTimeout(() => {
       uiRefreshTimerRef.current = null;
-      void fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+      void fetchUiSurfaces(activeScopeIdRef.current ?? undefined);
     }, 200);
   }, [fetchUiSurfaces]);
 
@@ -231,27 +231,31 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     const client = clientRef.current;
     if (!client) return;
     try {
-      // Resolve identity first so the registry's default projectId seeds
-      // `activeProjectId` before the project-scoped fetches fan out.
+      // Resolve identity first so the registry's default scopeId seeds
+      // `activeScopeId` before the scope-aware fetches fan out.
       const identity = await client.getIdentity();
-      const knownIds = new Set(identity.projects.projects.map((p) => p.projectId));
-      const previous = activeProjectIdRef.current;
-      const nextProjectId =
+      const knownIds = new Set(
+        identity.scopeRegistry.scopes
+          .filter((scope) => scope.directoryRoot !== undefined)
+          .map((scope) => scope.scopeId),
+      );
+      const previous = activeScopeIdRef.current;
+      const nextScopeId =
         previous && knownIds.has(previous)
           ? previous
-          : identity.projects.defaultProjectId;
+          : identity.scopeRegistry.defaultScopeId;
       dispatch({
         type: 'IDENTITY',
         identity,
-        activeProjectId: nextProjectId,
+        activeScopeId: nextScopeId,
       });
-      activeProjectIdRef.current = nextProjectId;
+      activeScopeIdRef.current = nextScopeId;
 
-      void fetchUiSurfaces(nextProjectId);
+      void fetchUiSurfaces(nextScopeId);
 
       const [statusRes, runsRes, approvalsRes, tasksRes, ownerQuestionsRes] = await Promise.all([
-        client.getStatus(nextProjectId),
-        client.getRuns(undefined, 30, nextProjectId),
+        client.getStatus(nextScopeId),
+        client.getRuns(undefined, 30, nextScopeId),
         client.getApprovals(),
         client.getTasks(),
         client.getOwnerQuestions(),
@@ -323,7 +327,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   const handleSseEvent = useCallback((event: SseEvent) => {
     const client = clientRef.current;
     if (!client) return;
-    const projectId = activeProjectIdRef.current ?? undefined;
+    const scopeId = activeScopeIdRef.current ?? undefined;
     const uiMatch = matchUiEvent(uiRef.current.bundle, event);
     if (uiMatch.refresh) scheduleUiRefresh();
     if (uiMatch.streamIds.length > 0) {
@@ -345,10 +349,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       case 'workflow.completed':
       case 'queue.changed':
         void client
-          .getStatus(projectId)
+          .getStatus(scopeId)
           .then((s) => dispatch({ type: 'STATUS', status: s }));
         void client
-          .getRuns(undefined, 30, projectId)
+          .getRuns(undefined, 30, scopeId)
           .then((r) => dispatch({ type: 'RUNS', runs: r.runs }));
         break;
       case 'approval.changed': {
@@ -396,11 +400,11 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_TOKEN', token });
   }, []);
 
-  const setActiveProjectId = useCallback((projectId: string) => {
-    activeProjectIdRef.current = projectId;
+  const setActiveScopeId = useCallback((scopeId: string) => {
+    activeScopeIdRef.current = scopeId;
     uiRequestRef.current += 1;
     setUi(initialSharedUiState);
-    dispatch({ type: 'ACTIVE_PROJECT', projectId });
+    dispatch({ type: 'ACTIVE_SCOPE', scopeId });
     void fetchAll();
   }, [fetchAll]);
 
@@ -417,7 +421,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   }, [fetchAll]);
 
   const refreshUi = useCallback(async () => {
-    await fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+    await fetchUiSurfaces(activeScopeIdRef.current ?? undefined);
   }, [fetchUiSurfaces]);
 
   const executeSharedUiAction = useCallback(
@@ -426,7 +430,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       if (!client) throw new Error('Daemon connection is unavailable.');
       const result = await client.executeUiAction(action, parameters);
       if (result.ok) {
-        await fetchUiSurfaces(activeProjectIdRef.current ?? undefined);
+        await fetchUiSurfaces(activeScopeIdRef.current ?? undefined);
       }
       return result;
     },
@@ -707,7 +711,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
         client: clientRef.current,
         saveSettings,
         setPushNotificationsEnabled,
-        setActiveProjectId,
+        setActiveScopeId,
         refresh,
         refreshUi,
         executeUiAction: executeSharedUiAction,

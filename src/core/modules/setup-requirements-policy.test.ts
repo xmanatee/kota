@@ -12,7 +12,7 @@ const requirement: ModuleSetupConfigRequirement = {
   id: "endpoint",
   title: "Endpoint",
   required: true,
-  scope: "project",
+  scope: "scope",
   kind: "config",
   sensitivity: "none",
   setup: {
@@ -30,26 +30,26 @@ const requirement: ModuleSetupConfigRequirement = {
 };
 
 describe("module setup scope policy", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const scopeRoot of scopeRoots.splice(0)) {
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("applies live visibility to reads and mutations", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-policy-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-setup-policy-"));
     const operatorDir = mkdtempSync(join(tmpdir(), "kota-setup-policy-authority-"));
     const authorityConfigPath = join(operatorDir, "config.json");
-    projectDirs.push(projectDir, operatorDir);
-    writeFileSync(authorityConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
+    scopeRoots.push(scopeRoot, operatorDir);
+    writeFileSync(authorityConfigPath, JSON.stringify({ trustedScopes: [scopeRoot] }));
     let visibility: "hidden" | "metadata" | "full" = "hidden";
     const contributions: ModuleSetupRequirementContribution[] = [
       { moduleName: "demo", requirement },
     ];
     const service = new ModuleSetupService({
-      projectDir,
+      scopeRoot,
       authorityConfigPath,
       getRequirements: () => contributions,
       probeCapabilities: async () => [],
@@ -82,19 +82,19 @@ describe("module setup scope policy", () => {
     })).toMatchObject({ ok: true, status: { state: "ready" } });
   });
 
-  it("uses machine authority instead of trusting setup project config unconditionally", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-untrusted-"));
+  it("uses machine authority instead of trusting scope config unconditionally", async () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-setup-untrusted-"));
     const operatorDir = mkdtempSync(join(tmpdir(), "kota-setup-untrusted-authority-"));
     const authorityConfigPath = join(operatorDir, "config.json");
-    projectDirs.push(projectDir, operatorDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
-    writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify({
+    scopeRoots.push(scopeRoot, operatorDir);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+    writeFileSync(join(scopeRoot, ".kota", "config.json"), JSON.stringify({
       modules: { demo: { baseUrl: "https://malicious.test" } },
-      trustedProjects: [projectDir],
+      trustedScopes: [scopeRoot],
     }));
     writeFileSync(authorityConfigPath, "{}\n");
     const service = new ModuleSetupService({
-      projectDir,
+      scopeRoot,
       authorityConfigPath,
       getRequirements: () => [{ moduleName: "demo", requirement }],
       probeCapabilities: async () => [],
@@ -104,7 +104,7 @@ describe("module setup scope policy", () => {
       requirements: [{ state: "missing", configFields: [{ present: false }] }],
     });
 
-    writeFileSync(authorityConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
+    writeFileSync(authorityConfigPath, JSON.stringify({ trustedScopes: [scopeRoot] }));
     expect(await service.list()).toMatchObject({
       requirements: [{ state: "ready", configFields: [{ present: true }] }],
     });

@@ -43,7 +43,7 @@ vi.mock("#core/tools/index.js", () => ({
   executeTool: vi.fn(),
   getTodoState: vi.fn(() => ""),
 }));
-vi.mock("./project-context.js", () => ({ loadProjectContext: vi.fn(() => "") }));
+vi.mock("./scope-context.js", () => ({ loadScopeContext: vi.fn(() => "") }));
 vi.mock("./instruction-files.js", () => ({ loadInstructionContext: vi.fn(() => "") }));
 vi.mock("#root/init.js", () => ({ buildSessionWarmup: vi.fn(() => "") }));
 vi.mock("#core/tools/delegate.js", () => ({
@@ -87,8 +87,8 @@ vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
     detectVerifyCommands: vi.fn(() => []),
   };
 });
-vi.mock("#core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("#core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 vi.mock("#core/modules/module-discovery.js", () => ({
   discoverModules: vi.fn(async () => []),

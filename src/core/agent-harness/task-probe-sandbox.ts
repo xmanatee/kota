@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildRequiredInheritedSubprocessEnv } from "#core/modules/subprocess-env.js";
-import { existingProtectedProjectPaths } from "#core/tools/protected-project-paths.js";
+import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
 import {
   findExternalHardLinkWriteProtections,
   type WorkspaceWriteProtection,
@@ -143,11 +143,11 @@ function capabilityFailure(result: SpawnSyncReturns<string>): string {
 }
 
 export function resolveTaskProbeSandbox(
-  projectDir: string,
+  scopeRoot: string,
   timeoutMs: number,
 ): TaskProbeSandbox {
   try {
-    const workspaceDir = realpathSync(projectDir);
+    const workspaceDir = realpathSync(scopeRoot);
     let buildSandbox: SandboxBuilder | null = null;
     let capabilityExecutable = process.execPath;
     let pnpmExecutable = "";
@@ -167,7 +167,7 @@ export function resolveTaskProbeSandbox(
         }
         const toolchain = resolveTaskProbeToolchain(workspaceDir);
         if (toolchain.status === "available") {
-          const readProtectedPaths = existingProtectedProjectPaths(workspaceDir);
+          const readProtectedPaths = existingProtectedScopePaths(workspaceDir);
           buildSandbox = (workspaceWriteProtections) =>
             buildLinuxTaskProbeSandbox(
               workspaceDir,

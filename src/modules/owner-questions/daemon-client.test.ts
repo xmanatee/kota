@@ -227,26 +227,26 @@ describe("owner-questions module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads projectId through list, answer, and dismiss when provided", async () => {
+  it("threads scopeId through list, answer, and dismiss when provided", async () => {
     const question = makeQuestion("q-7", "answered");
     const { transport, calls } = makeRecordingTransport({
       requestStrictResponder: () => ({ questions: [] }),
       fetchRawResponder: () => jsonResponse(200, { question }),
     });
     const contributed = ownerQuestionsModule.daemonClient!(transport);
-    await contributed.ownerQuestions!.list({ status: "pending", projectId: "project-b" });
-    await contributed.ownerQuestions!.answer("q-7", "yes", { projectId: "project-b" });
-    await contributed.ownerQuestions!.dismiss("q-7", "done", { projectId: "project-b" });
+    await contributed.ownerQuestions!.list({ status: "pending", scopeId: "scope-b" });
+    await contributed.ownerQuestions!.answer("q-7", "yes", { scopeId: "scope-b" });
+    await contributed.ownerQuestions!.dismiss("q-7", "done", { scopeId: "scope-b" });
     expect(calls).toEqual([
       {
         kind: "requestStrict",
         method: "GET",
-        path: "/owner-questions?status=pending&projectId=project-b",
+        path: "/owner-questions?status=pending&scopeId=scope-b",
         body: undefined,
       },
       {
         kind: "fetchRaw",
-        path: "/owner-questions/q-7/answer?projectId=project-b",
+        path: "/owner-questions/q-7/answer?scopeId=scope-b",
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -255,7 +255,7 @@ describe("owner-questions module daemonClient(link)", () => {
       },
       {
         kind: "fetchRaw",
-        path: "/owner-questions/q-7/dismiss?projectId=project-b",
+        path: "/owner-questions/q-7/dismiss?scopeId=scope-b",
         init: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -279,17 +279,17 @@ describe("owner-questions module daemonClient(link)", () => {
     const { transport } = makeRecordingTransport({
       fetchRawResponder: () =>
         jsonResponse(404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "missing-scope",
         }),
     });
     const contributed = ownerQuestionsModule.daemonClient!(transport);
     await expect(
       contributed.ownerQuestions!.answer("q-7", "x", {
-        projectId: "missing-project",
+        scopeId: "missing-scope",
       }),
-    ).rejects.toThrow(/Unknown project: missing-project/);
+    ).rejects.toThrow(/Unknown scope: missing-scope/);
   });
 
   it("transforms a 404 from dismiss into { ok: false, reason: 'not_found' }", async () => {

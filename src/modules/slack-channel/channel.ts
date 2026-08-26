@@ -34,7 +34,7 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				config: moduleCtx.config,
 				autonomyMode,
 				moduleLoader: ctx.moduleLoader,
-				getDefaultProjectRuntime: ctx.getDefaultProjectRuntime,
+				getDefaultScopeRuntime: ctx.getDefaultScopeRuntime,
 				recall: moduleCtx.client.recall,
 				answer: moduleCtx.client.answer,
 				capture: moduleCtx.client.capture,
@@ -46,24 +46,24 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				approvals: moduleCtx.client.approvals,
 				inboundSignals: config.inboundSignals
 					? {
-							getProjectId: () =>
-								ctx.getDefaultProjectRuntime().project.projectId,
+							getScopeId: () =>
+								ctx.getDefaultScopeRuntime().scope.scopeId,
 							config: config.inboundSignals,
 							events: moduleCtx.events,
 						}
 					: undefined,
 				attention: {
 					snapshot: () => renderOnDemandAttention({
-						projectDir: ctx.getDefaultProjectRuntime().project.projectDir,
+						scopeRoot: ctx.getDefaultScopeRuntime().scope.scopeRoot,
 						runsDir: ctx.getWorkflowStatus().runsDir,
 					}),
 				},
 				digest: {
 					snapshot: () => {
-						const projectDir = ctx.getDefaultProjectRuntime().project.projectDir;
+						const scopeRoot = ctx.getDefaultScopeRuntime().scope.scopeRoot;
 						return renderOnDemandDigest({
-							projectDir,
-							stateDir: join(projectDir, ".kota"),
+							scopeRoot,
+							stateDir: join(scopeRoot, ".kota"),
 						});
 					},
 				},

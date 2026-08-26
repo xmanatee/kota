@@ -64,22 +64,22 @@ function reviewRunIds(
 }
 
 function listMatchingSecurityFindingTasks(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     key: string;
     persistedFindingId: string;
     persistedCandidateId: string;
   },
 ): ExistingSecurityFindingTask[] {
-  return listFullRepoTasks(projectDir).flatMap((task) => {
-    const file = readVerifiedRepoTaskFile(projectDir, task.state, task.id);
+  return listFullRepoTasks(workspaceRoot).flatMap((task) => {
+    const file = readVerifiedRepoTaskFile(workspaceRoot, task.state, task.id);
     if (!file) return [];
     const parsed = parseFlatFrontMatter(file.content);
     const record: ExistingSecurityFindingTask = {
       attrs: parsed.attrs,
       body: parsed.body,
       id: task.id,
-      path: join(projectDir, file.path),
+      path: join(workspaceRoot, file.path),
       reviewRunIds: reviewRunIds(parsed.attrs, parsed.body),
       state: task.state,
       superseded: /^## Superseded$/m.test(parsed.body),
@@ -111,10 +111,10 @@ function selectCanonicalSecurityFindingTask(
 }
 
 function nextAvailableSecurityFindingTaskTarget(
-  projectDir: string,
+  workspaceRoot: string,
   baseId: string,
 ): Extract<SecurityFindingTaskTarget, { kind: "create" }> {
-  const existingIds = new Set(listFullRepoTasks(projectDir).map((task) => task.id));
+  const existingIds = new Set(listFullRepoTasks(workspaceRoot).map((task) => task.id));
   for (let collisionIndex = 1; ; collisionIndex += 1) {
     const id = collisionIndex === 1 ? baseId : `${baseId}-${collisionIndex}`;
     if (!existingIds.has(id)) {
@@ -122,7 +122,7 @@ function nextAvailableSecurityFindingTaskTarget(
         kind: "create",
         id,
         state: "ready",
-        path: join(getRepoTaskStateDir(projectDir, "ready"), `${id}.md`),
+        path: join(getRepoTaskStateDir(workspaceRoot, "ready"), `${id}.md`),
       };
     }
   }
@@ -133,7 +133,7 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 
 export function resolveSecurityFindingTaskTarget(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     baseId: string;
     candidateId: string;
@@ -144,7 +144,7 @@ export function resolveSecurityFindingTaskTarget(
   },
 ): SecurityFindingTaskResolution {
   const key = securityFindingKey(args.findingId, args.candidateId);
-  const matches = listMatchingSecurityFindingTasks(projectDir, {
+  const matches = listMatchingSecurityFindingTasks(workspaceRoot, {
     key,
     persistedFindingId: args.persistedFindingId,
     persistedCandidateId: args.persistedCandidateId,
@@ -152,7 +152,7 @@ export function resolveSecurityFindingTaskTarget(
   const canonical = selectCanonicalSecurityFindingTask(matches, key);
   const target = canonical
     ? { kind: "update" as const, ...canonical }
-    : nextAvailableSecurityFindingTaskTarget(projectDir, args.baseId);
+    : nextAvailableSecurityFindingTaskTarget(workspaceRoot, args.baseId);
   const mergedReviewRunIds = [
     ...new Set([
       ...matches.flatMap((task) => task.reviewRunIds),

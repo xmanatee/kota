@@ -43,7 +43,7 @@ const workflow: WorkflowDefinitionInput = {
           throw new Error("autonomy issue projection state publication is not visible");
         }
         materializeAutonomyIssueProjection(
-          ctx.scopeDir,
+          ctx.scopeRoot,
           decodeAutonomyIssueProjection(snapshot.value),
         );
         return { materializedRevision: snapshot.revision };

@@ -16,9 +16,9 @@ const detectAndSeed = typedCodeStep<FanOutDetectionInspection>({
       "artifact",
       "touchedDisk",
     ]),
-  run: ({ projectDir, runBlocking }) =>
+  run: ({ workspaceRoot, runBlocking }) =>
     runBlocking(detectAndSeedFanOutOperation, {
-      projectDir,
+      workspaceRoot,
       nowIso: new Date().toISOString(),
     }),
 });
@@ -84,7 +84,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

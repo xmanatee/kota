@@ -71,7 +71,7 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
 function makeStepContext(
   overrides: {
     runDir: string;
-    projectDir: string;
+    workspaceRoot: string;
     stepOutputs?: Record<string, unknown>;
     stepResults?: Record<string, WorkflowStepResult>;
   },
@@ -79,9 +79,10 @@ function makeStepContext(
   const taskId = "task-1";
   const taskDigest = "0".repeat(64);
   return {
-    projectDir: overrides.projectDir,
-    scopeDir: overrides.projectDir,
-    stateDir: join(overrides.projectDir, ".kota"),
+    scopeId: "test-scope",
+    workspaceRoot: overrides.workspaceRoot,
+    scopeRoot: overrides.workspaceRoot,
+    stateDir: join(overrides.workspaceRoot, ".kota"),
     state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
@@ -153,7 +154,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: {
         build: {
           repairIterations: [
@@ -193,7 +194,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: {
         build: {
           repairIterations: [
@@ -233,7 +234,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: {
         build: {
           repairIterations: [
@@ -273,7 +274,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: {
         build: {
           repairIterations: [
@@ -311,7 +312,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: { build: { repairIterations: [] } },
       stepResults: {
         build: {
@@ -348,7 +349,7 @@ describe("writeCalibrationArtifact", () => {
     const artifact = writeCalibrationArtifact(
       makeStepContext({
         runDir,
-        projectDir: root,
+        workspaceRoot: root,
         stepOutputs: { build: { repairIterations: [] } },
       }),
       { criticVerdictRunDir: agentRunDir },
@@ -372,7 +373,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: { build: { repairIterations: [] } },
       stepResults: {
         build: {
@@ -432,7 +433,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: { build: { repairIterations: [] } },
       stepResults: {
         build: {
@@ -467,7 +468,7 @@ describe("writeCalibrationArtifact", () => {
 
     const ctx = makeStepContext({
       runDir,
-      projectDir: root,
+      workspaceRoot: root,
       stepOutputs: { build: { repairIterations: [] } },
     });
 
@@ -496,7 +497,7 @@ describe("writeCalibrationArtifact", () => {
 
       const ctx = makeStepContext({
         runDir,
-        projectDir: root,
+        workspaceRoot: root,
         stepOutputs: { build: { repairIterations: [] } },
       });
 

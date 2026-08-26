@@ -22,8 +22,8 @@ function defaultConfig(): ScopeImprovementConfig {
   };
 }
 
-export function readScopeImprovementConfig(projectDir: string): ScopeImprovementConfig {
-  return readScopeImprovementConfigFromStateDir(join(projectDir, ".kota"));
+export function readScopeImprovementConfig(workspaceRoot: string): ScopeImprovementConfig {
+  return readScopeImprovementConfigFromStateDir(join(workspaceRoot, ".kota"));
 }
 
 export function readScopeImprovementConfigFromStateDir(

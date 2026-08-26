@@ -30,13 +30,13 @@ function makeProgram(): Command {
   return program;
 }
 
-function writeRunMetadata(projectDir: string, args: {
+function writeRunMetadata(workspaceRoot: string, args: {
   id: string;
   workflow: string;
   startedAt?: string;
   completedAt?: string;
 }): string {
-  const runDir = join(projectDir, ".kota", "runs", args.id);
+  const runDir = join(workspaceRoot, ".kota", "runs", args.id);
   mkdirSync(runDir, { recursive: true });
   const startedAt = args.startedAt ?? new Date().toISOString();
   writeFileSync(
@@ -114,31 +114,31 @@ function writeShadowReviewArtifact(runDir: string, file: string, attrs: {
 }
 
 describe("kota report shadow semantic reviews", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let origCwd: string;
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-report-shadow-review-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-report-shadow-review-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("reports catches and skipped target resolution", async () => {
-    const runDir = writeRunMetadata(projectDir, {
+    const runDir = writeRunMetadata(workspaceRoot, {
       id: "2026-07-07T00-00-00-000Z-inbox-sorter-a",
       workflow: "inbox-sorter",
     });
@@ -157,7 +157,7 @@ describe("kota report shadow semantic reviews", () => {
       costUsd: 0.04,
       durationMs: 2_000,
     });
-    const skippedRunDir = writeRunMetadata(projectDir, {
+    const skippedRunDir = writeRunMetadata(workspaceRoot, {
       id: "2026-07-07T00-00-01-000Z-research-retry-b",
       workflow: "research-retry",
     });

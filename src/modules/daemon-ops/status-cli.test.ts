@@ -11,10 +11,10 @@ import {
   type StatusSnapshot,
 } from "./status-cli.js";
 
-function emptyRunProjection(projectDir: string): StatusSnapshot["runProjection"] {
+function emptyRunProjection(scopeRoot: string): StatusSnapshot["runProjection"] {
   return {
     available: true,
-    databasePath: join(projectDir, ".kota", "kota.sqlite"),
+    databasePath: join(scopeRoot, ".kota", "kota.sqlite"),
     runs: [],
   };
 }
@@ -27,8 +27,8 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: "/Users/op/Desktop/mono/apps/kota",
-    projectName: "kota",
+    scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+    scopeName: "kota",
     controlFile: { kind: "missing" },
     runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
     ...overrides,
@@ -143,11 +143,11 @@ describe("formatStatusOutput", () => {
     expect(out).not.toContain("0h");
   });
 
-  it("shows the project name and directory at the top of the snapshot", () => {
+  it("shows the scope name and directory at the top of the snapshot", () => {
     const out = formatStatusOutput(makeSnap());
     expect(out).toContain("kota");
     expect(out).toContain("/Users/op/Desktop/mono/apps/kota");
-    expect(out).toContain("Project");
+    expect(out).toContain("Scope");
   });
 
   it("reports a missing control file in the offline branch", () => {
@@ -191,57 +191,57 @@ describe("formatStatusOutput", () => {
     expect(out).toContain("Daemon URL");
   });
 
-  it("flags a wrong-project mismatch when daemon /identity reports another project", () => {
+  it("flags a wrong-scope mismatch when daemon /identity reports another scope", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,
       daemonPid: 12345,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-      projectDir: "/Users/op/Desktop/other-project",
-      projectName: "other-project",
-      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-      daemonProjectName: "kota",
-      wrongProject: true,
+      scopeRoot: "/Users/op/Desktop/other-scope",
+      scopeName: "other-scope",
+      daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+      daemonScopeName: "kota",
+      wrongScope: true,
     }));
-    expect(out).toContain("Daemon project");
+    expect(out).toContain("Daemon scope");
     expect(out).toContain("/Users/op/Desktop/mono/apps/kota");
     expect(out).toContain("MISMATCH");
   });
 
-  it("shows the daemon's project alongside the selected project when they match", () => {
+  it("shows the daemon's scope alongside the selected scope when they match", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,
       daemonPid: 12345,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-      daemonProjectName: "kota",
+      daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+      daemonScopeName: "kota",
     }));
-    expect(out).toContain("Daemon project");
+    expect(out).toContain("Daemon scope");
     expect(out).not.toContain("MISMATCH");
   });
 
-  it("shows the active project name and path when the daemon hosts more than one project", () => {
+  it("shows the active scope name and path when the daemon hosts more than one scope", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,
       daemonPid: 12345,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-      scopedProject: {
-        projectId: "p-secondary",
-        projectDir: "/Users/op/Desktop/secondary",
+      selectedScope: {
+        scopeId: "p-secondary",
+        scopeRoot: "/Users/op/Desktop/secondary",
         displayName: "secondary",
       },
     }));
-    expect(out).toContain("Active project");
+    expect(out).toContain("Active scope");
     expect(out).toContain("secondary");
     expect(out).toContain("/Users/op/Desktop/secondary");
   });
 
-  it("omits the active-project line for single-project daemons", () => {
+  it("omits the active-scope line for single-scope daemons", () => {
     const out = formatStatusOutput(makeSnap({
       daemonRunning: true,
       daemonPid: 12345,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
     }));
-    expect(out).not.toContain("Active project");
+    expect(out).not.toContain("Active scope");
   });
 
   it("never includes a Bearer token marker in the rendered output", () => {
@@ -249,8 +249,8 @@ describe("formatStatusOutput", () => {
       daemonRunning: true,
       daemonPid: 12345,
       controlFile: { kind: "fresh", pid: 12345, baseURL: "http://127.0.0.1:8765" },
-      daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-      daemonProjectName: "kota",
+      daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+      daemonScopeName: "kota",
     }));
     expect(out).not.toContain("Bearer ");
   });
@@ -390,10 +390,10 @@ function locateRunDir(): string | null {
 }
 
 describe("kota status — rendered transcript", () => {
-  it("writes a transcript snapshot covering connected, missing, stale, and wrong-project states", () => {
+  it("writes a transcript snapshot covering connected, missing, stale, and wrong-scope states", () => {
     const scenarios: Array<{ label: string; snap: StatusSnapshot }> = [
       {
-        label: "1. Connected — selected project matches daemon /identity, dashboard available",
+        label: "1. Connected — selected scope matches daemon /identity, dashboard available",
         snap: {
           daemonRunning: true,
           daemonPid: 4242,
@@ -403,17 +403,17 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: false,
           sessions: 1,
           pendingApprovals: 0,
-          projectDir: "/Users/op/Desktop/mono/apps/kota",
-          projectName: "kota",
+          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          scopeName: "kota",
           controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-          daemonProjectName: "kota",
+          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          daemonScopeName: "kota",
           dashboard: { available: true, url: "http://127.0.0.1:8765/" },
           runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
       {
-        label: "2. No control file — selected project has no .kota/daemon-control.json",
+        label: "2. No control file — selected scope has no .kota/daemon-control.json",
         snap: {
           daemonRunning: false,
           activeRuns: 0,
@@ -421,10 +421,10 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
-          projectDir: "/Users/op/Desktop/other-project",
-          projectName: "other-project",
+          scopeRoot: "/Users/op/Desktop/other-scope",
+          scopeName: "other-scope",
           controlFile: { kind: "missing" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/other-project"),
+          runProjection: emptyRunProjection("/Users/op/Desktop/other-scope"),
         },
       },
       {
@@ -436,14 +436,14 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: true,
           sessions: 0,
           pendingApprovals: 0,
-          projectDir: "/Users/op/Desktop/mono/apps/kota",
-          projectName: "kota",
+          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          scopeName: "kota",
           controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
           runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
         },
       },
       {
-        label: "4. Wrong project — daemon /identity reports a different project",
+        label: "4. Wrong scope — daemon /identity reports a different scope",
         snap: {
           daemonRunning: true,
           daemonPid: 4242,
@@ -453,14 +453,14 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: false,
           sessions: 0,
           pendingApprovals: 1,
-          projectDir: "/Users/op/Desktop/other-project",
-          projectName: "other-project",
+          scopeRoot: "/Users/op/Desktop/other-scope",
+          scopeName: "other-scope",
           controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-          daemonProjectName: "kota",
-          wrongProject: true,
+          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          daemonScopeName: "kota",
+          wrongScope: true,
           dashboard: { available: true, url: "http://127.0.0.1:8765/" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/other-project"),
+          runProjection: emptyRunProjection("/Users/op/Desktop/other-scope"),
         },
       },
       {
@@ -474,11 +474,11 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
-          projectDir: "/Users/op/Desktop/mono/apps/kota",
-          projectName: "kota",
+          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          scopeName: "kota",
           controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-          daemonProjectName: "kota",
+          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          daemonScopeName: "kota",
           dashboard: {
             available: false,
             reason: "web_ui_not_built",
@@ -498,11 +498,11 @@ describe("kota status — rendered transcript", () => {
           workflowPaused: false,
           sessions: 0,
           pendingApprovals: 0,
-          projectDir: "/Users/op/Desktop/mono/apps/kota",
-          projectName: "kota",
+          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          scopeName: "kota",
           controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-          daemonProjectName: "kota",
+          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+          daemonScopeName: "kota",
           dashboard: {
             available: true,
             url: "http://localhost:3000/",

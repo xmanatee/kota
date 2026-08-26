@@ -167,7 +167,7 @@ final class CaptureViewRenderedTests: XCTestCase {
                     state.captureDraft = "Forced to inbox"
                     state.captureResult = .contributorFailed(
                         target: .inbox,
-                        message: "inbox writer cannot reach project root"
+                        message: "inbox writer cannot reach scope root"
                     )
                 },
                 content: { _ in AnyView(CaptureBodyView()) }

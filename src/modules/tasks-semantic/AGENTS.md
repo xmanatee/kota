@@ -4,7 +4,7 @@ Embedding-backed semantic search over the repo task queue.
 
 - Wraps the default `RepoTasksProvider` keyword implementation with
   `SemanticTasksStore`.
-- Keeps the sidecar index under `<projectDir>/.kota/tasks-semantic/`, not in
+- Keeps the sidecar index under `<scopeRoot>/.kota/tasks-semantic/`, not in
   git-tracked `data/tasks/`.
 - Indexable text per task is title, summary, `## Problem`,
   `## Desired Outcome`, `## Constraints`, `## Source / Intent`, and

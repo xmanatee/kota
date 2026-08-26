@@ -15,7 +15,7 @@ function skipReasonOf(step: { skipReason?: WorkflowStepSkipReason }): WorkflowSt
 }
 
 describe("WorkflowTestHarness — typed skip reasons", () => {
-  it("defaults projectDir to the OS temp directory", async () => {
+  it("defaults workspaceRoot to the OS temp directory", async () => {
     const workflow: WorkflowDefinitionInput = {
       repository: "read",
       name: "test",
@@ -24,7 +24,7 @@ describe("WorkflowTestHarness — typed skip reasons", () => {
         {
           id: "record-project-dir",
           type: "code",
-          run: ({ projectDir }) => projectDir,
+          run: ({ workspaceRoot }) => workspaceRoot,
         },
       ],
     };

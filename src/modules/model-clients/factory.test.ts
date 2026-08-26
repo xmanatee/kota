@@ -206,16 +206,16 @@ describe("createModelClientImpl", () => {
 
 		it("passes setup-stored OpenAI API key to OpenAIModelClient", () => {
 			delete process.env.OPENAI_API_KEY;
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-model-client-"));
-			mkdirSync(join(projectDir, ".kota"), { recursive: true });
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-model-client-"));
+			mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
 			writeFileSync(
-				join(projectDir, ".kota", "secrets.json"),
+				join(scopeRoot, ".kota", "secrets.json"),
 				`${JSON.stringify({ OPENAI_API_KEY: "sk-openai-project" })}\n`,
 			);
 
 			createModelClientImpl({
 				model: "openai/gpt-4o",
-				projectDir,
+				scopeRoot,
 			});
 
 			const call = (OpenAIModelClient as unknown as { mock: { calls: unknown[][] } })

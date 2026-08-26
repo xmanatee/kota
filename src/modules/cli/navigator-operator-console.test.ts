@@ -31,7 +31,7 @@ describe("navigator operator console", () => {
     expect(joined).toMatch(/KOTA Terminal Client/);
     expect(joined).toMatch(/Operator overview/);
     expect(joined).toMatch(/Daemon:\s+running \(pid 4242\)/);
-    expect(joined).toMatch(/Project:\s+scope-main/);
+    expect(joined).toMatch(/Scope:\s+scope-main/);
     expect(joined).toMatch(/Dispatch:\s+running/);
     expect(joined).toMatch(/Active \/ queued:\s+1 active, 2 queued/);
     expect(joined).toMatch(/Inbox:\s+1 approvals, 1 owner questions, 1 failed runs/);

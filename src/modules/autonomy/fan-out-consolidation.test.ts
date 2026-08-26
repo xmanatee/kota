@@ -300,7 +300,7 @@ describe("seedFanOutConsolidationTasks", () => {
     const repoDir = setupRepo(RETRACT_FAN_OUT_RECORDS);
     try {
       const first = seedFanOutConsolidationTasks({
-        projectDir: repoDir,
+        workspaceRoot: repoDir,
         nowMs: NOW,
         nowIso: new Date(NOW).toISOString(),
       });
@@ -324,7 +324,7 @@ describe("seedFanOutConsolidationTasks", () => {
       execFileSync("git", ["commit", "-m", "seed consolidation"], { cwd: repoDir });
 
       const second = seedFanOutConsolidationTasks({
-        projectDir: repoDir,
+        workspaceRoot: repoDir,
         nowMs: NOW,
         nowIso: new Date(NOW).toISOString(),
       });
@@ -339,7 +339,7 @@ describe("seedFanOutConsolidationTasks", () => {
     const repoDir = setupRepo([]);
     try {
       const result = seedFanOutConsolidationTasks({
-        projectDir: repoDir,
+        workspaceRoot: repoDir,
         nowMs: NOW,
         nowIso: new Date(NOW).toISOString(),
       });

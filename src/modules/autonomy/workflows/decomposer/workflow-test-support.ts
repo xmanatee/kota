@@ -51,25 +51,25 @@ ${body}
 
 export const TASK_MARKDOWN = taskMarkdown(TASK_ID, "doing");
 
-export function prepareTaskProject(projectDir: string): void {
+export function prepareTaskProject(workspaceRoot: string): void {
   for (const state of TASK_STATES) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
 }
 
 export function writeActionableTask(
-  projectDir: string,
+  workspaceRoot: string,
   taskId = TASK_ID,
   state: "ready" | "doing" = "doing",
   marker?: string,
 ): BuilderTaskDispatchPayload {
-  prepareTaskProject(projectDir);
+  prepareTaskProject(workspaceRoot);
   writeFileSync(
-    join(projectDir, "data", "tasks", state, `${taskId}.md`),
+    join(workspaceRoot, "data", "tasks", state, `${taskId}.md`),
     taskMarkdown(taskId, state, marker),
     "utf8",
   );
-  const dispatch = listBuilderTaskDispatches(projectDir).find(
+  const dispatch = listBuilderTaskDispatches(workspaceRoot).find(
     (candidate) => candidate.taskId === taskId,
   );
   if (dispatch === undefined) {
@@ -136,11 +136,11 @@ export function failedBuilderMetadata(
 }
 
 export function writeRunMetadata(
-  projectDir: string,
+  workspaceRoot: string,
   sourceRunId: string,
   metadata: WorkflowRunMetadata,
 ): string {
-  const stateDir = join(projectDir, ".kota");
+  const stateDir = join(workspaceRoot, ".kota");
   const runDir = join(stateDir, "runs", sourceRunId);
   mkdirSync(runDir, { recursive: true });
   writeFileSync(

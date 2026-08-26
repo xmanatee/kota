@@ -1,9 +1,8 @@
-import type { ProjectId } from "./project-scope.js";
+import type { ScopeId } from "./scope.js";
 
 export type WorkflowDeadLetterBusEvents = {
   "workflow.dead-letter.changed": {
-    scopeId: ProjectId;
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     type: "event-envelope" | "batch-envelope" | "workflow-dispatch" | "confirmed-action-dispatch";
     status: "open" | "dismissed" | "redriven";

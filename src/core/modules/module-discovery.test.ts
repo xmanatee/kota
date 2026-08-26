@@ -31,7 +31,7 @@ describe("discoverModules", () => {
   beforeEach(() => {
     tmpDir = makeTmpDir();
     globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
@@ -57,14 +57,14 @@ describe("discoverModules", () => {
     `);
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),
-      JSON.stringify({ trustedProjects: [tmpDir] }),
+      JSON.stringify({ trustedScopes: [tmpDir] }),
     );
     writeFileSync(globalConfigPath, "{}\n");
 
     expect(await discoverModules(tmpDir)).toEqual([]);
     expect(existsSync(importMarker)).toBe(false);
 
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     expect(await discoverModules(tmpDir)).toHaveLength(1);
     expect(existsSync(importMarker)).toBe(true);
   });

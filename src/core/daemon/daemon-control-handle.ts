@@ -21,7 +21,7 @@ import type {
   HealthStatus,
   InteractiveSession,
   RegisterSessionResult,
-  SetActiveProjectResult,
+  SetActiveScopeResult,
   WorkflowDefinitionSummary,
   WorkflowLiveStatus,
   WorkflowMetricCounts,
@@ -45,8 +45,7 @@ import type {
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import type { ScopePolicyRouteResponse } from "./scope-policy.js";
 import type {
-  ProjectId,
-  ProjectRegistryProjection,
+  ScopeId,
   ScopeRegistryProjection,
 } from "./scope-registry.js";
 
@@ -54,7 +53,7 @@ import type {
 export type DaemonControlHandle = {
   getDaemonLiveState(): DaemonState & { running: boolean };
   getHealthStatus(): HealthStatus;
-  getWorkflowLiveStatus(projectId?: ProjectId): WorkflowLiveStatus;
+  getWorkflowLiveStatus(scopeId?: ScopeId): WorkflowLiveStatus;
   listChannelStatuses(): ChannelStatus[];
   listModuleSetupStatuses(): Promise<ModuleSetupStatusResponse>;
   submitModuleSetupForm(
@@ -83,9 +82,8 @@ export type DaemonControlHandle = {
     moduleName: string,
     requirementId: string,
   ): Promise<ModuleSetupMutationResult>;
-  getProjectRegistryProjection(): ProjectRegistryProjection;
   getScopeRegistryProjection(): ScopeRegistryProjection;
-  getScopeHostingState(scopeId: ProjectId): ScopeHostingState;
+  getScopeHostingState(scopeId: ScopeId): ScopeHostingState;
   hasScope(scopeId: string): boolean;
   getScopePolicy(scopeId: string): ScopePolicyRouteResponse;
   inspectScopeAuthority?(scopeId: string): ScopeAuthorityView | ScopeAuthorityFailure;
@@ -103,32 +101,31 @@ export type DaemonControlHandle = {
     request: ScopeAuthorityOperatorRequest,
     suppliedProof: string | undefined,
   ): ScopeAuthorityOperatorAction | undefined;
-  hasProject(projectId: string): boolean;
-  getActiveProjectId(): ProjectId | null;
-  setActiveProjectId(projectId: ProjectId | null): SetActiveProjectResult;
-  pauseWorkflowDispatch(projectId?: ProjectId): { already: boolean };
-  resumeWorkflowDispatch(projectId?: ProjectId, options?: WorkflowResumeOptions): {
+  getActiveScopeId(): ScopeId | null;
+  setActiveScopeId(scopeId: ScopeId | null): SetActiveScopeResult;
+  pauseWorkflowDispatch(scopeId?: ScopeId): { already: boolean };
+  resumeWorkflowDispatch(scopeId?: ScopeId, options?: WorkflowResumeOptions): {
     already: boolean;
     agentBackoffCleared?: true;
   };
-  abortActiveRuns(projectId?: ProjectId): { aborted: number };
+  abortActiveRuns(scopeId?: ScopeId): { aborted: number };
   abortActiveRun(
     runId: string,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): { ok: boolean; notFound?: boolean; queued?: boolean };
-  reloadWorkflowDefinitions(projectId?: ProjectId): { count: number };
+  reloadWorkflowDefinitions(scopeId?: ScopeId): { count: number };
   reloadConfig(): Promise<{
     workflows: number;
     changedModules: string[];
     sessionGuardrails: SessionGuardrailsReloadSummary;
   }>;
-  getWorkflowDefinitions(projectId?: ProjectId): WorkflowDefinitionSummary[];
-  enableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
-  disableWorkflow(name: string, projectId?: ProjectId): { ok: boolean; notFound?: boolean };
+  getWorkflowDefinitions(scopeId?: ScopeId): WorkflowDefinitionSummary[];
+  enableWorkflow(name: string, scopeId?: ScopeId): { ok: boolean; notFound?: boolean };
+  disableWorkflow(name: string, scopeId?: ScopeId): { ok: boolean; notFound?: boolean };
   enqueuePendingRun(
     name: string,
     options?: WorkflowEnqueueOptions,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): {
     ok: boolean;
     queued?: string;
@@ -136,12 +133,12 @@ export type DaemonControlHandle = {
     alreadyQueued?: boolean;
     error?: string;
     reason?: "scope_not_hosted";
-    scopeId?: ProjectId;
+    scopeId?: ScopeId;
     state?: Exclude<ScopeHostingState, "hosted">;
   };
   cancelQueuedRun(
     runId: string,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): { ok: boolean; notFound?: boolean; active?: boolean };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   listWorkflowRuns(opts?: {
@@ -149,34 +146,34 @@ export type DaemonControlHandle = {
     limit?: number;
     tag?: string;
     causedByRunId?: string;
-    projectId?: ProjectId;
+    scopeId?: ScopeId;
   }): WorkflowRunSummary[];
-  getWorkflowRun(id: string, projectId?: ProjectId): WorkflowRunDetail | null;
-  getWorkflowMetricCounts(projectId?: ProjectId): WorkflowMetricCounts;
+  getWorkflowRun(id: string, scopeId?: ScopeId): WorkflowRunDetail | null;
+  getWorkflowMetricCounts(scopeId?: ScopeId): WorkflowMetricCounts;
   listDeadLetters(opts?: DeadLetterQueueListOptions): DeadLetterQueueListResult;
-  getDeadLetter(id: string, projectId?: ProjectId): DeadLetterItem | null;
+  getDeadLetter(id: string, scopeId?: ScopeId): DeadLetterItem | null;
   dismissDeadLetter(
     id: string,
     reason: string,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): DeadLetterQueueMutationResult;
   redriveDeadLetter(
     id: string,
     reason: string,
     target: DeadLetterRedriveTarget,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): DeadLetterQueueMutationResult;
-  exportDeadLetterDiagnostics(id: string, projectId?: ProjectId): EventJsonObject | null;
+  exportDeadLetterDiagnostics(id: string, scopeId?: ScopeId): EventJsonObject | null;
   probeCapabilityReadiness(): Promise<CapabilityReadinessResponse>;
   getClientIdentity(): Promise<ClientIdentity>;
   registerSession(
     id: string,
     createdAt: string,
     autonomyMode: AutonomyMode,
-    projectId?: ProjectId,
+    scopeId?: ScopeId,
   ): RegisterSessionResult;
   unregisterSession(id: string): void;
-  listSessions(projectId?: ProjectId): InteractiveSession[];
+  listSessions(scopeId?: ScopeId): InteractiveSession[];
   setSessionAutonomyMode(id: string, mode: AutonomyMode): {
     ok: boolean;
     notFound?: boolean;

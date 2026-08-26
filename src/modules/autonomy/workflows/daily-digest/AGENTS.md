@@ -54,7 +54,7 @@ body. The workflow must not branch on channel-specific formatting.
 
 ## On-Demand Seam
 
-`renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
+`renderOnDemandDigest({ scopeRoot, windowEndMs? })` in `on-demand.ts`
 produces the same body the cadence step emits, evaluated against a
 rolling window ending at the call moment. Telegram, CLI, slack-channel
 (`/digest` slash command via `DigestSnapshotClient`), daemon HTTP

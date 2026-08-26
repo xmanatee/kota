@@ -16,11 +16,11 @@ import type { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DaemonStateRoot } from "./daemon-state-root.js";
 import type { DaemonEventLoopLatencyMonitor } from "./event-loop-latency.js";
-import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import type { ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 /** Mutable and immutable lifecycle state for one daemon instance. */
@@ -28,7 +28,7 @@ export type DaemonRuntimeContext = {
   readonly config: DaemonConfig;
   readonly logger: DaemonLogger;
   readonly log: (message: string) => void;
-  readonly projectDir: string;
+  readonly scopeRoot: string;
   readonly stateDir: string;
   readonly stateRoot: DaemonStateRoot;
   readonly bus: EventBus;
@@ -43,9 +43,9 @@ export type DaemonRuntimeContext = {
   readonly token: string;
   readonly state: DaemonState;
   readonly sessions: Map<string, InteractiveSession>;
-  readonly projectRegistry: ScopeRegistry;
+  readonly scopeRegistry: ScopeRegistry;
   readonly scopeAuthority: ScopeAuthorityService;
-  readonly projectRuntimes: ProjectRuntimeRegistry;
+  readonly scopeRuntimes: ScopeRuntimeRegistry;
   readonly scopeLifecycle: ScopeLifecycleService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
   readonly eventLoopLatency: DaemonEventLoopLatencyMonitor;
@@ -65,7 +65,7 @@ export type DaemonRuntimeContext = {
 
 export type BuildDaemonInitParams = {
   config: DaemonConfig;
-  projectDir: string;
+  scopeRoot: string;
   stateDir: string;
   stateRoot: DaemonStateRoot;
   bus: EventBus;
@@ -77,9 +77,9 @@ export type BuildDaemonInitParams = {
   runState: RunStateDatabase;
   runCoordinator: RunCoordinator;
   uninstallEventJournal: () => void;
-  projectRegistry: ScopeRegistry;
+  scopeRegistry: ScopeRegistry;
   scopeAuthority: ScopeAuthorityService;
   scopeAuthorityOperatorVerifier: ScopeAuthorityOperatorTokenVerifier;
-  projectRuntimes: ProjectRuntimeRegistry;
+  scopeRuntimes: ScopeRuntimeRegistry;
   startupDispatchPaused: boolean;
 };

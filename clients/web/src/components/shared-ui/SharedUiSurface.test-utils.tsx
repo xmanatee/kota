@@ -1,4 +1,4 @@
-import { TestProjectProvider } from "@/lib/project-context";
+import { TestScopeProvider } from "@/lib/scope-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
@@ -30,14 +30,14 @@ export function renderSurface(
     onSessionSelect,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <TestProjectProvider projectId={surface.scopeId}>
+        <TestScopeProvider scopeId={surface.scopeId}>
           <SharedUiSurface
             surface={surface}
             onNavigate={onNavigate}
             onSessionSelect={onSessionSelect}
             liveLogEntries={liveLogEntries}
           />
-        </TestProjectProvider>
+        </TestScopeProvider>
       </QueryClientProvider>,
     ),
   };

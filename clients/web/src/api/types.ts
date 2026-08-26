@@ -38,22 +38,6 @@ export type ClientDashboardAvailability =
   | { available: true; path: string }
   | { available: false; reason: string; message?: string };
 
-/**
- * Mirror of the daemon's `ProjectRegistryProjection`. Clients render the
- * project selector against this shape; the singular `projectName` /
- * `projectDir` on `ClientIdentity` describe the default project.
- */
-export type ProjectRegistryEntry = {
-  projectId: string;
-  projectDir: string;
-  displayName: string;
-};
-
-export type ProjectRegistryProjection = {
-  defaultProjectId: string;
-  projects: ProjectRegistryEntry[];
-};
-
 export type ScopeRegistryEntry = {
   scopeId: string;
   displayName: string;
@@ -73,9 +57,9 @@ export * from "./workflow-types";
 import type { WorkflowLiveStatus } from "./workflow-types";
 
 export type ClientIdentity = {
-  projectName: string;
-  projectDir: string;
-  projects: ProjectRegistryProjection;
+  scopeName: string;
+  scopeRoot: string;
+  scopeRegistry: ScopeRegistryProjection;
   daemonVersion: string;
   pid: number;
   startedAt: string;
@@ -83,15 +67,15 @@ export type ClientIdentity = {
 };
 
 /**
- * Typed wire-shape every project-scoped control-API route returns when
- * `?projectId=` is set to a value that does not match a configured
- * project. Mirrors `UnknownProjectError` in
+ * Typed wire-shape every scope-aware control-API route returns when
+ * `?scopeId=` is set to a value that does not match a configured
+ * scope. Mirrors `UnknownScopeError` in
  * `src/core/daemon/daemon-control-types.ts`.
  */
-export type UnknownProjectError = {
-  error: "Unknown project";
-  reason: "unknown_project";
-  projectId: string;
+export type UnknownScopeError = {
+  error: "Unknown scope";
+  reason: "unknown_scope";
+  scopeId: string;
 };
 
 /**
@@ -136,7 +120,6 @@ export type AutonomyMode = "passive" | "supervised" | "autonomous";
 export type InteractiveSession = {
   id: string;
   scopeId: string;
-  projectId: string;
   createdAt: string;
   lastActive: number;
   autonomyMode: AutonomyMode;

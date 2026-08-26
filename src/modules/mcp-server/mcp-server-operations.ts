@@ -53,7 +53,7 @@ export function localMcpServerClient(): McpServerClient {
           provider: config.modelProvider?.type,
           baseUrl: config.modelProvider?.baseUrl,
           apiKey: config.modelProvider?.apiKey,
-          projectDir: process.cwd(),
+          scopeRoot: process.cwd(),
         }).client;
       }
 

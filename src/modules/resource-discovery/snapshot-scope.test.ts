@@ -3,8 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetSecretStores } from "#core/config/secrets.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import {
+  buildDirectoryScope,
+  buildScopeRegistryProjection,
+} from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   initProviderRegistry,
@@ -23,28 +26,28 @@ afterEach(() => {
 });
 
 describe("resource discovery scoped snapshot sources", () => {
-  it("scopes project-specific knowledge, setup availability, and MCP metadata to the selected project", async () => {
+  it("scopes scope-specific knowledge, setup availability, and MCP metadata to the selected scope", async () => {
     const defaultDir = mkdtempSync(join(tmpdir(), "resource-discovery-default-"));
-    const projectBDir = mkdtempSync(join(tmpdir(), "resource-discovery-project-b-"));
+    const scopeBRoot = mkdtempSync(join(tmpdir(), "resource-discovery-scope-b-"));
     const globalKnowledgeDir = mkdtempSync(join(tmpdir(), "resource-discovery-global-"));
-    const defaultProject = buildConfiguredProject({
-      projectDir: defaultDir,
+    const defaultScope = buildDirectoryScope({
+      scopeRoot: defaultDir,
       displayName: "Default",
     });
-    const projectB = buildConfiguredProject({
-      projectDir: projectBDir,
-      displayName: "Project B",
+    const scopeB = buildDirectoryScope({
+      scopeRoot: scopeBRoot,
+      displayName: "Scope B",
     });
     const marker = "resource-discovery-scope-marker";
     const defaultStore = new KnowledgeStore(defaultDir, globalKnowledgeDir);
-    const projectBStore = new KnowledgeStore(projectBDir, globalKnowledgeDir);
+    const scopeBStore = new KnowledgeStore(scopeBRoot, globalKnowledgeDir);
     defaultStore.create({
       title: `Default ${marker}`,
-      content: `Default project ${marker}`,
+      content: `Default scope ${marker}`,
     });
-    projectBStore.create({
-      title: `Project B ${marker}`,
-      content: `Selected project ${marker}`,
+    scopeBStore.create({
+      title: `Scope B ${marker}`,
+      content: `Selected scope ${marker}`,
     });
 
     mkdirSync(join(defaultDir, ".kota"), { recursive: true });
@@ -64,18 +67,18 @@ describe("resource discovery scoped snapshot sources", () => {
       }),
       "utf-8",
     );
-    mkdirSync(join(projectBDir, ".kota"), { recursive: true });
+    mkdirSync(join(scopeBRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectBDir, ".kota", "mcp.json"),
+      join(scopeBRoot, ".kota", "mcp.json"),
       JSON.stringify({
         mcpServers: {
-          projectBOnly: { type: "http", url: "https://project-b.example/mcp" },
+          projectBOnly: { type: "http", url: "https://scope-b.example/mcp" },
         },
       }),
       "utf-8",
     );
 
-    const setupRequirement = projectConfigRequirement();
+    const setupRequirement = scopeConfigRequirement();
     const scopedSummary = moduleSummary({
       name: "scope-regression-probe",
       toolNames: [],
@@ -84,18 +87,16 @@ describe("resource discovery scoped snapshot sources", () => {
     });
     const registry = initProviderRegistry();
     registry.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", defaultStore);
-    registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
-      getProjectRegistryProjection: () => ({
-        defaultProjectId: defaultProject.projectId,
-        projects: [defaultProject, projectB],
-      }),
-      getActiveProjectId: () => null,
-      resolveProjectRuntime: (projectId) => ({
+    registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "test", {
+      getScopeRegistryProjection: () =>
+        buildScopeRegistryProjection(defaultScope.scopeId, [defaultScope, scopeB]),
+      getActiveScopeId: () => null,
+      resolveScopeRuntime: (scopeId) => ({
         ok: false,
         error: {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: projectId ?? "",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: scopeId ?? "",
         },
       }),
     });
@@ -108,10 +109,10 @@ describe("resource discovery scoped snapshot sources", () => {
     } as unknown as ModuleContext;
     const readSnapshot = buildResourceDiscoverySnapshotReader(ctx);
 
-    const snapshot = await readSnapshot(marker, { projectId: projectB.projectId });
+    const snapshot = await readSnapshot(marker, { scopeId: scopeB.scopeId });
 
     expect(snapshot.knowledgeEntries.map((entry) => entry.title)).toEqual([
-      `Project B ${marker}`,
+      `Scope B ${marker}`,
     ]);
     expect(snapshot.mcpServers.map((server) => server.name)).toEqual([
       "projectBOnly",
@@ -124,7 +125,7 @@ describe("resource discovery scoped snapshot sources", () => {
       reason: "config_missing",
     });
 
-    const unresolved = await readSnapshot(marker, { projectId: "missing-project" });
+    const unresolved = await readSnapshot(marker, { scopeId: "missing-scope" });
     expect(unresolved.knowledgeEntries).toEqual([]);
     expect(unresolved.mcpServers).toEqual([]);
     expect(
@@ -134,13 +135,13 @@ describe("resource discovery scoped snapshot sources", () => {
   });
 });
 
-function projectConfigRequirement(): ModuleSetupRequirement {
+function scopeConfigRequirement(): ModuleSetupRequirement {
   return {
-    id: "project-config",
+    id: "scope-config",
     kind: "config",
-    title: "Project config flag",
+    title: "Scope config flag",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "none",
     setup: {
       mode: "form",
@@ -176,10 +177,10 @@ function scopeProbeManifest(setupRequirement: ModuleSetupRequirement) {
           statusLinks: {
             list: "/setup/requirements",
             refresh:
-              "/setup/requirements/scope-regression-probe/project-config/refresh",
-            revoke: "/setup/requirements/scope-regression-probe/project-config",
+              "/setup/requirements/scope-regression-probe/scope-config/refresh",
+            revoke: "/setup/requirements/scope-regression-probe/scope-config",
             submitForm:
-              "/setup/requirements/scope-regression-probe/project-config/form",
+              "/setup/requirements/scope-regression-probe/scope-config/form",
           },
         },
       ],

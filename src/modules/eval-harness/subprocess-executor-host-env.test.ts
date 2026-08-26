@@ -62,7 +62,7 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
         "import { join } from 'node:path';",
         "writeFileSync(join(process.cwd(), 'host-env.json'), JSON.stringify({",
         "  home: process.env.HOME,",
-        "  projectDir: process.env.KOTA_PROJECT_DIR,",
+        "  workspaceRoot: process.env.KOTA_SCOPE_ROOT,",
         "  distDir: process.env.KOTA_DIST_DIR,",
         "  cacheDir: process.env.XDG_CACHE_HOME,",
         "  storeDir: process.env.npm_config_store_dir,",
@@ -116,7 +116,7 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
       );
       expect(envCapture.home).toBe(expectedHome);
       expect(existsSync(join(expectedHome, ".kota", "config.json"))).toBe(false);
-      expect(envCapture.projectDir).toBe(dirs.workingDir);
+      expect(envCapture.workspaceRoot).toBe(dirs.workingDir);
       expect(envCapture.distDir).toBe(join(dirname(dirname(fakeKota)), "dist"));
       expect(envCapture.cacheDir).toBe(
         join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "cache"),

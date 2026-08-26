@@ -119,7 +119,7 @@ export type DailyDigestData = {
 
 export type DailyDigestInput = {
   runsDir: string;
-  projectDir: string;
+  workspaceRoot: string;
   ownerQuestions: OwnerQuestionQueue;
   windowEndMs: number;
   windowMs?: number;
@@ -157,7 +157,7 @@ export function aggregateDailyDigest(input: DailyDigestInput): DailyDigestData {
     input.windowEndMs,
   );
   const agingOperatorCaptures = collectAgingOperatorCaptures(
-    listRepoTasksInState(input.projectDir, "blocked"),
+    listRepoTasksInState(input.workspaceRoot, "blocked"),
     input.windowEndMs,
   );
 

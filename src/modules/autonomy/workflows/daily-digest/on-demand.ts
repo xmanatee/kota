@@ -30,12 +30,12 @@ export type DigestSnapshot = {
   windowEndMs: number;
 };
 
-export function readQueueCounts(projectDir: string): QueueCounts {
+export function readQueueCounts(workspaceRoot: string): QueueCounts {
   return {
-    backlog: countRepoTaskState(projectDir, "backlog"),
-    ready: countRepoTaskState(projectDir, "ready"),
-    doing: countRepoTaskState(projectDir, "doing"),
-    blocked: countRepoTaskState(projectDir, "blocked"),
+    backlog: countRepoTaskState(workspaceRoot, "backlog"),
+    ready: countRepoTaskState(workspaceRoot, "ready"),
+    doing: countRepoTaskState(workspaceRoot, "doing"),
+    blocked: countRepoTaskState(workspaceRoot, "blocked"),
   };
 }
 
@@ -46,20 +46,20 @@ export function readQueueCounts(projectDir: string): QueueCounts {
  * call this so the two outputs cannot drift.
  */
 export function computeDigestSnapshot(opts: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   windowEndMs?: number;
   previousQueueCounts?: QueueCounts | null;
 }): DigestSnapshot {
   const windowEndMs = opts.windowEndMs ?? Date.now();
   const runsDir = join(opts.stateDir, "runs");
-  const currentCounts = readQueueCounts(opts.projectDir);
+  const currentCounts = readQueueCounts(opts.workspaceRoot);
   const ownerQuestions = new OwnerQuestionQueue(
     join(opts.stateDir, "owner-questions"),
   );
   const data = aggregateDailyDigest({
     runsDir,
-    projectDir: opts.projectDir,
+    workspaceRoot: opts.workspaceRoot,
     ownerQuestions,
     windowEndMs,
     previousQueueCounts: opts.previousQueueCounts ?? null,
@@ -69,14 +69,14 @@ export function computeDigestSnapshot(opts: {
 }
 
 function readPreviousQueueCounts(
-  projectDir: string,
+  workspaceRoot: string,
   stateDir: string,
 ): QueueCounts | null {
   if (!existsSync(join(stateDir, "kota.sqlite"))) return null;
   const store = new RunStateDatabase(stateDir);
   try {
-    const snapshot = store.readProjectStateValue<DigestState>(
-      store.getProjectIdByRootPath(projectDir) ?? deriveDirectoryScopeId(projectDir),
+    const snapshot = store.readScopeStateValue<DigestState>(
+      store.getScopeIdByRootPath(workspaceRoot) ?? deriveDirectoryScopeId(workspaceRoot),
       DAILY_DIGEST_STATE_KEY,
     );
     return snapshot.value?.counts ?? null;
@@ -92,13 +92,15 @@ function readPreviousQueueCounts(
  * on-demand call as a duplicate cadence digest.
  */
 export function renderOnDemandDigest(opts: {
-  projectDir: string;
+  scopeRoot: string;
   stateDir: string;
   windowEndMs?: number;
 }): { data: DailyDigestData; text: string } {
   const snapshot = computeDigestSnapshot({
-    ...opts,
-    previousQueueCounts: readPreviousQueueCounts(opts.projectDir, opts.stateDir),
+    workspaceRoot: opts.scopeRoot,
+    stateDir: opts.stateDir,
+    ...(opts.windowEndMs !== undefined ? { windowEndMs: opts.windowEndMs } : {}),
+    previousQueueCounts: readPreviousQueueCounts(opts.scopeRoot, opts.stateDir),
   });
   return { data: snapshot.data, text: snapshot.text };
 }

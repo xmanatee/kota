@@ -242,7 +242,7 @@ export class Daemon {
   }
 
   getScopeRegistryProjection(): ScopeRegistryProjection {
-    return this.context().projectRegistry.toScopeProjection();
+    return this.context().scopeRegistry.toProjection();
   }
 
   inspectScopeAuthority(scopeId: ScopeId): ScopeAuthorityView | ScopeAuthorityFailure {
@@ -304,7 +304,7 @@ export class Daemon {
     ctx.restartRequested = true;
     ctx.restartReason = reason;
     setDaemonWorkflowDispatchPaused(ctx, true);
-    for (const runtime of ctx.projectRuntimes.list()) {
+    for (const runtime of ctx.scopeRuntimes.list()) {
       runtime.workflowRuntime.abortActiveRuns();
     }
     ctx.controlServer.quarantine(reason);

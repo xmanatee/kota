@@ -11,8 +11,8 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	getHistoryProvider,
-	HISTORY_PROJECT_PROVIDER_TOKEN,
 	HISTORY_PROVIDER_TOKEN,
+	HISTORY_SCOPE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
@@ -30,18 +30,18 @@ import {
 	conversationRecallTool,
 	runConversationRecall,
 } from "./conversation-recall.js";
-import { getProjectHistoryStore } from "./history.js";
+import { getScopeHistoryStore } from "./history.js";
 import {
 	buildHistoryDetailQuery,
 	normalizeHistoryShowOptions,
 	readHistoryDetail,
 } from "./history-detail.js";
-import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
-import {
-	createHistoryProjectStores,
-	type HistoryProjectStores,
-} from "./project-scope.js";
+import { listLocalScopeHistoryRecords } from "./local-history-scan.js";
 import { historyControlRoutes, historyRoutes } from "./routes.js";
+import {
+	createHistoryScopeStores,
+	type HistoryScopeStores,
+} from "./scope.js";
 import { historyUiSurfaceSource } from "./ui-surface.js";
 
 const historyModule: KotaModule = {
@@ -62,18 +62,18 @@ const historyModule: KotaModule = {
 	skills: [{ name: "history", promptPath: "src/modules/history/history.md" }],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {
-		const store = getProjectHistoryStore(ctx.cwd);
+		const store = getScopeHistoryStore(ctx.cwd);
 		ctx.registerProvider(HISTORY_PROVIDER_TOKEN, store);
-		ctx.registerProvider(HISTORY_PROJECT_PROVIDER_TOKEN, {
-			forProject: (project) => {
-				if (project.isDefault) {
+		ctx.registerProvider(HISTORY_SCOPE_PROVIDER_TOKEN, {
+			forScope: (scope) => {
+				if (scope.isDefault) {
 					try {
 						return getHistoryProvider();
 					} catch {
 						return store;
 					}
 				}
-				return getProjectHistoryStore(project.projectDir);
+				return getScopeHistoryStore(scope.scopeRoot);
 			},
 		});
 		ctx.registerProvider(
@@ -84,48 +84,48 @@ const historyModule: KotaModule = {
 
 	routes: (ctx) =>
 		historyRoutes(
-			createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+			createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
 		),
 	controlRoutes: (ctx) =>
 		historyControlRoutes(
-			createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+			createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
 			ctx.cwd,
 		),
 
 	localClient: (ctx) => {
-		const projectStores = createHistoryProjectStores(
+		const scopeStores = createHistoryScopeStores(
 			ctx.cwd,
 			getLoadedHistoryProvider,
 		);
 		const handler: HistoryClient = {
 			async list(filter) {
-				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
+				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);
 				return { conversations: provider.list(filter) };
 			},
-			async listDiscoveredProjectRecords(filter) {
+			async listDiscoveredScopeRecords(filter) {
 				return {
-					conversations: listLocalProjectHistoryRecords({
+					conversations: listLocalScopeHistoryRecords({
 						cwd: ctx.cwd,
 						limit: filter?.limit,
 					}),
 				};
 			},
 			async show(id, options) {
-				const provider = resolveHistoryProvider(projectStores, options?.projectId);
+				const provider = resolveHistoryProvider(scopeStores, options?.scopeId);
 				return readHistoryDetail(
 					provider,
 					id,
 					normalizeHistoryShowOptions(options),
 				);
 			},
-			async delete(id, project) {
-				const provider = resolveHistoryProvider(projectStores, project?.projectId);
+			async delete(id, scopeSelector) {
+				const provider = resolveHistoryProvider(scopeStores, scopeSelector?.scopeId);
 				return provider.remove(id)
 					? { ok: true }
 					: { ok: false, reason: "not_found" };
 			},
 			async search(query, filter) {
-				const provider = resolveHistoryProvider(projectStores, filter?.projectId);
+				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);
 				const limit = filter?.limit ?? 20;
 				if (filter?.semantic) {
 					if (!provider.supportsSemanticSearch()) {
@@ -145,8 +145,8 @@ const historyModule: KotaModule = {
 				});
 				return { ok: true, conversations };
 			},
-			async reindex(project) {
-				const provider = resolveHistoryProvider(projectStores, project?.projectId);
+			async reindex(scopeSelector) {
+				const provider = resolveHistoryProvider(scopeStores, scopeSelector?.scopeId);
 				return provider.reindex();
 			},
 		};
@@ -173,14 +173,14 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
 			if (filter?.cwd) params.set("cwd", filter.cwd);
 			if (filter?.source) params.set("source", filter.source);
-			if (filter?.projectId) params.set("projectId", filter.projectId);
+			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
 			const query = params.toString() ? `?${params.toString()}` : "";
 			return link.requestStrict<HistoryListResult>(
 				"GET",
 				`/history${query}`,
 			);
 		},
-		listDiscoveredProjectRecords: async (
+		listDiscoveredScopeRecords: async (
 			filter,
 		): Promise<HistoryListResult> => {
 			const params = new URLSearchParams();
@@ -188,12 +188,12 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			const query = params.toString() ? `?${params.toString()}` : "";
 			return link.requestStrict<HistoryListResult>(
 				"GET",
-				`/history/discovered-project-records${query}`,
+				`/history/discovered-scope-records${query}`,
 			);
 		},
 		show: async (id, options): Promise<HistoryShowResult> => {
 			const request = normalizeHistoryShowOptions(options);
-			const query = buildHistoryDetailQuery(request, options?.projectId);
+			const query = buildHistoryDetailQuery(request, options?.scopeId);
 			const detail = await requestNullableHistoryRoute<HistoryDetail>(
 				link,
 				"GET",
@@ -201,8 +201,8 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			);
 			return detail ? { found: true, detail } : { found: false };
 		},
-		delete: async (id, project): Promise<HistoryDeleteResult> => {
-			const query = projectQuery(project?.projectId);
+		delete: async (id, scopeSelector): Promise<HistoryDeleteResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const result = await requestNullableHistoryRoute<{ deleted: string }>(
 				link,
 				"DELETE",
@@ -217,14 +217,14 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			if (filter?.source) params.set("source", filter.source);
 			if (filter?.semantic) params.set("semantic", "true");
 			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.projectId) params.set("projectId", filter.projectId);
+			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
 			return link.requestStrict<HistorySearchResult>(
 				"GET",
 				`/api/history/search?${params.toString()}`,
 			);
 		},
-		reindex: async (project): Promise<HistoryReindexResult> => {
-			const query = projectQuery(project?.projectId);
+		reindex: async (scopeSelector): Promise<HistoryReindexResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			return link.requestStrict<HistoryReindexResult>(
 				"POST",
 				`/history/reindex${query}`,
@@ -236,7 +236,7 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 type HistoryRouteErrorBody = {
 	error?: string;
 	reason?: string;
-	projectId?: string;
+	scopeId?: string;
 };
 
 async function requestNullableHistoryRoute<T>(
@@ -247,8 +247,8 @@ async function requestNullableHistoryRoute<T>(
 	const res = await link.fetchRaw(path, { method });
 	if (res.status === 404) {
 		const body = await readHistoryRouteError(res);
-		if (body?.reason === "unknown_project" && body.projectId) {
-			throw new Error(`Unknown project: ${body.projectId}`);
+		if (body?.reason === "unknown_scope" && body.scopeId) {
+			throw new Error(`Unknown scope: ${body.scopeId}`);
 		}
 		return null;
 	}
@@ -272,20 +272,20 @@ async function readHistoryRouteError(
 }
 
 function resolveHistoryProvider(
-	projectStores: HistoryProjectStores,
-	projectId: string | undefined,
+	scopeStores: HistoryScopeStores,
+	scopeId: string | undefined,
 ) {
-	const resolved = projectStores.resolve(projectId);
+	const resolved = scopeStores.resolve(scopeId);
 	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+		throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
 	}
 	return resolved.store;
 }
 
-function projectQuery(projectId: string | undefined): string {
-	if (!projectId) return "";
+function scopeQuery(scopeId: string | undefined): string {
+	if (!scopeId) return "";
 	const params = new URLSearchParams();
-	params.set("projectId", projectId);
+	params.set("scopeId", scopeId);
 	return `?${params.toString()}`;
 }
 

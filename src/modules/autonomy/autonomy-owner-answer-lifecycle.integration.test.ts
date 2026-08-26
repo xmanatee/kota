@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -37,22 +37,22 @@ function waitForLifecycle(
 }
 
 describe("issue-driven owner-answer lifecycle integration", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let savedPreset: string | undefined;
 
   beforeEach(() => {
     savedPreset = process.env[PRESET_ENV_VAR];
     process.env[PRESET_ENV_VAR] = "claude";
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-owner-answer-lifecycle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    seedIssueDrivenLoopFixture(projectDir);
+    seedIssueDrivenLoopFixture(workspaceRoot);
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     if (savedPreset === undefined) delete process.env[PRESET_ENV_VAR];
     else process.env[PRESET_ENV_VAR] = savedPreset;
   });
@@ -102,11 +102,11 @@ describe("issue-driven owner-answer lifecycle integration", () => {
       }
 
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
+      const pbus = new ScopedEventBus(bus, deriveDirectoryScopeId(workspaceRoot));
       const source = makeAutonomyIssueSourceContext(
-        projectDir,
+        workspaceRoot,
         bus,
-        deriveDirectoryScopeId(projectDir),
+        deriveDirectoryScopeId(workspaceRoot),
       );
       subscribeAutonomyIssueSources(source.ctx);
       const completed: string[] = [];
@@ -120,7 +120,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           defaultPreset: "claude",
         },
         bus,
-        projectDir,
+        scopeRoot: workspaceRoot,
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflow.name === "autonomy-health-reviewer" ||
@@ -143,16 +143,16 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         });
         await waitForLifecycle(
           () => {
-            const issue = readAutonomyIssueProjection(projectDir).issues[0];
+            const issue = readAutonomyIssueProjection(workspaceRoot).issues[0];
             return issue?.disposition.kind === "owner-question" &&
               issue.links.ownerQuestionIds.length === 1;
           },
           "the owner-question disposition",
         );
-        const firstIssue = readAutonomyIssueProjection(projectDir).issues[0]!;
+        const firstIssue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
         const questionId = firstIssue.links.ownerQuestionIds[0]!;
         const questions = new OwnerQuestionQueue(
-          join(projectDir, ".kota", "owner-questions"),
+          join(workspaceRoot, ".kota", "owner-questions"),
           pbus,
         );
 
@@ -160,13 +160,13 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         await waitForLifecycle(
           () =>
             completed.length === 2 &&
-            readAutonomyIssueProjection(projectDir).issues[0]
+            readAutonomyIssueProjection(workspaceRoot).issues[0]
               ?.disposition.kind === "task",
           "the answer-driven task disposition",
         );
 
-        const projection = readAutonomyIssueProjection(projectDir);
-        const tasks = listFullRepoTasks(projectDir);
+        const projection = readAutonomyIssueProjection(workspaceRoot);
+        const tasks = listFullRepoTasks(workspaceRoot);
         expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
         expect(projection.issues).toEqual([
           expect.objectContaining({

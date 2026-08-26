@@ -64,7 +64,7 @@ type KotaResourceError = { ok: false; code: number; message: string };
 export type McpSkillModuleSummaryProvider = () => ModuleSummary[];
 
 export type McpSkillCatalogContext = {
-	projectDir: string;
+	scopeRoot: string;
 	moduleSummaries: McpSkillModuleSummaryProvider;
 };
 
@@ -244,7 +244,7 @@ function collectSkillResourceRecords(
 			addModuleSkillRecord(records, seenNames, skill);
 		}
 	}
-	for (const record of readImportedSkillRecords(catalog.projectDir)) {
+	for (const record of readImportedSkillRecords(catalog.scopeRoot)) {
 		if (seenNames.has(record.def.name)) continue;
 		if (record.importedFiles === undefined) {
 			throw new Error(`${record.def.promptPath}: imported skill record is missing importedFiles`);
@@ -573,8 +573,8 @@ function parseFrontmatter(content: string): Record<string, string> {
 	return fields;
 }
 
-function readReadyTasks(projectDir: string): unknown {
-	const dir = getRepoTaskStateDir(projectDir, "ready");
+function readReadyTasks(scopeRoot: string): unknown {
+	const dir = getRepoTaskStateDir(scopeRoot, "ready");
 	if (!existsSync(dir)) return [];
 	const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
 	const tasks = [];
@@ -593,12 +593,12 @@ function readReadyTasks(projectDir: string): unknown {
 	return tasks;
 }
 
-function readWorkflowStatus(projectDir: string): unknown {
-	const store = new WorkflowRunStore(projectDir);
+function readWorkflowStatus(scopeRoot: string): unknown {
+	const store = new WorkflowRunStore(scopeRoot);
 	const state = store.readState();
 	const operational = readWorkflowOperationalState({
 		stateDir: store.rootDir,
-		projectDir,
+		scopeRoot,
 	});
 	const perWorkflow: Record<string, unknown> = {};
 	for (const [name, ws] of Object.entries(state.workflows)) {
@@ -615,8 +615,8 @@ function readWorkflowStatus(projectDir: string): unknown {
 	};
 }
 
-function readRecentRuns(projectDir: string): unknown {
-	const store = new WorkflowRunStore(projectDir);
+function readRecentRuns(scopeRoot: string): unknown {
+	const store = new WorkflowRunStore(scopeRoot);
 	const runs = store.listRuns({ limit: 10 });
 	return runs.map((r) => ({
 		id: r.id,
@@ -915,14 +915,14 @@ function buildGeneratedSkillFrontmatter(record: SkillResourceRecord): string {
 function readModuleSkillResource(
 	record: SkillResourceRecord,
 	relativePath: string,
-	projectDir: string,
+	scopeRoot: string,
 	uri: string,
 ): KotaResourceReadResult {
 	if (relativePath !== "SKILL.md") {
 		return notFoundError(`Unknown skill resource: ${uri}`);
 	}
 	try {
-		const body = readFileSync(resolve(projectDir, record.promptPath), "utf8").trim();
+		const body = readFileSync(resolve(scopeRoot, record.promptPath), "utf8").trim();
 		return {
 			ok: true,
 			mimeType: "text/markdown",
@@ -946,7 +946,7 @@ function skillFileMimeType(relativePath: string): string {
 function readImportedSkillResource(
 	record: SkillResourceRecord,
 	relativePath: string,
-	projectDir: string,
+	scopeRoot: string,
 	uri: string,
 ): KotaResourceReadResult {
 	if (record.importedFiles === undefined) {
@@ -957,7 +957,7 @@ function readImportedSkillResource(
 	}
 	try {
 		const text = readFileSync(
-			join(importedSkillsDir(projectDir), record.name, relativePath),
+			join(importedSkillsDir(scopeRoot), record.name, relativePath),
 			"utf8",
 		);
 		return { ok: true, mimeType: skillFileMimeType(relativePath), text };
@@ -984,9 +984,9 @@ function readSkillResource(
 	const record = records.find((candidate) => candidate.name === parsed.skillName);
 	if (!record) return notFoundError(`Unknown skill: ${parsed.skillName}`);
 	if (record.sourceType === "module") {
-		return readModuleSkillResource(record, parsed.relativePath, catalog.projectDir, uri);
+		return readModuleSkillResource(record, parsed.relativePath, catalog.scopeRoot, uri);
 	}
-	return readImportedSkillResource(record, parsed.relativePath, catalog.projectDir, uri);
+	return readImportedSkillResource(record, parsed.relativePath, catalog.scopeRoot, uri);
 }
 
 function isKnownSkillResourceUri(
@@ -1015,7 +1015,7 @@ function isKnownSkillResourceUri(
  */
 export function readKotaResource(
 	uri: string,
-	projectDir: string,
+	scopeRoot: string,
 	options: McpResourceReadOptions = {},
 ): KotaResourceReadResult {
 	if (uri.startsWith("skill://")) {
@@ -1039,11 +1039,11 @@ export function readKotaResource(
 				return internalError(message);
 			}
 		case "kota://tasks/ready":
-			return resourceSuccess(readReadyTasks(projectDir));
+			return resourceSuccess(readReadyTasks(scopeRoot));
 		case "kota://workflow/status":
-			return resourceSuccess(readWorkflowStatus(projectDir));
+			return resourceSuccess(readWorkflowStatus(scopeRoot));
 		case "kota://workflow/runs/recent":
-			return resourceSuccess(readRecentRuns(projectDir));
+			return resourceSuccess(readRecentRuns(scopeRoot));
 	}
 	const parsed = parseKotaUrl(uri);
 	if ("ok" in parsed) return parsed;

@@ -19,15 +19,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
 
 describe("push-notification send paths", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalFetch: typeof globalThis.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-push-send-"));
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-send-"));
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota/push-tokens.json"),
+      join(scopeRoot, ".kota/push-tokens.json"),
       JSON.stringify({
         tokens: {
           "device-a": {
@@ -51,13 +51,13 @@ describe("push-notification send paths", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   describe("sendPushNotifications (approvals)", () => {
     it("sends one Expo Push API message per registered device with the deep-link payload", async () => {
       await sendPushNotifications(
-        projectDir,
+        scopeRoot,
         {
           approvalId: "approval-42",
           tool: "shell",
@@ -102,7 +102,7 @@ describe("push-notification send paths", () => {
 
     it("falls back to 'Approval: <tool>' when source is empty", async () => {
       await sendPushNotifications(
-        projectDir,
+        scopeRoot,
         { approvalId: "x", tool: "shell", risk: "safe", source: "" },
         vi.fn(),
       );
@@ -113,11 +113,11 @@ describe("push-notification send paths", () => {
 
     it("does not call the Expo Push API when no devices are registered", async () => {
       writeFileSync(
-        join(projectDir, ".kota/push-tokens.json"),
+        join(scopeRoot, ".kota/push-tokens.json"),
         JSON.stringify({ tokens: {} }),
       );
       await sendPushNotifications(
-        projectDir,
+        scopeRoot,
         { approvalId: "x", tool: "y", risk: "z", source: "s" },
         vi.fn(),
       );
@@ -130,7 +130,7 @@ describe("push-notification send paths", () => {
       );
       const log = vi.fn();
       await sendPushNotifications(
-        projectDir,
+        scopeRoot,
         { approvalId: "x", tool: "y", risk: "z", source: "s" },
         log,
       );
@@ -143,7 +143,7 @@ describe("push-notification send paths", () => {
       const log = vi.fn();
       await expect(
         sendPushNotifications(
-          projectDir,
+          scopeRoot,
           { approvalId: "x", tool: "y", risk: "z", source: "s" },
           log,
         ),
@@ -155,7 +155,7 @@ describe("push-notification send paths", () => {
   describe("sendDigestPushNotifications (digest)", () => {
     it("sends one digest message per registered device with the digest deep-link payload", async () => {
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         {
           title: "KOTA daily digest",
           body: "Daily digest 2026-04-26\n- builder committed: Add foo",
@@ -190,7 +190,7 @@ describe("push-notification send paths", () => {
 
     it("targets the shared inbox with an attention-posture title for workflow.attention.digest", async () => {
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         {
           title: "KOTA needs your attention",
           body: "3 items need attention",
@@ -215,7 +215,7 @@ describe("push-notification send paths", () => {
     it("truncates the body preview to keep payload under Expo limits", async () => {
       const longLine = "x".repeat(500);
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         { title: "KOTA daily digest", body: longLine, surfaceId: "daily-digest" },
         vi.fn(),
       );
@@ -227,7 +227,7 @@ describe("push-notification send paths", () => {
 
     it("skips blank leading lines when previewing the body", async () => {
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         {
           title: "KOTA daily digest",
           body: "\n\n  \nReal first line\nSecond line",
@@ -242,11 +242,11 @@ describe("push-notification send paths", () => {
 
     it("does not call the Expo Push API when no devices are registered", async () => {
       writeFileSync(
-        join(projectDir, ".kota/push-tokens.json"),
+        join(scopeRoot, ".kota/push-tokens.json"),
         JSON.stringify({ tokens: {} }),
       );
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         { title: "KOTA daily digest", body: "anything", surfaceId: "daily-digest" },
         vi.fn(),
       );
@@ -259,7 +259,7 @@ describe("push-notification send paths", () => {
       );
       const log = vi.fn();
       await sendDigestPushNotifications(
-        projectDir,
+        scopeRoot,
         { title: "KOTA daily digest", body: "x", surfaceId: "daily-digest" },
         log,
       );

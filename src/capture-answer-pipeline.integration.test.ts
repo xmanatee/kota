@@ -63,7 +63,7 @@ import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
   type AnswerHistorySink,
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
 import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
@@ -216,35 +216,35 @@ function startServer(
   });
 }
 
-function makeProjectRoot(): string {
+function makeScopeRoot(): string {
   const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-answer-"));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "capture-answer",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
 
 describe("capture → recall → answer → answer-history pipeline (HTTP)", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let server: Server;
   let client: DaemonControlClient;
   let history: DiskAnswerHistoryStore;
   let synthesisCalls: Array<{ query: string; retry: boolean; hitsCount: number }>;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    const memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    const memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     const knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
-    const tasksProvider = new RepoTasksDefaultStore(projectRoot);
+    const tasksProvider = new RepoTasksDefaultStore(scopeRoot);
     const historyProvider = createEmptyHistoryProvider();
     history = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(projectRoot),
+      rootDir: answerHistoryRootForScope(scopeRoot),
     });
 
     const classifier: CaptureClassifier = {
@@ -258,7 +258,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     const captureProvider = new CaptureProviderImpl({ classifier });
     captureProvider.register(createMemoryCaptureContributor(memoryStore));
     captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     captureProvider.register(createTasksCaptureContributor(mutationTarget));
     captureProvider.register(createInboxContributor(mutationTarget));
 
@@ -360,7 +360,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("memory: capture writes through MemoryStore and a content-derived answer cites the just-written memory record; the answer-history record matches", async () => {
@@ -424,7 +424,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     expect(captureResult.record.recordId).toBe(INBOX_EXPECTED_ID);
     expect(
       existsSync(
-        join(projectRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
+        join(scopeRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
       ),
     ).toBe(true);
 

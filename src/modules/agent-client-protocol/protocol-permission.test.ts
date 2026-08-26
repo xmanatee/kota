@@ -11,12 +11,12 @@ describe("ACP permission review", () => {
       input: {
         command: "curl -H 'Authorization: token command-secret' /srv/deploy --target production",
         API_KEY: "field-secret",
-        path: "/srv/project",
+        path: "/srv/scope",
       },
       risk: "dangerous",
       reason: "writes external state",
       timeoutMs: 120_000,
-      context: "User: deploy /srv/project with token=context-secret",
+      context: "User: deploy /srv/scope with token=context-secret",
       reviewDigest: "a".repeat(64),
     });
 
@@ -25,7 +25,7 @@ describe("ACP permission review", () => {
         rawInput: {
           command: "curl -H 'Authorization: [redacted]' /srv/deploy --target production",
           API_KEY: "[REDACTED]",
-          path: "/srv/project",
+          path: "/srv/scope",
         },
         content: [
           {
@@ -38,7 +38,7 @@ describe("ACP permission review", () => {
     });
     const serialized = JSON.stringify(params);
     expect(serialized).toContain("Conversation context");
-    expect(serialized).toContain("/srv/project");
+    expect(serialized).toContain("/srv/scope");
     expect(serialized).not.toContain("command-secret");
     expect(serialized).not.toContain("field-secret");
     expect(serialized).not.toContain("context-secret");

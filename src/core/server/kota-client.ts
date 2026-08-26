@@ -31,7 +31,7 @@ import type { CaptureClient } from "#modules/capture/client.js";
 import type { ConfigClient } from "#modules/config/client.js";
 import type {
   DaemonOpsClient,
-  ProjectsClient,
+  ScopesClient,
   SessionsClient,
   UiClient,
 } from "#modules/daemon-ops/client.js";
@@ -71,8 +71,7 @@ import type { WorkflowClient } from "#modules/workflow-ops/client.js";
  * `localClient(ctx)` factory.
  */
 export interface KotaClient {
-  forProject(projectId: string): KotaClient;
-  forScope?(scopeId: string): KotaClient;
+  forScope(scopeId: string): KotaClient;
   readonly workflow: WorkflowClient;
   readonly approvals: ApprovalsClient;
   readonly secrets: SecretsClient;
@@ -96,7 +95,7 @@ export interface KotaClient {
   readonly config: ConfigClient;
   readonly modulesAdmin: ModulesAdminClient;
   readonly daemonOps: DaemonOpsClient;
-  readonly projects: ProjectsClient;
+  readonly scopes: ScopesClient;
   readonly ui: UiClient;
   readonly doctor: DoctorClient;
   readonly evalHarness: EvalHarnessClient;
@@ -137,7 +136,7 @@ export const KOTA_CLIENT_NAMESPACES = [
   "config",
   "modulesAdmin",
   "daemonOps",
-  "projects",
+  "scopes",
   "ui",
   "doctor",
   "evalHarness",
@@ -170,18 +169,18 @@ export type DaemonClientHandlers = {
 };
 
 /**
- * Typed client-side rejection for project-scoped calls that name a project
- * outside the daemon/project registry. `forProject(projectId)` normalizes the
+ * Typed client-side rejection for scope-bound calls that name a scope
+ * outside the daemon scope registry. `forScope(scopeId)` normalizes the
  * module route errors into this shape so callers can branch on `reason`
  * instead of parsing error text.
  */
-export class KotaClientProjectError extends Error {
-  readonly reason = "unknown_project" as const;
-  readonly projectId: string;
+export class KotaClientScopeError extends Error {
+  readonly reason = "unknown_scope" as const;
+  readonly scopeId: string;
 
-  constructor(projectId: string, cause?: Error) {
-    super(`Unknown project: ${projectId}`, cause ? { cause } : undefined);
-    this.name = "KotaClientProjectError";
-    this.projectId = projectId;
+  constructor(scopeId: string, cause?: Error) {
+    super(`Unknown scope: ${scopeId}`, cause ? { cause } : undefined);
+    this.name = "KotaClientScopeError";
+    this.scopeId = scopeId;
   }
 }

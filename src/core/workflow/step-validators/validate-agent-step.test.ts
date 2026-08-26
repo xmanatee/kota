@@ -15,13 +15,13 @@ import {
 const definitionPath = "src/modules/test/workflows/agent-resolution/workflow.ts";
 
 describe("validateAgentStep registered agent resolution", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let reviewer: AgentDef;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-agent-step-resolution-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Review carefully.\n");
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-agent-step-resolution-"));
+    mkdirSync(join(workspaceRoot, "agents"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "agents", "reviewer.md"), "Review carefully.\n");
     reviewer = {
       name: "reviewer",
       role: "Review implementation diffs.",
@@ -37,7 +37,7 @@ describe("validateAgentStep registered agent resolution", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("compiles prompt, model, effort, and tool policy from a registered agent", () => {
@@ -58,7 +58,7 @@ describe("validateAgentStep registered agent resolution", () => {
           ],
         }),
       ],
-      projectDir,
+      workspaceRoot,
       {
         resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       },
@@ -95,7 +95,7 @@ describe("validateAgentStep registered agent resolution", () => {
           ],
         }),
       ],
-      projectDir,
+      workspaceRoot,
       {
         resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       },
@@ -128,7 +128,7 @@ describe("validateAgentStep registered agent resolution", () => {
             ],
           }),
         ],
-        projectDir,
+        workspaceRoot,
         {
           resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
         },
@@ -155,7 +155,7 @@ describe("validateAgentStep registered agent resolution", () => {
             ],
           }),
         ],
-        projectDir,
+        workspaceRoot,
         { resolveAgentDef: () => undefined },
       ),
     ).toThrow(/agentName references unknown registered agent "missing-reviewer"/);
@@ -181,7 +181,7 @@ describe("validateAgentStep registered agent resolution", () => {
             ],
           }),
         ],
-        projectDir,
+        workspaceRoot,
         {
           resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
         },
@@ -252,7 +252,7 @@ describe("validateAgentStep registered agent resolution", () => {
               ],
             }),
           ],
-          projectDir,
+          workspaceRoot,
           {
             resolveAgentDef: (name) =>
               name === nativeReviewer.name ? nativeReviewer : undefined,

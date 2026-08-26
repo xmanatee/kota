@@ -32,8 +32,8 @@ export const APPROVAL_SCOPE_TOOL_NAMES = {
 
 export const REGISTERED_APPROVAL_SCOPE_TOOL_NAMES = Object.values(APPROVAL_SCOPE_TOOL_NAMES);
 
-export type ApprovalScopeProjectRuntimeEntry = {
-  project: ConfiguredProject;
+export type ApprovalScopeRuntimeEntry = {
+  scope: DirectoryScope;
   approvalQueue: ApprovalQueue;
   ownerDecisionStore: OwnerDecisionStore;
   ownerQuestionQueue: OwnerQuestionQueue;
@@ -49,51 +49,51 @@ export const approvalScopeHasSqlite3 = (() => {
 })();
 
 export function makeApprovalScopeEntry(
-  projectDir: string,
+  scopeRoot: string,
   displayName: string,
-): ApprovalScopeProjectRuntimeEntry {
-  mkdirSync(projectDir, { recursive: true });
-  const project = buildConfiguredProject({ projectDir, displayName });
+): ApprovalScopeRuntimeEntry {
+  mkdirSync(scopeRoot, { recursive: true });
+  const scope = buildDirectoryScope({ scopeRoot, displayName });
   return {
-    project,
+    scope,
     approvalQueue: new ApprovalQueue(
-      join(project.projectDir, ".kota", "approvals"),
+      join(scope.scopeRoot, ".kota", "approvals"),
       null,
-      { scopeId: project.projectId },
+      { scopeId: scope.scopeId },
     ),
     ownerDecisionStore: new OwnerDecisionStore(
-      join(project.projectDir, ".kota", "owner-decisions"),
-      project.projectId,
+      join(scope.scopeRoot, ".kota", "owner-decisions"),
+      scope.scopeId,
     ),
-    ownerQuestionQueue: new OwnerQuestionQueue(join(project.projectDir, ".kota", "owner-questions")),
+    ownerQuestionQueue: new OwnerQuestionQueue(join(scope.scopeRoot, ".kota", "owner-questions")),
   };
 }
 
-export function registerApprovalScopeProjectProvider(
-  entries: ApprovalScopeProjectRuntimeEntry[],
+export function registerApprovalScopeProvider(
+  entries: ApprovalScopeRuntimeEntry[],
 ): void {
   const defaultEntry = entries[0];
-  if (!defaultEntry) throw new Error("expected at least one project");
-  const byId = new Map(entries.map((entry) => [entry.project.projectId, entry]));
-  initProviderRegistry().register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
-    getProjectRegistryProjection: () => ({
-      defaultProjectId: defaultEntry.project.projectId,
-      projects: entries.map((entry) => entry.project),
-    }),
-    getActiveProjectId: () => null,
-    resolveProjectRuntime: (projectId) => {
-      const selected = projectId?.trim() || defaultEntry.project.projectId;
+  if (!defaultEntry) throw new Error("expected at least one scope");
+  const byId = new Map(entries.map((entry) => [entry.scope.scopeId, entry]));
+  initProviderRegistry().register(DAEMON_SCOPE_PROVIDER_TYPE, "test", {
+    getScopeRegistryProjection: () => buildScopeRegistryProjection(
+      defaultEntry.scope.scopeId,
+      entries.map((entry) => entry.scope),
+    ),
+    getActiveScopeId: () => null,
+    resolveScopeRuntime: (scopeId) => {
+      const selected = scopeId?.trim() || defaultEntry.scope.scopeId;
       const entry = byId.get(selected);
       if (!entry) {
         return {
           ok: false,
-          error: { error: "Unknown project", reason: "unknown_project", projectId: selected },
+          error: { error: "Unknown scope", reason: "unknown_scope", scopeId: selected },
         };
       }
       return {
         ok: true,
         runtime: {
-          project: entry.project,
+          scope: entry.scope,
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,
@@ -104,12 +104,12 @@ export function registerApprovalScopeProjectProvider(
   });
 }
 
-export function writeApprovalScopeProjectFile(
-  entry: ApprovalScopeProjectRuntimeEntry,
+export function writeApprovalScopeFile(
+  entry: ApprovalScopeRuntimeEntry,
   relativePath: string,
   content: string | Buffer,
 ): void {
-  const path = join(entry.project.projectDir, relativePath);
+  const path = join(entry.scope.scopeRoot, relativePath);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
 }
@@ -126,11 +126,11 @@ export function approvalScopePngBuffer(width: number, height: number): Buffer {
 }
 
 export function writeApprovalScopeSqlite(
-  entry: ApprovalScopeProjectRuntimeEntry,
+  entry: ApprovalScopeRuntimeEntry,
   relativePath: string,
   marker: string,
 ): void {
-  const path = join(entry.project.projectDir, relativePath);
+  const path = join(entry.scope.scopeRoot, relativePath);
   mkdirSync(dirname(path), { recursive: true });
   execFileSync("sqlite3", [
     path,
@@ -242,9 +242,10 @@ import { dirname, join } from "node:path";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  buildScopeRegistryProjection,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import { initProviderRegistry } from "#core/modules/provider-registry.js";

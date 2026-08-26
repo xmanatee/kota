@@ -57,7 +57,7 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         channelIdentity: state.channelIdentity,
       });
     }
-    const analysis = analyzeRequest(prompt, state.projectDir);
+    const analysis = analyzeRequest(prompt, state.scopeRoot);
     const taskRoute = routeTask(prompt);
     let augmentedPrompt = prompt;
     if (analysis) augmentedPrompt += formatContextHint(analysis);
@@ -257,10 +257,9 @@ export async function runSend(state: AgentLoopState, prompt: string): Promise<st
         getScopePolicySnapshot,
         clientApprovalResolver: state.clientApprovalResolver,
         sessionId: state.sessionId,
-        projectDir: state.projectDir,
-        cwd: state.projectDir,
+        scopeRoot: state.scopeRoot,
+        cwd: state.scopeRoot,
         scopeId: state.scopeId,
-        projectId: state.scopeId,
         authorityConfigPath: state.authorityConfigPath,
         messages: state.context.getMessages(),
         idempotencyStore: state.idempotencyStore,

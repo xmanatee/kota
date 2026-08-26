@@ -24,21 +24,21 @@ export const GENERATED_WORK_TASK_STATES = [
   "dropped",
 ] as const satisfies readonly RepoTaskState[];
 
-const projectDirs: string[] = [];
+const scopeRoots: string[] = [];
 
-export function makeGeneratedWorkProjectDir(label: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), `kota-generated-work-${label}-`));
-  projectDirs.push(projectDir);
+export function makeGeneratedWorkScopeRoot(label: string): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-generated-work-${label}-`));
+  scopeRoots.push(workspaceRoot);
   for (const state of GENERATED_WORK_TASK_STATES) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-  return projectDir;
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  return workspaceRoot;
 }
 
-export function cleanupGeneratedWorkProjectDirs(): void {
-  for (const projectDir of projectDirs.splice(0)) {
-    rmSync(projectDir, { recursive: true, force: true });
+export function cleanupGeneratedWorkScopeRoots(): void {
+  for (const workspaceRoot of scopeRoots.splice(0)) {
+    rmSync(workspaceRoot, { recursive: true, force: true });
   }
 }
 
@@ -126,20 +126,20 @@ export function questionProposal(
 }
 
 export function placeTaskInState(
-  projectDir: string,
+  workspaceRoot: string,
   taskId: string,
   state: RepoTaskState,
 ): void {
   if (state === "ready") return;
   const readyPath = join(
-    projectDir,
+    workspaceRoot,
     "data",
     "tasks",
     "ready",
     `${taskId}.md`,
   );
   const targetPath = join(
-    projectDir,
+    workspaceRoot,
     "data",
     "tasks",
     state,

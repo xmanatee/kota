@@ -1,10 +1,10 @@
 import type { EventEmitFailure } from "#core/events/event-bus.js";
 import { createEventEnvelopeDeadLetter } from "./dead-letter-queue.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 export function scopeLineageForId(scopeId: string, registry: ScopeRegistry): readonly string[] {
-  const projection = registry.toScopeProjection();
+  const projection = registry.toProjection();
   const byId = new Map(projection.scopes.map((scope) => [scope.scopeId, scope]));
   const lineage: string[] = [];
   let current = byId.get(scopeId);
@@ -18,20 +18,20 @@ export function scopeLineageForId(scopeId: string, registry: ScopeRegistry): rea
 
 export function recordEventEmitFailureDeadLetter(input: {
   failure: EventEmitFailure;
-  runtimes: ProjectRuntimeRegistry;
-  defaultProjectId: string;
+  runtimes: ScopeRuntimeRegistry;
+  defaultScopeId: string;
   log: (message: string) => void;
 }): void {
   const runtime = runtimeForEventFailure(
     input.failure,
     input.runtimes,
-    input.defaultProjectId,
+    input.defaultScopeId,
     input.log,
   );
   if (runtime === null) return;
   createEventEnvelopeDeadLetter({
     store: runtime.deadLetterQueue,
-    scopeId: runtime.project.projectId,
+    scopeId: runtime.scope.scopeId,
     eventName: input.failure.event,
     schemaRef: input.failure.schemaRef,
     payload: input.failure.payload,
@@ -44,25 +44,25 @@ export function recordEventEmitFailureDeadLetter(input: {
 
 function runtimeForEventFailure(
   failure: EventEmitFailure,
-  runtimes: ProjectRuntimeRegistry,
-  defaultProjectId: string,
+  runtimes: ScopeRuntimeRegistry,
+  defaultScopeId: string,
   log: (message: string) => void,
-): ProjectRuntime | null {
+): ScopeRuntime | null {
   const payloadScopeId = scopeIdFromPayload(failure.payload);
   if (payloadScopeId === null) {
     log(
       `Event "${failure.event}" failed with conflicting scope selectors; ` +
-        "no project DLQ was selected",
+        "no scope DLQ was selected",
     );
     return null;
   }
-  const scopeId = payloadScopeId ?? defaultProjectId;
+  const scopeId = payloadScopeId ?? defaultScopeId;
   try {
     return runtimes.get(scopeId);
   } catch (error) {
     log(
       `Event "${failure.event}" failed before dispatch with unknown scope "${scopeId}"; ` +
-        `no project DLQ was selected: ${error instanceof Error ? error.message : String(error)}`,
+        `no scope DLQ was selected: ${error instanceof Error ? error.message : String(error)}`,
     );
     return null;
   }
@@ -71,16 +71,7 @@ function runtimeForEventFailure(
 function scopeIdFromPayload(
   payload: EventEmitFailure["payload"],
 ): string | null | undefined {
-  const scopeId =
-    typeof payload.scopeId === "string" && payload.scopeId.length > 0
-      ? payload.scopeId
-      : undefined;
-  const projectId =
-    typeof payload.projectId === "string" && payload.projectId.length > 0
-      ? payload.projectId
-      : undefined;
-  if (scopeId !== undefined && projectId !== undefined && scopeId !== projectId) {
-    return null;
-  }
-  return scopeId ?? projectId;
+  return typeof payload.scopeId === "string" && payload.scopeId.length > 0
+    ? payload.scopeId
+    : undefined;
 }

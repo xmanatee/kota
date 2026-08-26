@@ -6,11 +6,11 @@ import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js"
 import { readChatBody } from "./daemon-chat-request.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 export type DaemonChatConversationResolver = {
-  conversationExists(conversationId: string, projectId: ProjectId): boolean;
-  createConversation(mode: AutonomyMode, projectId: ProjectId): string;
+  conversationExists(conversationId: string, scopeId: ScopeId): boolean;
+  createConversation(mode: AutonomyMode, scopeId: ScopeId): string;
 };
 
 export type DaemonChatSessionAdmission = () =>
@@ -18,7 +18,7 @@ export type DaemonChatSessionAdmission = () =>
   | {
       ok: false;
       reason: "scope_not_hosted";
-      scopeId: ProjectId;
+      scopeId: ScopeId;
       state: Exclude<ScopeHostingState, "hosted">;
     };
 
@@ -29,7 +29,7 @@ export async function handleCreateDaemonSession(
   res: ServerResponse,
   makeAgent: DaemonChatMakeAgent,
   defaultAutonomyMode: AutonomyMode | undefined,
-  projectId: ProjectId,
+  scopeId: ScopeId,
   resolver: DaemonChatConversationResolver,
   admitSession: DaemonChatSessionAdmission,
 ): Promise<void> {
@@ -83,9 +83,9 @@ export async function handleCreateDaemonSession(
       jsonResponse(res, 404, { error: `No binding for session ${requestedSessionId}` });
       return;
     }
-    if (binding.projectId !== projectId) {
+    if (binding.scopeId !== scopeId) {
       jsonResponse(res, 409, {
-        error: `Session ${requestedSessionId} is bound to project ${binding.projectId}, not ${projectId}`,
+        error: `Session ${requestedSessionId} is bound to scope ${binding.scopeId}, not ${scopeId}`,
       });
       return;
     }
@@ -95,7 +95,7 @@ export async function handleCreateDaemonSession(
       });
       return;
     }
-    if (!resolver.conversationExists(binding.conversationId, projectId)) {
+    if (!resolver.conversationExists(binding.conversationId, scopeId)) {
       jsonResponse(res, 404, {
         error: `Bound conversation ${binding.conversationId} not found in history`,
       });
@@ -104,15 +104,15 @@ export async function handleCreateDaemonSession(
     wakeSessionId = requestedSessionId;
     conversationId = binding.conversationId;
   } else if (requestedConversationId) {
-    if (!resolver.conversationExists(requestedConversationId, projectId)) {
+    if (!resolver.conversationExists(requestedConversationId, scopeId)) {
       jsonResponse(res, 404, { error: `Conversation ${requestedConversationId} not found in history` });
       return;
     }
     const existingBinding = bindings.getByConversation(requestedConversationId);
     if (existingBinding) {
-      if (existingBinding.projectId !== projectId) {
+      if (existingBinding.scopeId !== scopeId) {
         jsonResponse(res, 409, {
-          error: `Conversation ${requestedConversationId} is bound to project ${existingBinding.projectId}, not ${projectId}`,
+          error: `Conversation ${requestedConversationId} is bound to scope ${existingBinding.scopeId}, not ${scopeId}`,
         });
         return;
       }
@@ -145,7 +145,7 @@ export async function handleCreateDaemonSession(
 
   if (createConversation) {
     try {
-      conversationId = resolver.createConversation(mode, projectId);
+      conversationId = resolver.createConversation(mode, scopeId);
     } catch (err) {
       jsonResponse(res, 503, { error: (err as Error).message });
       return;
@@ -159,14 +159,14 @@ export async function handleCreateDaemonSession(
 
   try {
     const session = pool.create(makeAgent, mode, conversationId, {
-      projectId,
+      scopeId,
       ...(wakeSessionId !== undefined ? { sessionId: wakeSessionId } : {}),
     });
-    bindings.put(session.id, session.conversationId, session.projectId);
+    bindings.put(session.id, session.conversationId, session.scopeId);
     jsonResponse(res, 201, {
       session_id: session.id,
       autonomy_mode: mode,
-      project_id: session.projectId,
+      scope_id: session.scopeId,
       conversation_id: session.conversationId,
     });
   } catch (err) {
@@ -181,7 +181,7 @@ function rejectClientSuppliedMcpServers(value: KotaJsonValue | undefined): void 
   }
   if (Object.keys(value).length > 0) {
     throw new Error(
-      "client-supplied mcp_servers are not supported by daemon sessions; configure MCP servers in project config",
+      "client-supplied mcp_servers are not supported by daemon sessions; configure MCP servers in scope config",
     );
   }
 }

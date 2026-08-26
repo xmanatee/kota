@@ -13,7 +13,7 @@ import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./ty
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatchState {
-  projectId: string;
+  scopeId: string;
   runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
@@ -108,7 +108,7 @@ export function getRuntimeState(
 } {
   const runtimeState = state.store.readState();
   const operationalState = projectStoredWorkflowOperationalState(
-    state.runState.listRuns(state.projectId, [
+    state.runState.listRuns(state.scopeId, [
       "queued",
       "running",
       "integrating",

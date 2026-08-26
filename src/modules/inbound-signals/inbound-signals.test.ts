@@ -28,8 +28,7 @@ const RECEIVED_AT = "2026-05-25T02:40:00.000Z";
 
 function sampleSignal(): InboundSignalReceivedPayload {
   return {
-    scopeId: "project-1",
-    projectId: "project-1",
+    scopeId: "scope-1",
     provider: "webhook",
     channel: "http",
     accountId: "manual",
@@ -95,7 +94,7 @@ function makeModuleContext(options: {
   const agentNames = [...(options.agentNames ?? [])];
   const summary: ModuleSummary = {
     name: "test",
-    source: "project",
+    source: "bundled",
     dependencies: [],
     toolNames: [],
     workflowNames,
@@ -156,16 +155,15 @@ function makeModuleContext(options: {
 }
 
 describe("inbound-signals module", () => {
-  it("owns the project-scoped inbound signal event declaration", () => {
+  it("owns the scope-scoped inbound signal event declaration", () => {
     expect(inboundSignalsModule.events).toEqual([
       inboundSignalReceived,
       inboundSignalRouted,
     ]);
     expect(inboundSignalReceived.name).toBe("inbound.signal.received");
-    expect(inboundSignalReceived.scope).toBe("project");
+    expect(inboundSignalReceived.scope).toBe("scope");
     expect(inboundSignalReceived.fields).toEqual([
       "scopeId",
-      "projectId",
       "provider",
       "channel",
       "accountId",
@@ -182,10 +180,9 @@ describe("inbound-signals module", () => {
 
   it("owns the routed audit event declaration that workflows can filter", () => {
     expect(inboundSignalRouted.name).toBe("inbound.signal.routed");
-    expect(inboundSignalRouted.scope).toBe("project");
+    expect(inboundSignalRouted.scope).toBe("scope");
     expect(inboundSignalRouted.filterablePaths).toEqual([
       "scopeId",
-      "projectId",
       "routeId",
       "decision",
       "sourceStatus",
@@ -215,13 +212,13 @@ describe("inbound-signals module", () => {
 
     const { transport, calls } = makeRecordingTransport(status);
     const client = inboundSignalsModule.daemonClient!(transport).inboundSignals!;
-    await expect(client.listRoutes({ projectId: "project-1" })).resolves.toEqual(
+    await expect(client.listRoutes({ scopeId: "scope-1" })).resolves.toEqual(
       status,
     );
     expect(calls).toEqual([
       {
         method: "GET",
-        path: "/inbound-signals/routes?projectId=project-1",
+        path: "/inbound-signals/routes?scopeId=scope-1",
         body: undefined,
       },
     ]);
@@ -314,18 +311,6 @@ describe("inbound-signals module", () => {
       error: "scopeId must be a non-empty string",
     });
     expect(
-      validateInboundSignalPayload({ ...sampleSignal(), projectId: "" }),
-    ).toEqual({
-      ok: false,
-      error: "projectId must be a non-empty string",
-    });
-    expect(
-      validateInboundSignalPayload({ ...sampleSignal(), projectId: "other" }),
-    ).toEqual({
-      ok: false,
-      error: "scopeId and projectId must match",
-    });
-    expect(
       validateInboundSignalPayload({
         ...sampleSignal(),
         actor: { ...sampleSignal().actor, trust: "unknown" as never },
@@ -368,7 +353,7 @@ describe("inbound-signals module", () => {
     expect(received).toEqual([]);
   });
 
-  it("normalizes an adapter input by injecting project scope and receive time", () => {
+  it("normalizes an adapter input by injecting scope identity and receive time", () => {
     const result = normalizeInboundSignalInput(
       {
         provider: "webhook",
@@ -391,14 +376,13 @@ describe("inbound-signals module", () => {
           data: { title: "Investigate inbound automation", urgent: false },
         },
       },
-      { projectId: "project-2", receivedAt: RECEIVED_AT },
+      { scopeId: "scope-2", receivedAt: RECEIVED_AT },
     );
 
     expect(result).toMatchObject({
       ok: true,
       payload: {
-        scopeId: "project-2",
-        projectId: "project-2",
+        scopeId: "scope-2",
         receivedAt: RECEIVED_AT,
         body: {
           kind: "action",
@@ -479,7 +463,7 @@ describe("inbound signal routing", () => {
     });
   });
 
-  it("projects routes and source statuses through the shared inspection contract", () => {
+  it("scopes routes and source statuses through the shared inspection contract", () => {
     const status = inboundSignalRoutingStatus(
       {
         routes: [
@@ -539,7 +523,7 @@ describe("inbound signal routing", () => {
           provider: "slack",
           channel: "slack.message",
           actorTrust: "trusted",
-          scopeId: "project-routed",
+          scopeId: "scope-routed",
           targets: [{ kind: "workflow", name: "capture-inbound-signal" }],
           batch: {
             mode: "workflow-trigger",
@@ -589,8 +573,7 @@ describe("inbound signal routing", () => {
         overflow: "flush-oldest",
       },
       payload: {
-        scopeId: "project-routed",
-        projectId: "project-routed",
+        scopeId: "scope-routed",
         routeId: "slack-capture",
         provider: "slack",
         channel: "slack.message",
@@ -612,8 +595,7 @@ describe("inbound signal routing", () => {
     });
     expect(emitted).toEqual([result]);
     expect(result).toMatchObject({
-      scopeId: "project-routed",
-      projectId: "project-routed",
+      scopeId: "scope-routed",
       routeId: "slack-capture",
       decision: "dispatched",
       targets: [
@@ -641,7 +623,7 @@ describe("inbound signal routing", () => {
           provider: "slack",
           channel: "slack.message",
           actorTrust: "trusted",
-          scopeId: "project-agent-routed",
+          scopeId: "scope-agent-routed",
           processing: {
             allowNonReadActions: true,
           },
@@ -679,8 +661,7 @@ describe("inbound signal routing", () => {
       maxTurns: 4,
       autonomyMode: "autonomous",
       payload: {
-        scopeId: "project-agent-routed",
-        projectId: "project-agent-routed",
+        scopeId: "scope-agent-routed",
         routeId: "slack-agent-triage",
         provider: "slack",
         channel: "slack.message",
@@ -693,8 +674,7 @@ describe("inbound signal routing", () => {
     });
     expect(emitted).toEqual([result]);
     expect(result).toMatchObject({
-      scopeId: "project-agent-routed",
-      projectId: "project-agent-routed",
+      scopeId: "scope-agent-routed",
       routeId: "slack-agent-triage",
       decision: "dispatched",
       targets: [

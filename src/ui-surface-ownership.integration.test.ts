@@ -66,7 +66,6 @@ function projectionClient(): KotaClient {
   const client = {
     ...handlers,
   } as unknown as KotaClient;
-  client.forProject = () => client;
   client.forScope = () => client;
   return client;
 }
@@ -110,12 +109,12 @@ describe("module-owned UI surface assembly", () => {
   });
 
   it("projects every owner through one validated bundle and resolves actions from it", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-ui-owners-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-owners-"));
     try {
       const registrations: RegisteredUiSurfaceSource[] = OWNERS.flatMap(([mod]) =>
         staticUiSources(mod).map((source) => ({ moduleName: mod.name, source }))
       );
-      const bundle = await assembleUiSurfaceBundle(projectDir, registrations, {
+      const bundle = await assembleUiSurfaceBundle(scopeRoot, registrations, {
         client: projectionClient(),
         selector: { scopeId: "scope-test" },
       });
@@ -161,7 +160,7 @@ describe("module-owned UI surface assembly", () => {
       expect(findUiAction(bundle, "configuration", "config.get")).toBeTruthy();
       expect(findUiAction(bundle, "guardrail-audit", "audit.list")).toBeTruthy();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });

@@ -120,7 +120,7 @@ export async function attachModuleWorkflows(
 ): Promise<void> {
   const workflows = await resolveModuleWorkflows(mod, ctx);
   if (workflows.length === 0) return;
-  const source = state.moduleSources.get(mod.name) ?? "project";
+  const source = state.moduleSources.get(mod.name) ?? "bundled";
   const resolvedWorkflows = workflows.map((def) => {
     const withPath =
       "definitionPath" in def

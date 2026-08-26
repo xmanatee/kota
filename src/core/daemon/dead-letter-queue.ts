@@ -134,7 +134,6 @@ export type DeadLetterEventRedriveSource =
 
 export type DeadLetterBatchRedrivePayload = {
   scopeId: string;
-  projectId: string;
   sourceEventName: string;
   groupingKey: string;
   reason: WorkflowBatchFlushReason;
@@ -167,7 +166,6 @@ export type DeadLetterItem = {
   type: DeadLetterItemType;
   status: DeadLetterItemStatus;
   scopeId: string;
-  projectId: string;
   owningModule: string;
   sourceEventIds: string[];
   affectedWorkflowNames: string[];
@@ -200,7 +198,6 @@ export type DeadLetterQueueQuery = {
 export type DeadLetterQueueRecordInput = {
   type: DeadLetterItemType;
   scopeId: string;
-  projectId: string;
   owningModule: string;
   sourceEventIds: readonly string[];
   affectedWorkflowNames: readonly string[];
@@ -278,7 +275,6 @@ export function deadLetterDuplicateFingerprint(item: DeadLetterItem): string {
   return JSON.stringify({
     type: item.type,
     scopeId: item.scopeId,
-    projectId: item.projectId,
     owningModule: item.owningModule,
     affectedWorkflowNames: [...item.affectedWorkflowNames].sort(),
     failureClass: item.failure.lastErrorClass,
@@ -391,7 +387,6 @@ export class DeadLetterQueueStore {
       type: input.type,
       status: "open",
       scopeId: input.scopeId,
-      projectId: input.projectId,
       owningModule: input.owningModule,
       sourceEventIds: [...input.sourceEventIds],
       affectedWorkflowNames: [...input.affectedWorkflowNames],
@@ -558,7 +553,6 @@ export function createWorkflowDispatchDeadLetter(input: {
   return input.store.record({
     type: "workflow-dispatch",
     scopeId: input.scopeId,
-    projectId: input.scopeId,
     owningModule: input.owningModule ?? "workflow-runtime",
     sourceEventIds: sourceEventIdsFromTrigger(input.trigger),
     affectedWorkflowNames: [input.workflowName],
@@ -599,7 +593,6 @@ export function createBatchDeadLetter(input: {
   return input.store.record({
     type: "batch-envelope",
     scopeId: input.scopeId,
-    projectId: input.scopeId,
     owningModule: "workflow-runtime",
     sourceEventIds: sourceEventIdsFromBatch(input.payload),
     affectedWorkflowNames: [input.payload.batch.workflow],
@@ -623,7 +616,6 @@ export function createBatchDeadLetter(input: {
           triggerSchemaRef: input.trigger.schemaRef,
           payload: {
             scopeId: input.payload.scopeId,
-            projectId: input.payload.projectId,
             sourceEventName: input.payload.sourceEventName,
             groupingKey: input.payload.groupingKey,
             reason: input.payload.reason,
@@ -670,7 +662,6 @@ export function createEventEnvelopeDeadLetter(
   return input.store.record({
     type: "event-envelope",
     scopeId: input.scopeId,
-    projectId: input.scopeId,
     owningModule: input.owningModule ?? "event-runtime",
     sourceEventIds: eventJournalId !== undefined ? [eventJournalId] : [],
     affectedWorkflowNames: [],
@@ -721,7 +712,6 @@ export function createConfirmedActionDeadLetter(input: {
   return input.store.record({
     type: "confirmed-action-dispatch",
     scopeId: input.scopeId,
-    projectId: input.scopeId,
     owningModule: input.adapterName,
     sourceEventIds: [],
     affectedWorkflowNames: affected,
@@ -743,20 +733,20 @@ export function createConfirmedActionDeadLetter(input: {
   });
 }
 
-export function deadLetterStoreForProject(projectDir: string): DeadLetterQueueStore {
-  return new DeadLetterQueueStore(join(projectDir, ".kota", "dead-letter-queue"));
+export function deadLetterStoreForScope(scopeRoot: string): DeadLetterQueueStore {
+  return new DeadLetterQueueStore(join(scopeRoot, ".kota", "dead-letter-queue"));
 }
 
-export function deadLetterRunArtifactIds(projectDir: string): {
+export function deadLetterRunArtifactIds(scopeRoot: string): {
   itemIds: string[];
   runIds: string[];
 } {
-  const deadLetterDir = join(projectDir, ".kota", "dead-letter-queue");
+  const deadLetterDir = join(scopeRoot, ".kota", "dead-letter-queue");
   const deadLetterFile = join(deadLetterDir, STORE_FILE);
   const itemIds = existsSync(deadLetterFile)
     ? new DeadLetterQueueStore(deadLetterDir).list({ status: "open" }).map((item) => item.id)
     : [];
-  const runsDir = join(projectDir, ".kota", "runs");
+  const runsDir = join(scopeRoot, ".kota", "runs");
   const runIds: string[] = [];
   if (existsSync(runsDir)) {
     for (const name of readdirSync(runsDir)) {

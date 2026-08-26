@@ -75,7 +75,7 @@ function makeRecordingTransport(options: {
 function makeEntry(name: string): ModuleListEntry {
   return {
     name,
-    source: "project",
+    source: "bundled",
     status: "loaded",
     toolCount: 0,
     workflowCount: 0,
@@ -163,7 +163,7 @@ describe("module-manager module daemonClient(link)", () => {
 function makeInspectEntry(name: string): ModuleInspectEntry {
   return {
     name,
-    source: "project",
+    source: "bundled",
     status: "loaded",
     dependencies: [],
     toolNames: [],
@@ -264,7 +264,7 @@ describe("module-manager module daemonClient(link) — modulesAdmin", () => {
   it("routes reload through POST /reload then GET /modules and assembles ok=true when the name is present and changed", async () => {
     const moduleListEntry: ModuleListEntry = {
       name: "doctor",
-      source: "project",
+      source: "bundled",
       status: "loaded",
       toolCount: 0,
       workflowCount: 0,
@@ -301,7 +301,7 @@ describe("module-manager module daemonClient(link) — modulesAdmin", () => {
       modules: [
         {
           name: "doctor",
-          source: "project",
+          source: "bundled",
           status: "loaded",
           toolCount: 0,
           workflowCount: 0,

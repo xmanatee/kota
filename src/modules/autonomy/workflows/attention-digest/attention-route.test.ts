@@ -12,8 +12,8 @@ import { renderOnDemandAttention } from "./step.js";
 
 const TOKEN = "attention-route-test-token";
 
-function makeTaskDir(projectDir: string, state: string, count: number): void {
-  const dir = join(projectDir, "data", "tasks", state);
+function makeTaskDir(workspaceRoot: string, state: string, count: number): void {
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   for (let i = 0; i < count; i++) {
     writeFileSync(join(dir, `task-test-${i}.md`), `# task ${i}\n`, "utf-8");
@@ -21,7 +21,7 @@ function makeTaskDir(projectDir: string, state: string, count: number): void {
 }
 
 describe("GET /api/attention", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   let server: Server;
   let baseUrl: string;
@@ -29,14 +29,14 @@ describe("GET /api/attention", () => {
   let unsubscribe: () => void;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-attention-route-"));
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-attention-route-"));
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     // Seed enough state that detector returns at least one attention item so
     // we can compare a non-trivial body and prove items[] is populated.
-    makeTaskDir(projectDir, "doing", 2);
-    makeTaskDir(projectDir, "ready", 1);
-    makeTaskDir(projectDir, "backlog", 1);
+    makeTaskDir(workspaceRoot, "doing", 2);
+    makeTaskDir(workspaceRoot, "ready", 1);
+    makeTaskDir(workspaceRoot, "backlog", 1);
 
     observed.length = 0;
     const bus = initEventBus();
@@ -51,7 +51,7 @@ describe("GET /api/attention", () => {
       pool,
       scheduler: { count: () => 0 } as unknown as Scheduler,
       bus,
-      moduleRoutes: attentionRoutes({ projectDir }),
+      moduleRoutes: attentionRoutes({ workspaceRoot }),
       makeAgent: () => {
         throw new Error(
           "makeAgent should not be invoked by /api/attention tests",
@@ -74,11 +74,11 @@ describe("GET /api/attention", () => {
     await new Promise<void>((res) => {
       server.close(() => res());
     });
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns the same body and structured payload renderOnDemandAttention produces", async () => {
-    const expected = renderOnDemandAttention({ projectDir, runsDir });
+    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
 
     const res = await fetch(`${baseUrl}/api/attention`, {
       headers: { Authorization: `Bearer ${TOKEN}` },

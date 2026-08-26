@@ -33,13 +33,13 @@ import {
 import { getEventBus, resetEventBus } from "#core/events/event-bus.js";
 import {
   makeDaemon,
-  setupProjectDir,
+  setupScopeRoot,
   tryHandleOwnerQuestionReply,
   waitFor,
 } from "./owner-decision-cycle-test-support.js";
 
 describe("owner-decision blocked-task unblock cycle", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let originalExitCode: typeof process.exitCode;
 
   beforeEach(() => {
@@ -47,11 +47,11 @@ describe("owner-decision blocked-task unblock cycle", () => {
     resetScheduler();
     resetOwnerQuestionQueue();
     originalExitCode = process.exitCode;
-    projectDir = setupProjectDir();
+    workspaceRoot = setupScopeRoot();
     // Pin the OwnerQuestionQueue singleton to the scratch project before any
     // production code reads it. Both the workflow's askOwnerSteps recipe and
     // the Telegram chat-reply path resolve through this same singleton.
-    getOwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+    getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
     vi.clearAllMocks();
   });
 
@@ -60,17 +60,17 @@ describe("owner-decision blocked-task unblock cycle", () => {
     resetScheduler();
     resetOwnerQuestionQueue();
     process.exitCode = originalExitCode;
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it(
     "ask -> daemon-restart -> free-form Telegram reply -> resolved-marker -> auto-promote",
     async () => {
-      const runsDir = join(projectDir, ".kota", "runs");
+      const runsDir = join(workspaceRoot, ".kota", "runs");
       let questionId: string;
 
       // ---- Phase 1: ask + suspend, then stop the daemon ---------------------
-      const firstDaemon = makeDaemon(projectDir);
+      const firstDaemon = makeDaemon(workspaceRoot);
       const firstStart = firstDaemon.start();
       try {
         const bus = await waitFor(
@@ -178,7 +178,7 @@ describe("owner-decision blocked-task unblock cycle", () => {
       expect(getOwnerQuestionQueue().get(questionId!)?.status).toBe("pending");
 
       // ---- Phase 2: restart daemon, deliver free-form chat reply ------------
-      const secondDaemon = makeDaemon(projectDir);
+      const secondDaemon = makeDaemon(workspaceRoot);
       const secondStart = secondDaemon.start();
       try {
         await waitFor(
@@ -197,8 +197,8 @@ describe("owner-decision blocked-task unblock cycle", () => {
         //     owner-question messages.
         const chatId = 99;
         const messageId = 7;
-        const pending = new Map<string, { chatId: string; messageId: number; projectId: string }>(
-          [[questionId!, { chatId: String(chatId), messageId, projectId: "test-project" }]],
+        const pending = new Map<string, { chatId: string; messageId: number; scopeId: string }>(
+          [[questionId!, { chatId: String(chatId), messageId, scopeId: "test-scope" }]],
         );
 
         const stubLog = {
@@ -245,14 +245,14 @@ describe("owner-decision blocked-task unblock cycle", () => {
         //     leaves the resolved marker in the body. p1 priority sends it
         //     straight to ready/ (per promotionTargetState).
         const promotedPath = join(
-          projectDir,
+          workspaceRoot,
           "data",
           "tasks",
           "ready",
           "task-pick-variant.md",
         );
         const blockedPath = join(
-          projectDir,
+          workspaceRoot,
           "data",
           "tasks",
           "blocked",

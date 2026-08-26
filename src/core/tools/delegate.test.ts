@@ -165,7 +165,6 @@ describe("runDelegate model output-token limits", () => {
       stepId: "build",
       spanId: "run-observable:build",
       scopeId: "scope-a",
-      projectId: "scope-a",
     };
 
     const result = await runDelegate(

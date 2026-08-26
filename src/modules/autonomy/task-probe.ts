@@ -123,7 +123,7 @@ function stripCodeFence(section: string): string {
 }
 
 export async function verifyTaskProbeProvenance(args: {
-  projectDir: string;
+  workspaceRoot: string;
   taskPath: string;
   probe: TaskProbe;
   runCommand: WorkflowCommandRunner;
@@ -132,7 +132,7 @@ export async function verifyTaskProbeProvenance(args: {
   for (const state of TRUSTED_PROBE_TASK_STATES) {
     const sourcePath = `data/tasks/${state}/${filename}`;
     const sourceContent = await readHeadFile(
-      args.projectDir,
+      args.workspaceRoot,
       sourcePath,
       args.runCommand,
     );
@@ -184,7 +184,7 @@ export function rejectedTaskProbeResult(
 }
 
 async function readHeadFile(
-  projectDir: string,
+  workspaceRoot: string,
   relPath: string,
   runCommand: WorkflowCommandRunner,
 ): Promise<string | null> {
@@ -192,7 +192,7 @@ async function readHeadFile(
     const result = await runCommand({
       command: "git",
       args: ["show", `HEAD:${relPath}`],
-      cwd: projectDir,
+      cwd: workspaceRoot,
       timeoutMs: 30_000,
       outputLimitBytes: 256 * 1024,
       captureLimitBytesPerStream: 256 * 1024,

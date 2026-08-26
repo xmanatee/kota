@@ -30,11 +30,11 @@ export type AutonomyIssueSourceContext = Pick<
   "events" | "getProvider"
 >;
 
-function projectPath(projectDir: string, candidate: string): string | null {
+function workspacePath(workspaceRoot: string, candidate: string): string | null {
   const absolute = isAbsolute(candidate)
     ? resolve(candidate)
-    : resolve(projectDir, candidate);
-  const rel = relative(resolve(projectDir), absolute);
+    : resolve(workspaceRoot, candidate);
+  const rel = relative(resolve(workspaceRoot), absolute);
   if (
     rel === ".." ||
     rel.startsWith(`..${sep}`) ||
@@ -105,14 +105,14 @@ function emitTrajectoryObservations(
     typeof diagnostics.artifactPath !== "string"
   ) return;
   if (
-    typeof payload.projectId !== "string" ||
+    typeof payload.scopeId !== "string" ||
     typeof payload.workflow !== "string" ||
     typeof payload.runId !== "string" ||
     typeof payload.stepId !== "string"
   ) {
     return;
   }
-  const path = projectPath(runtime.projectDir, diagnostics.artifactPath);
+  const path = workspacePath(runtime.workspaceRoot, diagnostics.artifactPath);
   if (!path) return;
   const artifact = trajectoryArtifact(readJson(path));
   if (!artifact) return;
@@ -132,7 +132,7 @@ function emitTrajectoryObservations(
       evidenceRefs: [
         {
           kind: "artifact",
-          ref: relative(runtime.projectDir, path),
+          ref: relative(runtime.workspaceRoot, path),
         },
       ],
       actionability: "local-code",
@@ -152,13 +152,13 @@ function emitReviewScrutinyObservation(
   seen: Set<string>,
 ): void {
   if (
-    typeof payload.projectId !== "string" ||
+    typeof payload.scopeId !== "string" ||
     typeof payload.runDir !== "string"
   ) {
     return;
   }
-  const path = projectPath(
-    runtime.projectDir,
+  const path = workspacePath(
+    runtime.workspaceRoot,
     `${payload.runDir}/review-scrutiny.json`,
   );
   if (!path) return;
@@ -194,7 +194,7 @@ function emitReviewScrutinyObservation(
     summary: `${record.surface} recorded a thin acceptance for ${taskKey}.`,
     evidenceRefs: [{
       kind: "artifact",
-      ref: relative(runtime.projectDir, path),
+      ref: relative(runtime.workspaceRoot, path),
     }],
     actionability: "local-code",
     dedupeKey:
@@ -220,7 +220,7 @@ function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
     const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
     const question = runtime.ownerQuestionQueue.get(payload.id);
     if (!question || question.status === "pending") return;
-    const linkedIssue = readAutonomyIssueProjection(runtime.projectDir).issues.find(
+    const linkedIssue = readAutonomyIssueProjection(runtime.workspaceRoot).issues.find(
       (issue) => issue.links.ownerQuestionIds.includes(question.id),
     );
     if (linkedIssue) {

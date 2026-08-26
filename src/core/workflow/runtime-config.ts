@@ -6,7 +6,7 @@ import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRunStore } from "./run-store.js";
@@ -15,25 +15,25 @@ import type { RegisteredWorkflowDefinitionInput } from "./types.js";
 export type WorkflowRuntimeConfig = {
   bus: EventBus;
   /**
-   * Per-project view over {@link bus}. The runtime emits every project-scoped
+   * Per-scope view over {@link bus}. The runtime emits every scope-bound
    * lifecycle event through this wrapper so the resulting payload carries
-   * the runtime's own `projectId` without callers having to thread it
+   * the runtime's own `scopeId` without callers having to thread it
    * through. Required when the runtime emits real events (the daemon path);
-   * tests that build a standalone runtime without project scope may omit it.
+   * tests that build a standalone runtime without an event scope may omit it.
    */
-  pbus?: ProjectScopedEventBus;
-  projectDir?: string;
-  projectId: string;
+  pbus?: ScopedEventBus;
+  scopeRoot?: string;
+  scopeId: string;
   runState: RunStateDatabase;
   runCoordinator: RunCoordinator;
   daemonEpoch: number;
   /** Machine-owned authority document excluded from agent execution. */
   authorityConfigPath?: string;
   /**
-   * Pre-built run store. Supplied by the per-project runtime bundle so the
+   * Pre-built run store. Supplied by the per-scope runtime bundle so the
    * daemon shares one instance across the workflow runtime and the
    * daemon-handle. Tests that build a standalone runtime may omit this and
-   * let the runtime construct its own from `projectDir`.
+   * let the runtime construct its own from `scopeRoot`.
    */
   runStore?: WorkflowRunStore;
   deadLetterQueue?: DeadLetterQueueStore;

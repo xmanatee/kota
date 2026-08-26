@@ -7,8 +7,8 @@ import type {
 /** Cross-client response contracts decoded at the HTTP boundary. */
 export {
   ContractDecodeError,
-  parseProjectRegistryProjection,
-  parseUnknownProjectError,
+  parseScopeRegistryProjection,
+  parseUnknownScopeError,
 } from "../../../conformance/decoders";
 
 export type {

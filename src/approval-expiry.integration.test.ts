@@ -15,23 +15,23 @@ import {
 	resetOwnerQuestionQueue,
 	setOwnerQuestionQueueInstance,
 } from "./core/daemon/owner-question-queue.js";
-import type { ProjectRuntime } from "./core/daemon/project-runtime.js";
 import {
 	resetScheduler,
 	setSchedulerInstance,
 } from "./core/daemon/scheduler.js";
-import { buildConfiguredProject } from "./core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "./core/daemon/scope-registry.js";
+import type { ScopeRuntime } from "./core/daemon/scope-runtime.js";
 import { getEventBus, initEventBus, resetEventBus } from "./core/events/event-bus.js";
-import { ProjectScopedEventBus } from "./core/events/project-scope.js";
+import { ScopedEventBus } from "./core/events/scope.js";
 import type { ToolRunner } from "./core/tools/index.js";
 import {
 	clearApprovalExecutionTestTools,
 	registerApprovalExecutionTestTools,
 } from "./modules/approval-queue/approval-execution-test-tools.integration.js";
 import { handleApproveApproval } from "./modules/approval-queue/routes.js";
-import { createTestProjectRuntime as createIsolatedProjectRuntime } from "./modules/autonomy/autonomy-runtime.test-helpers.js";
+import { createTestScopeRuntime as createIsolatedScopeRuntime } from "./modules/autonomy/autonomy-runtime.test-helpers.js";
 
-const TEST_PROJECT_ID = "test-project";
+const TEST_SCOPE_ID = "test-scope";
 
 describe("approval expiry × event bus integration", () => {
 	let dir: string;
@@ -43,7 +43,7 @@ describe("approval expiry × event bus integration", () => {
 		dir = mkdtempSync(join(tmpdir(), "approval-expiry-integration-"));
 		resetEventBus();
 		const bus = initEventBus();
-		const pbus = new ProjectScopedEventBus(bus, TEST_PROJECT_ID);
+		const pbus = new ScopedEventBus(bus, TEST_SCOPE_ID);
 		queue = new ApprovalQueue(dir, pbus);
 	});
 
@@ -72,8 +72,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
-			scopeId: TEST_PROJECT_ID,
-			projectId: TEST_PROJECT_ID,
+			scopeId: TEST_SCOPE_ID,
 			id: item.id,
 			tool: item.tool,
 		});
@@ -92,8 +91,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
-			scopeId: TEST_PROJECT_ID,
-			projectId: TEST_PROJECT_ID,
+			scopeId: TEST_SCOPE_ID,
 			id: item.id,
 			tool: item.tool,
 		});
@@ -124,8 +122,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
-			scopeId: TEST_PROJECT_ID,
-			projectId: TEST_PROJECT_ID,
+			scopeId: TEST_SCOPE_ID,
 			id: item.id,
 			tool: item.tool,
 			defaultResolution: "deny",
@@ -144,8 +141,7 @@ describe("approval expiry × event bus integration", () => {
 
 		expect(received).toHaveLength(1);
 		expect(received[0]).toEqual({
-			scopeId: TEST_PROJECT_ID,
-			projectId: TEST_PROJECT_ID,
+			scopeId: TEST_SCOPE_ID,
 			id: item.id,
 			tool: item.tool,
 			defaultResolution: "approve",
@@ -165,14 +161,14 @@ describe("approval expiry × event bus integration", () => {
 		expect(queue.get(item.id)!.resolutionSource).toBe("timeout");
 	});
 
-	it("isolates scope sweep failures and rejects a non-default project's expired review receipt", async () => {
+	it("isolates scope sweep failures and rejects a non-default scope's expired review receipt", async () => {
 		const bus = getEventBus()!;
-		const projectDirA = join(dir, "project-a");
-		const projectDirB = join(dir, "project-b");
-		mkdirSync(projectDirA, { recursive: true });
-		mkdirSync(projectDirB, { recursive: true });
-		const runtimeA = createTestProjectRuntime(projectDirA);
-		const runtimeB = createTestProjectRuntime(projectDirB);
+		const scopeRootA = join(dir, "scope-a");
+		const scopeRootB = join(dir, "scope-b");
+		mkdirSync(scopeRootA, { recursive: true });
+		mkdirSync(scopeRootB, { recursive: true });
+		const runtimeA = createTestScopeRuntime(scopeRootA);
+		const runtimeB = createTestScopeRuntime(scopeRootB);
 		setSchedulerInstance(runtimeA.scheduler);
 		setOwnerQuestionQueueInstance(runtimeA.ownerQuestionQueue);
 		const executeTool = vi.fn<ToolRunner>();
@@ -206,7 +202,7 @@ describe("approval expiry × event bus integration", () => {
 		try {
 			vi.advanceTimersByTime(10);
 			expect(logs).toContain(
-				`Approval expiration sweep failed for scope ${runtimeA.project.projectId}: scope-a storage unavailable`,
+				`Approval expiration sweep failed for scope ${runtimeA.scope.scopeId}: scope-a storage unavailable`,
 			);
 			expect(runtimeB.approvalQueue.get(pending.id)).toMatchObject({
 				status: "expired",
@@ -237,9 +233,9 @@ describe("approval expiry × event bus integration", () => {
 	});
 });
 
-function createTestProjectRuntime(projectDir: string): ProjectRuntime {
-	return createIsolatedProjectRuntime({
-		project: buildConfiguredProject({ projectDir }),
+function createTestScopeRuntime(scopeRoot: string): ScopeRuntime {
+	return createIsolatedScopeRuntime({
+		scope: buildDirectoryScope({ scopeRoot }),
 		bus: getEventBus()!,
 		config: { approvalTtlMs: 5 },
 		onLog: () => {},

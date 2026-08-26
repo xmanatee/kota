@@ -19,7 +19,7 @@ export type CalibrationRepairFreshness =
 const GIT_REVISION = /^[0-9a-f]{40}$/;
 
 async function gitOutput(
-  projectDir: string,
+  workspaceRoot: string,
   args: readonly string[],
   runCommand: WorkflowCommandRunner,
 ): Promise<string | null> {
@@ -27,7 +27,7 @@ async function gitOutput(
     const result = await runCommand({
       command: "git",
       args,
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
     const output = result.stdout.text.trim();
     return output.length > 0 ? output : null;
@@ -40,7 +40,7 @@ async function gitOutput(
 }
 
 async function isAncestor(
-  projectDir: string,
+  workspaceRoot: string,
   ancestor: string,
   descendant: string,
   runCommand: WorkflowCommandRunner,
@@ -49,7 +49,7 @@ async function isAncestor(
     await runCommand({
       command: "git",
       args: ["merge-base", "--is-ancestor", ancestor, descendant],
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
     return true;
   } catch (error) {
@@ -67,13 +67,13 @@ async function isAncestor(
  * pre-restart daemon or by a concurrent branch based before the repair.
  */
 export async function inspectCalibrationRepairFreshness(
-  projectDir: string,
+  workspaceRoot: string,
   repairedTaskPath: string,
   repairTaskId: string,
   runCommand: WorkflowCommandRunner,
 ): Promise<CalibrationRepairFreshness> {
   const repairRevision = await gitOutput(
-    projectDir,
+    workspaceRoot,
     ["log", "-1", "--format=%H", "--", repairedTaskPath],
     runCommand,
   );
@@ -81,7 +81,7 @@ export async function inspectCalibrationRepairFreshness(
     return { status: "untracked-repair" };
   }
 
-  const runsDir = join(projectDir, ".kota", "runs");
+  const runsDir = join(workspaceRoot, ".kota", "runs");
   const runsStats = lstatSync(runsDir, { throwIfNoEntry: false });
   if (
     runsStats?.isDirectory() &&
@@ -103,7 +103,7 @@ export async function inspectCalibrationRepairFreshness(
       }
       if (
         await isAncestor(
-          projectDir,
+          workspaceRoot,
           repairRevision,
           sourceRevision,
           runCommand,

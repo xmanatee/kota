@@ -11,41 +11,41 @@ import {
 } from "#core/workflow/runtime.js";
 import {
   buildLocalWorkflowHandler as buildHandler,
-  makeWorkflowOpsProjectDir,
+  makeWorkflowOpsScopeRoot,
 } from "./local-client-test-helpers.js";
 
 describe("workflow-ops localClient — daemon-down behavior", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeWorkflowOpsProjectDir();
+    workspaceRoot = makeWorkflowOpsScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("pause writes the signal file and is idempotent", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     const first = await handler.pause();
     expect(first).toEqual({ paused: true, already: false });
-    expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
+    expect(existsSync(join(workspaceRoot, ".kota", PAUSE_SIGNAL_FILE))).toBe(true);
     const second = await handler.pause();
     expect(second).toEqual({ paused: true, already: true });
   });
 
   it("resume removes the signal file and is idempotent", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     await handler.pause();
     const first = await handler.resume();
     expect(first).toEqual({ paused: false, already: false });
-    expect(existsSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", PAUSE_SIGNAL_FILE))).toBe(false);
     const second = await handler.resume();
     expect(second).toEqual({ paused: false, already: true });
   });
 
   it("clears agent backoff only for an explicit retry", async () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     store.setAgentBackoff({
       runtimeId: "antigravity-cli:antigravity-cli",
       kind: "auth",
@@ -55,7 +55,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       reason: "login was unavailable",
     });
 
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     await expect(handler.resume()).resolves.toEqual({
       paused: false,
       already: true,
@@ -71,19 +71,19 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
   });
 
   it("abort with no active runs writes no signal and reports zero", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     const result = await handler.abort();
     expect(result).toEqual({ status: "signaled", runs: [] });
-    expect(existsSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", ABORT_SIGNAL_FILE))).toBe(false);
   });
 
   it("abort with active runs writes the signal and lists them", async () => {
-    const runState = new RunStateDatabase(join(projectDir, ".kota"));
+    const runState = new RunStateDatabase(join(workspaceRoot, ".kota"));
     try {
-      const projectId = deriveDirectoryScopeId(projectDir);
-      runState.registerProject({
-        id: projectId,
-        rootPath: projectDir,
+      const scopeId = deriveDirectoryScopeId(workspaceRoot);
+      runState.registerScope({
+        id: scopeId,
+        rootPath: workspaceRoot,
         createdAt: "2026-04-25T00:00:00.000Z",
       });
       const { epoch } = runState.beginDaemonSession("2026-04-25T00:00:00.000Z");
@@ -93,7 +93,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       ] as const) {
         runState.admitRun({
           id,
-          projectId,
+          scopeId,
           workflow,
           repository: "read",
           trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -103,7 +103,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
         runState.startRun(id, epoch, startedAt);
       }
 
-      const handler = buildHandler(projectDir);
+      const handler = buildHandler(workspaceRoot);
       const result = await handler.abort();
       expect(result.status).toBe("signaled");
       if (result.status !== "signaled") throw new Error("unreachable");
@@ -111,21 +111,21 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
         { runId: "run-1", workflow: "builder" },
         { runId: "run-2", workflow: "improver" },
       ]);
-      expect(existsSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE))).toBe(true);
+      expect(existsSync(join(workspaceRoot, ".kota", ABORT_SIGNAL_FILE))).toBe(true);
     } finally {
       runState.close();
     }
   });
 
   it("reload writes the signal file", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     const result = await handler.reload();
     expect(result).toEqual({ status: "signaled" });
-    expect(existsSync(join(projectDir, ".kota", RELOAD_SIGNAL_FILE))).toBe(true);
+    expect(existsSync(join(workspaceRoot, ".kota", RELOAD_SIGNAL_FILE))).toBe(true);
   });
 
   it("status reflects paused and pendingAbort signal files", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     let snapshot = await handler.status();
     expect(snapshot.paused).toBe(false);
     expect(snapshot.pendingAbort).toBe(false);
@@ -134,15 +134,15 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
     expect(snapshot.queueLength).toBe(0);
     expect(snapshot.concurrency).toBe(4);
 
-    writeFileSync(join(projectDir, ".kota", PAUSE_SIGNAL_FILE), "");
-    writeFileSync(join(projectDir, ".kota", ABORT_SIGNAL_FILE), "");
+    writeFileSync(join(workspaceRoot, ".kota", PAUSE_SIGNAL_FILE), "");
+    writeFileSync(join(workspaceRoot, ".kota", ABORT_SIGNAL_FILE), "");
     snapshot = await handler.status();
     expect(snapshot.paused).toBe(true);
     expect(snapshot.pendingAbort).toBe(true);
   });
 
   it("enable / disable / cancelRun / abortRun surface daemon_required", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     expect(await handler.enable("builder")).toEqual({ ok: false, reason: "daemon_required" });
     expect(await handler.disable("builder")).toEqual({ ok: false, reason: "daemon_required" });
     expect(await handler.cancelRun("run-1")).toEqual({ ok: false, reason: "daemon_required" });
@@ -152,7 +152,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
   });
 
   it("getRun returns artifact metadata projected onto the redacted WorkflowRunDetail", async () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     mkdirSync(join(store.runsDir, "2026-04-25T20-00-00-000Z-builder-aaa111"), {
       recursive: true,
     });
@@ -192,7 +192,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       join(store.runsDir, "2026-04-25T20-00-00-000Z-builder-aaa111", "metadata.json"),
       JSON.stringify(metadata),
     );
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     const result = await handler.getRun(
       "2026-04-25T20-00-00-000Z-builder-aaa111",
     );
@@ -226,7 +226,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
   });
 
   it("getRun returns { found: false } for an unknown run id", async () => {
-    const handler = buildHandler(projectDir);
+    const handler = buildHandler(workspaceRoot);
     const result = await handler.getRun(
       "2026-04-25T00-00-00-000Z-builder-zzz999",
     );

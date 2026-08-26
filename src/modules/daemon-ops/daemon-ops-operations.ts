@@ -9,7 +9,7 @@
  */
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
 import {
   isDaemonControlAddressReachable,
@@ -30,8 +30,8 @@ import type {
 } from "./client.js";
 import { isServiceInstalled } from "./service-install.js";
 
-type DaemonOpsProjectOptions = {
-  projectDir?: string;
+type DaemonOpsScopeOptions = {
+  scopeRoot?: string;
 };
 
 export const DAEMON_STOP_ATTEMPTS_RELATIVE_PATH = join(
@@ -48,12 +48,12 @@ export type DaemonStopAttemptRecord = {
 };
 
 export function recordDaemonStopAttempt(args: {
-  projectDir: string;
+  scopeRoot: string;
   timeoutSec: number;
   result: DaemonOpsStopResult;
   attemptedAt?: string;
 }): string {
-  const path = join(args.projectDir, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
+  const path = join(args.scopeRoot, DAEMON_STOP_ATTEMPTS_RELATIVE_PATH);
   mkdirSync(dirname(path), { recursive: true });
   const record: DaemonStopAttemptRecord = {
     kind: "daemon-stop-attempt",
@@ -65,13 +65,13 @@ export function recordDaemonStopAttempt(args: {
   return path;
 }
 
-function readControlAddress(options: DaemonOpsProjectOptions = {}): DaemonControlAddress | null {
+function readControlAddress(options: DaemonOpsScopeOptions = {}): DaemonControlAddress | null {
   return readOptionalJsonFile<DaemonControlAddress>(
-    join(resolveProjectDir(options.projectDir), ".kota", "daemon-control.json"),
+    join(resolveScopeRoot(options.scopeRoot), ".kota", "daemon-control.json"),
   );
 }
 
-export function localDaemonStatus(options: DaemonOpsProjectOptions = {}): DaemonOpsStatusResult {
+export function localDaemonStatus(options: DaemonOpsScopeOptions = {}): DaemonOpsStatusResult {
   const managed = isServiceInstalled();
   const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") {
@@ -88,7 +88,7 @@ export function localDaemonStatus(options: DaemonOpsProjectOptions = {}): Daemon
   return { state: "stale", managed, pid: address.pid };
 }
 
-export function localDaemonPid(options: DaemonOpsProjectOptions = {}): DaemonOpsPidResult {
+export function localDaemonPid(options: DaemonOpsScopeOptions = {}): DaemonOpsPidResult {
   const address = readControlAddress(options);
   if (!address || typeof address.pid !== "number") return { state: "not_running" };
   if (!isProcessAlive(address.pid)) return { state: "stale", pid: address.pid };
@@ -128,11 +128,11 @@ async function verifyLocalStopTarget(
 }
 
 export async function localDaemonStop(
-  options?: { timeoutSec?: number; projectDir?: string },
+  options?: { timeoutSec?: number; scopeRoot?: string },
 ): Promise<DaemonOpsStopResult> {
-  const projectDir = resolveProjectDir(options?.projectDir);
+  const scopeRoot = resolveScopeRoot(options?.scopeRoot);
   const timeoutSec = options?.timeoutSec ?? 90;
-  const address = readControlAddress({ projectDir });
+  const address = readControlAddress({ scopeRoot });
   let result: DaemonOpsStopResult;
   if (!address || typeof address.pid !== "number") {
     result = { ok: false, reason: "not_running" };
@@ -140,12 +140,12 @@ export async function localDaemonStop(
     result = await verifyLocalStopTarget(address) ?? await stopDaemonPid(address.pid, timeoutSec);
   }
   if (!result.ok && result.reason !== "not_running") {
-    recordDaemonStopAttempt({ projectDir, timeoutSec, result });
+    recordDaemonStopAttempt({ scopeRoot, timeoutSec, result });
   }
   return result;
 }
 
-export function localDaemonReload(options: DaemonOpsProjectOptions = {}): DaemonOpsReloadResult {
+export function localDaemonReload(options: DaemonOpsScopeOptions = {}): DaemonOpsReloadResult {
   // Reload requires a live daemon HTTP endpoint; the local handler can
   // only honestly surface "not running" because the daemon is the
   // process that owns the reload pipeline.
@@ -155,18 +155,18 @@ export function localDaemonReload(options: DaemonOpsProjectOptions = {}): Daemon
   return { ok: false, reason: "reload_failed" };
 }
 
-export async function daemonOpsClientForProject(
-  projectDir: string,
+export async function daemonOpsClientForScope(
+  scopeRoot: string,
   buildDaemonClient: (link: DaemonTransport) => DaemonOpsClient,
 ): Promise<DaemonOpsClient> {
-  const address = readLiveDaemonControlAddress(join(projectDir, ".kota"));
+  const address = readLiveDaemonControlAddress(join(scopeRoot, ".kota"));
   if (address && await isDaemonControlAddressReachable(address)) {
     return buildDaemonClient(daemonTransportFromAddress(address));
   }
   return {
-    status: async () => localDaemonStatus({ projectDir }),
-    pid: async () => localDaemonPid({ projectDir }),
-    stop: async (options) => localDaemonStop({ ...options, projectDir }),
-    reload: async () => localDaemonReload({ projectDir }),
+    status: async () => localDaemonStatus({ scopeRoot }),
+    pid: async () => localDaemonPid({ scopeRoot }),
+    stop: async (options) => localDaemonStop({ ...options, scopeRoot }),
+    reload: async () => localDaemonReload({ scopeRoot }),
   };
 }

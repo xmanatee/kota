@@ -168,7 +168,7 @@ export function scanDaemonEvidence(ctx: RuntimeHealthAuditContext): void {
 }
 
 export function scanInboxWarnings(ctx: RuntimeHealthAuditContext): void {
-  const inboxDir = join(ctx.projectDir, "data", "inbox");
+  const inboxDir = join(ctx.workspaceRoot, "data", "inbox");
   if (!existsSync(inboxDir)) return;
   for (const entry of readdirSync(inboxDir, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".md") || entry.name === "AGENTS.md") {

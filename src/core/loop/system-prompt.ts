@@ -1,6 +1,6 @@
 import { buildUserProfile, type KotaConfig } from "#core/config/config.js";
 import { loadInstructionContext } from "./instruction-files.js";
-import { loadProjectContext } from "./project-context.js";
+import { loadScopeContext } from "./scope-context.js";
 
 /**
  * Compose the portable KOTA system-prompt text a harness-neutral caller
@@ -18,7 +18,7 @@ export function buildKotaSystemPrompt(
   skillsPrompt?: string,
 ): string | undefined {
   const sections = [
-    loadProjectContext(startDir, rootDir),
+    loadScopeContext(startDir, rootDir),
     loadInstructionContext(startDir, rootDir),
     config ? buildUserProfile(config) : "",
     skillsPrompt ?? "",

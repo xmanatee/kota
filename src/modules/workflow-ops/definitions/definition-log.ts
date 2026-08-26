@@ -45,14 +45,14 @@ export function registerDefinitionLogCommand(
         process.exit(1);
       }
 
-      const projectDir = process.cwd();
-      const gitRoot = getGitRoot(projectDir);
+      const workspaceRoot = process.cwd();
+      const gitRoot = getGitRoot(workspaceRoot);
       if (!gitRoot) {
         printWorkflowText("Not a git repository. Cannot show definition history.");
         return;
       }
 
-      const defPath = resolve(projectDir, def.definitionPath);
+      const defPath = resolve(workspaceRoot, def.definitionPath);
 
       const checkOutput = runGit(["ls-files", "--", defPath], gitRoot);
       if (!checkOutput.trim()) {

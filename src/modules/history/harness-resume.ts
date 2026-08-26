@@ -17,7 +17,7 @@ import {
   type ReplTurn,
 } from "#modules/repl/index.js";
 import { ConversationHistory } from "./history.js";
-import { getProjectHistoryDir } from "./history-utils.js";
+import { getScopeHistoryDir } from "./history-utils.js";
 
 export type HarnessResumeRunOptions = Omit<AgentHarnessRunOptions, "prompt">;
 
@@ -36,13 +36,13 @@ export type HarnessResumeConversationStore = {
 };
 
 export function openHarnessResumeConversation(
-  projectDir: string,
+  scopeRoot: string,
   conversationId: string,
 ): HarnessResumeConversationStore {
-  const history = new ConversationHistory(getProjectHistoryDir(projectDir));
+  const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
   const data = history.load(conversationId);
   if (!data) {
-    throw new Error(`Conversation "${conversationId}" not found in ${projectDir}`);
+    throw new Error(`Conversation "${conversationId}" not found in ${scopeRoot}`);
   }
   const messages: KotaMessage[] = [...data.messages];
   const compactionCount = data.compactionCount;
@@ -80,7 +80,7 @@ export async function runAgentHarnessWithConversationResume(
   }
 
   const store = openHarnessResumeConversation(
-    options.conversation.projectDir ?? process.cwd(),
+    options.conversation.scopeRoot ?? process.cwd(),
     options.conversation.resumeConversation,
   );
   const composedPrompt = composeTranscriptPrompt(store.transcript, options.prompt);

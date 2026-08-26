@@ -37,7 +37,7 @@ export type WorkflowTrialAttemptReport = {
   workflow: string;
   payload: WorkflowTrialPayload;
   status: "passed" | "failed" | "blocked";
-  trialProjectPath: string;
+  trialWorkspaceRoot: string;
   workflowRunId?: string;
   stepStatuses: Array<{
     id: string;
@@ -65,8 +65,7 @@ export type WorkflowTrialSummary = {
   runId: string;
   workflow: string;
   scopeId?: string;
-  projectId?: string;
-  sourceProjectPath: string;
+  sourceScopeRoot: string;
   reportDir: string;
   payload: WorkflowTrialPayload;
   repeat: number;
@@ -95,7 +94,7 @@ export type WorkflowTrialResult =
     }
   | {
       ok: false;
-      reason: "daemon_required" | "invalid_request" | "unknown_workflow" | "unknown_project";
+      reason: "daemon_required" | "invalid_request" | "unknown_workflow" | "unknown_scope";
       message: string;
       summary?: WorkflowTrialSummary;
     };

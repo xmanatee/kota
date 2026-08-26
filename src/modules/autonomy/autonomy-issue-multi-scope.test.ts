@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
@@ -33,33 +33,33 @@ import {
 
 describe("multi-scope autonomy issue source routing", () => {
   let rootDir: string;
-  let projectA: string;
-  let projectB: string;
+  let scopeA: string;
+  let scopeB: string;
   let bus: EventBus;
-  let runtimeA: ProjectRuntime;
-  let runtimeB: ProjectRuntime;
+  let runtimeA: ScopeRuntime;
+  let runtimeB: ScopeRuntime;
   let signals: ScopedHealthSignal[];
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), "kota-issue-multi-scope-"));
-    projectA = join(rootDir, "project-a");
-    projectB = join(rootDir, "project-b");
-    mkdirSync(projectA, { recursive: true });
-    mkdirSync(projectB, { recursive: true });
+    scopeA = join(rootDir, "scope-a");
+    scopeB = join(rootDir, "scope-b");
+    mkdirSync(scopeA, { recursive: true });
+    mkdirSync(scopeB, { recursive: true });
     bus = new EventBus();
-    runtimeA = makeRuntime(projectA, "scope-a", bus);
-    runtimeB = makeRuntime(projectB, "scope-b", bus);
+    runtimeA = makeRuntime(scopeA, "scope-a", bus);
+    runtimeB = makeRuntime(scopeB, "scope-b", bus);
     const registry = new ProviderRegistry();
     const runtimes = new Map([
-      [runtimeA.project.projectId, runtimeA],
-      [runtimeB.project.projectId, runtimeB],
+      [runtimeA.scope.scopeId, runtimeA],
+      [runtimeB.scope.scopeId, runtimeB],
     ]);
     registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "test", {
       resolve: (scopeId) => {
         const runtime = runtimes.get(scopeId);
         return runtime
           ? { ok: true, runtime }
-          : { ok: false, projectId: scopeId };
+          : { ok: false, scopeId: scopeId };
       },
     });
     signals = [];
@@ -78,7 +78,7 @@ describe("multi-scope autonomy issue source routing", () => {
     for (const runtime of [runtimeA, runtimeB]) {
       runtime.pbus.emit("workflow.failure.alert", {
         workflow: "builder",
-        runId: `failure-${runtime.project.projectId}`,
+        runId: `failure-${runtime.scope.scopeId}`,
         status: "failed",
         durationMs: 1000,
         errorSummary: "Shared builder failure 17 at abcdef1234567",
@@ -130,35 +130,35 @@ describe("multi-scope autonomy issue source routing", () => {
 
     expect(signals.filter((signal) => signal.scopeId === "scope-a")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "builder" }) }),
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
-        expect.objectContaining({ projectId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
+        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "builder" }) }),
+        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
+        expect.objectContaining({ scopeId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
+        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
       ]),
     );
     expect(signals.filter((signal) => signal.scopeId === "scope-b")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ id: "builder" }) }),
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ id: "critic" }) }),
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ kind: "owner-question" }) }),
-        expect.objectContaining({ projectId: "scope-b", labels: expect.arrayContaining(["interrupted-run"]) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "builder" }) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "critic" }) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ kind: "owner-question" }) }),
+        expect.objectContaining({ scopeId: "scope-b", labels: expect.arrayContaining(["interrupted-run"]) }),
       ]),
     );
 
     const scopeASignals = signals.filter((signal) => signal.scopeId === "scope-a");
     const scopeBSignals = signals.filter((signal) => signal.scopeId === "scope-b");
-    applyScopeSignals(projectA, scopeASignals);
-    applyScopeSignals(projectB, scopeBSignals);
+    applyScopeSignals(scopeA, scopeASignals);
+    applyScopeSignals(scopeB, scopeBSignals);
 
-    const projectionA = readAutonomyIssueProjection(projectA);
-    const projectionB = readAutonomyIssueProjection(projectB);
+    const projectionA = readAutonomyIssueProjection(scopeA);
+    const projectionB = readAutonomyIssueProjection(scopeB);
     expect(
       projectionA.issues.find((issue) => issue.source.id === "builder")?.rootCauseKey,
     ).toBe(
       projectionB.issues.find((issue) => issue.source.id === "builder")?.rootCauseKey,
     );
 
-    const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
+    const projectionBPath = join(scopeB, AUTONOMY_ISSUE_PROJECTION_FILE);
     const projectBBeforeForeignEvent = readFileSync(projectionBPath, "utf-8");
     const signalCountBeforeForeignEvent = signals.length;
     runtimeA.pbus.emit("workflow.failure.alert", {
@@ -169,15 +169,15 @@ describe("multi-scope autonomy issue source routing", () => {
       errorSummary: "A different scope A failure",
       text: "builder failed",
     });
-    applyScopeSignals(projectA, signals.slice(signalCountBeforeForeignEvent));
+    applyScopeSignals(scopeA, signals.slice(signalCountBeforeForeignEvent));
     expect(readFileSync(projectionBPath, "utf-8")).toBe(projectBBeforeForeignEvent);
   });
 
-  it("rejects unknown and conflicting selectors without touching either project", () => {
-    const projectionAPath = join(projectA, AUTONOMY_ISSUE_PROJECTION_FILE);
-    const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
+  it("rejects an unknown scope without touching either scope", () => {
+    const projectionAPath = join(scopeA, AUTONOMY_ISSUE_PROJECTION_FILE);
+    const projectionBPath = join(scopeB, AUTONOMY_ISSUE_PROJECTION_FILE);
     expect(() => bus.emit("workflow.failure.alert", {
-      projectId: "unknown-scope",
+      scopeId: "unknown-scope",
       workflow: "builder",
       runId: "unknown-run",
       status: "failed",
@@ -185,16 +185,6 @@ describe("multi-scope autonomy issue source routing", () => {
       errorSummary: "unknown",
       text: "unknown",
     })).toThrow(/unknown scope unknown-scope/);
-    expect(() => bus.emit("workflow.failure.alert", {
-      scopeId: "scope-a",
-      projectId: "scope-b",
-      workflow: "builder",
-      runId: "conflicting-run",
-      status: "failed",
-      durationMs: 1,
-      errorSummary: "conflicting",
-      text: "conflicting",
-    })).toThrow(/conflicting scope selectors/);
     expect(() => readFileSync(projectionAPath, "utf-8")).toThrow();
     expect(() => readFileSync(projectionBPath, "utf-8")).toThrow();
     expect(signals).toEqual([]);

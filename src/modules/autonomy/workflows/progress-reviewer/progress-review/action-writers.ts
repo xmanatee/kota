@@ -86,7 +86,7 @@ function taskActionPath(actions: readonly object[]): string | null {
 }
 
 export function writeFollowUpTask(args: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
@@ -99,7 +99,7 @@ export function writeFollowUpTask(args: {
     summary: task.summary,
   });
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewTaskProposal({ ...args, task, taskClass }),
   });
   const created = result.actions.some((action) => action.kind === "created-task");
@@ -123,19 +123,19 @@ export function writeFollowUpTask(args: {
         existingTaskId: result.taskId,
         existingState: "ready" as const,
         existingPath: `data/tasks/ready/${result.taskId}.md`,
-        existingScopeId: deriveDirectoryScopeId(args.projectDir),
+        existingScopeId: deriveDirectoryScopeId(args.workspaceRoot),
       }
       : {}),
   };
 }
 
 export function enqueueOwnerQuestion(args: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   question: ProgressReviewOwnerQuestionOutput;
 }): ProgressReviewAppliedAction[] {
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewOwnerQuestionProposal(args),
   });
   const droppedTasks: ProgressReviewAppliedAction[] = result.actions.flatMap(
@@ -154,11 +154,11 @@ export function enqueueOwnerQuestion(args: {
 }
 
 export function resolveGeneratedWork(args: {
-  projectDir: string;
+  workspaceRoot: string;
   resolution: ProgressReviewResolutionOutput;
 }): ProgressReviewAppliedAction[] {
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewResolutionProposal(args.resolution),
   });
   return result.actions.map((action): ProgressReviewAppliedAction => {

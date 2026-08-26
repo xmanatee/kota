@@ -8,13 +8,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./core/events/event-bus.js";
+import { discoverBundledModules } from "./core/modules/bundled-module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
-import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { clearCustomTools, executeTool, getAllTools } from "./core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, } from "./core/tools/tool-groups.js";
 
-let projectModules: KotaModule[];
+let bundledModules: KotaModule[];
 
 function createRuntimeLoader(): ModuleLoader {
   const loader = new ModuleLoader({});
@@ -28,7 +28,7 @@ afterEach(() => {
 
 describe("module → CLI pipeline (full lifecycle)", () => {
   beforeEach(async () => {
-    projectModules = await discoverProjectModules();
+    bundledModules = await discoverBundledModules();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
@@ -42,7 +42,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("ModuleLoader.loadAll registers tools from all tool-providing modules", async () => {
     const loader = createRuntimeLoader();
-    await loader.loadAll(projectModules);
+    await loader.loadAll(bundledModules);
 
     // Memory and scheduler modules provide tools
     const moduleNames = loader.getLoadedModules();
@@ -60,12 +60,12 @@ describe("module → CLI pipeline (full lifecycle)", () => {
     await loader.unloadAll();
   });
 
-  it("ModuleLoader.loadAll registers all project modules", async () => {
+  it("ModuleLoader.loadAll registers all bundled modules", async () => {
     const loader = createRuntimeLoader();
-    await loader.loadAll(projectModules);
+    await loader.loadAll(bundledModules);
 
     const names = loader.getLoadedModules();
-    expect(names).toHaveLength(projectModules.length);
+    expect(names).toHaveLength(bundledModules.length);
     expect(names).toContain("tool-cache");
     expect(names).toContain("working-memory");
     expect(names).toContain("memory");
@@ -85,14 +85,14 @@ describe("module → CLI pipeline (full lifecycle)", () => {
   it("\"commands\" mode loader produces same commands as runtime loader (no tool side-effects)", async () => {
     // Runtime loader registers tools
     const fullLoader = createRuntimeLoader();
-    await fullLoader.loadAll(projectModules);
+    await fullLoader.loadAll(bundledModules);
     const fullCommands = fullLoader.getCommands().map((c) => c.name()).sort();
 
     await fullLoader.unloadAll();
 
     // Commands-mode loader should produce the same commands without registering tools
     const cliLoader = new ModuleLoader({}, false, { mode: "commands" });
-    await cliLoader.loadAll(projectModules);
+    await cliLoader.loadAll(bundledModules);
     const cliCommands = cliLoader.getCommands().map((c) => c.name()).sort();
 
     expect(cliCommands).toEqual(fullCommands);
@@ -107,7 +107,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("module tools appear in tool registry when groups are enabled", async () => {
     const loader = createRuntimeLoader();
-    await loader.loadAll(projectModules);
+    await loader.loadAll(bundledModules);
 
     // Before enabling groups, module tools should be hidden
     const beforeTools = filterTools(getAllTools());
@@ -128,9 +128,9 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("unloadAll clears module tools and resets state", async () => {
     const loader = createRuntimeLoader();
-    await loader.loadAll(projectModules);
+    await loader.loadAll(bundledModules);
 
-    expect(loader.getModuleCount()).toBe(projectModules.length);
+    expect(loader.getModuleCount()).toBe(bundledModules.length);
     expect(loader.getToolCount()).toBeGreaterThanOrEqual(2);
 
     await loader.unloadAll();
@@ -147,7 +147,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
   it("getRoutes collects HTTP routes from route-providing modules", async () => {
     const loader = createRuntimeLoader();
-    await loader.loadAll(projectModules);
+    await loader.loadAll(bundledModules);
 
     const routes = loader.getRoutes();
     // vercel-adapter provides POST /api/chat/vercel
@@ -159,7 +159,7 @@ describe("module → CLI pipeline (full lifecycle)", () => {
 
 describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
   beforeEach(async () => {
-    projectModules = await discoverProjectModules();
+    bundledModules = await discoverBundledModules();
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
@@ -175,8 +175,8 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
     const loader = createRuntimeLoader();
 
     // First cycle
-    await loader.loadAll(projectModules);
-    expect(loader.getModuleCount()).toBe(projectModules.length);
+    await loader.loadAll(bundledModules);
+    expect(loader.getModuleCount()).toBe(bundledModules.length);
     const memResult1 = await executeTool("memory", { action: "list" });
     expect(memResult1.is_error).toBeFalsy();
 
@@ -185,8 +185,8 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
     // Second cycle — should work identically
     const loader2 = createRuntimeLoader();
-    await loader2.loadAll(projectModules);
-    expect(loader2.getModuleCount()).toBe(projectModules.length);
+    await loader2.loadAll(bundledModules);
+    expect(loader2.getModuleCount()).toBe(bundledModules.length);
     const memResult2 = await executeTool("memory", { action: "list" });
     expect(memResult2.is_error).toBeFalsy();
 
@@ -195,13 +195,13 @@ describe("module lifecycle across multiple loadAll/unloadAll cycles", () => {
 
   it("two loaders cannot register the same module tools simultaneously", async () => {
     const loader1 = createRuntimeLoader();
-    await loader1.loadAll(projectModules);
+    await loader1.loadAll(bundledModules);
 
-    // Second loader should fail on duplicate tools — project module failures throw
+    // Second loader should fail on duplicate tools — bundled module failures throw.
     const loader2 = createRuntimeLoader();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(loader2.loadAll(projectModules)).rejects.toThrow("project module(s) failed to load");
+    await expect(loader2.loadAll(bundledModules)).rejects.toThrow("bundled module(s) failed to load");
 
     // Tool-providing modules (memory, scheduler, git) should have failed
     // because their tools are already registered

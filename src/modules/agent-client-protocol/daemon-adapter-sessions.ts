@@ -1,13 +1,13 @@
 import { daemonProtocolError } from "./daemon-adapter-errors.js";
 import type {
   AcpDaemonSession,
-  AcpProject,
+  AcpScope,
   SessionBindingWireEntry,
   SessionListWireEntry,
 } from "./daemon-adapter-types.js";
 
 export function mapLiveSession(
-  project: AcpProject,
+  scope: AcpScope,
   entry: SessionListWireEntry,
 ): AcpDaemonSession {
   const sessionId = requiredString(entry.id, "session.id");
@@ -15,13 +15,13 @@ export function mapLiveSession(
   const updatedAt = isoFromEpochMillis(entry.lastActive, createdAt, "session.lastActive");
   return {
     sessionId,
-    cwd: project.projectDir,
+    cwd: scope.scopeRoot,
     title: `KOTA session ${sessionId}`,
     updatedAt,
     live: true,
     metadata: {
       source: "daemon",
-      projectId: entry.projectId ?? project.projectId,
+      scopeId: entry.scopeId ?? scope.scopeId,
       ...(entry.conversationId ? { conversationId: entry.conversationId } : {}),
       busy: entry.busy === true,
     },
@@ -29,20 +29,20 @@ export function mapLiveSession(
 }
 
 export function mapBindingSession(
-  project: AcpProject,
+  scope: AcpScope,
   entry: SessionBindingWireEntry,
 ): AcpDaemonSession {
   const sessionId = requiredString(entry.sessionId, "binding.sessionId");
   const createdAt = requiredString(entry.createdAt, "binding.createdAt");
   return {
     sessionId,
-    cwd: project.projectDir,
+    cwd: scope.scopeRoot,
     title: `KOTA session ${sessionId}`,
     updatedAt: requiredString(entry.lastActiveAt, "binding.lastActiveAt"),
     live: false,
     metadata: {
       source: "daemon-binding",
-      projectId: entry.projectId ?? project.projectId,
+      scopeId: entry.scopeId ?? scope.scopeId,
       conversationId: requiredString(entry.conversationId, "binding.conversationId"),
       createdAt,
       resumable: true,

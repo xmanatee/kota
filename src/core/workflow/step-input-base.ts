@@ -12,7 +12,7 @@ import type { WorkflowRetryConfig } from "./trigger-types.js";
 
 export type WorkflowAgentStepOutputValidationContext = Pick<
   WorkflowStepContext,
-  "projectDir" | "stepOutputs"
+  "workspaceRoot" | "stepOutputs"
 >;
 
 export type WorkflowAgentStepOutputValidator = (

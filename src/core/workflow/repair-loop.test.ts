@@ -70,11 +70,12 @@ function registerRepairHarness(
   });
 }
 
-function makeContext(projectDir: string): WorkflowStepContext {
+function makeContext(scopeRoot: string): WorkflowStepContext {
   return {
-    projectDir,
-    scopeDir: projectDir,
-    stateDir: join(projectDir, ".kota"),
+    scopeId: "test-scope",
+    workspaceRoot: scopeRoot,
+    scopeRoot: scopeRoot,
+    stateDir: join(scopeRoot, ".kota"),
     state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
@@ -82,7 +83,7 @@ function makeContext(projectDir: string): WorkflowStepContext {
       definitionPath: "src/modules/test/workflows/test/workflow.ts",
       runId: "run-001",
       runDir: ".kota/runs/run-001",
-      runDirPath: join(projectDir, ".kota/runs/run-001"),
+      runDirPath: join(scopeRoot, ".kota/runs/run-001"),
     },
     trigger: TRIGGER,
     previousOutput: undefined,
@@ -90,11 +91,11 @@ function makeContext(projectDir: string): WorkflowStepContext {
     stepResults: {},
     stepOutputList: [],
     runAgentHarness,
-    runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+    runCommand: createWorkflowCommandRunner({ cwd: scopeRoot }),
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),
-    readPrompt: (promptPath) => readFileSync(join(projectDir, promptPath), "utf-8"),
+    readPrompt: (promptPath) => readFileSync(join(scopeRoot, promptPath), "utf-8"),
     readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
     reportProgress: vi.fn(),
     triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
@@ -115,17 +116,17 @@ function makeMetadata(): WorkflowRunMetadata {
 }
 
 function makeStep(
-  projectDir: string,
+  scopeRoot: string,
   harness: string,
   overrides: Partial<WorkflowAgentStep> = {},
 ): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n", "utf-8");
+  writeFileSync(join(scopeRoot, "prompt.md"), "Run.\n", "utf-8");
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: scopeRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -150,18 +151,18 @@ function makeInitialResult(
   };
 }
 
-function initGitRepo(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+function initGitRepo(scopeRoot: string): void {
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
   execFileSync("git", ["config", "user.email", "t@example.com"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
   });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
   execFileSync("git", ["config", "commit.gpgsign", "false"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
   });
-  writeFileSync(join(projectDir, "seed.txt"), "seed\n", "utf-8");
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+  writeFileSync(join(scopeRoot, "seed.txt"), "seed\n", "utf-8");
+  execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
 }
 
 function canUseToolContext(options: AgentHarnessRunOptions): AgentCanUseToolContext {
@@ -172,22 +173,22 @@ function canUseToolContext(options: AgentHarnessRunOptions): AgentCanUseToolCont
 }
 
 describe("runAgentRepairLoop", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-repair-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("wraps repair-check output in an untrusted block with a content-derived fence", () => {
-    const step = makeStep(projectDir, "unused");
+    const step = makeStep(scopeRoot, "unused");
     const prompt = buildRepairPrompt(
       1,
       2,
@@ -228,7 +229,7 @@ describe("runAgentRepairLoop", () => {
   });
 
   it("escapes repair-check output that tries to close the untrusted block", () => {
-    const step = makeStep(projectDir, "unused");
+    const step = makeStep(scopeRoot, "unused");
     const prompt = buildRepairPrompt(
       1,
       2,
@@ -291,7 +292,7 @@ describe("runAgentRepairLoop", () => {
     });
 
     let checkCount = 0;
-    const step = makeStep(projectDir, harnessName, {
+    const step = makeStep(scopeRoot, harnessName, {
       repairLoop: {
         maxRepairAttempts: 1,
         checks: [
@@ -312,12 +313,12 @@ describe("runAgentRepairLoop", () => {
     const result = await runAgentRepairLoop(
       step,
       makeInitialResult(),
-      { ...makeContext(projectDir), runAgentHarness: nestedRunner },
+      { ...makeContext(scopeRoot), runAgentHarness: nestedRunner },
       makeMetadata(),
       new AbortController(),
       vi.fn(),
       {
-        projectDir,
+        scopeRoot,
         createCanUseTool: () => async (toolName, input) => {
           if (toolName === "Bash" && input.command === "custom-blocked") {
             return { behavior: "deny", message: "custom guard denied" };
@@ -343,8 +344,8 @@ describe("runAgentRepairLoop", () => {
 
   it("passes runtime env and agentRunDir to repair iterations", async () => {
     const harnessName = uniqueName("repair-runtime-resources");
-    const agentRunDir = join(projectDir, ".worktrees", "task", ".kota", "runs", "run-001");
-    const authorityConfigPath = join(projectDir, "operator", "config.json");
+    const agentRunDir = join(scopeRoot, ".worktrees", "task", ".kota", "runs", "run-001");
+    const authorityConfigPath = join(scopeRoot, "operator", "config.json");
     let repairOptions: AgentHarnessRunOptions | undefined;
     registerRepairHarness(harnessName, async (options) => {
       repairOptions = options;
@@ -357,7 +358,7 @@ describe("runAgentRepairLoop", () => {
     });
 
     let checkCount = 0;
-    const step = makeStep(projectDir, harnessName, {
+    const step = makeStep(scopeRoot, harnessName, {
       repairLoop: {
         maxRepairAttempts: 1,
         checks: [
@@ -374,7 +375,7 @@ describe("runAgentRepairLoop", () => {
       },
     });
     const context = {
-      ...makeContext(projectDir),
+      ...makeContext(scopeRoot),
       runtimeResources: {
         profileId: "profile-1",
         agentRunDir,
@@ -390,11 +391,10 @@ describe("runAgentRepairLoop", () => {
       new AbortController(),
       vi.fn(),
       {
-        projectDir,
+        scopeRoot,
         runtimeResources: context.runtimeResources,
         authorityConfigPath,
         scopeId: "scope-1",
-        projectId: "scope-1",
       },
     );
 
@@ -410,7 +410,6 @@ describe("runAgentRepairLoop", () => {
       runId: "run-001",
       stepId: "agent",
       scopeId: "scope-1",
-      projectId: "scope-1",
     });
   });
 
@@ -427,8 +426,8 @@ describe("runAgentRepairLoop", () => {
       };
     });
 
-    initGitRepo(projectDir);
-    const step = makeStep(projectDir, harnessName, {
+    initGitRepo(scopeRoot);
+    const step = makeStep(scopeRoot, harnessName, {
       repairLoop: {
         checks: [
           {
@@ -446,11 +445,11 @@ describe("runAgentRepairLoop", () => {
       runAgentRepairLoop(
         step,
         makeInitialResult(),
-        makeContext(projectDir),
+        makeContext(scopeRoot),
         makeMetadata(),
         new AbortController(),
         vi.fn(),
-        { projectDir },
+        { scopeRoot },
       ),
     ).rejects.toMatchObject({
       name: RepairLoopError.name,
@@ -485,9 +484,9 @@ describe("runAgentRepairLoop", () => {
       };
     });
 
-    initGitRepo(projectDir);
+    initGitRepo(scopeRoot);
     let checkRun = 0;
-    const step = makeStep(projectDir, harnessName, {
+    const step = makeStep(scopeRoot, harnessName, {
       repairLoop: {
         checks: [
           {
@@ -506,11 +505,11 @@ describe("runAgentRepairLoop", () => {
       runAgentRepairLoop(
         step,
         makeInitialResult(),
-        makeContext(projectDir),
+        makeContext(scopeRoot),
         makeMetadata(),
         new AbortController(),
         vi.fn(),
-        { projectDir },
+        { scopeRoot },
       ),
     ).rejects.toThrow(
       'Repair loop for step "agent" made no progress after 3 consecutive attempts',
@@ -522,7 +521,7 @@ describe("runAgentRepairLoop", () => {
   it("rejects out-of-scope files written by a repair iteration", async () => {
     const harnessName = uniqueName("repair-write-scope");
     registerRepairHarness(harnessName, async () => {
-      const outOfScope = join(projectDir, "src", "core", "escape.ts");
+      const outOfScope = join(scopeRoot, "src", "core", "escape.ts");
       mkdirSync(dirname(outOfScope), { recursive: true });
       writeFileSync(outOfScope, "export const escape = true;\n", "utf-8");
       return {
@@ -534,7 +533,7 @@ describe("runAgentRepairLoop", () => {
     });
 
     let checkCount = 0;
-    const step = makeStep(projectDir, harnessName, {
+    const step = makeStep(scopeRoot, harnessName, {
       agentName: "scoped-agent",
       repairLoop: {
         maxRepairAttempts: 1,
@@ -551,7 +550,7 @@ describe("runAgentRepairLoop", () => {
         ],
       },
     });
-    initGitRepo(projectDir);
+    initGitRepo(scopeRoot);
     const agentDef: AgentDef = {
       name: "scoped-agent",
       role: "test",
@@ -566,19 +565,19 @@ describe("runAgentRepairLoop", () => {
       runAgentRepairLoop(
         step,
         makeInitialResult(),
-        makeContext(projectDir),
+        makeContext(scopeRoot),
         metadata,
         new AbortController(),
         vi.fn(),
         {
-          projectDir,
+          scopeRoot,
           resolveAgentDef: () => agentDef,
         },
       ),
     ).rejects.toThrow(AgentWriteScopeViolationError);
 
     const artifactPath = join(
-      projectDir,
+      scopeRoot,
       ".kota/runs/run-001/steps/agent.write-scope-violation.json",
     );
     expect(existsSync(artifactPath)).toBe(true);

@@ -62,7 +62,7 @@ describe("runEvalSet metrics", () => {
     };
 
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures,
       executor,
       requestedProfile: PROFILE,
@@ -141,7 +141,7 @@ describe("runEvalSet metrics", () => {
       }),
     );
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => EXECUTION_PROFILE,

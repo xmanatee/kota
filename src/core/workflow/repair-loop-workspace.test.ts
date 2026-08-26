@@ -61,18 +61,19 @@ function registerRepairHarness(
   });
 }
 
-function makeContext(projectDir: string, workspaceDir: string): WorkflowStepContext {
+function makeContext(workspaceRoot: string, workspaceDir: string): WorkflowStepContext {
   return {
-    projectDir: workspaceDir,
-    scopeDir: projectDir,
-    stateDir: join(projectDir, ".kota"),
+    scopeId: "test-scope",
+    workspaceRoot: workspaceDir,
+    scopeRoot: workspaceRoot,
+    stateDir: join(workspaceRoot, ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "test-workflow",
       definitionPath: "src/modules/test/workflows/test/workflow.ts",
       runId: "run-001",
       runDir: ".kota/runs/run-001",
-      runDirPath: join(projectDir, ".kota/runs/run-001"),
+      runDirPath: join(workspaceRoot, ".kota/runs/run-001"),
     },
     trigger: TRIGGER,
     previousOutput: undefined,
@@ -84,7 +85,7 @@ function makeContext(projectDir: string, workspaceDir: string): WorkflowStepCont
     runTool: async () => ({ content: "ok" }),
     emit: vi.fn(),
     requestRestart: vi.fn(),
-    readPrompt: (promptPath) => readFileSync(join(projectDir, promptPath), "utf-8"),
+    readPrompt: (promptPath) => readFileSync(join(workspaceRoot, promptPath), "utf-8"),
     readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
     state: createTestTransactionalRunState(),
     reportProgress: vi.fn(),
@@ -92,7 +93,7 @@ function makeContext(projectDir: string, workspaceDir: string): WorkflowStepCont
   };
 }
 
-function makeMetadata(_projectDir: string): WorkflowRunMetadata {
+function makeMetadata(_scopeRoot: string): WorkflowRunMetadata {
   return {
     id: "run-001",
     workflow: "test-workflow",
@@ -106,17 +107,17 @@ function makeMetadata(_projectDir: string): WorkflowRunMetadata {
 }
 
 function makeStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
   overrides: Partial<WorkflowAgentStep> = {},
 ): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n", "utf-8");
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n", "utf-8");
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -139,26 +140,26 @@ function makeInitialResult(): AgentStepResult {
   };
 }
 
-function initGitRepo(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+function initGitRepo(workspaceRoot: string): void {
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "t@example.com"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "commit.gpgsign", "false"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  writeFileSync(join(projectDir, "seed.txt"), "seed\n", "utf-8");
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+  writeFileSync(join(workspaceRoot, "seed.txt"), "seed\n", "utf-8");
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: workspaceRoot });
 }
 
 describe("runAgentRepairLoop workspaceDir", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let workspaceDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-repair-loop-canonical-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
@@ -166,16 +167,16 @@ describe("runAgentRepairLoop workspaceDir", () => {
       tmpdir(),
       `kota-repair-loop-workspace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     mkdirSync(workspaceDir, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(workspaceDir, { recursive: true, force: true });
   });
 
-  it("checks repair iteration mutations in workspaceDir while writing artifacts under projectDir", async () => {
+  it("checks repair iteration mutations in workspaceDir while writing artifacts under workspaceRoot", async () => {
     const harnessName = uniqueName("repair-workspace-write-scope");
     registerRepairHarness(harnessName, async () => {
       const outOfScope = join(workspaceDir, "src", "core", "escape.ts");
@@ -190,7 +191,7 @@ describe("runAgentRepairLoop workspaceDir", () => {
     });
 
     let checkCount = 0;
-    const step = makeStep(projectDir, harnessName, {
+    const step = makeStep(workspaceRoot, harnessName, {
       agentName: "scoped-agent",
       repairLoop: {
         maxRepairAttempts: 1,
@@ -207,7 +208,7 @@ describe("runAgentRepairLoop workspaceDir", () => {
         ],
       },
     });
-    initGitRepo(projectDir);
+    initGitRepo(workspaceRoot);
     initGitRepo(workspaceDir);
     const agentDef: AgentDef = {
       name: "scoped-agent",
@@ -222,20 +223,20 @@ describe("runAgentRepairLoop workspaceDir", () => {
       runAgentRepairLoop(
         step,
         makeInitialResult(),
-        makeContext(projectDir, workspaceDir),
-        makeMetadata(projectDir),
+        makeContext(workspaceRoot, workspaceDir),
+        makeMetadata(workspaceRoot),
         new AbortController(),
         vi.fn(),
         {
-          projectDir,
-          workspaceDir,
+          scopeRoot: workspaceRoot,
+          workspaceRoot: workspaceDir,
           resolveAgentDef: () => agentDef,
         },
       ),
     ).rejects.toThrow(AgentWriteScopeViolationError);
 
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota/runs/run-001/steps/agent.write-scope-violation.json",
     );
     expect(existsSync(artifactPath)).toBe(true);

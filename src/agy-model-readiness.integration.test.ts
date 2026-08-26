@@ -44,17 +44,17 @@ function unavailableHighEffortDeps(): AgentHarnessRuntimeProbeDeps {
 }
 
 describe("AGY autonomy model/effort readiness", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
-    projectDir = mkdtempSync(join(tmpdir(), "kota-agy-readiness-"));
-    writeFileSync(join(projectDir, "prompt.md"), "Implement the task.\n");
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-agy-readiness-"));
+    writeFileSync(join(scopeRoot, "prompt.md"), "Implement the task.\n");
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("rejects an unavailable effort-qualified selection before AGY launches", async () => {
@@ -74,7 +74,7 @@ describe("AGY autonomy model/effort readiness", () => {
       type: "agent",
       harness: antigravityCliAgentHarness.name,
       promptPath: "prompt.md",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       model: SELECTED_MODEL,
       effort: "xhigh",
       autonomyMode: "autonomous",
@@ -84,17 +84,17 @@ describe("AGY autonomy model/effort readiness", () => {
       enabled: true,
       repository: "read",
       definitionPath: "src/agy-model-readiness.integration.test.ts",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       triggers: [],
       steps: [step],
       tags: [],
     };
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(scopeRoot);
     const { promise } = executeWorkflowRun(
       definition,
       { event: "manual", schemaRef: null, payload: {} },
       {
-        runContext: createTestRunContext(projectDir, {
+        runContext: createTestRunContext(scopeRoot, {
           event: "manual",
           schemaRef: null,
           payload: {},
@@ -115,7 +115,7 @@ describe("AGY autonomy model/effort readiness", () => {
     expect(run).not.toHaveBeenCalled();
 
     const capabilityPath = join(
-      projectDir,
+      scopeRoot,
       result.metadata.runDir,
       "steps",
       "build.harness-capability.json",

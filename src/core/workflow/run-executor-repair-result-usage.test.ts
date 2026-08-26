@@ -13,34 +13,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -61,14 +61,14 @@ const TRIGGER: WorkflowRunTrigger = {
   payload: {},
 };
 
-function makeAgentStep(projectDir: string): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
+function makeAgentStep(workspaceRoot: string): WorkflowAgentStep {
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
   return {
     id: "agent",
     type: "agent",
     harness: HARNESS,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -86,32 +86,32 @@ function makeAgentStep(projectDir: string): WorkflowAgentStep {
   };
 }
 
-function makeDefinition(projectDir: string): WorkflowDefinition {
+function makeDefinition(workspaceRoot: string): WorkflowDefinition {
   return {
     name: "repair-result-usage",
     enabled: true,
     repository: "none",
     definitionPath: "src/modules/test/workflows/test/workflow.ts",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     triggers: [],
-    steps: [makeAgentStep(projectDir)],
+    steps: [makeAgentStep(workspaceRoot)],
     tags: [],
   };
 }
 
 describe("run executor repair-result usage", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-run-executor-repair-usage-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("records failed repair-result usage and provider backoff on the run", async () => {
@@ -148,10 +148,10 @@ describe("run executor repair-result usage", () => {
       },
     });
 
-    const result = await executeWorkflowRun(makeDefinition(projectDir), TRIGGER, {
-      runContext: makeRunContext(projectDir, TRIGGER),
+    const result = await executeWorkflowRun(makeDefinition(workspaceRoot), TRIGGER, {
+      runContext: makeRunContext(workspaceRoot, TRIGGER),
       bus: new EventBus(),
-      store: new WorkflowRunStore(projectDir),
+      store: new WorkflowRunStore(workspaceRoot),
       log: vi.fn(),
     }).promise;
 

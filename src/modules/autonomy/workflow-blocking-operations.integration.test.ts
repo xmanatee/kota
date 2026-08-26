@@ -14,49 +14,49 @@ import { securityReviewCandidateScanOperation } from "#modules/autonomy/workflow
 
 describe("autonomy workflow blocking operations", () => {
   it("loads migrated repository inspections and aggregation through real workers", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-blocking-boundary-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-blocking-boundary-"));
     try {
       execFileSync("git", ["init", "-q", "-b", "main"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["config", "user.email", "kota@example.test"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["config", "user.name", "KOTA Test"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
-      writeFileSync(join(projectDir, "README.md"), "boundary fixture\n");
-      writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
+      writeFileSync(join(workspaceRoot, "README.md"), "boundary fixture\n");
+      writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n.worktrees/\n");
       execFileSync("git", ["add", ".gitignore", "README.md"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["commit", "-q", "-m", "initial"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
 
       const scan = await runWorkflowBlockingOperation(
         securityReviewCandidateScanOperation,
         {
-          projectDir,
-          runDirPath: join(projectDir, ".kota", "runs", "boundary-test"),
+          workspaceRoot,
+          runDirPath: join(workspaceRoot, ".kota", "runs", "boundary-test"),
           trigger: {
             event: "autonomy.security-review.requested",
             payload: {},
           },
         },
       );
-      const digestRunDir = join(projectDir, ".kota", "runs", "digest-boundary");
+      const digestRunDir = join(workspaceRoot, ".kota", "runs", "digest-boundary");
       mkdirSync(digestRunDir, { recursive: true });
       const digest = await runWorkflowBlockingOperation(
         dailyDigestBuildOperation,
         {
-          projectDir,
-          stateDir: join(projectDir, ".kota"),
+          workspaceRoot,
+          stateDir: join(workspaceRoot, ".kota"),
           runDirPath: digestRunDir,
           windowEndMs: Date.parse("2026-08-14T12:00:00.000Z"),
           previousQueueCounts: null,
@@ -68,7 +68,7 @@ describe("autonomy workflow blocking operations", () => {
         currentCounts: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
       });
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });

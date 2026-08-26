@@ -65,14 +65,14 @@ describe("createCriticCheck", () => {
   });
 
   it("reviews task and diff from workspaceDir when provided", async () => {
-    const projectDir = makeTmpDir();
+    const workspaceRoot = makeTmpDir();
     const workspaceDir = makeTmpDir();
     writeDoingTask(
       workspaceDir,
       "task-workspace.md",
       "---\ntitle: Workspace task\n---\nWorkspace task content.",
     );
-    const runDir = makeRunDir(projectDir);
+    const runDir = makeRunDir(workspaceRoot);
     setApiResponse({
       verdict: "pass",
       critical_issues: [],
@@ -82,14 +82,14 @@ describe("createCriticCheck", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     await (check as CodeCheck).run(
-      makeContext(projectDir, runDir, workspaceDir),
+      makeContext(workspaceRoot, runDir, workspaceDir),
       TEST_PARENT_STEP,
     );
 
     expect(mockRunAgentHarness).toHaveBeenCalledOnce();
     const userMessage = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(userMessage).toContain("Workspace task content.");
-    expect(userMessage).toContain(`Project root: ${workspaceDir}`);
+    expect(userMessage).toContain(`Workspace root: ${workspaceDir}`);
     expect(mockRunAgentHarness.mock.calls[0]?.[1]).toMatchObject({
       cwd: workspaceDir,
     });
@@ -158,20 +158,20 @@ describe("createCriticCheck", () => {
   });
 
   it("fails closed when the builder critic cannot find its expected task", async () => {
-    const projectDir = makeTmpDir();
+    const workspaceRoot = makeTmpDir();
     const workspaceDir = makeTmpDir();
     writeDoingTask(
       workspaceDir,
       "task-alpha.md",
       "---\nid: task-alpha\ntitle: Alpha\n---\nUnrelated task.",
     );
-    const runDir = makeRunDir(projectDir);
+    const runDir = makeRunDir(workspaceRoot);
     const check = builderCriticCheck();
 
     await expect(
       check.run(
         makeContext(
-          projectDir,
+          workspaceRoot,
           runDir,
           workspaceDir,
           undefined,

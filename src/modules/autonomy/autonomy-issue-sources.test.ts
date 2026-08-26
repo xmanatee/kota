@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import {
   materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
@@ -19,17 +19,17 @@ import type { AutonomyHealthSignal } from "./health-signal.js";
 const NOW = "2026-08-13T10:00:00.000Z";
 
 describe("source-owned autonomy issue observations", () => {
-  let projectDir: string;
-  let pbus: ProjectScopedEventBus;
+  let scopeRoot: string;
+  let pbus: ScopedEventBus;
   let signals: AutonomyHealthSignal[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-issue-sources-"));
-    ({ pbus, signals } = wireAutonomyIssueSourceFixture(projectDir));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-issue-sources-"));
+    ({ pbus, signals } = wireAutonomyIssueSourceFixture(scopeRoot));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("turns repeated run failures into one durable issue revision", () => {
@@ -50,7 +50,7 @@ describe("source-owned autonomy issue observations", () => {
       signals[0]?.dedupeKey,
     ]);
     const actions = applyHealthReviewSignals({
-      projectDir,
+      scopeRoot,
       signals,
       generatedAt: NOW,
       reason: "fixture",
@@ -59,13 +59,13 @@ describe("source-owned autonomy issue observations", () => {
     expect(actions.applied).toEqual([
       expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
     ]);
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(scopeRoot).issues[0]!;
     expect(issue.semanticRevision).toBe(1);
     expect(issue.occurrenceCount).toBe(2);
     expect(issue.evidenceRefs).toHaveLength(2);
   });
 
-  it("projects a generated owner answer back onto the linked durable issue", () => {
+  it("scopes a generated owner answer back onto the linked durable issue", () => {
     pbus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "owner-answer-failure",
@@ -75,14 +75,14 @@ describe("source-owned autonomy issue observations", () => {
       text: "builder failed",
     });
     applyHealthReviewSignals({
-      projectDir,
+      scopeRoot,
       signals: [signals[0]!],
       generatedAt: NOW,
       reason: "fixture-open",
     });
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(scopeRoot).issues[0]!;
     const materialized = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot: scopeRoot,
       proposal: {
         kind: "owner-question",
         proposalKey: `autonomy-issue:${issue.issueKey}`,
@@ -106,8 +106,8 @@ describe("source-owned autonomy issue observations", () => {
         },
       },
     });
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(projectDir),
+    materializeAutonomyIssueProjection(scopeRoot, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(scopeRoot),
       updates: [{
         issueKey: issue.issueKey,
         kind: "owner-question",
@@ -118,7 +118,7 @@ describe("source-owned autonomy issue observations", () => {
     }));
 
     new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(scopeRoot, ".kota", "owner-questions"),
       pbus,
     ).answer(materialized.ownerQuestionId!, "Preserve work", "fixture-owner");
     const answerSignal = signals.at(-1)!;
@@ -129,7 +129,7 @@ describe("source-owned autonomy issue observations", () => {
       source: issue.source,
     });
     const answered = applyHealthReviewSignals({
-      projectDir,
+      scopeRoot,
       signals: [answerSignal],
       generatedAt: answerSignal.createdAt,
       reason: "fixture-answer",
@@ -141,7 +141,7 @@ describe("source-owned autonomy issue observations", () => {
         transition: "revised",
       }),
     ]);
-    expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+    expect(readAutonomyIssueProjection(scopeRoot).issues).toEqual([
       expect.objectContaining({
         issueKey: issue.issueKey,
         rootCauseKey: issue.rootCauseKey,

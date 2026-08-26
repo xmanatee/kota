@@ -343,7 +343,7 @@ describe('RetractScreen', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     };
     mockDaemon({
       retractTarget: 'inbox',
@@ -355,7 +355,7 @@ describe('RetractScreen', () => {
     expect(getAllByText('inbox').length).toBeGreaterThan(0);
     expect(
       getByText(
-        'Retract from inbox failed: inbox writer cannot reach project root',
+        'Retract from inbox failed: inbox writer cannot reach scope root',
       ),
     ).toBeTruthy();
   });

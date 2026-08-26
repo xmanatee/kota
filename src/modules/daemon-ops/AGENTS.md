@@ -33,43 +33,42 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   `status()`/`pid()` through `GET /status` and `reload()` through
   `POST /reload`. Both client arms stop the daemon by signaling the published
   pid and waiting for process exit, so the supervised child exits and lets the
-  supervisor return. Lifecycle CLI subcommands that accept `--project-dir`
-  resolve the target project after command parsing and then select that
-  project's control file/transport. The non-namespace direct methods
+  supervisor return. Lifecycle CLI subcommands that accept `--scope-root`
+  resolve the target scope after command parsing and then select that
+  scope's control file/transport. The non-namespace direct methods
   `DaemonControlClient.getDaemonStatus()` and `reloadConfig()` continue to
   consume the helpers in `src/core/server/daemon-client.ts` because they
   bridge `kota serve` ⇄ daemon and are not part of the namespace contract.
 
-## Directory-Scope Compatibility
+## Directory Scopes
 
-Scope is the core abstraction. The `kota project` operator command and
-`?projectId=` flags are compatibility language for directory-backed scopes,
-and every operator command consumes that compatibility adapter through the
-same paths. Do not reinvent selection per command.
+Scope is the core abstraction. The `kota scope` operator command and
+`?scopeId=` selector address directory-backed scopes through the same owner.
+Do not reinvent selection per command.
 
-- Reads come through `client.projects.list()`. The daemon's `/projects`
+- Reads come through `client.scopes.list()`. The daemon's `/scopes`
   route returns the registry projection plus the operator-selected
-  `activeProjectId` (or `null` when no selection is in force) in a single
-  round trip. Other CLIs that need to render a project selector consume
-  this same shape; do not call `getProjectRegistryProjection()` and
-  `/projects/active` separately just to splice them client-side.
-- Writes come through `client.projects.use(id | null)`. The daemon
+  `activeScopeId` (or `null` when no selection is in force) in a single
+  round trip. Other CLIs that need to render a scope selector consume
+  this same shape; do not call `getScopeRegistryProjection()` and
+  `/scopes/active` separately just to splice them client-side.
+- Writes come through `client.scopes.use(id | null)`. The daemon
   persists the selection in-memory only — restarting the daemon clears
   the selection back to the registry default — and routes that take
-  `?projectId=` use the active selection when the parameter is omitted.
-  `kota project use` is the canonical entry point; `null` clears the
+  `?scopeId=` use the active selection when the parameter is omitted.
+  `kota scope use` is the canonical entry point; `null` clears the
   selection, an unknown id surfaces `not_found`.
-- Per-command `--project <id>` flags override the active selection for
+- Per-command `--scope <id>` flags override the active selection for
   one call. `daemon-ops` subcommands (`status`, `session`, `events`)
-  pass the flag through as `?projectId=<id>` and otherwise leave the
+  pass the flag through as `?scopeId=<id>` and otherwise leave the
   query parameter unset so the daemon resolves to the active selection.
-  Cross-project operations are an explicit opt-in (e.g.
-  `events tail --all-projects`) — never the default. New operator
+  Cross-scope operations are an explicit opt-in (e.g.
+  `events tail --all-scopes`) — never the default. New operator
   surfaces should follow the same shape rather than introducing a
-  parallel "all projects" or per-project flag set.
-- Single-project setups never render a selector. The presence threshold
-  in `daemon-ops` views (e.g. the `Active project` line in `kota
-  status`) is "registry hosts more than one project," so KOTA-on-itself
+  parallel "all scopes" or per-scope flag set.
+- Single-scope setups never render a selector. The presence threshold
+  in `daemon-ops` views (e.g. the `Active scope` line in `kota
+  status`) is "registry hosts more than one scope," so KOTA-on-itself
   remains a one-line experience.
 
 ## Presentation Boundaries

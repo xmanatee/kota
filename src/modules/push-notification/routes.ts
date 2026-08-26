@@ -29,7 +29,7 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 export async function handleRegisterPushToken(
-  projectDir: string,
+  scopeRoot: string,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -57,19 +57,19 @@ export async function handleRegisterPushToken(
     return;
   }
 
-  registerPushToken(projectDir, deviceId, token);
+  registerPushToken(scopeRoot, deviceId, token);
   jsonResponse(res, 200, { ok: true });
 }
 
 export function pushNotificationControlRoutes(
-  projectDir: string,
+  scopeRoot: string,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/push-tokens",
       capabilityScope: "control",
-      handler: (req, res) => handleRegisterPushToken(projectDir, req, res),
+      handler: (req, res) => handleRegisterPushToken(scopeRoot, req, res),
     },
   ];
 }

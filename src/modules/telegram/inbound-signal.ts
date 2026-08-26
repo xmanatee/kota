@@ -35,7 +35,7 @@ export type TelegramInboundSignalConfig = {
 };
 
 export type TelegramTextInboundSignalContext = {
-  projectId: string;
+  scopeId: string;
   receivedAt: string;
   config: TelegramInboundSignalConfig;
   allowedChatIds?: readonly number[];
@@ -189,8 +189,7 @@ function validateTelegramPayload(
   const actor = actorIdentity(input.actorUser, input.actorChat, input.chat.id);
   const trust = actorTrust(input.chat.id, input.context);
   const signal = validateInboundSignalPayload({
-    scopeId: input.context.projectId,
-    projectId: input.context.projectId,
+    scopeId: input.context.scopeId,
     provider: "telegram",
     channel: input.channel,
     accountId: "telegram:bot",

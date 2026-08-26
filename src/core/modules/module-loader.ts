@@ -160,7 +160,7 @@ export class ModuleLoader {
     }
   }
 
-  async loadAll(projectModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
+  async loadAll(bundledModules: KotaModule[], installedModules?: KotaModule[]): Promise<void> {
     this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const eventOwnersBeforeLoad = new Set(this.state.moduleEventSubscriptions.keys());
     try {
@@ -169,7 +169,7 @@ export class ModuleLoader {
         this.loadAllEnv,
         (mod) => this.load(mod),
         () => this.getToolCount(),
-        projectModules,
+        bundledModules,
         installedModules,
       );
     } catch (err) {

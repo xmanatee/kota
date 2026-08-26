@@ -60,14 +60,14 @@ function writeBuilderIntegration(
   });
 }
 
-function makeProject(active: boolean): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "telegram-digest-runtime-"));
-  const runsDir = join(projectDir, ".kota", "runs");
+function makeScopeRoot(active: boolean): string {
+  const scopeRoot = mkdtempSync(join(tmpdir(), "telegram-digest-runtime-"));
+  const runsDir = join(scopeRoot, ".kota", "runs");
   mkdirSync(runsDir, { recursive: true });
   for (const state of ["backlog", "ready", "doing", "blocked"]) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(scopeRoot, "data", "tasks", state), { recursive: true });
   }
-  if (!active) return projectDir;
+  if (!active) return scopeRoot;
 
   const now = Date.now();
   const runId = "2026-06-18T14-00-00-000Z-builder-digest";
@@ -94,16 +94,16 @@ function makeProject(active: boolean): string {
   });
   writeBuilderIntegration(runsDir, runId);
   writeFileSync(
-    join(projectDir, "data", "tasks", "ready", "task-ready.md"),
+    join(scopeRoot, "data", "tasks", "ready", "task-ready.md"),
     "---\nid: task-ready\nstatus: ready\n---\n",
     "utf-8",
   );
-  return projectDir;
+  return scopeRoot;
 }
 
-function makeScope(projectDir: string): TelegramStatusScope {
+function makeScope(scopeRoot: string): TelegramStatusScope {
   return {
-    projectDir,
+    scopeRoot,
     getStatusInfo: async () => ({
       runtimeState: {
         activeRuns: [],
@@ -112,7 +112,7 @@ function makeScope(projectDir: string): TelegramStatusScope {
         workflows: {},
       },
       dispatchPaused: false,
-      runsDir: join(projectDir, ".kota", "runs"),
+      runsDir: join(scopeRoot, ".kota", "runs"),
     }),
     knowledge: {} as KnowledgeClient,
     memory: {} as MemoryClient,
@@ -144,7 +144,7 @@ function writeEvidenceFile(fileName: string, body: string): void {
 }
 
 describe("Telegram /digest runtime evidence", () => {
-  const projectDirs: string[] = [];
+  const scopeDirs: string[] = [];
 
   beforeEach(() => {
     mockedCallTelegramApi.mockReset();
@@ -152,27 +152,27 @@ describe("Telegram /digest runtime evidence", () => {
   });
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const scopeRoot of scopeDirs.splice(0)) {
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("routes /digest through the real on-demand renderer and sends plain text", async () => {
-    const activeProjectDir = makeProject(true);
-    const quietProjectDir = makeProject(false);
-    projectDirs.push(activeProjectDir, quietProjectDir);
+    const activeScopeDir = makeScopeRoot(true);
+    const quietScopeDir = makeScopeRoot(false);
+    scopeDirs.push(activeScopeDir, quietScopeDir);
 
     const activeHandled = await handleTelegramStatusCommand({
       token: TOKEN,
       messageChatId: CHAT_ID,
       text: "/digest",
-      defaultScope: makeScope(activeProjectDir),
+      defaultScope: makeScope(activeScopeDir),
     });
     const quietHandled = await handleTelegramStatusCommand({
       token: TOKEN,
       messageChatId: CHAT_ID,
       text: "/digest",
-      defaultScope: makeScope(quietProjectDir),
+      defaultScope: makeScope(quietScopeDir),
     });
 
     expect(activeHandled).toBe(true);

@@ -9,21 +9,21 @@ import { WorkflowRuntime } from "./runtime.js";
 import { createWorkflowRuntimeContext } from "./runtime-context.js";
 
 describe("WorkflowRuntime context-backed status metadata", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let runState: RunStateDatabase;
   let runCoordinator: RunCoordinator;
   let daemonEpoch: number;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-runtime-context-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
-    runState.registerProject({
-      id: "test-project",
-      rootPath: projectDir,
+    mkdirSync(scopeRoot, { recursive: true });
+    runState = new RunStateDatabase(join(scopeRoot, ".kota", "state"));
+    runState.registerScope({
+      id: "test-scope",
+      rootPath: scopeRoot,
       createdAt: "2026-08-25T10:00:00.000Z",
     });
     daemonEpoch = runState.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
@@ -37,29 +37,29 @@ describe("WorkflowRuntime context-backed status metadata", () => {
 
   afterEach(() => {
     runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("surfaces coordinator-owned concurrency and durable operational state", () => {
     const ctx = createWorkflowRuntimeContext({
       bus: new EventBus(),
-      projectDir,
-      projectId: "test-project",
+      scopeRoot,
+      scopeId: "test-scope",
       runState,
       runCoordinator,
       daemonEpoch,
       workflows: [],
     });
 
-    expect(ctx.projectDir).toBe(projectDir);
+    expect(ctx.scopeRoot).toBe(scopeRoot);
     expect(ctx.runCoordinator).toBe(runCoordinator);
     expect(ctx).not.toHaveProperty("activeRuns");
     expect(ctx.wfQueue.length).toBe(0);
 
     const runtime = new WorkflowRuntime({
       bus: new EventBus(),
-      projectDir,
-      projectId: "test-project",
+      scopeRoot,
+      scopeId: "test-scope",
       runState,
       runCoordinator,
       daemonEpoch,

@@ -9,7 +9,7 @@ import {
 import type { GitHubIssueCommentMentionEventPayload } from "./events.js";
 
 export type GitHubIssueCommentInboundSignalContext = {
-  projectId: string;
+  scopeId: string;
   occurredAt: string;
   receivedAt: string;
 };
@@ -59,8 +59,7 @@ export function githubIssueCommentMentionToInboundSignal(
 ): InboundSignalValidationResult {
   const actor = actorIdentity(payload);
   return validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider: "github",
     channel: "github.issue_comment",
     accountId: payload.repo === null ? "" : `github:${payload.repo}`,

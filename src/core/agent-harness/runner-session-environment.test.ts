@@ -14,8 +14,7 @@ const workflowContext = {
   runId: "run-1",
   stepId: "build",
   spanId: "run-1:build",
-  scopeId: "project-a",
-  projectId: "project-a",
+  scopeId: "scope-a",
 };
 
 function harnessWithRun(run: AgentHarness["run"]): AgentHarness {
@@ -69,8 +68,7 @@ describe("runAgentHarness session environment", () => {
   it("keeps an explicitly owned interactive overlay until its caller tears down", async () => {
     const identity = {
       sessionId: "interactive-session",
-      scopeId: "project-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
     };
     registerSessionEnvironment(identity);
     const run = vi.fn(async (options) => {

@@ -15,14 +15,14 @@ import type {
 	TaskProvider,
 } from "./provider-types.js";
 
-export type HistoryProjectScope = {
-	projectId: string;
-	projectDir: string;
+export type HistoryScope = {
+	scopeId: string;
+	scopeRoot: string;
 	isDefault: boolean;
 };
 
-export interface HistoryProjectProvider {
-	forProject(project: HistoryProjectScope): HistoryProvider;
+export interface HistoryScopeProvider {
+	forScope(scope: HistoryScope): HistoryProvider;
 }
 
 
@@ -53,8 +53,8 @@ export const KNOWLEDGE_PROVIDER_TOKEN: ProviderToken<KnowledgeProvider> =
 	defineProviderToken<KnowledgeProvider>("knowledge");
 export const HISTORY_PROVIDER_TOKEN: ProviderToken<HistoryProvider> =
 	defineProviderToken<HistoryProvider>("history");
-export const HISTORY_PROJECT_PROVIDER_TOKEN: ProviderToken<HistoryProjectProvider> =
-	defineProviderToken<HistoryProjectProvider>("history-project");
+export const HISTORY_SCOPE_PROVIDER_TOKEN: ProviderToken<HistoryScopeProvider> =
+	defineProviderToken<HistoryScopeProvider>("history-scope");
 export const TASK_PROVIDER_TOKEN: ProviderToken<TaskProvider> =
 	defineProviderToken<TaskProvider>("task");
 export const REPO_TASKS_PROVIDER_TOKEN: ProviderToken<RepoTasksProvider> =

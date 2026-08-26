@@ -13,7 +13,7 @@ import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { RunArtifacts } from "#modules/workflow-ops/routes/workflow-run-routes.js";
 
 export const REMOTE_RECONNECT_TOKEN = "remote-reconnect-test-token";
-export const REMOTE_RECONNECT_PROJECT_ID = "remote-reconnect-project";
+export const REMOTE_RECONNECT_SCOPE_ID = "remote-reconnect-scope";
 export const REMOTE_RECONNECT_STARTED_AT = "2026-05-16T02:10:00.000Z";
 export const REMOTE_RECONNECT_RUN_ID = "2026-05-16T02-10-00-000Z-builder-reconn1";
 export const REMOTE_RECONNECT_SESSION_ID = "session-remote-reconnect";
@@ -111,8 +111,8 @@ export async function openRemoteReconnectSse(port: number, path: string): Promis
   };
 }
 
-export function writeRemoteReconnectRunArtifacts(projectDir: string): string {
-  const runDir = join(projectDir, ".kota", "runs", REMOTE_RECONNECT_RUN_ID);
+export function writeRemoteReconnectRunArtifacts(scopeRoot: string): string {
+  const runDir = join(scopeRoot, ".kota", "runs", REMOTE_RECONNECT_RUN_ID);
   mkdirSync(runDir, { recursive: true });
   const metadata: WorkflowRunMetadata = {
     id: REMOTE_RECONNECT_RUN_ID,
@@ -121,7 +121,7 @@ export function writeRemoteReconnectRunArtifacts(projectDir: string): string {
     trigger: {
       event: "remote.reconnect.test",
       schemaRef: null,
-      payload: { projectId: REMOTE_RECONNECT_PROJECT_ID },
+      payload: { scopeId: REMOTE_RECONNECT_SCOPE_ID },
     },
     tags: ["remote-reconnect"],
     startedAt: REMOTE_RECONNECT_STARTED_AT,

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "./core/events/event-bus.js";
 import { NullTransport } from "./core/loop/transport.js";
+import { discoverBundledModules } from "./core/modules/bundled-module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import type { KotaModule } from "./core/modules/module-types.js";
-import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import {
   initProviderRegistry,
   RENDERING_PROVIDER_TOKEN,
@@ -13,7 +13,7 @@ import type { RenderingProvider, ReplChrome } from "./core/modules/provider-type
 import { clearCustomTools } from "./core/tools/index.js";
 import { clearCustomGroups, resetGroups } from "./core/tools/tool-groups.js";
 
-let projectModules: KotaModule[];
+let bundledModules: KotaModule[];
 
 function createRuntimeLoader(): ModuleLoader {
   const loader = new ModuleLoader({});
@@ -48,7 +48,7 @@ function installRenderingCapture(chunks: string[]): void {
 }
 
 beforeEach(async () => {
-  projectModules = await discoverProjectModules();
+  bundledModules = await discoverBundledModules();
   resetProviderRegistry();
   clearCustomTools();
   clearCustomGroups();
@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 describe("module error resilience", () => {
-  it("broken project module in loadAll throws after loading remaining modules", async () => {
+  it("broken bundled module in loadAll throws after loading remaining modules", async () => {
     const loader = createRuntimeLoader();
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -74,13 +74,13 @@ describe("module error resilience", () => {
     };
 
     await expect(
-      loader.loadAll([brokenModule, ...projectModules]),
-    ).rejects.toThrow("1 project module(s) failed to load");
+      loader.loadAll([brokenModule, ...bundledModules]),
+    ).rejects.toThrow("1 bundled module(s) failed to load");
 
     expect(loader.getLoadedModules()).not.toContain("broken");
     expect(loader.getLoadedModules()).toContain("memory");
     expect(loader.getLoadedModules()).toContain("scheduler");
-    expect(loader.getModuleCount()).toBe(projectModules.length);
+    expect(loader.getModuleCount()).toBe(bundledModules.length);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -95,11 +95,11 @@ describe("module error resilience", () => {
       onLoad: () => { throw new Error("Missing credentials"); },
     };
 
-    await loader.loadAll(projectModules, [brokenInstalled]);
+    await loader.loadAll(bundledModules, [brokenInstalled]);
 
     expect(loader.getLoadedModules()).not.toContain("broken-integration");
     expect(loader.getLoadedModules()).toContain("memory");
-    expect(loader.getModuleCount()).toBe(projectModules.length);
+    expect(loader.getModuleCount()).toBe(bundledModules.length);
 
     errSpy.mockRestore();
     await loader.unloadAll();
@@ -115,7 +115,7 @@ describe("module error resilience", () => {
       commands: () => { throw new Error("Command factory explosion"); },
     };
 
-    await loader.loadAll([brokenCommandModule, ...projectModules]);
+    await loader.loadAll([brokenCommandModule, ...bundledModules]);
 
     const commandNames = loader.getCommands().map((command) => command.name());
     expect(commandNames).toContain("serve");
@@ -140,7 +140,7 @@ describe("module error resilience", () => {
       routes: () => { throw new Error("Route factory explosion"); },
     };
 
-    await loader.loadAll([brokenRouteModule, ...projectModules]);
+    await loader.loadAll([brokenRouteModule, ...bundledModules]);
 
     const routes = loader.getRoutes();
     expect(routes.some((route) => route.path === "/api/chat/vercel")).toBe(true);

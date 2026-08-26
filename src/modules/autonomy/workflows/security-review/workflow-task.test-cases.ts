@@ -79,7 +79,7 @@ export function describeSecurityReviewTaskTests(): void {
           investigation,
         );
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: revalidation.findings,
       });
@@ -88,7 +88,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.updatedTaskIds).toHaveLength(0);
       expect(result.unchangedFindingIds).toHaveLength(0);
       expect(result.skippedFindingIds).toEqual(["finding-rejected"]);
-      const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
       expect(parsed.attrs.task_class).toBe("Safety");
@@ -97,7 +97,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
       expect(task).toContain("Validate URL scheme and host before fetch.");
       expect(task).not.toContain("Secret value is printed.");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
@@ -106,7 +106,7 @@ export function describeSecurityReviewTaskTests(): void {
       fixture.writeTerminalSecurityTask(baseId, "done", "done collision owner");
       fixture.writeTerminalSecurityTask(`${baseId}-2`, "dropped", "dropped collision owner");
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: [fixture.confirmedFindingForClaim(claim)],
       });
@@ -114,18 +114,18 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
       expect(result.updatedTaskIds).toEqual([]);
       expect(result.unchangedFindingIds).toEqual([]);
-      expect(existsSync(join(fixture.projectDir, "data/tasks/done", `${baseId}.md`))).toBe(true);
-      expect(existsSync(join(fixture.projectDir, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/done", `${baseId}.md`))).toBe(true);
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
         true,
       );
       const readyTask = readFileSync(
-        join(fixture.projectDir, "data/tasks/ready", `${baseId}-3.md`),
+        join(fixture.workspaceRoot, "data/tasks/ready", `${baseId}-3.md`),
         "utf-8",
       );
       const parsed = parseFlatFrontMatter(readyTask);
       expect(parsed.attrs.id).toBe(`${baseId}-3`);
       expect(parsed.attrs.status).toBe("ready");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("quotes agent-generated task content before it can become task structure", () => {
@@ -180,13 +180,13 @@ export function describeSecurityReviewTaskTests(): void {
           investigation,
         );
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: revalidation.findings,
       });
 
       expect(result.createdTaskIds).toHaveLength(1);
-      const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
       expect(parsed.attrs.status).toBe("ready");
@@ -211,7 +211,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("> - attacker-controlled criterion");
       expect(task).toContain("> - desired-outcome-controlled criterion");
       expect(task).toContain("> - rationale-controlled criterion");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("states the authorized defensive scope in the agent prompt", () => {

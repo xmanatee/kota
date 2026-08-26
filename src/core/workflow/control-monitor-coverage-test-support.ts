@@ -7,7 +7,7 @@ export const STARTED_AT = "2026-06-22T10:00:00.000Z";
 export const COMPLETED_AT = "2026-06-22T10:01:00.000Z";
 
 export type ControlCoverageFixture = {
-  projectDir: string;
+  workspaceRoot: string;
   runDirPath: string;
   cleanup: () => void;
 };
@@ -15,16 +15,16 @@ export type ControlCoverageFixture = {
 export function createControlCoverageFixture(
   prefix = "kota-control-coverage",
 ): ControlCoverageFixture {
-  const projectDir = join(
+  const workspaceRoot = join(
     tmpdir(),
     `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  const runDirPath = join(projectDir, ".kota", "runs", "run-control");
+  const runDirPath = join(workspaceRoot, ".kota", "runs", "run-control");
   mkdirSync(join(runDirPath, "steps"), { recursive: true });
   return {
-    projectDir,
+    workspaceRoot,
     runDirPath,
-    cleanup: () => rmSync(projectDir, { recursive: true, force: true }),
+    cleanup: () => rmSync(workspaceRoot, { recursive: true, force: true }),
   };
 }
 

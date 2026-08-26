@@ -96,7 +96,7 @@ function telegramMembershipUpdate(): TelegramChatMemberUpdated {
 }
 
 const telegramSignalContext = {
-  projectId: "project-telegram",
+  scopeId: "scope-telegram",
   receivedAt: RECEIVED_AT,
   config: {
     prefixes: ["!task"],
@@ -114,7 +114,7 @@ describe("Telegram inbound signal adapter", () => {
     expect(result).toMatchObject({
       kind: "signal",
       payload: {
-        projectId: "project-telegram",
+        scopeId: "scope-telegram",
         provider: "telegram",
         channel: "telegram.message",
         accountId: "telegram:bot",
@@ -136,7 +136,7 @@ describe("Telegram inbound signal adapter", () => {
 
   it("uses the existing allowed-chat gate as trust metadata when configured", () => {
     const result = telegramTextMessageToInboundSignal(telegramMessage(), {
-      projectId: "project-telegram",
+      scopeId: "scope-telegram",
       receivedAt: RECEIVED_AT,
       config: { prefixes: ["!task"] },
       allowedChatIds: [9001],
@@ -537,7 +537,7 @@ describe("Telegram inbound signal adapter", () => {
 
     const signals = fixture.updates.map((update) =>
       telegramUpdateToInboundSignal(update, {
-        projectId: "project-telegram",
+        scopeId: "scope-telegram",
         receivedAt: RECEIVED_AT,
         config: {
           prefixes: ["!sport"],

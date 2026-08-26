@@ -44,7 +44,7 @@ export function describeContribution(
 export function validateWorkflowShape(
   definition: RegisteredWorkflowDefinitionInput,
   definitionIndex: number,
-  projectDir: string,
+  workspaceRoot: string,
   seenWorkflowNames: Map<string, RegisteredWorkflowDefinitionInput>,
 ): ValidatedWorkflowShape {
   const definitionPath = expectRelativePath(
@@ -53,7 +53,7 @@ export function validateWorkflowShape(
     `<workflow-${definitionIndex}>`,
   );
   const name = expectName(definition.name, "name", definitionPath);
-  const moduleRoot = definition.moduleRoot ?? projectDir;
+  const moduleRoot = definition.moduleRoot ?? workspaceRoot;
   if (typeof moduleRoot !== "string" || !isAbsolute(moduleRoot)) {
     throw new WorkflowDefinitionError(
       `moduleRoot must be an absolute path, got "${String(moduleRoot)}"`,
@@ -66,7 +66,7 @@ export function validateWorkflowShape(
       `duplicate workflow name "${name}" contributed by ` +
         `${describeContribution(prior)} and ${describeContribution(definition)} — ` +
         "workflow names must be globally unique across every contributing module, " +
-        "regardless of whether they are shipped by a KOTA module or by the target project's .kota/modules tree",
+        "regardless of whether they are shipped by a KOTA module or by the target scope's .kota/modules tree",
       definitionPath,
     );
   }

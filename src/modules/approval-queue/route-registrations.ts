@@ -22,7 +22,7 @@ import {
 	readApprovalBatchDecisionBody,
 	readApprovalDecisionBody,
 	readOptionalStringField,
-	readProjectId,
+	readScopeId,
 	readStatusFilter,
 	rejectAllApprovalsLocal,
 	rejectApprovalLocal,
@@ -36,14 +36,14 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "GET",
 			path: "/api/approvals",
 			handler: (req, res) => {
-				const projectId = readProjectId(req, res);
-				if (projectId === null) return;
+				const scopeId = readScopeId(req, res);
+				if (scopeId === null) return;
 				return handleListApprovals(
 					res,
 					getDaemonTransport(),
 					undefined,
 					readStatusFilter(req),
-					projectId,
+					scopeId,
 				);
 			},
 		},
@@ -51,14 +51,14 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "POST",
 			path: "/api/approvals/approve-all",
 			handler: (req, res) => {
-				const projectId = readProjectId(req, res);
-				if (projectId === null) return;
+				const scopeId = readScopeId(req, res);
+				if (scopeId === null) return;
 				return handleApproveAllApprovals(
 					req,
 					res,
 					getDaemonTransport(),
 					undefined,
-					projectId,
+					scopeId,
 				);
 			},
 		},
@@ -66,14 +66,14 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "POST",
 			path: "/api/approvals/reject-all",
 			handler: (req, res) => {
-				const projectId = readProjectId(req, res);
-				if (projectId === null) return;
+				const scopeId = readScopeId(req, res);
+				if (scopeId === null) return;
 				return handleRejectAllApprovals(
 					req,
 					res,
 					getDaemonTransport(),
 					undefined,
-					projectId,
+					scopeId,
 				);
 			},
 		},
@@ -81,15 +81,15 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "POST",
 			path: "/api/approvals/:id/approve",
 			handler: (req, res, params) => {
-				const projectId = readProjectId(req, res);
-				if (projectId === null) return;
+				const scopeId = readScopeId(req, res);
+				if (scopeId === null) return;
 				return handleApproveApproval(
 					req,
 					res,
 					params.id,
 					getDaemonTransport(),
 					undefined,
-					projectId,
+					scopeId,
 				);
 			},
 		},
@@ -97,15 +97,15 @@ export function approvalRoutes(): RouteRegistration[] {
 			method: "POST",
 			path: "/api/approvals/:id/reject",
 			handler: (req, res, params) => {
-				const projectId = readProjectId(req, res);
-				if (projectId === null) return;
+				const scopeId = readScopeId(req, res);
+				if (scopeId === null) return;
 				return handleRejectApproval(
 					req,
 					res,
 					params.id,
 					getDaemonTransport(),
 					undefined,
-					projectId,
+					scopeId,
 				);
 			},
 		},
@@ -151,9 +151,9 @@ async function handleListApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): Promise<void> {
-	const projectId = readProjectId(req, res);
-	if (projectId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, projectId);
+	const scopeId = readScopeId(req, res);
+	if (scopeId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, scopeId);
 	if (!queue) return;
 	jsonResponse(res, 200, listApprovalsLocal(queue.queue, readStatusFilter(req)));
 }
@@ -166,9 +166,9 @@ async function handleApproveApprovalControl(
 	if (rejectMalformedApprovalId(res, params.id)) return;
 	const decision = await readApprovalDecisionBody(req, res);
 	if (!decision.ok) return;
-	const projectId = readProjectId(req, res);
-	if (projectId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, projectId);
+	const scopeId = readScopeId(req, res);
+	if (scopeId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, scopeId);
 	if (!queue) return;
 	await writeApproveApprovalMutation(
 		res,
@@ -188,9 +188,9 @@ async function handleRejectApprovalControl(
 	if (rejectMalformedApprovalId(res, params.id)) return;
 	const reason = await readOptionalStringField(req, res, "reason");
 	if (!reason.ok) return;
-	const projectId = readProjectId(req, res);
-	if (projectId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, projectId);
+	const scopeId = readScopeId(req, res);
+	if (scopeId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, scopeId);
 	if (!queue) return;
 	const item = rejectApprovalLocal(queue.queue, params.id, reason.value);
 	if (!item) {
@@ -206,9 +206,9 @@ async function handleApproveAllApprovalsControl(
 ): Promise<void> {
 	const decision = await readApprovalBatchDecisionBody(req, res);
 	if (!decision.ok) return;
-	const projectId = readProjectId(req, res);
-	if (projectId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, projectId);
+	const scopeId = readScopeId(req, res);
+	if (scopeId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, scopeId);
 	if (!queue) return;
 	await writeApproveAllApprovalsMutation(
 		res,
@@ -225,9 +225,9 @@ async function handleRejectAllApprovalsControl(
 ): Promise<void> {
 	const reason = await readOptionalStringField(req, res, "reason");
 	if (!reason.ok) return;
-	const projectId = readProjectId(req, res);
-	if (projectId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, projectId);
+	const scopeId = readScopeId(req, res);
+	if (scopeId === null) return;
+	const queue = resolveApprovalQueue(res, undefined, scopeId);
 	if (!queue) return;
 	jsonResponse(res, 200, rejectAllApprovalsLocal(queue.queue, reason.value));
 }

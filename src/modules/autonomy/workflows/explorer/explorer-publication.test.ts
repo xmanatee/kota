@@ -15,20 +15,20 @@ import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 import explorerWorkflow from "./workflow.js";
 
 describe("explorer post-integration publication", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("does not advance the canonical cooldown from the writer run", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "explorer-publication-"));
-    projectDirs.push(projectDir);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-publication-"));
+    scopeRoots.push(workspaceRoot);
     const state = createTestTransactionalRunState();
     const result = await new WorkflowTestHarness(explorerWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger: { event: "autonomy.queue.empty", payload: {} },
       stepMocks: {
         "inspect-queue": {
@@ -53,21 +53,21 @@ describe("explorer post-integration publication", () => {
     }).run();
 
     expect(result.status).toBe("success");
-    const stateDir = join(projectDir, ".kota");
+    const stateDir = join(workspaceRoot, ".kota");
     const runDirPath = join(stateDir, "runs", "harness");
     expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toEqual({
       revision: 0,
       value: null,
     });
     expect(existsSync(join(runDirPath, EXPLORER_PUBLICATION_ARTIFACT))).toBe(true);
-    expect(publishExplorerCompletion({ sourceRunId: "harness", scopeDir: projectDir }))
+    expect(publishExplorerCompletion({ sourceRunId: "harness", scopeRoot: workspaceRoot }))
       .toEqual({ lastExplorationAt: expect.any(String) });
 
     const publicationKey = explorerPublicationKey("harness");
     const publication = await new WorkflowTestHarness(
       explorerPublicationWorkflow,
       {
-        projectDir,
+        workspaceRoot,
         trigger: {
           event: EXPLORER_PUBLICATION_REQUESTED_EVENT,
           schemaRef: null,

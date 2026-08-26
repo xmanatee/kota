@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type {
   ScopePolicySnapshot,
 } from "#core/daemon/scope-policy.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type {
   WorkflowBlockingOperation,
@@ -62,7 +63,7 @@ type HarnessRuntimeTrigger = {
 };
 
 type HarnessExecutionInput = {
-  projectDir: string;
+  workspaceRoot: string;
   workspaceDir: string;
   runtimeResources?: WorkflowRuntimeResources;
   trigger: HarnessRuntimeTrigger;
@@ -77,7 +78,7 @@ type BuildContextOverrides = {
 export class HarnessExecutionState {
   readonly workflow: WorkflowDefinitionInput;
   readonly options: HarnessOptions;
-  readonly projectDir: string;
+  readonly workspaceRoot: string;
   readonly trigger: HarnessRuntimeTrigger;
   readonly stepMocks: NonNullable<HarnessOptions["stepMocks"]>;
   readonly runParallel: boolean;
@@ -102,7 +103,7 @@ export class HarnessExecutionState {
   ) {
     this.workflow = workflow;
     this.options = options;
-    this.projectDir = input.projectDir;
+    this.workspaceRoot = input.workspaceRoot;
     this.workspaceDir = input.workspaceDir;
     this.runtimeResources = input.runtimeResources;
     this.scopePolicySnapshot = options.scopePolicySnapshot;
@@ -124,9 +125,10 @@ export class HarnessExecutionState {
     };
 
     return {
-      projectDir: this.workspaceDir,
-      scopeDir: this.projectDir,
-      stateDir: join(this.projectDir, ".kota"),
+      scopeId: deriveDirectoryScopeId(this.workspaceRoot),
+      workspaceRoot: this.workspaceDir,
+      scopeRoot: this.workspaceRoot,
+      stateDir: join(this.workspaceRoot, ".kota"),
       state: this.transactionalState,
       agentRuntime: resolveAgentRuntime(undefined),
       ...(this.runtimeResources !== undefined
@@ -140,7 +142,7 @@ export class HarnessExecutionState {
         definitionPath: "test",
         runId: "harness-run-id",
         runDir: ".kota/runs/harness",
-        runDirPath: `${this.projectDir}/.kota/runs/harness`,
+        runDirPath: `${this.workspaceRoot}/.kota/runs/harness`,
       },
       trigger: this.trigger,
       previousOutput,

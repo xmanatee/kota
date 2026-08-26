@@ -19,7 +19,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   type LoadConfigOptions,
-  loadProjectConfigTrustDecision,
+  loadScopeConfigTrustDecision,
 } from "#core/config/config.js";
 import type { ModuleManifest } from "#core/manifest/index.js";
 import { manifestToModule, validateManifest } from "#core/manifest/index.js";
@@ -43,11 +43,11 @@ export async function discoverModules(
   const modulesDir = resolve(base, MODULES_DIR);
 
   if (!existsSync(modulesDir)) return [];
-  const trust = loadProjectConfigTrustDecision(base, configOptions);
+  const trust = loadScopeConfigTrustDecision(base, configOptions);
   if (!trust.trusted) {
     if (verbose) {
       printTerminalDiagnostic(
-        `[kota] Ignored project modules in ${modulesDir}: scope is not trusted by machine authority`,
+        `[kota] Ignored bundled modules in ${modulesDir}: scope is not trusted by machine authority`,
         "warn",
       );
     }
@@ -181,7 +181,7 @@ export async function reimportInstalledModule(
   const base = cwd || process.cwd();
   const moduleDir = resolve(base, MODULES_DIR, name);
   if (!existsSync(moduleDir)) return null;
-  if (!loadProjectConfigTrustDecision(base, configOptions).trusted) return null;
+  if (!loadScopeConfigTrustDecision(base, configOptions).trusted) return null;
 
   const manifestPath = join(moduleDir, "manifest.json");
   if (existsSync(manifestPath)) {

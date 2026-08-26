@@ -4,7 +4,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { buildApprovalCallbackData } from "./approval-callback.js";
 import type { TelegramMessage } from "./client.js";
 import { callTelegramApi } from "./client.js";
-import type { TelegramProjectSelection } from "./project-selection.js";
+import type { TelegramScopeSelection } from "./scope-selection.js";
 
 export async function sendTelegramMessage(
   token: string,
@@ -21,34 +21,34 @@ export async function sendTelegramMessage(
   });
 }
 
-export function eventProjectId(payload: object): string | undefined {
-  return "projectId" in payload && typeof payload.projectId === "string"
-    ? payload.projectId
+export function eventScopeId(payload: object): string | undefined {
+  return "scopeId" in payload && typeof payload.scopeId === "string"
+    ? payload.scopeId
     : undefined;
 }
 
-export async function sendTelegramProjectMessage(
+export async function sendTelegramScopeMessage(
   token: string,
   chatId: string,
   text: string,
-  projectId: string | undefined,
-  projectSelection: TelegramProjectSelection | undefined,
+  scopeId: string | undefined,
+  scopeSelection: TelegramScopeSelection | undefined,
   log: ModuleContext["log"],
 ): Promise<void> {
-  const prefix = await renderProjectLabelPrefix(projectId, projectSelection, log);
+  const prefix = await renderScopeLabelPrefix(scopeId, scopeSelection, log);
   await sendTelegramMessage(token, chatId, `${prefix}${text}`, log);
 }
 
-export async function renderProjectLabelPrefix(
-  projectId: string | undefined,
-  projectSelection: TelegramProjectSelection | undefined,
+export async function renderScopeLabelPrefix(
+  scopeId: string | undefined,
+  scopeSelection: TelegramScopeSelection | undefined,
   log: ModuleContext["log"],
 ): Promise<string> {
-  if (!projectId || !projectSelection) return "";
+  if (!scopeId || !scopeSelection) return "";
   try {
-    return await projectSelection.renderProjectLabelPrefix(projectId);
+    return await scopeSelection.renderScopeLabelPrefix(scopeId);
   } catch (err) {
-    log.warn(`Telegram project label unavailable: ${(err as Error).message}`);
+    log.warn(`Telegram scope label unavailable: ${(err as Error).message}`);
     return "";
   }
 }
@@ -120,11 +120,11 @@ export async function sendOwnerQuestionMessage(
   answerBehavior: OwnerQuestionAskedPayload["answerBehavior"] | undefined,
   origin: OwnerQuestionAskedPayload["origin"] | undefined,
   proposedAnswers: string[],
-  projectLabelPrefix: string,
+  scopeLabelPrefix: string,
   log: ModuleContext["log"],
 ): Promise<number | null> {
   const text = [
-    `${projectLabelPrefix}Owner question from *${source}*`,
+    `${scopeLabelPrefix}Owner question from *${source}*`,
     ...ownerQuestionOriginLines(origin),
     `Behavior: ${ownerQuestionBehaviorText(answerBehavior)}`,
     `Reason: ${reason}`,
@@ -155,14 +155,14 @@ export async function sendApprovalMessage(
   token: string,
   chatId: string,
   approval: ApprovalClientProjection,
-  projectLabelPrefix: string,
+  scopeLabelPrefix: string,
   log: ModuleContext["log"],
 ): Promise<{ messageId: number; reviewDigest: string } | null> {
   if (approval.review.status !== "available") {
     await callTelegramApi<TelegramMessage>(token, "sendMessage", {
       chat_id: chatId,
       text: [
-        `${projectLabelPrefix}Approval required: ${approval.tool}`,
+        `${scopeLabelPrefix}Approval required: ${approval.tool}`,
         `Risk: ${approval.risk}`,
         `Reason: ${approval.reason}`,
         "Input unavailable after daemon restart. Reject and retry the tool call.",
@@ -173,7 +173,7 @@ export async function sendApprovalMessage(
     return null;
   }
   const text = [
-    `${projectLabelPrefix}Approval required: ${approval.tool}`,
+    `${scopeLabelPrefix}Approval required: ${approval.tool}`,
     `Risk: ${approval.risk}`,
     `Reason: ${approval.reason}`,
     `Reviewed input: ${JSON.stringify(approval.review.input)}`,

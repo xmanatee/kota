@@ -1,11 +1,11 @@
 import { getRepoWorktreeStatusAsync } from "#core/util/repo-worktree.js";
 
 export async function getIdleEventSignature(
-  projectDir: string,
+  repoRoot: string,
 ): Promise<string> {
-  const worktree = await getRepoWorktreeStatusAsync(projectDir);
+  const worktree = await getRepoWorktreeStatusAsync(repoRoot);
   return [
-    "project",
+    "scope",
     worktree.available ? "git" : "no-git",
     worktree.headSha,
     worktree.fingerprint,

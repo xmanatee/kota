@@ -118,7 +118,7 @@ export type RunContext = Readonly<{
     attempt: number;
     daemonEpoch: number;
   }>;
-  project: Readonly<{
+  scope: Readonly<{
     id: string;
     root: string;
   }>;
@@ -137,8 +137,8 @@ type CreateRunContextInput = {
   runId: string;
   attempt: number;
   daemonEpoch: number;
-  projectId: string;
-  projectRoot: string;
+  scopeId: string;
+  scopeRoot: string;
   workflow: string;
   trigger: WorkflowRunTrigger;
   sandbox: RunSandbox;
@@ -226,7 +226,7 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
   });
   const state: TransactionalRunState = Object.freeze({
     read<T extends DurableEffectValue>(key: string): RunStateValueSnapshot<T> {
-      const snapshot = input.store.readProjectStateValue<T>(input.projectId, key);
+      const snapshot = input.store.readScopeStateValue<T>(input.scopeId, key);
       return Object.freeze({
         revision: snapshot.revision,
         value: snapshot.value === null
@@ -239,7 +239,7 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
       expectedRevision: number,
       value: T,
     ): void {
-      input.store.stageProjectStateMutation({
+      input.store.stageScopeStateMutation({
         runId: input.runId,
         key,
         expectedRevision,
@@ -256,7 +256,7 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
       attempt: input.attempt,
       daemonEpoch: input.daemonEpoch,
     }),
-    project: Object.freeze({ id: input.projectId, root: input.projectRoot }),
+    scope: Object.freeze({ id: input.scopeId, root: input.scopeRoot }),
     workflow: input.workflow,
     trigger: deepFreeze(structuredClone(input.trigger)),
     sandbox,

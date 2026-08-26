@@ -27,7 +27,7 @@ This directory owns:
   name and the current listener count (`listeners`), useful for ad-hoc
   smoke checks of trigger wiring.
 - When the event name is `inbound.signal.received`, the route validates the
-  payload against the shared inbound-signal contract, injects project scope and
+  payload against the shared inbound-signal contract, injects scope identity and
   receive time from the daemon context, and emits the typed module event. It
   should not interpret or plan the downstream automation.
 - Event names are URL-decoded; an event name must be 1–256 characters

@@ -8,7 +8,7 @@ import { DaemonChatPool } from "./daemon-chat-pool.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-session-create.js";
 
 export const CONV_ID = "c-fixture-0000";
-export const PROJECT_ID = "test-project-id";
+export const SCOPE_ID = "test-scope-id";
 
 export function makeBindingStore(): DaemonChatBindingStore {
   const dir = mkdtempSync(join(tmpdir(), "kota-chat-bindings-"));

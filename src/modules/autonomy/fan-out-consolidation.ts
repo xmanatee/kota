@@ -277,10 +277,10 @@ export function consolidationTaskIdForCapability(capabilityKey: string): string 
  * so a re-detection of the same batch must not re-seed.
  */
 export function findExistingConsolidationTaskState(
-  projectDir: string,
+  workspaceRoot: string,
   capabilityKey: string,
 ): RepoTaskState | null {
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(workspaceRoot);
   const taskId = consolidationTaskIdForCapability(capabilityKey);
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${taskId}.md`);
@@ -309,12 +309,12 @@ export type ConsolidationProposal =
  * or skip because one already exists.
  */
 export function proposeConsolidationActions(
-  projectDir: string,
+  workspaceRoot: string,
   batches: readonly FanOutBatch[],
 ): ConsolidationProposal[] {
   const proposals: ConsolidationProposal[] = [];
   for (const batch of batches) {
-    const existing = findExistingConsolidationTaskState(projectDir, batch.capabilityKey);
+    const existing = findExistingConsolidationTaskState(workspaceRoot, batch.capabilityKey);
     if (existing) {
       proposals.push({
         action: "noop",
@@ -340,7 +340,7 @@ export type ConsolidationApplied =
   | { kind: "created"; capabilityKey: string; taskId: string; path: string };
 
 export type ApplyConsolidationContext = {
-  projectDir: string;
+  workspaceRoot: string;
   /** Stable timestamp for both task body and frontmatter `created_at`/`updated_at`. */
   nowIso: string;
 };
@@ -358,7 +358,7 @@ export function applyConsolidationProposal(
     };
   }
 
-  const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
+  const targetDir = getRepoTaskStateDir(ctx.workspaceRoot, "ready");
   const targetPath = join(targetDir, `${proposal.taskId}.md`);
   if (existsSync(targetPath)) {
     throw new Error(
@@ -366,7 +366,7 @@ export function applyConsolidationProposal(
     );
   }
   writeRepoTaskFile(
-    ctx.projectDir,
+    ctx.workspaceRoot,
     targetPath,
     buildConsolidationTaskFile(proposal.taskId, proposal.batch, ctx.nowIso),
   );
@@ -374,7 +374,7 @@ export function applyConsolidationProposal(
     kind: "created",
     capabilityKey: proposal.capabilityKey,
     taskId: proposal.taskId,
-    path: targetPath.slice(ctx.projectDir.length + 1),
+    path: targetPath.slice(ctx.workspaceRoot.length + 1),
   };
 }
 
@@ -512,7 +512,7 @@ export type FanOutConsolidationArtifact = {
 };
 
 export type SeedFanOutConsolidationOptions = {
-  projectDir: string;
+  workspaceRoot: string;
   nowMs: number;
   nowIso: string;
   windowMs?: number;
@@ -534,18 +534,18 @@ export type SeedFanOutConsolidationResult = {
 export function seedFanOutConsolidationTasks(
   options: SeedFanOutConsolidationOptions,
 ): SeedFanOutConsolidationResult {
-  const records = listFullRepoTasks(options.projectDir, ["done"]);
+  const records = listFullRepoTasks(options.workspaceRoot, ["done"]);
   const batches = detectFanOutBatches(records, {
     windowMs: options.windowMs,
     minSurfaces: options.minSurfaces,
     nowMs: options.nowMs,
   });
-  const proposals = proposeConsolidationActions(options.projectDir, batches);
+  const proposals = proposeConsolidationActions(options.workspaceRoot, batches);
   const applied: ConsolidationApplied[] = [];
   let touchedDisk = false;
   for (const proposal of proposals) {
     const result = applyConsolidationProposal(proposal, {
-      projectDir: options.projectDir,
+      workspaceRoot: options.workspaceRoot,
       nowIso: options.nowIso,
     });
     applied.push(result);

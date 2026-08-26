@@ -12,19 +12,19 @@ import {
 } from "./due-check.js";
 
 describe("security-review due check", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-security-review-due-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
   });
 
   afterEach(() => {
-    rmSync(projectDir, {
+    rmSync(workspaceRoot, {
       recursive: true,
       force: true,
       maxRetries: 5,
@@ -34,14 +34,14 @@ describe("security-review due check", () => {
 
   function git(args: readonly string[]): string {
     return execFileSync("git", args, {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   }
 
   function writeProjectFile(path: string, content: string): void {
-    const fullPath = join(projectDir, path);
+    const fullPath = join(workspaceRoot, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, content, "utf-8");
   }
@@ -66,7 +66,7 @@ describe("security-review due check", () => {
     completedAt: string;
     commitSha: string;
   }): void {
-    const runDir = join(projectDir, ".kota", "runs", args.runId);
+    const runDir = join(workspaceRoot, ".kota", "runs", args.runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -89,7 +89,7 @@ describe("security-review due check", () => {
           version: 1,
           runId: args.runId,
           workflow: "security-review",
-          projectId: "security-review-test",
+          scopeId: "security-review-test",
           targetBranch: "main",
           baseHead: args.commitSha,
           integratedFromHead: args.commitSha,
@@ -112,7 +112,7 @@ describe("security-review due check", () => {
   }
 
   function writeOpenSecurityTask(): void {
-    const dir = join(projectDir, "data", "tasks", "ready");
+    const dir = join(workspaceRoot, "data", "tasks", "ready");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "task-security-review-open-finding.md"),
@@ -141,11 +141,11 @@ describe("security-review due check", () => {
     options: InspectSecurityReviewDueOptions,
   ) {
     const gitEvidence = await collectSecurityReviewGitEvidence({
-      projectDir,
+      workspaceRoot,
       stateDir: options.stateDir,
-      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+      runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
     });
-    return inspectSecurityReviewDue(projectDir, options, gitEvidence);
+    return inspectSecurityReviewDue(workspaceRoot, options, gitEvidence);
   }
 
   it("reports due when security-sensitive source changes after the last review", async () => {
@@ -161,7 +161,7 @@ describe("security-review due check", () => {
 
     const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(decision.due).toBe(true);
@@ -201,7 +201,7 @@ describe("security-review due check", () => {
 
     const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(decision.due).toBe(true);
@@ -232,7 +232,7 @@ describe("security-review due check", () => {
 
     const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(decision.due).toBe(false);
@@ -257,7 +257,7 @@ describe("security-review due check", () => {
 
     const decision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(decision.due).toBe(false);
@@ -281,7 +281,7 @@ describe("security-review due check", () => {
 
     const dueDecision = await inspectDue({
       now: new Date("2026-05-25T00:00:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(dueDecision.due).toBe(true);
@@ -297,7 +297,7 @@ describe("security-review due check", () => {
 
     const afterReview = await inspectDue({
       now: new Date("2026-05-25T01:20:00.000Z"),
-      stateDir: join(projectDir, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(afterReview.due).toBe(false);

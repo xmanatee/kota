@@ -138,7 +138,7 @@ Recorded under
   `log --limit not-a-number` / `show missing-id` /
   `show missing-id --json` / `ask ''` / `ask 'harness' --limit 0` /
   `ask 'harness' --source unknown` runs against an isolated
-  `KOTA_PROJECT_DIR` empty store. Confirms the CLI surface decodes
+  `KOTA_SCOPE_ROOT` empty store. Confirms the CLI surface decodes
   the same `{ entries: [] }`, `{ ok: false, reason: "not_found" }`,
   and typed input-validation envelopes the visual clients mirror.
 - `verdict.md` — written verdict for each of the 8 consolidation

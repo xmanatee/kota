@@ -88,7 +88,7 @@ function requireNumber(value: unknown, field: string): number {
 }
 
 export type ExtractRecordingParams = {
-  projectDir: string;
+  workspaceRoot: string;
   sourceRunId: string;
   stepId: string;
   fixtureDir: string;
@@ -97,16 +97,16 @@ export type ExtractRecordingParams = {
 export type ExtractRecordingResult = {
   recordingPath: string;
   recording: AgentStepRecording;
-  skippedWritesOutsideProject: string[];
+  skippedWritesOutsideWorkspace: string[];
   sourceCommitSha: string;
 };
 
 function readStepArtifact(
-  projectDir: string,
+  workspaceRoot: string,
   sourceRunId: string,
   stepId: string,
 ): StepArtifact {
-  const path = join(projectDir, ".kota", "runs", sourceRunId, "steps", `${stepId}.json`);
+  const path = join(workspaceRoot, ".kota", "runs", sourceRunId, "steps", `${stepId}.json`);
   if (!existsSync(path)) {
     throw new Error(
       `Source step artifact not found: ${path}. Either the run id or the step id is wrong.`,
@@ -143,8 +143,8 @@ function extractResponse(
   };
 }
 
-function readWorkflowName(projectDir: string, sourceRunId: string): string {
-  const path = join(projectDir, ".kota", "runs", sourceRunId, "metadata.json");
+function readWorkflowName(workspaceRoot: string, sourceRunId: string): string {
+  const path = join(workspaceRoot, ".kota", "runs", sourceRunId, "metadata.json");
   if (!existsSync(path)) {
     throw new Error(
       `Source run metadata not found: ${path}. The recorder needs it to determine the workflow name.`,
@@ -166,26 +166,26 @@ export function extractAgentStepRecording(
 ): ExtractRecordingResult {
   const sourceRunId = requireRecorderIdentifier(params.sourceRunId, "--run-id");
   const stepId = requireRecorderIdentifier(params.stepId, "--step");
-  const artifact = readStepArtifact(params.projectDir, sourceRunId, stepId);
+  const artifact = readStepArtifact(params.workspaceRoot, sourceRunId, stepId);
   if (typeof artifact.id === "string" && artifact.id !== stepId) {
     throw new Error(
       `Source step artifact id "${String(artifact.id)}" does not match requested step id "${stepId}".`,
     );
   }
   const response = extractResponse(artifact, stepId);
-  const workflowName = readWorkflowName(params.projectDir, sourceRunId);
-  const sourceRange = resolveSourceIntegrationRange(params.projectDir, sourceRunId);
+  const workflowName = readWorkflowName(params.workspaceRoot, sourceRunId);
+  const sourceRange = resolveSourceIntegrationRange(params.workspaceRoot, sourceRunId);
   const sourceCommitSha = sourceRange.publishedHead;
 
-  const { ops: commitOps, skippedOutsideProject: skippedFromCommit } =
+  const { ops: commitOps, skippedOutsideWorkspace: skippedFromCommit } =
     extractCommitDiffOperations(
-      params.projectDir,
+      params.workspaceRoot,
       sourceRunId,
       sourceRange.baseHead,
       sourceRange.publishedHead,
     );
-  const { ops: runDirOps, skippedOutsideProject: skippedFromWrites } =
-    extractRunDirWriteOperations(params.projectDir, sourceRunId, stepId);
+  const { ops: runDirOps, skippedOutsideWorkspace: skippedFromWrites } =
+    extractRunDirWriteOperations(params.workspaceRoot, sourceRunId, stepId);
 
   const recording: AgentStepRecording = {
     version: 1,
@@ -202,13 +202,13 @@ export function extractAgentStepRecording(
   return {
     recordingPath,
     recording,
-    skippedWritesOutsideProject: [...skippedFromCommit, ...skippedFromWrites],
+    skippedWritesOutsideWorkspace: [...skippedFromCommit, ...skippedFromWrites],
     sourceCommitSha,
   };
 }
 
 export type ExtractJudgeRecordingParams = {
-  projectDir: string;
+  workspaceRoot: string;
   sourceRunId: string;
   label: string;
   fixtureDir: string;
@@ -244,7 +244,7 @@ export function extractJudgeCallRecording(
   const sourceRunId = requireRecorderIdentifier(params.sourceRunId, "--run-id");
   const label = requireRecorderIdentifier(params.label, "--judge");
   const artifactPath = join(
-    params.projectDir,
+    params.workspaceRoot,
     ".kota",
     "runs",
     sourceRunId,
@@ -264,7 +264,7 @@ export function extractJudgeCallRecording(
     );
   }
 
-  const workflowName = readWorkflowName(params.projectDir, sourceRunId);
+  const workflowName = readWorkflowName(params.workspaceRoot, sourceRunId);
   const recording: AgentStepRecording = {
     version: 1,
     workflowName,

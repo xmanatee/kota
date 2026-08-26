@@ -125,7 +125,7 @@ function recallSchedules(): string | null {
 function recallKnowledge(): string | null {
   try {
     const provider = getKnowledgeProvider();
-    const entries = provider.list({ scope: "project" });
+    const entries = provider.list({ scope: "scope" });
     if (entries.length === 0) return null;
 
     const shown = entries.slice(0, 5);

@@ -58,14 +58,14 @@ function taskPath(actions: readonly GeneratedWorkProposalAction[]): string | nul
 }
 
 function writeTask(args: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
 }): ScopeImprovementAppliedAction {
   const proposalKey = scopeImprovementProposalKey(args.recommendation.signature);
-  const existing = findGeneratedWorkTask(args.projectDir, proposalKey);
+  const existing = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
   const actions = writeGeneratedWorkTask({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: {
       kind: "task",
       proposalKey,
@@ -101,15 +101,15 @@ function writeTask(args: {
 }
 
 function stageOwnerQuestion(args: {
-  projectDir: string;
+  workspaceRoot: string;
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "owner-question" }>;
 }): ScopeImprovementAppliedAction[] {
   const existing = findGeneratedWorkTask(
-    args.projectDir,
+    args.workspaceRoot,
     scopeImprovementProposalKey(args.recommendation.signature),
   );
   const droppedTasks: ScopeImprovementAppliedAction[] = dropGeneratedWorkTask(
-    args.projectDir,
+    args.workspaceRoot,
     existing,
   ).flatMap(
     (action) => action.kind === "dropped-task"
@@ -242,7 +242,7 @@ function skipped(signature: string, reason: string): ScopeImprovementAppliedActi
 }
 
 export type ApplyScopeImprovementRecommendationsInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   inputs: ScopeImprovementArtifact["inputs"];
   recommendations: readonly ScopeImprovementRecommendation[];
@@ -254,10 +254,10 @@ export function applyScopeImprovementRecommendations(
   const applied = args.recommendations.flatMap(
     (recommendation): ScopeImprovementAppliedAction[] => {
     if (recommendation.kind === "create-task") {
-      return [writeTask({ projectDir: args.projectDir, runId: args.runId, recommendation })];
+      return [writeTask({ workspaceRoot: args.workspaceRoot, runId: args.runId, recommendation })];
     }
     if (recommendation.kind === "owner-question") {
-      return stageOwnerQuestion({ projectDir: args.projectDir, recommendation });
+      return stageOwnerQuestion({ workspaceRoot: args.workspaceRoot, recommendation });
     }
     return [skipped(recommendation.signature, recommendation.reason)];
   });

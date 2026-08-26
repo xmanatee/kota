@@ -31,14 +31,13 @@ export type ToolRunnerContext = {
   toolUseId?: string;
   signal?: AbortSignal;
   /** Canonical directory root of the selected directory-backed scope. */
-  projectDir?: string;
+  scopeRoot?: string;
   /** Execution working directory, which may be an isolated worktree. */
   cwd?: string;
   env?: Record<string, string>;
   /** Machine-owned config document that arbitrary execution must not mutate. */
   authorityConfigPath?: string;
   scopeId?: string;
-  projectId?: string;
   tokenBudget?: AgentTokenBudgetLedger;
   workflow?: {
     workflowName: string;
@@ -46,7 +45,6 @@ export type ToolRunnerContext = {
     stepId: string;
     spanId: string;
     scopeId: string;
-    projectId: string;
   };
 };
 export type ToolRunner = (

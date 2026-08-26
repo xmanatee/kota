@@ -24,7 +24,7 @@ export type SocialConnectorConfig = {
 };
 
 export type SocialInboundSignalContext = {
-  projectId: string;
+  scopeId: string;
   receivedAt: string;
   connector: SocialConnectorConfig;
 };
@@ -352,8 +352,7 @@ export function socialDeliveryToInboundSignal(
   const channel = `${provider}.${delivery.kind}`;
   const account = accountId(provider, context.connector.accountId);
   return validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider,
     channel,
     accountId: account,

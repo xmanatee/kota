@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   type OwnerDecisionRecord,
   OwnerDecisionStore,
@@ -41,7 +41,7 @@ describe("OwnerDecisionStore", () => {
     root = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
     dir = join(root, "owner-decisions");
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, "scope-a");
+    const pbus = new ScopedEventBus(bus, "scope-a");
     events = [];
     bus.on("owner.decision.resolved", (payload) => {
       events.push({ id: payload.id, status: payload.status });

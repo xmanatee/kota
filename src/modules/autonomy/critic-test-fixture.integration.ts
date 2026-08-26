@@ -96,8 +96,8 @@ export function makeTmpDir(): string {
   return dir;
 }
 
-export function makeRunDir(projectDir: string): string {
-  const runDir = join(projectDir, ".kota/runs/test-run");
+export function makeRunDir(workspaceRoot: string): string {
+  const runDir = join(workspaceRoot, ".kota/runs/test-run");
   mkdirSync(runDir, { recursive: true });
   return runDir;
 }
@@ -147,18 +147,18 @@ export function writePackageJson(dir: string, scripts: Record<string, string>): 
 }
 
 export function makeContext(
-  projectDir: string,
+  workspaceRoot: string,
   runDirPath?: string,
   workspaceDir?: string,
   agentRunDir?: string,
   triggerPayload: Record<string, unknown> = {},
   taskMutationStatus?: string,
 ) {
-  const activeProjectDir = workspaceDir ?? projectDir;
-  const supervisedCommand = createWorkflowCommandRunner({ cwd: activeProjectDir });
+  const activeScopeRoot = workspaceDir ?? workspaceRoot;
+  const supervisedCommand = createWorkflowCommandRunner({ cwd: activeScopeRoot });
   return {
-    projectDir: activeProjectDir,
-    scopeDir: projectDir,
+    workspaceRoot: activeScopeRoot,
+    scopeRoot: workspaceRoot,
     ...(agentRunDir !== undefined
       ? {
           runtimeResources: {
@@ -171,7 +171,7 @@ export function makeContext(
     workflow: {
       name: "builder",
       runId: "test-run",
-      runDirPath: runDirPath ?? join(projectDir, ".kota/runs/test-run"),
+      runDirPath: runDirPath ?? join(workspaceRoot, ".kota/runs/test-run"),
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     },
     trigger: { event: "autonomy.queue.available", payload: triggerPayload },

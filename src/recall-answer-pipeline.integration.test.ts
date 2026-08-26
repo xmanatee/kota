@@ -28,7 +28,7 @@ import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
   type AnswerHistorySink,
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
 import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
@@ -238,16 +238,16 @@ function createPipelineServer(specs: RouteSpec[]): Promise<{ server: Server; por
 }
 
 describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
-  let projectStateRoot: string;
+  let scopeStateRoot: string;
   let server: Server;
   let client: DaemonControlClient;
   let history: DiskAnswerHistoryStore;
   let synthesisCalls: SynthesisInput[];
 
   beforeAll(async () => {
-    projectStateRoot = mkdtempSync(join(tmpdir(), "kota-recall-answer-"));
+    scopeStateRoot = mkdtempSync(join(tmpdir(), "kota-recall-answer-"));
     history = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(projectStateRoot),
+      rootDir: answerHistoryRootForScope(scopeStateRoot),
     });
 
     const recallProvider = new RecallProviderImpl({
@@ -310,7 +310,7 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectStateRoot, { recursive: true, force: true });
+    rmSync(scopeStateRoot, { recursive: true, force: true });
   });
 
   it("recalls ranked, source-tagged hits with normalized scores and deterministic tie-break", async () => {

@@ -67,7 +67,7 @@ function buildMemoryUiSurface(
 
 export const memoryUiSurfaceSource: UiSurfaceSource = {
   sourceId: "stores",
-  project: async (context) => {
+  scope: async (context) => {
     const memory = await context.read("memory", () => context.client.memory.list({ limit: 10 }));
     return [buildMemoryUiSurface(context.scopeId, memory)];
   },

@@ -19,34 +19,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -104,16 +104,16 @@ function registerWorkflowTestHarness(
 }
 
 function makeAgentStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
 ): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -121,27 +121,27 @@ function makeAgentStep(
 }
 
 describe("workflow workspaceDir execution", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-run-executor-workspace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("uses the run-owned workspace while keeping scope state and artifacts under the project", async () => {
+  it("uses the run-owned workspace while keeping scope state and artifacts under the scope root", async () => {
     const workspaceDir = join(
       tmpdir(),
       `kota-run-executor-worktree-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -155,7 +155,7 @@ describe("workflow workspaceDir execution", () => {
     });
     let toolContext: ToolRunnerContext | undefined;
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
         {
           id: "inspect",
@@ -163,20 +163,20 @@ describe("workflow workspaceDir execution", () => {
           run: async (ctx) => {
             await ctx.runTool("capture", {});
             return {
-              projectDir: ctx.projectDir,
-              scopeDir: ctx.scopeDir,
-              workspaceDir: ctx.projectDir,
+              workspaceRoot: ctx.workspaceRoot,
+              scopeRoot: ctx.scopeRoot,
+              workspaceDir: ctx.workspaceRoot,
               runDirPath: ctx.workflow.runDirPath,
             };
           },
         },
-        makeAgentStep(projectDir, harness),
+        makeAgentStep(workspaceRoot, harness),
       ],
     });
 
     try {
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
-        runContext: makeRunContext(projectDir, TRIGGER, undefined, workspaceDir),
+        runContext: makeRunContext(workspaceRoot, TRIGGER, undefined, workspaceDir),
         bus,
         store,
         log,
@@ -187,30 +187,30 @@ describe("workflow workspaceDir execution", () => {
       });
       const result = await promise;
       const output = result.metadata.steps[0]?.output as {
-        projectDir: string;
-        scopeDir: string;
+        workspaceRoot: string;
+        scopeRoot: string;
         workspaceDir: string;
         runDirPath: string;
       };
 
       expect(result.metadata.status).toBe("success");
       expect(output).toEqual({
-        projectDir: workspaceDir,
-        scopeDir: projectDir,
+        workspaceRoot: workspaceDir,
+        scopeRoot: workspaceRoot,
         workspaceDir,
-        runDirPath: join(projectDir, result.metadata.runDir),
+        runDirPath: join(workspaceRoot, result.metadata.runDir),
       });
       expect(toolContext).toMatchObject({
-        projectDir,
+        scopeRoot: workspaceRoot,
         cwd: workspaceDir,
         sessionId: expect.stringMatching(/^workflow:/),
         scopeId: expect.any(String),
       });
-      expect(agentOptions?.projectDir).toBe(projectDir);
+      expect(agentOptions?.scopeRoot).toBe(workspaceRoot);
       expect(agentOptions?.cwd).toBe(workspaceDir);
       expect(
         existsSync(
-          join(projectDir, result.metadata.runDir, "steps", "agent.harness-capability.json"),
+          join(workspaceRoot, result.metadata.runDir, "steps", "agent.harness-capability.json"),
         ),
       ).toBe(true);
       expect(existsSync(join(workspaceDir, ".kota", "runs"))).toBe(false);

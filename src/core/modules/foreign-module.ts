@@ -174,8 +174,8 @@ export type StdioForeignModuleConfig = {
   env?: Record<string, string>;
   /**
    * Working directory for the subprocess.
-   * Relative paths are resolved from the KOTA project root.
-   * Defaults to the KOTA project root.
+   * Relative paths are resolved from the KOTA scope root.
+   * Defaults to the KOTA scope root.
    */
   cwd?: string;
   /**

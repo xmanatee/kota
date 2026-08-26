@@ -47,18 +47,18 @@ export type TimedResponse<TBody> = {
   body: TBody;
 };
 
-export function initializeControlFixtureRepo(projectDir: string): void {
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+export function initializeControlFixtureRepo(workspaceRoot: string): void {
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n", "utf8");
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.name", "Kota Tests"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
   execFileSync("git", ["config", "user.email", "kota@example.com"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+  execFileSync("git", ["add", ".gitignore"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }
 

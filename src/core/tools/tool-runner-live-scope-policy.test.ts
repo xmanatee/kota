@@ -22,7 +22,7 @@ import { deregisterTool, registerTool } from "./index.js";
 import { executeToolCalls } from "./tool-runner.js";
 
 const SCOPE_ID = "live-policy-fixture";
-const PROJECT_DIR = "/tmp/kota-live-policy-fixture";
+const SCOPE_ROOT = "/tmp/kota-live-policy-fixture";
 const registeredTools = new Set<string>();
 
 afterEach(() => {
@@ -36,7 +36,7 @@ describe("hosted tool live scope policy", () => {
     await expectLiveRestriction({
       toolName: "live_policy_write",
       effect: localWriteEffect(),
-      input: { path: `${PROJECT_DIR}/output.txt` },
+      input: { path: `${SCOPE_ROOT}/output.txt` },
       restriction: { writes: { mode: "none" } },
       expectedDenial: "writes are disabled",
     });
@@ -85,7 +85,7 @@ describe("hosted tool live scope policy", () => {
     await expectLiveRestriction({
       toolName: "live_policy_session_write",
       effect: localWriteEffect(),
-      input: { path: `${PROJECT_DIR}/session-output.txt` },
+      input: { path: `${SCOPE_ROOT}/session-output.txt` },
       restriction: {
         autonomy: { defaultMode: "passive", maxMode: "passive" },
       },
@@ -123,7 +123,7 @@ async function expectLiveRestriction(args: {
     autonomyMode: "autonomous" as const,
     scopePolicy: initialPolicy,
     getScopePolicySnapshot,
-    cwd: PROJECT_DIR,
+    cwd: SCOPE_ROOT,
   };
 
   const [allowed] = await executeToolCalls(
@@ -157,7 +157,7 @@ function policyFor(
           scopeId: SCOPE_ID,
           displayName: "Live policy fixture",
           parentScopeId: "global",
-          directoryRoot: PROJECT_DIR,
+          directoryRoot: SCOPE_ROOT,
         },
       ],
     },
@@ -183,7 +183,7 @@ function registerManifestTool(toolName: string, effect: ToolEffect): void {
         capabilities: [{
           id: "live-policy-module.read",
           description: "Reads a live-policy fixture.",
-          scope: "project",
+          scope: "scope",
           scopePolicyHooks: ["writes"],
         }],
         dataClasses: [],

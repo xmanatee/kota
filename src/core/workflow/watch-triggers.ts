@@ -42,7 +42,7 @@ export class WatchTriggerManager {
   private unsubscribe: (() => void) | null = null;
 
   constructor(
-    private readonly projectDir: string,
+    private readonly scopeRoot: string,
     private readonly isStopping: () => boolean,
     private readonly enqueueRun: EnqueueFn,
     private readonly maybeStartNext: () => void,
@@ -169,7 +169,7 @@ export class WatchTriggerManager {
     // Register the entry immediately so reconcile knows it's handled.
     this.entries.set(key, entry);
     try {
-      const watcherId = await this.watcher.start(this.projectDir, { recursive: true });
+      const watcherId = await this.watcher.start(this.scopeRoot, { recursive: true });
       if (!this.entries.has(key)) {
         // Entry was removed while we were starting; clean up.
         this.watcher.stop(watcherId);

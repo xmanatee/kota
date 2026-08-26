@@ -19,7 +19,7 @@ const SKIPPED_DIRECTORIES = new Set([
   "build",
 ]);
 
-function listGuidanceFiles(projectDir: string, directory = projectDir): string[] {
+function listGuidanceFiles(workspaceRoot: string, directory = workspaceRoot): string[] {
   const files: string[] = [];
   if (!existsSync(directory)) return files;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -27,11 +27,11 @@ function listGuidanceFiles(projectDir: string, directory = projectDir): string[]
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
       if (SKIPPED_DIRECTORIES.has(entry.name)) continue;
-      files.push(...listGuidanceFiles(projectDir, path));
+      files.push(...listGuidanceFiles(workspaceRoot, path));
       continue;
     }
     if (entry.isFile() && (entry.name === "AGENTS.md" || entry.name === "CLAUDE.md")) {
-      files.push(relative(projectDir, path));
+      files.push(relative(workspaceRoot, path));
     }
   }
   return files;
@@ -112,18 +112,18 @@ function scopePolicyMaterial(policy: ResolvedScopePolicy) {
  * become an implicit scope-review trigger.
  */
 export function computeScopeContentFingerprint(
-  projectDir: string,
+  workspaceRoot: string,
   scopePolicy: ResolvedScopePolicy,
   stateDir?: string,
 ): ScopeContentFingerprint {
-  const canonicalStateDir = stateDir ?? join(projectDir, ".kota");
-  const scopeId = deriveDirectoryScopeId(projectDir);
+  const canonicalStateDir = stateDir ?? join(workspaceRoot, ".kota");
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   if (scopePolicy.scopeId !== scopeId) {
     throw new Error(
       `resolved scope policy ${scopePolicy.scopeId} does not belong to ${scopeId}`,
     );
   }
-  const guidanceRefs = listGuidanceFiles(projectDir)
+  const guidanceRefs = listGuidanceFiles(workspaceRoot)
     .sort((a, b) => a.localeCompare(b));
   const refs = [
     ...guidanceRefs,
@@ -136,7 +136,7 @@ export function computeScopeContentFingerprint(
   for (const path of guidanceRefs) {
     hash.update(path);
     hash.update("\0");
-    hash.update(readFileSync(join(projectDir, path)));
+    hash.update(readFileSync(join(workspaceRoot, path)));
     hash.update("\0");
   }
   hash.update("scope-improvement-config\0");

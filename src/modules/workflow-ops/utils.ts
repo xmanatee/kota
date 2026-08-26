@@ -35,6 +35,6 @@ export function listRuns(store: WorkflowRunStore, limit: number): WorkflowRunMet
   return listStoredWorkflowRuns(store.runsDir).slice(0, limit);
 }
 
-export function eventJournalForProject(projectDir: string): EventJournal {
-  return new EventJournal(join(projectDir, ".kota", "events"));
+export function eventJournalForScope(workspaceRoot: string): EventJournal {
+  return new EventJournal(join(workspaceRoot, ".kota", "events"));
 }

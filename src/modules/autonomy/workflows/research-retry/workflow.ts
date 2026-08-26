@@ -59,10 +59,10 @@ function assertResearchRetryTrigger(trigger: WorkflowRunTrigger): void {
   if (trigger.event !== RESEARCH_RETRY_EVENT) {
     throw new Error(`Research-retry accepts only ${RESEARCH_RETRY_EVENT} triggers`);
   }
-  const { projectId, candidateCount, attemptableCount, counts } = trigger.payload;
+  const { scopeId, candidateCount, attemptableCount, counts } = trigger.payload;
   if (
-    typeof projectId !== "string" ||
-    projectId.length === 0 ||
+    typeof scopeId !== "string" ||
+    scopeId.length === 0 ||
     !isNonNegativeInteger(candidateCount) ||
     !isNonNegativeInteger(attemptableCount) ||
     attemptableCount === 0 ||
@@ -89,9 +89,9 @@ const inspectCandidates = typedCodeStep<InspectResult>({
       "marker",
       "examined",
     ]),
-  run: ({ projectDir, runBlocking, trigger }) => {
+  run: ({ workspaceRoot, runBlocking, trigger }) => {
     assertResearchRetryTrigger(trigger);
-    return runBlocking(inspectResearchRetryCandidatesOperation, { projectDir });
+    return runBlocking(inspectResearchRetryCandidatesOperation, { workspaceRoot });
   },
 });
 
@@ -112,7 +112,7 @@ const markAttempt = typedCodeStep<MarkAttemptResult>({
       return { written: false, reason: "no candidate selected" };
     }
     return ctx.runBlocking(markResearchRetryAttemptOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       candidateId: inspection.candidate.id,
     });
   },
@@ -156,7 +156,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
                 await ctx.runCommand({
                   command: "pnpm",
                   args: ["run", "validate-tasks"],
-                  cwd: ctx.projectDir,
+                  cwd: ctx.workspaceRoot,
                 }),
               ),
           },

@@ -113,18 +113,18 @@ describe("inbox-sorter workflow", () => {
       (entry) => entry.id === "task-queue-valid",
     );
     if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
-    const projectDir = "/tmp/inbox-sorter-command-test";
+    const workspaceRoot = "/tmp/inbox-sorter-command-test";
     const runCommand = vi.fn(successfulWorkflowCommandRun);
 
     await check.run(
-      { projectDir, runCommand } as unknown as WorkflowStepContext,
+      { workspaceRoot, runCommand } as unknown as WorkflowStepContext,
       {} as never,
     );
 
     expect(runCommand).toHaveBeenCalledWith({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
   });
 

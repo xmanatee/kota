@@ -1,4 +1,4 @@
-import type { ScopeId } from "./project-scope.js";
+import type { ScopeId } from "./scope.js";
 
 export type GuardrailsNonRefreshableSession = {
   id: string;

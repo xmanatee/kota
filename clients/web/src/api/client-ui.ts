@@ -4,7 +4,7 @@ import {
   type UiSurfaceBundle,
   parseUiSurfaceBundle,
 } from "../../../conformance/ui-surface.generated";
-import { apiDecoded, apiJson, withProject } from "./client-runtime";
+import { apiDecoded, apiJson, withScope } from "./client-runtime";
 
 export type UiActionExecutionResult =
   | { ok: true; message: string }
@@ -37,8 +37,8 @@ function parseUiActionExecutionResult(raw: unknown): UiActionExecutionResult {
 }
 
 export const uiApi = {
-  getUiSurfaces: (projectId: string): Promise<UiSurfaceBundle> =>
-    apiDecoded(withProject("/ui/surfaces", projectId), parseUiSurfaceBundle),
+  getUiSurfaces: (scopeId: string): Promise<UiSurfaceBundle> =>
+    apiDecoded(withScope("/ui/surfaces", scopeId), parseUiSurfaceBundle),
   executeUiAction: async (
     action: UiAction,
     parameters?: UiJsonValue,

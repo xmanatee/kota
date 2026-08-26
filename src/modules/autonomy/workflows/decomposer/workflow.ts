@@ -88,7 +88,7 @@ const applyDecomposition = typedCodeStep<AppliedDecomposition>({
       throw new Error("Cannot apply decomposition without an active target");
     }
     return ctx.runBlocking(applyDecompositionOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       stateDir: ctx.stateDir,
       assessment,
       plan: decodeDecompositionPlan(ctx.stepOutputs.decompose),
@@ -109,7 +109,7 @@ const validateDecomposition = typedCodeStep<{
       await ctx.runCommand({
         command: "pnpm",
         args: ["run", "validate-tasks"],
-        cwd: ctx.projectDir,
+        cwd: ctx.workspaceRoot,
       }),
     );
     return { taskQueue };

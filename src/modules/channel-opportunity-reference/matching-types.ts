@@ -26,7 +26,6 @@ export type RoutedOpportunitySignal = {
 
 export type ChannelOpportunityBatchInput = {
   scopeId: string;
-  projectId: string;
   sourceEventName: string;
   groupingKey: string;
   flushReason: WorkflowBatchFlushPayload["reason"];

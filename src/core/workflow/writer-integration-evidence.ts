@@ -10,7 +10,7 @@ export type WriterIntegrationEvidence = Readonly<{
   version: 1;
   runId: string;
   workflow: string;
-  projectId: string;
+  scopeId: string;
   targetBranch: string;
   baseHead: string;
   integratedFromHead: string;
@@ -22,13 +22,13 @@ export type WriterIntegrationEvidence = Readonly<{
 }>;
 
 export function writerIntegrationEvidencePath(
-  projectRoot: string,
+  scopeRoot: string,
   runId: string,
 ): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(runId)) {
     throw new Error(`Invalid run id "${runId}"`);
   }
-  return join(projectRoot, ".kota", "runs", runId, WRITER_INTEGRATION_EVIDENCE);
+  return join(scopeRoot, ".kota", "runs", runId, WRITER_INTEGRATION_EVIDENCE);
 }
 
 export function readWriterIntegrationEvidence(
@@ -41,10 +41,10 @@ export function readWriterIntegrationEvidence(
 }
 
 export function writeWriterIntegrationEvidence(
-  projectRoot: string,
+  scopeRoot: string,
   evidence: WriterIntegrationEvidence,
 ): void {
-  const path = writerIntegrationEvidencePath(projectRoot, evidence.runId);
+  const path = writerIntegrationEvidencePath(scopeRoot, evidence.runId);
   const existing = readOptionalJsonFile<WriterIntegrationEvidence>(path);
   if (existing !== null) {
     if (JSON.stringify(existing) !== JSON.stringify(evidence)) {

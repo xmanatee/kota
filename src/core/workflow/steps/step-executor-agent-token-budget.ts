@@ -44,12 +44,12 @@ export function resolveAgentStepTokenBudget(
 export function writeAgentTokenBudgetArtifact(
   stepId: string,
   metadata: WorkflowRunMetadata,
-  projectDir: string,
+  scopeRoot: string,
   tokenBudget: AgentTokenBudgetLedger | undefined,
 ): void {
   if (tokenBudget === undefined) return;
   const filePath = join(
-    resolve(projectDir, metadata.runDir),
+    resolve(scopeRoot, metadata.runDir),
     "steps",
     `${stepId}.token-budget.json`,
   );

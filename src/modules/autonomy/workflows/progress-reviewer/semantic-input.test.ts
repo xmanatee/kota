@@ -9,7 +9,7 @@ import {
 } from "./semantic-input.js";
 
 describe("progress review semantic consumption", () => {
-  const scopeDir = process.cwd();
+  const scopeRoot = process.cwd();
   const automaticTrigger = {
     event: "autonomy.progress-review.requested",
     schemaRef: null,
@@ -24,7 +24,7 @@ describe("progress review semantic consumption", () => {
   it("publishes the consumed watermark through compare-and-set", () => {
     const state = createTestTransactionalRunState();
     const input = inspectProgressReviewSemanticInput({
-      scopeDir,
+      scopeRoot,
       state,
       trigger: automaticTrigger,
     });
@@ -34,19 +34,19 @@ describe("progress review semantic consumption", () => {
       PROGRESS_REVIEW_STATE_KEY,
     );
     const next = completeProgressReviewSemanticInput({
-      current: decodeProgressReviewConsumptionState(snapshot.value, scopeDir),
+      current: decodeProgressReviewConsumptionState(snapshot.value, scopeRoot),
       input,
       consumedAt: "2026-08-15T12:00:00.000Z",
     });
     state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, next);
 
     expect(inspectProgressReviewSemanticInput({
-      scopeDir,
+      scopeRoot,
       state,
       trigger: automaticTrigger,
     })).toMatchObject({ shouldReview: false, inputRevision: 4 });
     expect(inspectProgressReviewSemanticInput({
-      scopeDir,
+      scopeRoot,
       state,
       trigger: {
         ...automaticTrigger,
@@ -64,7 +64,7 @@ describe("progress review semantic consumption", () => {
       PROGRESS_REVIEW_STATE_KEY,
       first.revision,
       completeProgressReviewSemanticInput({
-        current: decodeProgressReviewConsumptionState(first.value, scopeDir),
+        current: decodeProgressReviewConsumptionState(first.value, scopeRoot),
         input: { automatic: true, inputRevision: 5 },
         consumedAt: "2026-08-15T12:00:00.000Z",
       }),
@@ -73,7 +73,7 @@ describe("progress review semantic consumption", () => {
       PROGRESS_REVIEW_STATE_KEY,
       first.revision,
       completeProgressReviewSemanticInput({
-        current: decodeProgressReviewConsumptionState(first.value, scopeDir),
+        current: decodeProgressReviewConsumptionState(first.value, scopeRoot),
         input: { automatic: true, inputRevision: 4 },
         consumedAt: "2026-08-15T12:01:00.000Z",
       }),
@@ -87,10 +87,10 @@ describe("progress review semantic consumption", () => {
       schemaRef: null,
       payload: { reason: "operator requested a review" },
     };
-    const input = inspectProgressReviewSemanticInput({ scopeDir, state, trigger });
+    const input = inspectProgressReviewSemanticInput({ scopeRoot, state, trigger });
     const current = decodeProgressReviewConsumptionState(
       state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
-      scopeDir,
+      scopeRoot,
     );
     expect(input).toMatchObject({
       automatic: false,
@@ -108,7 +108,7 @@ describe("progress review semantic consumption", () => {
   it("rejects malformed automatic requests before review work starts", () => {
     const state = createTestTransactionalRunState();
     expect(() => inspectProgressReviewSemanticInput({
-      scopeDir,
+      scopeRoot,
       state,
       trigger: {
         event: "autonomy.progress-review.requested",

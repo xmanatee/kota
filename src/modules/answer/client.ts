@@ -154,7 +154,7 @@ export interface AnswerClient {
   log(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult>;
   show(
     id: string,
-    project?: AnswerHistoryShowFilter,
+    scope?: AnswerHistoryShowFilter,
   ): Promise<AnswerHistoryShowResult>;
 }
 

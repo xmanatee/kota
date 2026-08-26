@@ -47,23 +47,23 @@ const NETWORK_TOOL = "handoff_policy_network";
 const MODULE_TOOL = "handoff_policy_module";
 
 describe("handoff_agent hosted scope-policy inheritance", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let scopeId: string;
   let approvalQueue: ApprovalQueue;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-policy-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "child.md"), "Child prompt.\n");
-    initHandoffPolicyGitProject(projectDir);
-    scopeId = deriveDirectoryScopeId(projectDir);
-    approvalQueue = handoffApprovalQueue(projectDir, scopeId);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-policy-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "child.md"), "Child prompt.\n");
+    initHandoffPolicyGitProject(scopeRoot);
+    scopeId = deriveDirectoryScopeId(scopeRoot);
+    approvalQueue = handoffApprovalQueue(scopeRoot, scopeId);
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     clearCustomTools();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   async function runDeniedChild(args: {
@@ -103,7 +103,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
             type: "tool_use",
             id: `child-${args.toolName}`,
             name: args.toolName,
-            input: { path: join(projectDir, "allowed", "output.txt") },
+            input: { path: join(scopeRoot, "allowed", "output.txt") },
           }],
           agentHarnessToolExecutionOptions(options, { resultLimit: 50_000 }),
         );
@@ -117,17 +117,16 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
     });
     const authority = authorityFor(args.policy);
     const runtime: HandoffAgentRuntime = {
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
       delegateBudget: createDelegateBudget(),
       autonomyMode: "autonomous",
       scopeId,
-      projectId: scopeId,
       scopePolicy: args.policy,
       scopePolicyAuthority: authority,
       getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
-      authorityConfigPath: join(projectDir, ".machine", "config.json"),
+      authorityConfigPath: join(scopeRoot, ".machine", "config.json"),
       approvalQueue,
     };
 
@@ -140,10 +139,10 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
           reason: "Regression fixture.",
           autonomy_mode: "autonomous",
           budget: { max_turns: 2 },
-          scope: { scope_id: scopeId, project_id: scopeId },
+          scope: { scope_id: scopeId },
           allowed_tools: [args.toolName],
         },
-        { scopeId, projectId: scopeId, sessionId: "parent-session" },
+        { scopeId, sessionId: "parent-session" },
       )
     );
 
@@ -155,10 +154,9 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
       scopePolicy: args.policy,
       scopePolicyAuthority: authority,
       approvalQueue,
-      authorityConfigPath: join(projectDir, ".machine", "config.json"),
+      authorityConfigPath: join(scopeRoot, ".machine", "config.json"),
       sessionContext: {
         scopeId,
-        projectId: scopeId,
       },
     });
   }
@@ -167,7 +165,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
     await runDeniedChild({
       toolName: WRITE_TOOL,
       effect: localWriteEffect(),
-      policy: policyFor(projectDir, { writes: { mode: "none" } }),
+      policy: policyFor(scopeRoot, { writes: { mode: "none" } }),
       writeScope: ["allowed/"],
       expected: /Blocked by scope policy.*writes are disabled/,
     });
@@ -177,7 +175,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
     await runDeniedChild({
       toolName: NETWORK_TOOL,
       effect: networkReadEffect(),
-      policy: policyFor(projectDir, {
+      policy: policyFor(scopeRoot, {
         externalEffects: {
           networkRead: "deny",
           networkWrite: "deny",
@@ -193,7 +191,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
     await runDeniedChild({
       toolName: MODULE_TOOL,
       effect: readOnlyLocalEffect(),
-      policy: policyFor(projectDir, {
+      policy: policyFor(scopeRoot, {
         modules: { defaultAvailability: "disabled" },
       }),
       writeScope: "deny-all",
@@ -203,7 +201,7 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
   });
 
   it("caps child autonomy at the parent and carries hosted authority identity", async () => {
-    const policy = policyFor(projectDir, {});
+    const policy = policyFor(scopeRoot, {});
     const authority = authorityFor(policy);
     const agent: AgentDef = {
       name: "child",
@@ -233,17 +231,16 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
         };
       },
     });
-    const authorityConfigPath = join(projectDir, ".machine", "config.json");
+    const authorityConfigPath = join(scopeRoot, ".machine", "config.json");
 
     const result = await withHandoffAgentRuntime(
       {
-        cwd: projectDir,
+        cwd: scopeRoot,
         harness: HARNESS,
         resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
         delegateBudget: createDelegateBudget(),
         autonomyMode: "supervised",
         scopeId,
-        projectId: scopeId,
         scopePolicy: policy,
         scopePolicyAuthority: authority,
         getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
@@ -259,10 +256,10 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
             reason: "Regression fixture.",
             autonomy_mode: "autonomous",
             budget: { max_turns: 2 },
-            scope: { scope_id: scopeId, project_id: scopeId },
+            scope: { scope_id: scopeId },
             allowed_tools: ["Read"],
           },
-          { scopeId, projectId: scopeId, sessionId: "parent-session" },
+          { scopeId, sessionId: "parent-session" },
         ),
     );
 
@@ -275,7 +272,6 @@ describe("handoff_agent hosted scope-policy inheritance", () => {
       authorityConfigPath,
       sessionContext: {
         scopeId,
-        projectId: scopeId,
         sessionId: expect.stringMatching(/^handoff:/),
       },
     });

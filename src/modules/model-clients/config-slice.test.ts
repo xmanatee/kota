@@ -25,7 +25,7 @@ describe("model-clients config slices", () => {
 
   function loadTrustedConfig() {
     const globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     return loadConfig(tmpDir, undefined, { globalConfigPath });
   }
 

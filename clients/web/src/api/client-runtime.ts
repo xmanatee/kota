@@ -16,14 +16,19 @@ function authHeaders(): Record<string, string> {
   return cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {};
 }
 
-function dashboardRequestHeaders(options?: RequestInit): Record<string, string> {
+function dashboardRequestHeaders(
+  options?: RequestInit,
+): Record<string, string> {
   const method = (options?.method ?? "GET").toUpperCase();
   return method === "GET" || method === "HEAD"
     ? {}
     : { [DASHBOARD_REQUEST_HEADER]: "1" };
 }
 
-export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
+export async function apiFetch(
+  path: string,
+  options?: RequestInit,
+): Promise<Response> {
   return fetch(path, {
     ...options,
     headers: {
@@ -34,7 +39,10 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<Res
   });
 }
 
-export async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
+export async function apiJson<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
   const response = await apiFetch(path, options);
   if (!response.ok) {
     throw new Error(`API error ${response.status}: ${await response.text()}`);
@@ -42,10 +50,10 @@ export async function apiJson<T>(path: string, options?: RequestInit): Promise<T
   return response.json() as Promise<T>;
 }
 
-export function withProject(path: string, projectId: string): string {
-  if (!projectId) return path;
+export function withScope(path: string, scopeId: string): string {
+  if (!scopeId) return path;
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
+  return `${path}${separator}scopeId=${encodeURIComponent(scopeId)}`;
 }
 
 export async function apiDecoded<T>(

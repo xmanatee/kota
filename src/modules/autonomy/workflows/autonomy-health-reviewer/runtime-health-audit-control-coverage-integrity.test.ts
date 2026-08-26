@@ -6,7 +6,7 @@ import {
   collectControlCoverageAudit,
   expectApprovalOwnerGatePattern,
   expectNoObservableGateDiagnostics,
-  makeControlCoverageProjectDir,
+  makeControlCoverageScopeRoot,
 } from "./runtime-health-audit-control-coverage-test-context.js";
 import {
   writeRunWithAgentRuntimeCoverageGaps,
@@ -15,23 +15,23 @@ import {
 } from "./runtime-health-audit-control-coverage-test-support.js";
 
 describe("runtime health audit control coverage integrity", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeControlCoverageProjectDir();
+    workspaceRoot = makeControlCoverageScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("rejects an alternate-run metadata id before the gate suppressor reads artifacts", () => {
     writeRunWithSkippedApprovalGateGap(
-      projectDir,
+      workspaceRoot,
       "authentic-skipped-gate",
       "2026-06-19T10:00:00.000Z",
     );
-    writeRunWithApprovalOwnerGateGap(projectDir, {
+    writeRunWithApprovalOwnerGateGap(workspaceRoot, {
       id: "forged-current-run",
       metadataId: "authentic-skipped-gate",
       startedAt: "2026-06-19T11:00:00.000Z",
@@ -39,7 +39,7 @@ describe("runtime health audit control coverage integrity", () => {
     });
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -49,13 +49,13 @@ describe("runtime health audit control coverage integrity", () => {
   });
 
   it("ignores missing agent runtime evidence from infrastructure failed steps", () => {
-    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+    writeRunWithAgentRuntimeCoverageGaps(workspaceRoot, {
       id: "transport-missing-runtime-a",
       startedAt: "2026-06-19T10:00:00.000Z",
       error:
         'Agent step "review-evidence" failed (codex_cli_error): stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)',
     });
-    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+    writeRunWithAgentRuntimeCoverageGaps(workspaceRoot, {
       id: "transport-missing-runtime-b",
       startedAt: "2026-06-19T11:00:00.000Z",
       error:
@@ -64,7 +64,7 @@ describe("runtime health audit control coverage integrity", () => {
     });
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -74,19 +74,19 @@ describe("runtime health audit control coverage integrity", () => {
   });
 
   it("keeps missing agent runtime evidence from unclassified failed steps actionable", () => {
-    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+    writeRunWithAgentRuntimeCoverageGaps(workspaceRoot, {
       id: "local-missing-runtime-a",
       startedAt: "2026-06-19T10:00:00.000Z",
       error: 'Agent step "review-evidence" failed: local invariant broke',
     });
-    writeRunWithAgentRuntimeCoverageGaps(projectDir, {
+    writeRunWithAgentRuntimeCoverageGaps(workspaceRoot, {
       id: "local-missing-runtime-b",
       startedAt: "2026-06-19T11:00:00.000Z",
       error: 'Agent step "review-evidence" failed: local invariant broke',
     });
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -113,14 +113,14 @@ describe("runtime health audit control coverage integrity", () => {
       ["escaping-step-ref-a", "2026-06-19T10:00:00.000Z"],
       ["escaping-step-ref-b", "2026-06-19T11:00:00.000Z"],
     ] as const) {
-      writeRunWithApprovalOwnerGateGap(projectDir, {
+      writeRunWithApprovalOwnerGateGap(workspaceRoot, {
         id,
         startedAt,
         step: { id: "approve-comment", type: "approval", status: "skipped" },
         evidenceRefs: [`.kota/runs/${id}/steps/../../forged-${id}.json`],
       });
       writeFileSync(
-        join(projectDir, ".kota", "runs", `forged-${id}.json`),
+        join(workspaceRoot, ".kota", "runs", `forged-${id}.json`),
         JSON.stringify({
           id: "approve-comment",
           type: "approval",
@@ -131,7 +131,7 @@ describe("runtime health audit control coverage integrity", () => {
     }
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -141,19 +141,19 @@ describe("runtime health audit control coverage integrity", () => {
   });
 
   it("does not suppress approval gate gaps from skipped non-gate step artifacts", () => {
-    writeRunWithApprovalOwnerGateGap(projectDir, {
+    writeRunWithApprovalOwnerGateGap(workspaceRoot, {
       id: "skipped-non-gate-a",
       startedAt: "2026-06-19T10:00:00.000Z",
       step: { id: "sort-inbox", type: "code", status: "skipped" },
     });
-    writeRunWithApprovalOwnerGateGap(projectDir, {
+    writeRunWithApprovalOwnerGateGap(workspaceRoot, {
       id: "skipped-non-gate-b",
       startedAt: "2026-06-19T11:00:00.000Z",
       step: { id: "sort-inbox", type: "code", status: "skipped" },
     });
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -163,7 +163,7 @@ describe("runtime health audit control coverage integrity", () => {
   });
 
   it("distinguishes producer-missing control evidence from policy-pruned run references", () => {
-    const missingRunDir = join(projectDir, ".kota", "runs", "missing-coverage");
+    const missingRunDir = join(workspaceRoot, ".kota", "runs", "missing-coverage");
     mkdirSync(missingRunDir, { recursive: true });
     writeFileSync(
       join(missingRunDir, "metadata.json"),
@@ -180,7 +180,7 @@ describe("runtime health audit control coverage integrity", () => {
       "utf-8",
     );
     writeFileSync(
-      join(projectDir, ".kota", "runs", "pruned-runs.jsonl"),
+      join(workspaceRoot, ".kota", "runs", "pruned-runs.jsonl"),
       `${JSON.stringify({
         artifactType: "workflow-run",
         id: "pruned-coverage",
@@ -206,7 +206,7 @@ describe("runtime health audit control coverage integrity", () => {
     );
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 

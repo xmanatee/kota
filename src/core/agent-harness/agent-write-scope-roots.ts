@@ -31,7 +31,7 @@ export function resolveAgentWriteScopeRoots(
 /**
  * Resolve the complete pre-mutation boundary for a named workflow agent.
  * The runtime-owned output directory is an explicit exception to the agent's
- * project mutation scope, including for read-only (`deny-all`) agents.
+ * repository mutation scope, including for read-only (`deny-all`) agents.
  */
 export function resolveAgentFilesystemWriteRoots(
   cwd: string,

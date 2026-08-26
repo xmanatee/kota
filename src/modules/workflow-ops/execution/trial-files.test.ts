@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	assertIsolatedTrialProjectRoot,
-	copyProjectForTrial,
+	assertIsolatedTrialWorkspace,
+	copyScopeToTrialWorkspace,
 } from "./trial-files.js";
 
 const roots: string[] = [];
@@ -16,37 +16,37 @@ afterEach(() => {
 	}
 });
 
-function initializeRepository(projectDir: string): void {
+function initializeRepository(workspaceRoot: string): void {
 	execFileSync("git", ["init", "--quiet", "--initial-branch=main"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 	execFileSync("git", ["config", "user.email", "trial@test.local"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 	execFileSync("git", ["config", "user.name", "Trial Test"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 	execFileSync("git", ["commit", "--allow-empty", "--message", "initial", "--quiet"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 }
 
 describe("trial project isolation proof", () => {
 	it("accepts only a copied temp-root repository distinct from the source checkout", () => {
-		const sourceProjectDir = mkdtempSync(join(tmpdir(), "kota-trial-source-"));
-		roots.push(sourceProjectDir);
-		mkdirSync(join(sourceProjectDir, "data"), { recursive: true });
-		writeFileSync(join(sourceProjectDir, "data", "seed.txt"), "seed\n");
+		const sourceScopeRoot = mkdtempSync(join(tmpdir(), "kota-trial-source-"));
+		roots.push(sourceScopeRoot);
+		mkdirSync(join(sourceScopeRoot, "data"), { recursive: true });
+		writeFileSync(join(sourceScopeRoot, "data", "seed.txt"), "seed\n");
 
-		const trialProjectDir = copyProjectForTrial(sourceProjectDir, "attempt-1");
-		roots.push(join(trialProjectDir, ".."));
-		initializeRepository(trialProjectDir);
+		const trialWorkspaceRoot = copyScopeToTrialWorkspace(sourceScopeRoot, "attempt-1");
+		roots.push(join(trialWorkspaceRoot, ".."));
+		initializeRepository(trialWorkspaceRoot);
 
 		expect(() =>
-			assertIsolatedTrialProjectRoot(sourceProjectDir, trialProjectDir)
+			assertIsolatedTrialWorkspace(sourceScopeRoot, trialWorkspaceRoot)
 		).not.toThrow();
 		expect(() =>
-			assertIsolatedTrialProjectRoot(sourceProjectDir, sourceProjectDir)
+			assertIsolatedTrialWorkspace(sourceScopeRoot, sourceScopeRoot)
 		).toThrow(/isolated trial root proof/i);
 	});
 });

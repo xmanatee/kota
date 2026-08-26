@@ -52,7 +52,7 @@ const replayRoot = resolveReplayRootFromEnv();
 // modules in `"commands"` lifecycle mode (onLoad skipped), and the
 // subprocess executor invokes `kota workflow exec` through that same CLI
 // surface.
-// Module discovery imports project modules in alphabetical directory order
+// Module discovery imports installed modules in alphabetical directory order
 // — `claude-agent-harness` < `eval-harness` — so this registration runs
 // after the claude adapter's import-time `registerAgentHarness` and the
 // `Map.set` override lands cleanly. Production paths leave the env unset

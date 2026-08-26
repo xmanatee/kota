@@ -61,9 +61,9 @@ const linearModule: KotaModule = {
     dataClasses: [
       {
         id: "linear.credentials",
-        description: "Linear API key references resolved from project config or environment variables.",
+        description: "Linear API key references resolved from scope config or environment variables.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {

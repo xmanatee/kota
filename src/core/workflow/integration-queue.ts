@@ -174,7 +174,7 @@ function branchOrUndefined(cwd: string): string | undefined {
 
 export class IntegrationQueue {
   constructor(
-    private readonly projectDir: string,
+    private readonly repoRoot: string,
     private readonly runState: RunStateDatabase,
   ) {}
 
@@ -186,7 +186,7 @@ export class IntegrationQueue {
     }
 
     const writerHead = git(sandbox.workspaceDir, ["rev-parse", "HEAD"]);
-    const canonicalHead = git(this.projectDir, ["rev-parse", "HEAD"]);
+    const canonicalHead = git(this.repoRoot, ["rev-parse", "HEAD"]);
     const identity: IntegrationIdentity = {
       repositoryId: input.repositoryId,
       runId: sandbox.runId,
@@ -196,7 +196,7 @@ export class IntegrationQueue {
       writerHead,
       canonicalHead,
     };
-    const canonicalBranch = branchOrUndefined(this.projectDir);
+    const canonicalBranch = branchOrUndefined(this.repoRoot);
     if (canonicalBranch !== sandbox.targetBranch) {
       return {
         ...identity,
@@ -216,7 +216,7 @@ export class IntegrationQueue {
         dirtyStatus: workspaceStatus,
       };
     }
-    const canonicalStatus = git(this.projectDir, ["status", "--porcelain"]);
+    const canonicalStatus = git(this.repoRoot, ["status", "--porcelain"]);
     if (canonicalStatus !== "") {
       return {
         ...identity,
@@ -308,7 +308,7 @@ export class IntegrationQueue {
     const publication: LockedIntegration = { ...reconciled, resourceKey };
     try {
       input.signal.throwIfAborted();
-      const observedCanonicalBranch = branchOrUndefined(this.projectDir);
+      const observedCanonicalBranch = branchOrUndefined(this.repoRoot);
       if (observedCanonicalBranch !== sandbox.targetBranch) {
         return {
           ...publication,
@@ -318,7 +318,7 @@ export class IntegrationQueue {
           observedCanonicalBranch,
         };
       }
-      const observedCanonicalHead = git(this.projectDir, ["rev-parse", "HEAD"]);
+      const observedCanonicalHead = git(this.repoRoot, ["rev-parse", "HEAD"]);
       if (observedCanonicalHead !== canonicalHead) {
         return {
           ...publication,
@@ -326,7 +326,7 @@ export class IntegrationQueue {
           observedCanonicalHead,
         };
       }
-      const canonicalStatus = git(this.projectDir, ["status", "--porcelain"]);
+      const canonicalStatus = git(this.repoRoot, ["status", "--porcelain"]);
       if (canonicalStatus !== "") {
         return {
           ...publication,
@@ -370,7 +370,7 @@ export class IntegrationQueue {
           observedWorkspaceHead: publicationWorkspaceHead,
         };
       }
-      const postInvariantCanonicalBranch = branchOrUndefined(this.projectDir);
+      const postInvariantCanonicalBranch = branchOrUndefined(this.repoRoot);
       if (postInvariantCanonicalBranch !== sandbox.targetBranch) {
         return {
           ...publication,
@@ -380,7 +380,7 @@ export class IntegrationQueue {
           observedCanonicalBranch: postInvariantCanonicalBranch,
         };
       }
-      const postInvariantCanonicalHead = git(this.projectDir, ["rev-parse", "HEAD"]);
+      const postInvariantCanonicalHead = git(this.repoRoot, ["rev-parse", "HEAD"]);
       if (postInvariantCanonicalHead !== observedCanonicalHead) {
         return {
           ...publication,
@@ -388,7 +388,7 @@ export class IntegrationQueue {
           observedCanonicalHead: postInvariantCanonicalHead,
         };
       }
-      const postInvariantCanonicalStatus = git(this.projectDir, [
+      const postInvariantCanonicalStatus = git(this.repoRoot, [
         "status",
         "--porcelain",
       ]);
@@ -414,11 +414,11 @@ export class IntegrationQueue {
         publishedHead: reconciledHead,
       });
       input.signal.throwIfAborted();
-      git(this.projectDir, ["merge", "--ff-only", reconciledHead]);
+      git(this.repoRoot, ["merge", "--ff-only", reconciledHead]);
       return {
         ...publication,
         status: "merged",
-        publishedHead: git(this.projectDir, ["rev-parse", "HEAD"]),
+        publishedHead: git(this.repoRoot, ["rev-parse", "HEAD"]),
       };
     } finally {
       this.runState.releaseResource(sandbox.runId, resourceKey, input.epoch);

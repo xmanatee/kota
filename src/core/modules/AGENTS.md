@@ -45,7 +45,7 @@ Lifecycle registration belongs in `onLoad`; contribution factories may run
 after provider activation. `module-context-capabilities.test.ts` enforces this.
 
 - Modules own tool, workflow, channel, provider, agent, and service contributions.
-- Treat `<project>/.kota/modules/` as untrusted. Resolve persisted machine trust
+- Treat `<scope>/.kota/modules/` as untrusted. Resolve persisted machine trust
   before discovery or re-import; caller `KotaConfig` is not authority.
 - Foreign modules are a transport variant of the same module model, not a
   separate extension system.
@@ -70,7 +70,7 @@ after provider activation. `module-context-capabilities.test.ts` enforces this.
   perform other side effects from those factories — runtime warnings about
   missing config belong in `onLoad` or a module `healthCheck` surfaced through `kota doctor`.
 - `mod.uiSurfaces` contributes side-effect-free live source definitions; the loader caches them,
-  while `assembleUiSurfaceBundle` projects, validates, and orders one scoped graph.
+  while `assembleUiSurfaceBundle` scopes, validates, and orders one scoped graph.
   Capability reads belong in the projector, never in the contribution factory or `onLoad`.
 - `RouteRegistration` (public `kota serve` surface) and `ControlRouteRegistration`
   (daemon-control surface) share `ModuleRouteBase` from `module-types.ts`. Both surfaces use the

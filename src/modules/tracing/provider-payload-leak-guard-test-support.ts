@@ -141,11 +141,11 @@ export function providerPayloadStreamParams(): MessageStreamParams {
 }
 
 export function writeProviderPayloadArtifacts(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
   exchange: ProviderExchange,
 ): void {
-  const stepsDir = join(projectDir, runDir, "steps");
+  const stepsDir = join(scopeRoot, runDir, "steps");
   mkdirSync(stepsDir, { recursive: true });
   writeFileSync(
     join(stepsDir, "build.json"),
@@ -187,10 +187,10 @@ export function writeProviderPayloadArtifacts(
 }
 
 export function writeBrokenEnrichmentArtifacts(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
 ): void {
-  const stepsDir = join(projectDir, runDir, "steps");
+  const stepsDir = join(scopeRoot, runDir, "steps");
   mkdirSync(stepsDir, { recursive: true });
   writeFileSync(
     join(stepsDir, "build.json"),

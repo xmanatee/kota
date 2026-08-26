@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { existingProtectedProjectPaths } from "#core/tools/protected-project-paths.js";
+import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
 import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import {
   NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
@@ -217,10 +217,10 @@ export async function withNativeCliSandbox<T>(
       ...packageManager.readOnlyHostRoots,
     ];
     const readProtectedPaths = [...new Set([
-      ...existingProtectedProjectPaths(options.cwd),
+      ...existingProtectedScopePaths(options.cwd),
       ...(resolve(options.cwd) === resolve(process.cwd())
         ? []
-        : existingProtectedProjectPaths(process.cwd())),
+        : existingProtectedScopePaths(process.cwd())),
     ])];
     const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
     const writeProtectedPaths = [...new Set([

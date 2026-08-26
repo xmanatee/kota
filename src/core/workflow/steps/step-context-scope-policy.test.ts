@@ -13,7 +13,7 @@ import {
   type ScopePolicyAuthority,
 } from "#core/daemon/scope-policy.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type { MessageStreamParams } from "#core/model/model-client.js";
 import { setDelegateConfig } from "#core/tools/delegate.js";
 import {
@@ -79,7 +79,7 @@ afterEach(() => {
 
 describe("workflow step context scope policy", () => {
   it("enforces live policy for tool steps and code-step runTool calls", async () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempProject();
     try {
       registerTool(
         {
@@ -97,7 +97,7 @@ describe("workflow step context scope policy", () => {
         { effect: localWriteEffect() },
       );
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const pbus = new ScopedEventBus(bus, "scope-a");
       const runTool = vi.fn(async () => ({ content: "bypassed policy" }));
       const policy = resolveScopePolicy({
         projection: {
@@ -109,7 +109,7 @@ describe("workflow step context scope policy", () => {
               scopeId: "scope-a",
               displayName: "Fixture",
               parentScopeId: "global",
-              directoryRoot: projectDir,
+              directoryRoot: workspaceRoot,
             },
           ],
         },
@@ -128,13 +128,13 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           approvalQueue: new ApprovalQueue(
-            join(projectDir, ".kota", "approvals"),
+            join(workspaceRoot, ".kota", "approvals"),
             pbus,
             { scopeId: "scope-a" },
           ),
@@ -144,7 +144,7 @@ describe("workflow step context scope policy", () => {
           currentStepId: "build",
         },
       );
-      const input = { path: join(projectDir, "output.txt") };
+      const input = { path: join(workspaceRoot, "output.txt") };
 
       await expect(
         executeToolStep(
@@ -157,12 +157,12 @@ describe("workflow step context scope policy", () => {
       );
       expect(runTool).not.toHaveBeenCalled();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("queues external effects that require policy confirmation", async () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempProject();
     try {
       registerTool(
         {
@@ -179,9 +179,9 @@ describe("workflow step context scope policy", () => {
         { effect: networkWriteEffect() },
       );
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const pbus = new ScopedEventBus(bus, "scope-a");
       const approvalQueue = new ApprovalQueue(
-        join(projectDir, ".kota", "approvals"),
+        join(workspaceRoot, ".kota", "approvals"),
         pbus,
         { scopeId: "scope-a" },
       );
@@ -196,7 +196,7 @@ describe("workflow step context scope policy", () => {
               scopeId: "scope-a",
               displayName: "Fixture",
               parentScopeId: "global",
-              directoryRoot: projectDir,
+              directoryRoot: workspaceRoot,
             },
           ],
         },
@@ -210,11 +210,11 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           approvalQueue,
           runTool,
           scopePolicyAuthority: authorityFor(policy),
@@ -235,16 +235,16 @@ describe("workflow step context scope policy", () => {
         }),
       ]);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("propagates live authority through direct runTool delegates", async () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempProject();
     try {
       let snapshot = {
         revision: 0,
-        policy: delegatedWritePolicy(projectDir, false),
+        policy: delegatedWritePolicy(workspaceRoot, false),
       };
       const authority: ScopePolicyAuthority = {
         getSnapshot: (scopeId) => {
@@ -256,7 +256,7 @@ describe("workflow step context scope policy", () => {
       const childRunner = vi.fn(async () => {
         snapshot = {
           revision: snapshot.revision + 1,
-          policy: delegatedWritePolicy(projectDir, true),
+          policy: delegatedWritePolicy(workspaceRoot, true),
         };
         return { content: "executed before revocation" };
       });
@@ -279,7 +279,7 @@ describe("workflow step context scope policy", () => {
         type: "tool_use" as const,
         id,
         name: POLICY_DELEGATE_CHILD_TOOL,
-        input: { path: join(projectDir, "output.txt") },
+        input: { path: join(workspaceRoot, "output.txt") },
       });
       const responses = [
         modelResponse([childCall("child-call-1")]),
@@ -299,7 +299,7 @@ describe("workflow step context scope policy", () => {
         client: modelClient(stream),
       });
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const pbus = new ScopedEventBus(bus, "scope-a");
       const context = createStepContext(
         makeMetadata(),
         trigger,
@@ -308,18 +308,18 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           approvalQueue: new ApprovalQueue(
-            join(projectDir, ".kota", "approvals"),
+            join(workspaceRoot, ".kota", "approvals"),
             pbus,
             { scopeId: "scope-a" },
           ),
           runTool: executeTool,
-          runContext: createTestRunContext(projectDir, trigger),
+          runContext: createTestRunContext(workspaceRoot, trigger),
           scopePolicyAuthority: authority,
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
           currentStepId: "delegate",
@@ -338,12 +338,12 @@ describe("workflow step context scope policy", () => {
         /Blocked by scope policy.*writes are disabled/,
       );
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("injects live authority into direct KOTA-hosted harness runs", async () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempProject();
     try {
       const hostedRunner = vi.fn(async () => ({ content: "executed" }));
       registerTool(
@@ -363,7 +363,7 @@ describe("workflow step context scope policy", () => {
       );
       let snapshot = {
         revision: 0,
-        policy: delegatedWritePolicy(projectDir, false),
+        policy: delegatedWritePolicy(workspaceRoot, false),
       };
       const authority: ScopePolicyAuthority = {
         getSnapshot: (scopeId) => {
@@ -392,12 +392,12 @@ describe("workflow step context scope policy", () => {
             type: "tool_use" as const,
             id: "same-direct-harness-call",
             name: POLICY_WRITE_TOOL,
-            input: { path: join(projectDir, "output.txt") },
+            input: { path: join(workspaceRoot, "output.txt") },
           };
           [firstResult] = await executeToolCalls([call], executionOptions);
           snapshot = {
             revision: snapshot.revision + 1,
-            policy: delegatedWritePolicy(projectDir, true),
+            policy: delegatedWritePolicy(workspaceRoot, true),
           };
           [secondResult] = await executeToolCalls([call], executionOptions);
           return {
@@ -421,9 +421,9 @@ describe("workflow step context scope policy", () => {
         },
       };
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const pbus = new ScopedEventBus(bus, "scope-a");
       const approvalQueue = new ApprovalQueue(
-        join(projectDir, ".kota", "approvals"),
+        join(workspaceRoot, ".kota", "approvals"),
         pbus,
         { scopeId: "scope-a" },
       );
@@ -435,11 +435,11 @@ describe("workflow step context scope policy", () => {
         {},
         [],
         {
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           approvalQueue,
           scopePolicyAuthority: authority,
           runAgentHarness,
@@ -449,7 +449,7 @@ describe("workflow step context scope policy", () => {
 
       const result = await context.runAgentHarness(harness, {
         prompt: "Exercise direct hosted authorization.",
-        cwd: projectDir,
+        cwd: workspaceRoot,
         effort: "low",
         autonomyMode: "autonomous",
       });
@@ -463,13 +463,13 @@ describe("workflow step context scope policy", () => {
       expect(hostedRunner).toHaveBeenCalledTimes(1);
       expect(runAgentHarness).toHaveBeenCalledTimes(1);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });
 
 function delegatedWritePolicy(
-  projectDir: string,
+  workspaceRoot: string,
   readOnly: boolean,
 ): ResolvedScopePolicy {
   return resolveScopePolicy({
@@ -482,7 +482,7 @@ function delegatedWritePolicy(
           scopeId: "scope-a",
           displayName: "Fixture",
           parentScopeId: "global",
-          directoryRoot: projectDir,
+          directoryRoot: workspaceRoot,
         },
       ],
     },

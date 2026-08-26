@@ -16,7 +16,7 @@ export type BrowserProfileOptions = {
 
 export type BrowserProfileOwner = {
   scopeId: string;
-  projectDir: string;
+  scopeRoot: string;
 };
 
 export type BrowserProfileSnapshot = {
@@ -40,7 +40,7 @@ export function configureBrowserProfile(
   profile = options;
   profileOwner = {
     scopeId: owner.scopeId,
-    projectDir: resolve(owner.projectDir),
+    scopeRoot: resolve(owner.scopeRoot),
   };
 }
 
@@ -76,16 +76,16 @@ function canonicalStoragePath(path: string): string | null {
   }
 }
 
-function canonicalProjectDir(projectDir: string): string {
+function canonicalScopeRoot(scopeRoot: string): string {
   try {
-    return realpathSync(projectDir);
+    return realpathSync(scopeRoot);
   } catch {
-    return resolve(projectDir);
+    return resolve(scopeRoot);
   }
 }
 
 /**
- * Resolve a profile path for one invoking scope. Project-local relative paths
+ * Resolve a profile path for one invoking scope. Scope-local relative paths
  * are per-scope; absolute and escaping paths remain bound to their config owner.
  */
 export function resolveBrowserProfileStoragePath(
@@ -96,7 +96,7 @@ export function resolveBrowserProfileStoragePath(
   if (!configuredPath) return null;
   const resolvedPath = resolveStorageStatePath(
     configuredPath,
-    identity.projectDir,
+    identity.scopeRoot,
   );
   if (!resolvedPath) return null;
 
@@ -104,19 +104,19 @@ export function resolveBrowserProfileStoragePath(
   if (!canonicalPath) return null;
 
   const projectRelativePath = relative(
-    canonicalProjectDir(identity.projectDir),
+    canonicalScopeRoot(identity.scopeRoot),
     canonicalPath,
   );
-  const isProjectExternal =
+  const isExternalScope =
     isAbsolute(configuredPath) ||
     projectRelativePath === ".." ||
     projectRelativePath.startsWith(`..${sep}`) ||
     isAbsolute(projectRelativePath);
-  if (!isProjectExternal) return canonicalPath;
+  if (!isExternalScope) return canonicalPath;
 
   const owner = snapshot.profileOwner;
   return owner?.scopeId === identity.scopeId &&
-    owner.projectDir === identity.projectDir
+    owner.scopeRoot === identity.scopeRoot
     ? canonicalPath
     : null;
 }

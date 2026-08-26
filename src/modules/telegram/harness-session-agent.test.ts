@@ -34,11 +34,11 @@ const harness: AgentHarness = {
 describe("TelegramHarnessSessionAgent", () => {
   it("retains one scoped overlay across turns and erases it on close", async () => {
     let identity: AgentHarnessSessionContext | undefined;
-    let projectDir: string | undefined;
+    let scopeRoot: string | undefined;
     let cwd: string | undefined;
     runAgentHarnessMock.mockImplementation(async (_harness, options) => {
       identity = options.sessionContext;
-      projectDir = options.projectDir;
+      scopeRoot = options.scopeRoot;
       cwd = options.cwd;
       if (identity === undefined) throw new Error("missing Telegram session context");
       injectSessionEnvironmentVariable(
@@ -57,9 +57,9 @@ describe("TelegramHarnessSessionAgent", () => {
       harness,
       model: "test-model",
       effort: "xhigh",
-      projectDir: "/tmp/project-a",
-      cwd: "/tmp/project-a/.worktrees/session-a",
-      scopeId: "project-a",
+      scopeRoot: "/tmp/scope-a",
+      cwd: "/tmp/scope-a/.worktrees/session-a",
+      scopeId: "scope-a",
       config: {},
       autonomyMode: "autonomous",
       proxy: new ProxyTransport(),
@@ -69,12 +69,11 @@ describe("TelegramHarnessSessionAgent", () => {
 
     expect(identity).toMatchObject({
       sessionId: expect.stringMatching(/^telegram:/),
-      scopeId: "project-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
     });
-    expect({ projectDir, cwd }).toEqual({
-      projectDir: "/tmp/project-a",
-      cwd: "/tmp/project-a/.worktrees/session-a",
+    expect({ scopeRoot, cwd }).toEqual({
+      scopeRoot: "/tmp/scope-a",
+      cwd: "/tmp/scope-a/.worktrees/session-a",
     });
     expect(sessionEnvironmentForExecution(identity)).toEqual({
       KOTA_TELEGRAM_SESSION_TEST: "session-only",

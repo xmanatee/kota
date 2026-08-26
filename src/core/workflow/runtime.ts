@@ -184,9 +184,9 @@ export class WorkflowRuntime {
   }
 
   deliverPublication(publication: PendingRunPublication): void {
-    if (publication.projectId !== this.ctx.runtimeConfig.projectId) {
+    if (publication.scopeId !== this.ctx.runtimeConfig.scopeId) {
       throw new Error(
-        `Publication "${publication.id}" belongs to project "${publication.projectId}"`,
+        `Publication "${publication.id}" belongs to scope "${publication.scopeId}"`,
       );
     }
     deliverIntegratedWorkflowPublication(this.ctx, publication);
@@ -222,7 +222,7 @@ export class WorkflowRuntime {
 
   getDispatchPauseStatus(): WorkflowDispatchPauseStatus {
     return resolveWorkflowDispatchPause({
-      projectDir: this.ctx.projectDir,
+      scopeRoot: this.ctx.scopeRoot,
       runtimePaused: isDispatchPaused(this.ctx),
     });
   }
@@ -261,14 +261,14 @@ export class WorkflowRuntime {
   }
 
   async execute(request: ExecuteWorkflowRequest): Promise<ExecuteWorkflowResult> {
-    if (request.projectId !== this.ctx.runtimeConfig.projectId) {
+    if (request.scopeId !== this.ctx.runtimeConfig.scopeId) {
       return {
         ok: false,
-        error: `Workflow runtime ${this.ctx.runtimeConfig.projectId} cannot execute for ${request.projectId}`,
+        error: `Workflow runtime ${this.ctx.runtimeConfig.scopeId} cannot execute for ${request.scopeId}`,
       };
     }
     if (this.isDispatchPaused()) {
-      return { ok: false, error: `Scope ${request.projectId} workflow dispatch is paused` };
+      return { ok: false, error: `Scope ${request.scopeId} workflow dispatch is paused` };
     }
     const runId = formatRunId(request.workflow);
     const admitted = this.enqueuePendingRun(request.workflow, {

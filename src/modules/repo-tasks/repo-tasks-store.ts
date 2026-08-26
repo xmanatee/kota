@@ -31,7 +31,7 @@ const DEFAULT_TOP_K = 20;
  * the task surfaces it ahead of incidental body matches.
  */
 export class RepoTasksDefaultStore implements RepoTasksProvider {
-	constructor(private projectDir: string) {}
+	constructor(private repoRoot: string) {}
 
 	supportsSemanticSearch(): boolean {
 		return false;
@@ -48,7 +48,7 @@ export class RepoTasksDefaultStore implements RepoTasksProvider {
 		const topK = options?.topK ?? DEFAULT_TOP_K;
 		if (topK <= 0) return [];
 
-		const records = listFullRepoTasks(this.projectDir, states);
+		const records = listFullRepoTasks(this.repoRoot, states);
 		const tokens = tokenize(trimmed);
 		if (tokens.length === 0) return [];
 

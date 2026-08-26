@@ -5,7 +5,7 @@ import {
   readFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { PROJECT_DIR_ENV_VAR } from "#core/config/project-dir.js";
+import { SCOPE_ROOT_ENV_VAR } from "#core/config/scope-root.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 
 const LOCAL_HISTORY_SCAN_MAX_GENERAL_CHILDREN = 1000;
@@ -16,17 +16,17 @@ export type LocalHistoryScanOptions = {
   limit?: number;
 };
 
-export function listLocalProjectHistoryRecords(
+export function listLocalScopeHistoryRecords(
   options: LocalHistoryScanOptions,
 ): ConversationRecord[] {
   const seen = new Set<string>();
   const conversations: ConversationRecord[] = [];
-  if (addProjectHistoryRecords(options.cwd, seen, conversations, options.limit)) {
+  if (addScopeHistoryRecords(options.cwd, seen, conversations, options.limit)) {
     return conversations.slice(0, options.limit);
   }
   if (
-    addProjectHistoryRecords(
-      process.env[PROJECT_DIR_ENV_VAR],
+    addScopeHistoryRecords(
+      process.env[SCOPE_ROOT_ENV_VAR],
       seen,
       conversations,
       options.limit,
@@ -35,12 +35,12 @@ export function listLocalProjectHistoryRecords(
     return conversations.slice(0, options.limit);
   }
   if (
-    addChildHistoryProjects(options.cwd, seen, conversations, options.limit)
+    addChildHistoryScopes(options.cwd, seen, conversations, options.limit)
   ) {
     return conversations.slice(0, options.limit);
   }
   if (
-    addChildHistoryProjects(
+    addChildHistoryScopes(
       dirname(options.cwd),
       seen,
       conversations,
@@ -52,7 +52,7 @@ export function listLocalProjectHistoryRecords(
   return conversations;
 }
 
-function addProjectHistoryRecords(
+function addScopeHistoryRecords(
   dir: string | undefined,
   seen: Set<string>,
   conversations: ConversationRecord[],
@@ -60,14 +60,14 @@ function addProjectHistoryRecords(
 ): boolean {
   const trimmed = dir?.trim();
   if (!trimmed) return false;
-  const projectDir = resolve(trimmed);
-  if (seen.has(projectDir)) return hasReachedLimit(conversations, limit);
-  seen.add(projectDir);
-  conversations.push(...readLocalProjectHistoryRecords(projectDir));
+  const scopeRoot = resolve(trimmed);
+  if (seen.has(scopeRoot)) return hasReachedLimit(conversations, limit);
+  seen.add(scopeRoot);
+  conversations.push(...readLocalScopeHistoryRecords(scopeRoot));
   return hasReachedLimit(conversations, limit);
 }
 
-function addChildHistoryProjects(
+function addChildHistoryScopes(
   root: string,
   seen: Set<string>,
   conversations: ConversationRecord[],
@@ -87,12 +87,12 @@ function addChildHistoryProjects(
     .filter((entry) => !entry.name.includes("kota"))
     .slice(0, LOCAL_HISTORY_SCAN_MAX_GENERAL_CHILDREN);
   return (
-    scanChildHistoryProjects(root, preferred, seen, conversations, limit) ||
-    scanChildHistoryProjects(root, general, seen, conversations, limit)
+    scanChildHistoryScopes(root, preferred, seen, conversations, limit) ||
+    scanChildHistoryScopes(root, general, seen, conversations, limit)
   );
 }
 
-function scanChildHistoryProjects(
+function scanChildHistoryScopes(
   root: string,
   entries: Dirent[],
   seen: Set<string>,
@@ -101,9 +101,9 @@ function scanChildHistoryProjects(
 ): boolean {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const projectDir = join(root, entry.name);
-    if (existsSync(join(projectDir, ".kota", "history", "index.json"))) {
-      if (addProjectHistoryRecords(projectDir, seen, conversations, limit)) {
+    const scopeRoot = join(root, entry.name);
+    if (existsSync(join(scopeRoot, ".kota", "history", "index.json"))) {
+      if (addScopeHistoryRecords(scopeRoot, seen, conversations, limit)) {
         return true;
       }
     }
@@ -111,8 +111,8 @@ function scanChildHistoryProjects(
   return false;
 }
 
-function readLocalProjectHistoryRecords(projectDir: string): ConversationRecord[] {
-  const indexPath = join(projectDir, ".kota", "history", "index.json");
+function readLocalScopeHistoryRecords(scopeRoot: string): ConversationRecord[] {
+  const indexPath = join(scopeRoot, ".kota", "history", "index.json");
   if (!existsSync(indexPath)) return [];
   try {
     const parsed = JSON.parse(readFileSync(indexPath, "utf8")) as {

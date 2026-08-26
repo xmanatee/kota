@@ -26,7 +26,6 @@ function workflowContext(runId: string, toolUseId: string): ToolRunnerContext {
       stepId: "build",
       spanId: `${runId}:build`,
       scopeId: "scope-1",
-      projectId: "scope-1",
     },
   };
 }

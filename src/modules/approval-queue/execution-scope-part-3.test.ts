@@ -19,14 +19,14 @@ import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
   approvalScopeHasSqlite3 as hasSqlite3,
   makeApprovalScopeEntry as makeEntry,
-  type ApprovalScopeProjectRuntimeEntry as ProjectRuntimeEntry,
   approvalScopePngBuffer as pngBuffer,
   REGISTERED_APPROVAL_SCOPE_TOOL_NAMES as REGISTERED_TOOL_NAMES,
   registerApprovalScopeTools,
-  registerApprovalScopeProjectProvider as registerProjectQueueProvider,
+  registerApprovalScopeProvider as registerScopeQueueProvider,
+  type ApprovalScopeRuntimeEntry as ScopeRuntimeEntry,
   APPROVAL_SCOPE_TOOL_NAMES as TOOL_NAMES,
-  writeApprovalScopeProjectFile as writeProjectFile,
-  writeApprovalScopeSqlite as writeProjectSqlite,
+  writeApprovalScopeFile as writeScopeFile,
+  writeApprovalScopeSqlite as writeScopeSqlite,
 } from "./execution-scope-tools.integration.js";
 import {
   handleApproveAllApprovals,
@@ -83,11 +83,11 @@ function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown
   };
 }
 
-describe("approval execution project scope", () => {
+describe("approval execution scope scope", () => {
   let rootDir: string;
   let originalCwd: string;
-  let defaultEntry: ProjectRuntimeEntry;
-  let projectB: ProjectRuntimeEntry;
+  let defaultEntry: ScopeRuntimeEntry;
+  let scopeB: ScopeRuntimeEntry;
   let contexts: ToolRunnerContext[];
   let toolOutputs: Array<{ tool: string; content: string }>;
 
@@ -98,10 +98,10 @@ describe("approval execution project scope", () => {
     resetApprovalQueue();
     contexts = [];
     toolOutputs = [];
-    defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
-    projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    process.chdir(defaultEntry.project.projectDir);
-    registerProjectQueueProvider([defaultEntry, projectB]);
+    defaultEntry = makeEntry(join(rootDir, "scope-a"), "Scope A");
+    scopeB = makeEntry(join(rootDir, "scope-b"), "Scope B");
+    process.chdir(defaultEntry.scope.scopeRoot);
+    registerScopeQueueProvider([defaultEntry, scopeB]);
     registerApprovalScopeTools(contexts, toolOutputs);
   });
 
@@ -117,63 +117,63 @@ describe("approval execution project scope", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("executes selected project relative document, image, sqlite, and prompt approvals without reading the default project", async () => {
-    writeProjectFile(defaultEntry, "docs/scope.html", "<p>DEFAULT_DOCUMENT_MARKER</p>");
-    writeProjectFile(projectB, "docs/scope.html", "<p>PROJECT_B_DOCUMENT_MARKER</p>");
+  it("executes selected scope relative document, image, sqlite, and prompt approvals without reading the default scope", async () => {
+    writeScopeFile(defaultEntry, "docs/scope.html", "<p>DEFAULT_DOCUMENT_MARKER</p>");
+    writeScopeFile(scopeB, "docs/scope.html", "<p>SCOPE_B_DOCUMENT_MARKER</p>");
 
-    writeProjectFile(defaultEntry, "images/scope.png", pngBuffer(10, 10));
-    writeProjectFile(projectB, "images/scope.png", pngBuffer(20, 30));
+    writeScopeFile(defaultEntry, "images/scope.png", pngBuffer(10, 10));
+    writeScopeFile(scopeB, "images/scope.png", pngBuffer(20, 30));
 
-    writeProjectFile(
+    writeScopeFile(
       defaultEntry,
       ".kota/prompts/scope.md",
       "---\nname: scope\n---\nDEFAULT_PROMPT_MARKER",
     );
-    writeProjectFile(
-      projectB,
+    writeScopeFile(
+      scopeB,
       ".kota/prompts/scope.md",
-      "---\nname: scope\n---\nPROJECT_B_PROMPT_MARKER",
+      "---\nname: scope\n---\nSCOPE_B_PROMPT_MARKER",
     );
 
     if (hasSqlite3) {
-      writeProjectSqlite(defaultEntry, "data/scope.db", "DEFAULT_SQLITE_MARKER");
-      writeProjectSqlite(projectB, "data/scope.db", "PROJECT_B_SQLITE_MARKER");
+      writeScopeSqlite(defaultEntry, "data/scope.db", "DEFAULT_SQLITE_MARKER");
+      writeScopeSqlite(scopeB, "data/scope.db", "SCOPE_B_SQLITE_MARKER");
     }
 
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.readDocument,
       { path: "docs/scope.html" },
       "safe",
-      "read selected project document",
+      "read selected scope document",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.viewImage,
       { path: "images/scope.png", detail: "original" },
       "safe",
-      "view selected project image",
+      "view selected scope image",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.promptTemplate,
       { action: "render", name: "scope" },
       "safe",
-      "render selected project prompt",
+      "render selected scope prompt",
     );
     if (hasSqlite3) {
-      projectB.approvalQueue.enqueue(
+      scopeB.approvalQueue.enqueue(
         TOOL_NAMES.sqlite,
         { database: "data/scope.db", action: "query", sql: "SELECT marker FROM markers" },
         "moderate",
-        "query selected project sqlite database",
+        "query selected scope sqlite database",
       );
     }
 
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(projectB.approvalQueue)),
+      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
       res,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
@@ -187,48 +187,48 @@ describe("approval execution project scope", () => {
     )).toBe(true);
     const outputByTool = new Map(toolOutputs.map((entry) => [entry.tool, entry.content]));
 
-    expect(outputByTool.get(TOOL_NAMES.readDocument)).toContain("PROJECT_B_DOCUMENT_MARKER");
+    expect(outputByTool.get(TOOL_NAMES.readDocument)).toContain("SCOPE_B_DOCUMENT_MARKER");
     expect(outputByTool.get(TOOL_NAMES.readDocument)).not.toContain("DEFAULT_DOCUMENT_MARKER");
     expect(outputByTool.get(TOOL_NAMES.viewImage)).toContain("Original: 20x30px");
     expect(outputByTool.get(TOOL_NAMES.viewImage)).not.toContain("Original: 10x10px");
-    expect(outputByTool.get(TOOL_NAMES.promptTemplate)).toContain("PROJECT_B_PROMPT_MARKER");
+    expect(outputByTool.get(TOOL_NAMES.promptTemplate)).toContain("SCOPE_B_PROMPT_MARKER");
     expect(outputByTool.get(TOOL_NAMES.promptTemplate)).not.toContain("DEFAULT_PROMPT_MARKER");
     if (hasSqlite3) {
-      expect(outputByTool.get(TOOL_NAMES.sqlite)).toContain("PROJECT_B_SQLITE_MARKER");
+      expect(outputByTool.get(TOOL_NAMES.sqlite)).toContain("SCOPE_B_SQLITE_MARKER");
       expect(outputByTool.get(TOOL_NAMES.sqlite)).not.toContain("DEFAULT_SQLITE_MARKER");
     }
     expect(contexts).toHaveLength(hasSqlite3 ? 4 : 3);
-    expect(contexts.every((context) => context.cwd === projectB.project.projectDir)).toBe(true);
+    expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });
 
-  it("does not suggest default-project files for selected project read and edit misses", async () => {
-    writeProjectFile(defaultEntry, "src/default-read-only.ts", "export const marker = 'default-read';\n");
-    writeProjectFile(defaultEntry, "src/default-edit-only.ts", "export const marker = 'default-edit';\n");
+  it("does not suggest default-scope files for selected scope read and edit misses", async () => {
+    writeScopeFile(defaultEntry, "src/default-read-only.ts", "export const marker = 'default-read';\n");
+    writeScopeFile(defaultEntry, "src/default-edit-only.ts", "export const marker = 'default-edit';\n");
 
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileRead,
       { path: "missing/default-read-only.ts" },
       "safe",
-      "read missing selected project file",
+      "read missing selected scope file",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileEdit,
       {
         path: "missing/default-edit-only.ts",
         old_string: "default",
-        new_string: "project-b",
+        new_string: "scope-b",
       },
       "moderate",
-      "edit missing selected project file",
+      "edit missing selected scope file",
     );
 
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(projectB.approvalQueue)),
+      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
       res,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
@@ -250,5 +250,5 @@ describe("approval execution project scope", () => {
     expect(toolOutputs[1]?.content).not.toContain("Similar files found");
     expect(toolOutputs[1]?.content).not.toContain("src/default-edit-only.ts");
     expect(contexts).toHaveLength(2);
-    expect(contexts.every((context) => context.cwd === projectB.project.projectDir)).toBe(true);
+    expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });});

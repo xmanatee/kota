@@ -70,13 +70,13 @@ function decodeArtifact(value: unknown): ScopeImprovementArtifact {
 
 /** Publish canonical effects from a repository:none post-integration workflow. */
 export function publishScopeImprovement(args: {
-  scopeDir: string;
+  scopeRoot: string;
   sourceRunId: string;
   currentState: ScopeImprovementState;
 }): ScopeImprovementPublicationResult {
   const artifact = readOptionalJsonFile<unknown>(
     join(
-      args.scopeDir,
+      args.scopeRoot,
       ".kota",
       "runs",
       args.sourceRunId,
@@ -85,7 +85,7 @@ export function publishScopeImprovement(args: {
   );
   if (artifact === null) return { disposition: "absent", nextState: null };
   const decoded = decodeArtifact(artifact);
-  if (decoded.inputs.scope.directoryRoot !== args.scopeDir) {
+  if (decoded.inputs.scope.directoryRoot !== args.scopeRoot) {
     throw new Error("scope improvement artifact does not belong to its runtime scope");
   }
   if (decoded.consumption.disposition === "ignore") {
@@ -100,7 +100,7 @@ export function publishScopeImprovement(args: {
 
   const ownerQuestionActions = applyScopeImprovementOwnerQuestionEffects({
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(args.scopeDir, ".kota", "owner-questions"),
+      join(args.scopeRoot, ".kota", "owner-questions"),
     ),
     runId: args.sourceRunId,
     recommendations: decoded.recommendations,

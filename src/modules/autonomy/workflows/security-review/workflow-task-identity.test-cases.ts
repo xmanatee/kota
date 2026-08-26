@@ -35,7 +35,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       });
       const finding = fixture.confirmedFindingForClaim(claim);
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -43,7 +43,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(result.createdTaskIds).toEqual([]);
       expect(result.updatedTaskIds).toEqual([baseId]);
       expect(result.unchangedFindingIds).toEqual([]);
-      const terminalPath = join(fixture.projectDir, "data/tasks/done", `${baseId}.md`);
+      const terminalPath = join(fixture.workspaceRoot, "data/tasks/done", `${baseId}.md`);
       const terminalTask = readFileSync(terminalPath, "utf-8");
       const terminalAttrs = parseFlatFrontMatter(terminalTask).attrs;
       expect(terminalAttrs.status).toBe("done");
@@ -53,11 +53,11 @@ export function describeSecurityReviewTaskIdentityTests(): void {
         "security-review-run-two",
       ]);
       expect(terminalTask).toContain("Terminal task retains repeated confirmed finding provenance.");
-      expect(existsSync(join(fixture.projectDir, "data/tasks/ready", `${baseId}-2.md`))).toBe(
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/ready", `${baseId}-2.md`))).toBe(
         false,
       );
 
-      const replay = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -65,7 +65,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(terminalPath, "utf-8")).toBe(terminalTask);
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("merges an explicitly superseded duplicate into the canonical stable-identity record", () => {
@@ -87,14 +87,14 @@ export function describeSecurityReviewTaskIdentityTests(): void {
         supersededBy: canonicalId,
       });
       const supersededPath = join(
-        fixture.projectDir,
+        fixture.workspaceRoot,
         "data/tasks/dropped",
         `${supersededId}.md`,
       );
       const supersededBefore = readFileSync(supersededPath, "utf-8");
       const finding = fixture.confirmedFindingForClaim(repeatedClaim);
 
-      const merged = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const merged = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -103,7 +103,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(merged.updatedTaskIds).toEqual([canonicalId]);
       expect(merged.unchangedFindingIds).toEqual([]);
       const canonicalPath = join(
-        fixture.projectDir,
+        fixture.workspaceRoot,
         "data/tasks/ready",
         `${canonicalId}.md`,
       );
@@ -117,7 +117,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(canonicalAfterMerge).toContain(repeatedClaim);
       expect(readFileSync(supersededPath, "utf-8")).toBe(supersededBefore);
 
-      const replay = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -125,7 +125,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(canonicalPath, "utf-8")).toBe(canonicalAfterMerge);
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
   });
 }
@@ -137,10 +137,10 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   taskId: string;
   workflow: WorkflowDefinitionInput;
 }): Promise<void> {
-  const taskPath = join(args.fixture.projectDir, "data/tasks/ready", `${args.taskId}.md`);
+  const taskPath = join(args.fixture.workspaceRoot, "data/tasks/ready", `${args.taskId}.md`);
   const taskBeforeReplay = readFileSync(taskPath, "utf-8");
   const replay = await new WorkflowTestHarness(args.workflow, {
-    projectDir: args.fixture.projectDir,
+    workspaceRoot: args.fixture.workspaceRoot,
     trigger: { event: "autonomy.security-review.requested", payload: {} },
     stepMocks: {
       "investigate-candidates": args.investigation,
@@ -157,7 +157,7 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   expect(readFileSync(taskPath, "utf-8")).toBe(taskBeforeReplay);
   const replayOutcome = JSON.parse(
     readFileSync(
-      join(args.fixture.projectDir, ".kota/runs/harness/security-review-outcome.json"),
+      join(args.fixture.workspaceRoot, ".kota/runs/harness/security-review-outcome.json"),
       "utf-8",
     ),
   ) as { outcome: string; reason: string };

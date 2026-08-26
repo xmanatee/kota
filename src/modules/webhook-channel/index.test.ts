@@ -68,13 +68,13 @@ describe("webhookChannelModule channel adapter", () => {
     const ctx = makeStubCtx();
     const channels = await resolveModuleChannels(webhookChannelModule, ctx);
     const result = channels[0].create({
-      getDefaultProjectRuntime: () =>
+      getDefaultScopeRuntime: () =>
         ({
-          project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+          scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
         }) as never,
-      getProjectRuntime: () =>
+      getScopeRuntime: () =>
         ({
-          project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+          scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
         }) as never,
       log: () => {},
       reportFailure: () => {},

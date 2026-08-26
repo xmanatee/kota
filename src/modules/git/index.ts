@@ -44,7 +44,7 @@ const gitModule: KotaModule = {
         description:
           "Local repository metadata, diffs, commit history, branches, and remote update results.",
         sensitivity: "internal",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "metadata-only",
       },
     ],

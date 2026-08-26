@@ -31,7 +31,7 @@ export type ClientSelection =
   | { kind: "local"; client: KotaClient };
 
 export type ResolveKotaClientOptions = {
-  /** Override the `.kota/` state directory (default: `<projectDir>/.kota`). */
+  /** Override the `.kota/` state directory (default: `<scopeRoot>/.kota`). */
   stateDir?: string;
   /** Local-side handlers contributed by modules during load. */
   localHandlers: Partial<LocalClientHandlers>;

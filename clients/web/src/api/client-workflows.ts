@@ -1,4 +1,4 @@
-import { apiFetch, apiJson, withProject } from "./client-runtime";
+import { apiFetch, apiJson, withScope } from "./client-runtime";
 import type {
   ConversationData,
   ConversationRecord,
@@ -10,59 +10,56 @@ import type {
 } from "./types";
 
 export const workflowApi = {
-  getDaemonStatus: (projectId: string) =>
+  getDaemonStatus: (scopeId: string) =>
     apiJson<{ daemon: DaemonLiveStatus | null }>(
-      withProject("/api/daemon/status", projectId),
+      withScope("/api/daemon/status", scopeId),
     ),
-  getWorkflowStatus: (projectId: string) =>
-    apiJson<WorkflowLiveStatus>(withProject("/api/workflow/status", projectId)),
-  getWorkflowDefinitions: (projectId: string) =>
+  getWorkflowStatus: (scopeId: string) =>
+    apiJson<WorkflowLiveStatus>(withScope("/api/workflow/status", scopeId)),
+  getWorkflowDefinitions: (scopeId: string) =>
     apiJson<{ definitions: WorkflowDefinitionSummary[] }>(
-      withProject("/api/workflow/definitions", projectId),
+      withScope("/api/workflow/definitions", scopeId),
     ),
-  enableWorkflow: (name: string, projectId: string) =>
+  enableWorkflow: (name: string, scopeId: string) =>
     apiJson<{ ok: boolean }>(
-      withProject(
+      withScope(
         `/api/workflow/definitions/${encodeURIComponent(name)}/enable`,
-        projectId,
+        scopeId,
       ),
       { method: "POST" },
     ),
-  disableWorkflow: (name: string, projectId: string) =>
+  disableWorkflow: (name: string, scopeId: string) =>
     apiJson<{ ok: boolean }>(
-      withProject(
+      withScope(
         `/api/workflow/definitions/${encodeURIComponent(name)}/disable`,
-        projectId,
+        scopeId,
       ),
       { method: "POST" },
     ),
-  pauseWorkflow: (projectId: string) =>
-    apiJson<{ already: boolean }>(
-      withProject("/api/workflow/pause", projectId),
-      { method: "POST" },
-    ),
-  resumeWorkflow: (projectId: string) =>
-    apiJson<{ already: boolean }>(
-      withProject("/api/workflow/resume", projectId),
-      { method: "POST" },
-    ),
-  abortWorkflows: (projectId: string) =>
-    apiJson<{ aborted: number }>(
-      withProject("/api/workflow/abort", projectId),
-      { method: "POST" },
-    ),
+  pauseWorkflow: (scopeId: string) =>
+    apiJson<{ already: boolean }>(withScope("/api/workflow/pause", scopeId), {
+      method: "POST",
+    }),
+  resumeWorkflow: (scopeId: string) =>
+    apiJson<{ already: boolean }>(withScope("/api/workflow/resume", scopeId), {
+      method: "POST",
+    }),
+  abortWorkflows: (scopeId: string) =>
+    apiJson<{ aborted: number }>(withScope("/api/workflow/abort", scopeId), {
+      method: "POST",
+    }),
   triggerWorkflow: (
     name: string,
-    projectId: string,
+    scopeId: string,
     payload?: Record<string, unknown>,
   ) =>
-    apiJson<{ ok: boolean }>(withProject("/api/workflow/trigger", projectId), {
+    apiJson<{ ok: boolean }>(withScope("/api/workflow/trigger", scopeId), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, payload }),
     }),
   listWorkflowRuns: (
-    projectId: string,
+    scopeId: string,
     params?: {
       limit?: number;
       offset?: number;
@@ -77,28 +74,25 @@ export const workflowApi = {
     if (params?.tag) search.set("tag", params.tag);
     const query = search.toString();
     return apiJson<{ runs: WorkflowRunSummary[] }>(
-      withProject(`/api/workflow/runs${query ? `?${query}` : ""}`, projectId),
+      withScope(`/api/workflow/runs${query ? `?${query}` : ""}`, scopeId),
     );
   },
-  getWorkflowRun: (id: string, projectId: string) =>
+  getWorkflowRun: (id: string, scopeId: string) =>
     apiJson<WorkflowRunDetail>(
-      withProject(`/api/workflow/runs/${encodeURIComponent(id)}`, projectId),
+      withScope(`/api/workflow/runs/${encodeURIComponent(id)}`, scopeId),
     ),
-  cancelWorkflowRun: (id: string, projectId: string) =>
+  cancelWorkflowRun: (id: string, scopeId: string) =>
     apiJson<{ ok: boolean }>(
-      withProject(`/api/workflow/runs/${encodeURIComponent(id)}`, projectId),
+      withScope(`/api/workflow/runs/${encodeURIComponent(id)}`, scopeId),
       { method: "DELETE" },
     ),
-  abortWorkflowRun: (id: string, projectId: string) =>
+  abortWorkflowRun: (id: string, scopeId: string) =>
     apiJson<{ ok: boolean }>(
-      withProject(
-        `/api/workflow/runs/${encodeURIComponent(id)}/abort`,
-        projectId,
-      ),
+      withScope(`/api/workflow/runs/${encodeURIComponent(id)}/abort`, scopeId),
       { method: "POST" },
     ),
-  retryWorkflowRun: (runId: string, projectId: string) =>
-    apiJson<{ ok: boolean }>(withProject("/api/workflow/retry", projectId), {
+  retryWorkflowRun: (runId: string, scopeId: string) =>
+    apiJson<{ ok: boolean }>(withScope("/api/workflow/retry", scopeId), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ runId }),

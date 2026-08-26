@@ -28,22 +28,22 @@ type ArtifactFixture = {
   artifactPath: string;
   externalTarget: string;
   markerPath: string;
-  projectDir: string;
+  workspaceRoot: string;
   runDir: string;
   taskContent: string;
   taskPath: string;
 };
 
 function makeArtifactFixture(program: (fixture: ArtifactFixture) => string): ArtifactFixture {
-  const projectDir = makeTmpDir();
+  const workspaceRoot = makeTmpDir();
   const externalDir = makeTmpDir();
-  fixtureRoots.push(projectDir, externalDir);
-  const runDir = makeRunDir(projectDir);
+  fixtureRoots.push(workspaceRoot, externalDir);
+  const runDir = makeRunDir(workspaceRoot);
   const fixture: ArtifactFixture = {
     artifactPath: join(runDir, "runtime-probe.json"),
     externalTarget: join(externalDir, "daemon-owned-target.json"),
-    markerPath: join(projectDir, "probe-ran.txt"),
-    projectDir,
+    markerPath: join(workspaceRoot, "probe-ran.txt"),
+    workspaceRoot,
     runDir,
     taskContent: [
       "---",
@@ -53,18 +53,18 @@ function makeArtifactFixture(program: (fixture: ArtifactFixture) => string): Art
       "command: pnpm run probe:mutate",
       "timeoutMs: 5000",
     ].join("\n"),
-    taskPath: join(projectDir, "data/tasks/doing/task-artifact-link.md"),
+    taskPath: join(workspaceRoot, "data/tasks/doing/task-artifact-link.md"),
   };
   writeFileSync(fixture.externalTarget, "ORIGINAL");
-  writePackageJson(projectDir, {
+  writePackageJson(workspaceRoot, {
     "probe:mutate": `node -e ${JSON.stringify(program(fixture))}`,
   });
   commitReadyTask(
-    projectDir,
+    workspaceRoot,
     "task-artifact-link.md",
     fixture.taskContent,
   );
-  moveReadyTaskToDoing(projectDir, "task-artifact-link.md");
+  moveReadyTaskToDoing(workspaceRoot, "task-artifact-link.md");
   return fixture;
 }
 
@@ -72,10 +72,10 @@ async function runFixture(fixture: ArtifactFixture): Promise<void> {
   await runProbeIfDeclared(
     fixture.taskContent,
     fixture.taskPath,
-    fixture.projectDir,
+    fixture.workspaceRoot,
     fixture.runDir,
-    createWorkflowCommandRunner({ cwd: fixture.projectDir }),
-    fixture.projectDir,
+    createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),
+    fixture.workspaceRoot,
   );
 }
 
@@ -87,11 +87,11 @@ afterEach(() => {
 
 describe("Runtime Probe artifact writes", () => {
   it("refuses a run-directory pathname swapped after its identity was captured", async () => {
-    const projectDir = makeTmpDir();
+    const workspaceRoot = makeTmpDir();
     const outsideRunDir = makeTmpDir();
-    const runDir = makeRunDir(projectDir);
+    const runDir = makeRunDir(workspaceRoot);
     const relocatedRunDir = `${runDir}-relocated`;
-    fixtureRoots.push(projectDir, outsideRunDir);
+    fixtureRoots.push(workspaceRoot, outsideRunDir);
     const runStats = lstatSync(runDir);
     const externalTarget = join(outsideRunDir, "daemon-owned-target.json");
     writeFileSync(externalTarget, "ORIGINAL");
@@ -107,7 +107,7 @@ describe("Runtime Probe artifact writes", () => {
           runDirectoryPath: runDir,
           serializedArtifact: '{"status":"passed"}',
         },
-        createWorkflowCommandRunner({ cwd: projectDir }),
+        createWorkflowCommandRunner({ cwd: workspaceRoot }),
       ),
     ).rejects.toThrow(/run directory must not be a symbolic link/);
 
@@ -181,9 +181,9 @@ describe("Runtime Probe artifact writes", () => {
   });
 
   it("writes a regular artifact through the anchored directory", async () => {
-    const projectDir = makeTmpDir();
-    const runDir = makeRunDir(projectDir);
-    fixtureRoots.push(projectDir);
+    const workspaceRoot = makeTmpDir();
+    const runDir = makeRunDir(workspaceRoot);
+    fixtureRoots.push(workspaceRoot);
     const runStats = lstatSync(runDir);
 
     await writeAnchoredRuntimeProbeArtifact(
@@ -193,7 +193,7 @@ describe("Runtime Probe artifact writes", () => {
         runDirectoryPath: realpathSync.native(runDir),
         serializedArtifact: '{"status":"passed"}',
       },
-      createWorkflowCommandRunner({ cwd: projectDir }),
+      createWorkflowCommandRunner({ cwd: workspaceRoot }),
     );
 
     expect(readFileSync(join(runDir, "runtime-probe.json"), "utf8")).toBe(

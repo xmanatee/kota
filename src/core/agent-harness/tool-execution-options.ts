@@ -20,7 +20,7 @@ export function agentHarnessToolExecutionOptions(
 ): ToolCallExecutionOptions {
 	const toolRunnerContext = agentHarnessToolRunnerContext(options);
 	const cwd = overrides.cwd !== undefined ? overrides.cwd : options.cwd;
-	const projectDir = options.projectDir ?? options.cwd ?? cwd;
+	const scopeRoot = options.scopeRoot ?? options.cwd ?? cwd;
 	const signal = overrides.signal ?? options.abortController?.signal;
 	return {
 		resultLimit: overrides.resultLimit,
@@ -47,8 +47,8 @@ export function agentHarnessToolExecutionOptions(
 		...(toolRunnerContext.sessionId !== undefined
 			? { sessionId: toolRunnerContext.sessionId }
 			: {}),
-		...(projectDir !== undefined
-			? { projectDir }
+		...(scopeRoot !== undefined
+			? { scopeRoot }
 			: {}),
 		...(cwd !== undefined ? { cwd } : {}),
 		...(options.agentWriteScope !== undefined
@@ -64,9 +64,6 @@ export function agentHarnessToolExecutionOptions(
 			: {}),
 		...(toolRunnerContext.scopeId !== undefined
 			? { scopeId: toolRunnerContext.scopeId }
-			: {}),
-		...(toolRunnerContext.projectId !== undefined
-			? { projectId: toolRunnerContext.projectId }
 			: {}),
 		...(options.idempotencyStore !== undefined
 			? { idempotencyStore: options.idempotencyStore }

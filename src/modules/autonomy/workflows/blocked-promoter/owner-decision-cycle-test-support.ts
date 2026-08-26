@@ -92,7 +92,7 @@ function blockedTaskBody(): string {
   ].join("\n");
 }
 
-export function setupProjectDir(): string {
+export function setupScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "owner-decision-cycle-"));
   writeFileSync(join(dir, ".gitignore"), ".kota/\n");
   writeFileSync(
@@ -115,10 +115,10 @@ export function setupProjectDir(): string {
   return dir;
 }
 
-export function makeDaemon(projectDir: string): Daemon {
-  const stateDir = join(projectDir, ".kota");
+export function makeDaemon(scopeRoot: string): Daemon {
+  const stateDir = join(scopeRoot, ".kota");
   return new Daemon({
-    projectDir,
+    scopeRoot,
     stateDir,
     idleIntervalMs: 5_000,
     pollIntervalMs: 60_000,
@@ -129,14 +129,14 @@ export function makeDaemon(projectDir: string): Daemon {
         "src/modules/autonomy/workflows/blocked-promoter/workflow.ts",
         {
           ...blockedPromoterWorkflow,
-          moduleRoot: projectDir,
+          moduleRoot: scopeRoot,
         },
       ),
       registerWorkflowDefinition(
         "src/modules/autonomy/workflows/blocked-promoter-owner-decision/workflow.ts",
         {
           ...blockedPromoterOwnerDecisionWorkflow,
-          moduleRoot: projectDir,
+          moduleRoot: scopeRoot,
         },
       ),
     ],

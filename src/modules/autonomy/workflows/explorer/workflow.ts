@@ -60,12 +60,12 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "needsAttention",
       "explorationRefreshDue",
     ]),
-  run: ({ projectDir, state, runBlocking }) => {
+  run: ({ workspaceRoot, state, runBlocking }) => {
     const current = decodeExplorerState(
       state.read<ExplorerState>(EXPLORER_STATE_KEY).value,
     );
     return runBlocking(explorerAssessmentOperation, {
-      projectDir,
+      workspaceRoot,
       lastExplorationAt: current.lastExplorationAt,
     });
   },
@@ -126,8 +126,8 @@ const inspectWatchlist = typedCodeStep<WatchlistInspection>({
   exposeOutputToAgent: true,
   validate: (raw) =>
     expectStructuredOutput<WatchlistInspection>(raw, ["entries", "updateReportPath"]),
-  run: ({ projectDir }) => {
-    const file = readWatchlist(projectDir);
+  run: ({ workspaceRoot }) => {
+    const file = readWatchlist(workspaceRoot);
     return {
       entries: file.entries.map(summarizeWatchlistEntry),
       updateReportPath: "watchlist-updates.json",
@@ -175,7 +175,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
                 await ctx.runCommand({
                   command: "pnpm",
                   args: ["run", "validate-tasks"],
-                  cwd: ctx.projectDir,
+                  cwd: ctx.workspaceRoot,
                 }),
               ),
           },
@@ -226,7 +226,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           resolveAgentRunDirFromContext(ctx),
         );
         if (!payload) return { applied: [] };
-        const applied = applyWatchlistUpdates(ctx.projectDir, payload);
+        const applied = applyWatchlistUpdates(ctx.workspaceRoot, payload);
         return { applied };
       },
     },

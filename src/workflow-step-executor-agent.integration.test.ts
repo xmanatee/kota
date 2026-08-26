@@ -90,21 +90,21 @@ function makeAgentStep(
 }
 
 describe("executeAgentStep — outputFormat: json", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-json-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("extracts parsed JSON from the last fenced block when outputFormat is json", async () => {
@@ -119,7 +119,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-ok");
 
     const result = await executeAgentStep(
@@ -130,7 +130,7 @@ describe("executeAgentStep — outputFormat: json", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.output).toEqual({ status: "ok", count: 3 });
@@ -150,7 +150,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-missing");
 
     await expect(
@@ -162,7 +162,7 @@ describe("executeAgentStep — outputFormat: json", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow(/no fenced JSON block was found/);
   });
@@ -179,7 +179,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(projectDir, { id: "analyze", outputFormat: "json" });
+    const step = makeAgentStep(scopeRoot, { id: "analyze", outputFormat: "json" });
     const metadata = makeMetadata("run-json-bad");
 
     await expect(
@@ -191,7 +191,7 @@ describe("executeAgentStep — outputFormat: json", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow(/invalid JSON/);
   });
@@ -208,7 +208,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
@@ -224,7 +224,7 @@ describe("executeAgentStep — outputFormat: json", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow(/schema validation/);
   });
@@ -241,7 +241,7 @@ describe("executeAgentStep — outputFormat: json", () => {
     });
 
     const definition = makeDefinition("test-workflow");
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: { type: "object", required: ["status", "count"], properties: { status: { type: "string" }, count: { type: "number" } } },
@@ -256,7 +256,7 @@ describe("executeAgentStep — outputFormat: json", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.output).toEqual({ status: "done", count: 5 });
@@ -264,21 +264,21 @@ describe("executeAgentStep — outputFormat: json", () => {
 });
 
 describe("executeAgentStep — schema validation feedback on retry", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-schema-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("injects schema validation error into the prompt on the second attempt", async () => {
@@ -310,7 +310,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       };
     });
 
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: {
@@ -329,7 +329,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.output).toEqual({ status: "ok", count: 3 });
@@ -366,7 +366,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       };
     });
 
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "analyze",
       outputFormat: "json",
       outputSchema: {
@@ -385,7 +385,7 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.output).toEqual({ status: "ok", count: 3 });
@@ -398,21 +398,21 @@ describe("executeAgentStep — schema validation feedback on retry", () => {
 });
 
 describe("executeAgentStep — provider errors from SDK result", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-provider-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("marks SDK-returned provider errors as non-retryable and does not spawn a second session", async () => {
@@ -426,7 +426,7 @@ describe("executeAgentStep — provider errors from SDK result", () => {
       isError: true,
     });
 
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "build",
       retry: { maxAttempts: 3, initialDelayMs: 0, backoffFactor: 1 },
     });
@@ -441,7 +441,7 @@ describe("executeAgentStep — provider errors from SDK result", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       );
     } catch (err) {
       caught = err;
@@ -455,15 +455,15 @@ describe("executeAgentStep — provider errors from SDK result", () => {
 });
 
 describe("executeAgentStep — SDK autonomy permissions", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-permissions-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
     executeWithAgentSDKMock.mockResolvedValue({
@@ -478,11 +478,11 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("limits passive agent steps to read-only SDK tools", async () => {
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       autonomyMode: "passive",
       allowedTools: undefined,
       disallowedTools: undefined,
@@ -496,7 +496,7 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     const options = executeWithAgentSDKMock.mock.calls[0][1] as {
@@ -522,7 +522,7 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
   });
 
   it("rejects unsafe allowedTools on passive agent steps", async () => {
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       autonomyMode: "passive",
       allowedTools: ["Read", "Bash"],
     });
@@ -536,7 +536,7 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow("Passive agent steps may only allow read-only tools");
     expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
@@ -544,20 +544,20 @@ describe("executeAgentStep — SDK autonomy permissions", () => {
 });
 
 describe("executeAgentStep — harness tool-control preflight", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-tool-control-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     tryEmitMock.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("fails before running a harness that declares canUseTool unsupported", async () => {
@@ -588,7 +588,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
     await expect(
       executeAgentStep(
         makeDefinition(),
-        makeAgentStep(projectDir, {
+        makeAgentStep(scopeRoot, {
           harness: "unsupported-tool-control-harness",
           model: "fake-model",
         }),
@@ -597,7 +597,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow(/unsupported-tool-control-harness.*canUseTool/);
     expect(run).not.toHaveBeenCalled();
@@ -626,7 +626,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeAgentStep(projectDir, {
+      makeAgentStep(scopeRoot, {
         harness: "capable-tool-control-harness",
         model: "fake-model",
       }),
@@ -635,7 +635,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.harness).toBe("capable-tool-control-harness");
@@ -689,7 +689,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
     await expect(
       executeAgentStep(
         makeDefinition(),
-        makeAgentStep(projectDir, {
+        makeAgentStep(scopeRoot, {
           harness: "native-tool-control-harness",
           model: "fake-model",
           disallowedTools: ["Bash"],
@@ -699,7 +699,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
         new AbortController(),
         () => {},
         () => {},
-        { projectDir, log: () => {} },
+        { scopeRoot, log: () => {} },
       ),
     ).rejects.toThrow(/disallowedTools.*native-tool-control-harness.*cannot honor/);
 
@@ -708,7 +708,7 @@ describe("executeAgentStep — harness tool-control preflight", () => {
 });
 
 describe("executeAgentStep — writeScope enforcement", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   function initRepo(dir: string) {
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
@@ -747,24 +747,24 @@ describe("executeAgentStep — writeScope enforcement", () => {
   }
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    initRepo(projectDir);
+    mkdirSync(scopeRoot, { recursive: true });
+    initRepo(scopeRoot);
     tryEmitMock.mockReset();
     executeWithAgentSDKMock.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("passes when every tracked mutation is inside the declared writeScope", async () => {
     executeWithAgentSDKMock.mockImplementation(async () => {
       writeTracked(
-        projectDir,
+        scopeRoot,
         "data/tasks/ready/new-task.md",
         "---\ntitle: x\n---\n",
       );
@@ -780,7 +780,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     });
 
     const agent = makeAgentDef();
-    const step = makeAgentStep(projectDir, { agentName: agent.name });
+    const step = makeAgentStep(scopeRoot, { agentName: agent.name });
     const metadata = makeMetadata("run-ws-inscope");
 
     await expect(
@@ -793,7 +793,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
         () => {},
         () => {},
         {
-          projectDir,
+          scopeRoot,
           log: () => {},
           resolveAgentDef: () => agent,
         },
@@ -803,9 +803,9 @@ describe("executeAgentStep — writeScope enforcement", () => {
 
   it("fails with the offending paths when writes escape the declared writeScope", async () => {
     executeWithAgentSDKMock.mockImplementation(async () => {
-      writeTracked(projectDir, "src/core/keep.ts", "// modified\n");
-      writeTracked(projectDir, "AGENTS.md", "root agents\n");
-      writeTracked(projectDir, "data/tasks/ready/new-task.md", "ok\n");
+      writeTracked(scopeRoot, "src/core/keep.ts", "// modified\n");
+      writeTracked(scopeRoot, "AGENTS.md", "root agents\n");
+      writeTracked(scopeRoot, "data/tasks/ready/new-task.md", "ok\n");
       return {
         text: "done",
         streamedText: "",
@@ -818,7 +818,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     });
 
     const agent = makeAgentDef({ writeScope: ["data/tasks/"] });
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "explore",
       agentName: agent.name,
     });
@@ -835,7 +835,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
         () => {},
         () => {},
         {
-          projectDir,
+          scopeRoot,
           log: () => {},
           resolveAgentDef: () => agent,
         },
@@ -850,7 +850,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     expect(err.scope).toEqual(["data/tasks/"]);
 
     const artifactPath = join(
-      projectDir,
+      scopeRoot,
       ".kota/runs/run-001/steps/explore.write-scope-violation.json",
     );
     expect(existsSync(artifactPath)).toBe(true);
@@ -862,8 +862,8 @@ describe("executeAgentStep — writeScope enforcement", () => {
 
   it("treats writeScope: [] as explicit unrestricted and passes on any tracked mutation", async () => {
     executeWithAgentSDKMock.mockImplementation(async () => {
-      writeTracked(projectDir, "src/core/keep.ts", "// anywhere\n");
-      writeTracked(projectDir, "AGENTS.md", "root agents\n");
+      writeTracked(scopeRoot, "src/core/keep.ts", "// anywhere\n");
+      writeTracked(scopeRoot, "AGENTS.md", "root agents\n");
       return {
         text: "done",
         streamedText: "",
@@ -876,7 +876,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     });
 
     const agent = makeAgentDef({ name: "builder", writeScope: [] });
-    const step = makeAgentStep(projectDir, { agentName: agent.name });
+    const step = makeAgentStep(scopeRoot, { agentName: agent.name });
     const metadata = makeMetadata("run-ws-unrestricted");
 
     await expect(
@@ -889,7 +889,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
         () => {},
         () => {},
         {
-          projectDir,
+          scopeRoot,
           log: () => {},
           resolveAgentDef: () => agent,
         },
@@ -898,12 +898,12 @@ describe("executeAgentStep — writeScope enforcement", () => {
   });
 
   it("restores every attempted mutation for an explicit deny-all writeScope", async () => {
-    writeTracked(projectDir, "src/core/keep.ts", "// legitimate staged dirt\n");
-    execFileSync("git", ["add", "src/core/keep.ts"], { cwd: projectDir });
-    writeTracked(projectDir, "src/core/keep.ts", "// legitimate worktree dirt\n");
+    writeTracked(scopeRoot, "src/core/keep.ts", "// legitimate staged dirt\n");
+    execFileSync("git", ["add", "src/core/keep.ts"], { cwd: scopeRoot });
+    writeTracked(scopeRoot, "src/core/keep.ts", "// legitimate worktree dirt\n");
     executeWithAgentSDKMock.mockImplementation(() => {
-      writeTracked(projectDir, "src/core/keep.ts", "// unauthorized\n");
-      writeTracked(projectDir, "src/core/injected.ts", "// injected\n");
+      writeTracked(scopeRoot, "src/core/keep.ts", "// unauthorized\n");
+      writeTracked(scopeRoot, "src/core/injected.ts", "// injected\n");
       return Promise.resolve({
         text: "done",
         streamedText: "",
@@ -918,13 +918,13 @@ describe("executeAgentStep — writeScope enforcement", () => {
       name: "decomposer",
       writeScope: "deny-all",
     });
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       id: "decompose",
       agentName: agent.name,
       autonomyMode: "passive",
     });
     const initialHead = execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
       encoding: "utf-8",
     }).trim();
 
@@ -938,7 +938,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
         () => {},
         () => {},
         {
-          projectDir,
+          scopeRoot,
           log: () => {},
           resolveAgentDef: () => agent,
         },
@@ -949,25 +949,25 @@ describe("executeAgentStep — writeScope enforcement", () => {
       violations: ["src/core/injected.ts", "src/core/keep.ts"],
     });
 
-    expect(readFileSync(join(projectDir, "src/core/keep.ts"), "utf-8")).toBe(
+    expect(readFileSync(join(scopeRoot, "src/core/keep.ts"), "utf-8")).toBe(
       "// legitimate worktree dirt\n",
     );
     expect(
       execFileSync("git", ["show", ":src/core/keep.ts"], {
-        cwd: projectDir,
+        cwd: scopeRoot,
         encoding: "utf-8",
       }),
     ).toBe("// legitimate staged dirt\n");
-    expect(existsSync(join(projectDir, "src/core/injected.ts"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "src/core/injected.ts"))).toBe(false);
     expect(
       execFileSync("git", ["rev-parse", "HEAD"], {
-        cwd: projectDir,
+        cwd: scopeRoot,
         encoding: "utf-8",
       }).trim(),
     ).toBe(initialHead);
     expect(
       execFileSync("git", ["status", "--short", "--", "src/core"], {
-        cwd: projectDir,
+        cwd: scopeRoot,
         encoding: "utf-8",
       }).trim(),
     ).toBe("MM src/core/keep.ts");
@@ -985,7 +985,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
 
     // Pre-seed the worktree with an out-of-scope tracked mutation. Because we
     // never call executeAgentStep, the enforcement never observes it.
-    writeTracked(projectDir, "src/core/keep.ts", "// recovery dirt\n");
+    writeTracked(scopeRoot, "src/core/keep.ts", "// recovery dirt\n");
 
     expect(executeWithAgentSDKMock).not.toHaveBeenCalled();
     // And the enforcement helper is not reachable because no step ran.
@@ -994,7 +994,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
 });
 
 describe("executeAgentStep — records resolved harness and model", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   // A distinct harness registered under a second name lets us prove the step
   // result records the name the *registry* returned, not just the optional
@@ -1023,12 +1023,12 @@ describe("executeAgentStep — records resolved harness and model", () => {
   };
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-harness-id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "do the thing");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "do the thing");
     testHarnessCalls.length = 0;
     registerAgentHarness(testHarness);
     tryEmitMock.mockReset();
@@ -1045,11 +1045,11 @@ describe("executeAgentStep — records resolved harness and model", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("records the registry-returned name when the step resolves via the registered default", async () => {
-    const step = makeAgentStep(projectDir);
+    const step = makeAgentStep(scopeRoot);
     const result = await executeAgentStep(
       makeDefinition(),
       step,
@@ -1058,14 +1058,14 @@ describe("executeAgentStep — records resolved harness and model", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
     expect(result.harness).toBe("claude-agent-sdk");
     expect(result.model).toBe("claude-opus-4-7");
   });
 
   it("records the exact harness name when the step explicitly overrides", async () => {
-    const step = makeAgentStep(projectDir, {
+    const step = makeAgentStep(scopeRoot, {
       harness: "step-executor-test-harness",
     });
     const result = await executeAgentStep(
@@ -1076,14 +1076,14 @@ describe("executeAgentStep — records resolved harness and model", () => {
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
     expect(result.harness).toBe("step-executor-test-harness");
     expect(testHarnessCalls).toHaveLength(1);
   });
 
   it("records the model an agentModels override resolves to", async () => {
-    const step = makeAgentStep(projectDir, { agentName: "builder" });
+    const step = makeAgentStep(scopeRoot, { agentName: "builder" });
     const result = await executeAgentStep(
       makeDefinition(),
       step,
@@ -1093,7 +1093,7 @@ describe("executeAgentStep — records resolved harness and model", () => {
       () => {},
       () => {},
       {
-        projectDir,
+        scopeRoot,
         log: () => {},
         config: {
           model: "fallback-model",

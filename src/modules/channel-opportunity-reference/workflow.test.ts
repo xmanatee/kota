@@ -19,7 +19,7 @@ import {
   setOwnerQuestionQueueInstance,
 } from "#core/daemon/owner-question-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type {
   OwnerConfirmedActionStepOutput,
 } from "#core/workflow/owner-confirmed-action-step.js";
@@ -182,35 +182,35 @@ describe("channel opportunity reference fixture", () => {
 });
 
 describe("channel opportunity reference workflow", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let decisionStore: OwnerDecisionStore;
   let questionQueue: OwnerQuestionQueue;
   let idempotencyStore: IdempotencyStore;
   let deadLetterQueue: DeadLetterQueueStore;
   let runStore: WorkflowRunStore;
   let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
+  let pbus: ScopedEventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "channel-opportunity-reference-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "channel-opportunity-reference-"));
     bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, SCOPE_ID);
+    pbus = new ScopedEventBus(bus, SCOPE_ID);
     decisionStore = new OwnerDecisionStore(
-      join(projectDir, "owner-decisions"),
+      join(scopeRoot, "owner-decisions"),
       SCOPE_ID,
       pbus,
     );
     questionQueue = new OwnerQuestionQueue(
-      join(projectDir, "owner-questions"),
+      join(scopeRoot, "owner-questions"),
       pbus,
     );
     idempotencyStore = new IdempotencyStore(
-      join(projectDir, "idempotency"),
+      join(scopeRoot, "idempotency"),
       SCOPE_ID,
     );
-    deadLetterQueue = new DeadLetterQueueStore(join(projectDir, "dead-letters"));
-    runStore = new WorkflowRunStore(projectDir);
+    deadLetterQueue = new DeadLetterQueueStore(join(scopeRoot, "dead-letters"));
+    runStore = new WorkflowRunStore(scopeRoot);
     setOwnerDecisionStoreInstance(decisionStore);
     setOwnerQuestionQueueInstance(questionQueue);
     setIdempotencyStoreInstance(idempotencyStore);
@@ -221,7 +221,7 @@ describe("channel opportunity reference workflow", () => {
     resetOwnerDecisionStore();
     resetOwnerQuestionQueue();
     resetIdempotencyStore();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   function definition(options: RunOptions): WorkflowDefinition {
@@ -252,7 +252,7 @@ describe("channel opportunity reference workflow", () => {
           input,
         ),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(validated).toBeDefined();
@@ -272,7 +272,6 @@ describe("channel opportunity reference workflow", () => {
   function payloadFor(signal: RoutedOpportunitySignal) {
     return {
       scopeId: SCOPE_ID,
-      projectId: SCOPE_ID,
       routeId: signal.routeId,
       decision: "dispatched",
       sourceStatus: signal.sourceStatus,
@@ -330,7 +329,7 @@ describe("channel opportunity reference workflow", () => {
     options: RunOptions,
   ): Promise<WorkflowRunExecutionResult> {
     const run = executeWorkflowRun(definition(options), trigger(options.batch), {
-      runContext: createTestRunContext(projectDir, trigger(options.batch)),
+      runContext: createTestRunContext(scopeRoot, trigger(options.batch)),
       bus,
       pbus,
       store: runStore,

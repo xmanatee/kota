@@ -25,7 +25,7 @@ describe("scheduler config slice", () => {
 
   function loadTrustedConfig(overrides = {}) {
     const globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 

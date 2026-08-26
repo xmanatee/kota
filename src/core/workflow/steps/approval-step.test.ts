@@ -35,7 +35,7 @@ afterEach(() => {
 
 function makeContext() {
   return {
-    projectDir: "/project",
+    workspaceRoot: "/project",
     workflow: { name: "test-wf", definitionPath: "src/wf.ts", runId: "run-1", runDir: ".kota/runs/run-1", runDirPath: "/project/.kota/runs/run-1" },
     trigger: { event: "runtime.idle" as const, payload: {} },
     approvalQueue: testQueue,

@@ -12,6 +12,7 @@ import {
   parseRetractResult,
   parseTasksSearchResponse,
 } from "../../../conformance/decoders";
+import { apiDecoded, apiJson } from "./client-runtime";
 import type {
   AnswerHistoryListFilter,
   AnswerHistoryListResult,
@@ -31,27 +32,38 @@ import type {
   SlashCommandInvocation,
   TasksSearchResponse,
 } from "./types";
-import { apiDecoded, apiJson } from "./client-runtime";
 
-function semanticSearch<T>(path: string, query: string, limit: number, decode: (raw: unknown) => T) {
-  const params = new URLSearchParams({ q: query, semantic: "true", limit: String(limit) });
+function semanticSearch<T>(
+  path: string,
+  query: string,
+  limit: number,
+  decode: (raw: unknown) => T,
+) {
+  const params = new URLSearchParams({
+    q: query,
+    semantic: "true",
+    limit: String(limit),
+  });
   return apiDecoded(`${path}?${params.toString()}`, decode);
 }
 
 export const knowledgeApi = {
-  getDigest: (): Promise<DigestResponse> => apiDecoded("/api/digest", parseDigestResponse),
+  getDigest: (): Promise<DigestResponse> =>
+    apiDecoded("/api/digest", parseDigestResponse),
   getAttention: (): Promise<AttentionResponse> =>
     apiDecoded("/api/attention", parseAttentionResponse),
-  recall: (query: string): Promise<RecallResult> => apiDecoded("/api/recall", parseRecallResult, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  }),
-  answer: (query: string): Promise<AnswerResult> => apiDecoded("/api/answer", parseAnswerResult, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  }),
+  recall: (query: string): Promise<RecallResult> =>
+    apiDecoded("/api/recall", parseRecallResult, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
+  answer: (query: string): Promise<AnswerResult> =>
+    apiDecoded("/api/answer", parseAnswerResult, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    }),
   capture: (text: string, filter?: CaptureFilter): Promise<CaptureResult> =>
     apiDecoded("/api/capture", parseCaptureResult, {
       method: "POST",
@@ -64,32 +76,56 @@ export const knowledgeApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
     }),
-  answerLog: (filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult> => {
+  answerLog: (
+    filter?: AnswerHistoryListFilter,
+  ): Promise<AnswerHistoryListResult> => {
     const search = new URLSearchParams();
     if (filter?.limit !== undefined) search.set("limit", String(filter.limit));
     if (filter?.beforeId !== undefined) search.set("beforeId", filter.beforeId);
     const query = search.toString();
-    return apiDecoded(`/api/answers${query ? `?${query}` : ""}`, parseAnswerHistoryListResult);
+    return apiDecoded(
+      `/api/answers${query ? `?${query}` : ""}`,
+      parseAnswerHistoryListResult,
+    );
   },
   answerShow: (id: string): Promise<AnswerHistoryShowResult> =>
-    apiDecoded(`/api/answers/${encodeURIComponent(id)}`, parseAnswerHistoryShowResult),
+    apiDecoded(
+      `/api/answers/${encodeURIComponent(id)}`,
+      parseAnswerHistoryShowResult,
+    ),
   knowledge: {
     search: (query: string, limit = 10): Promise<KnowledgeSearchResponse> =>
-      semanticSearch("/api/knowledge/search", query, limit, parseKnowledgeSearchResponse),
+      semanticSearch(
+        "/api/knowledge/search",
+        query,
+        limit,
+        parseKnowledgeSearchResponse,
+      ),
   },
   memory: {
     search: (query: string, limit = 10): Promise<MemorySearchResponse> =>
-      semanticSearch("/api/memory/search", query, limit, parseMemorySearchResponse),
+      semanticSearch(
+        "/api/memory/search",
+        query,
+        limit,
+        parseMemorySearchResponse,
+      ),
   },
   history: {
     search: (query: string, limit = 10): Promise<HistorySearchResponse> =>
-      semanticSearch("/api/history/search", query, limit, parseHistorySearchResponse),
+      semanticSearch(
+        "/api/history/search",
+        query,
+        limit,
+        parseHistorySearchResponse,
+      ),
   },
   tasks: {
     search: (query: string, limit = 10): Promise<TasksSearchResponse> =>
       semanticSearch("/tasks/search", query, limit, parseTasksSearchResponse),
   },
-  listSlashCommands: () => apiJson<{ commands: SlashCommand[] }>("/api/commands"),
+  listSlashCommands: () =>
+    apiJson<{ commands: SlashCommand[] }>("/api/commands"),
   invokeSlashCommand: (name: string) =>
     apiJson<SlashCommandInvocation>("/api/commands/invoke", {
       method: "POST",

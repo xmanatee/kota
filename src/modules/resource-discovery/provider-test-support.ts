@@ -180,7 +180,7 @@ export function moduleSummary(
 ): ModuleSummary {
   return {
     name: "slack-channel",
-    source: "project",
+    source: "bundled",
     version: "1.0.0",
     description: "Bidirectional Slack bot channel for KOTA.",
     dependencies: [],

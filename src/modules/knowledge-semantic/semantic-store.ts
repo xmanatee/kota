@@ -45,8 +45,8 @@ function buildAdapter(base: KnowledgeStore): SemanticStoreAdapter<KnowledgeEntry
 		resolveStorageDir: (id) => base.entryDir(id),
 		listStorageDirs: () => {
 			const dirs: string[] = [];
-			const project = base.getProjectDir();
-			if (project) dirs.push(project);
+			const scope = base.getScopeDir();
+			if (scope) dirs.push(scope);
 			dirs.push(base.getGlobalDir());
 			return dirs;
 		},

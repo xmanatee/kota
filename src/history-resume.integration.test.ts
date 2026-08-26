@@ -65,7 +65,7 @@ vi.mock("./core/mcp/manager.js", () => ({
     static loadConfig() { return null; }
   },
 }));
-vi.mock("./core/modules/project-discovery.js", async () => {
+vi.mock("./core/modules/bundled-module-discovery.js", async () => {
   // Load the history module so its onLoad registers the "history" provider
   // during AgentSession init. Without it, saveToHistoryImpl has no provider
   // to resolve because registerDefaultProviders no longer seeds one. The
@@ -81,7 +81,7 @@ vi.mock("./core/modules/project-discovery.js", async () => {
     routes: undefined,
   };
   return {
-    discoverProjectModules: vi.fn(async () => [historyModule]),
+    discoverBundledModules: vi.fn(async () => [historyModule]),
   };
 });
 vi.mock("./core/modules/module-discovery.js", () => ({
@@ -92,7 +92,7 @@ vi.mock("./core/modules/module-discovery.js", () => ({
 
 import { AgentSession } from "./core/loop/loop.js";
 import {
-  getProjectHistoryStore,
+  getScopeHistoryStore,
   resetHistory,
 } from "./modules/history/history.js";
 
@@ -130,7 +130,7 @@ function toolResponse(
 
 describe("history save → resume end-to-end", () => {
   let tmpHome: string;
-  let tmpProject: string;
+  let tempScope: string;
   let originalHome: string | undefined;
   let originalCwd: string;
 
@@ -140,11 +140,11 @@ describe("history save → resume end-to-end", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     tmpHome = mkdtempSync(join(tmpdir(), "kota-e2e-history-"));
-    tmpProject = mkdtempSync(join(tmpdir(), "kota-e2e-history-project-"));
+    tempScope = mkdtempSync(join(tmpdir(), "kota-e2e-history-scope-"));
     originalHome = process.env.HOME;
     originalCwd = process.cwd();
     process.env.HOME = tmpHome;
-    process.chdir(tmpProject);
+    process.chdir(tempScope);
     resetHistory();
   });
 
@@ -153,7 +153,7 @@ describe("history save → resume end-to-end", () => {
     process.env.HOME = originalHome;
     resetHistory();
     rmSync(tmpHome, { recursive: true, force: true });
-    rmSync(tmpProject, { recursive: true, force: true });
+    rmSync(tempScope, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -164,7 +164,7 @@ describe("history save → resume end-to-end", () => {
     await session.send("Hello");
     session.close();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(1);
     expect(list[0].title).toBe("Hello");
@@ -206,7 +206,7 @@ describe("history save → resume end-to-end", () => {
     resetHistory();
 
     // Verify history has all messages
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const data = history.load(convId!);
     expect(data).not.toBeNull();
     expect(data!.messages).toHaveLength(4); // 2 from session 1 + 2 from session 2
@@ -217,7 +217,7 @@ describe("history save → resume end-to-end", () => {
     const session = new AgentSession({ autonomyMode: "autonomous" });
     session.close();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(0);
   });
@@ -233,7 +233,7 @@ describe("history save → resume end-to-end", () => {
     ctx.addUserMessage("This should be saved on close");
     session.close();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(1);
 
@@ -258,7 +258,7 @@ describe("history save → resume end-to-end", () => {
     session.close();
     resetHistory();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     const data = history.load(list[0].id);
     expect(data).not.toBeNull();
@@ -280,7 +280,7 @@ describe("history save → resume end-to-end", () => {
     session2.close();
     resetHistory();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     // Should still be ONE conversation, not two
     expect(list).toHaveLength(1);
@@ -293,7 +293,7 @@ describe("history save → resume end-to-end", () => {
     await session.send("Hello");
     session.close();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(0);
   });
@@ -305,7 +305,7 @@ describe("history save → resume end-to-end", () => {
     session.close();
     resetHistory();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(1);
     // Should be a new conversation, not the nonexistent one
@@ -319,7 +319,7 @@ describe("history save → resume end-to-end", () => {
     session.close();
     resetHistory();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list[0].title).toBe("Analyze the quarterly revenue data");
   });
@@ -337,7 +337,7 @@ describe("history save → resume end-to-end", () => {
     s2.close();
     resetHistory();
 
-    const history = getProjectHistoryStore(tmpProject);
+    const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(2);
     // Most recent first

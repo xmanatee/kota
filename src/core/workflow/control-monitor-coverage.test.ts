@@ -15,12 +15,12 @@ import { writeWriterIntegrationEvidence } from "./writer-integration-evidence.js
 
 describe("control monitor coverage artifacts", () => {
   let fixture: ControlCoverageFixture;
-  let projectDir: string;
+  let scopeRoot: string;
   let runDirPath: string;
 
   beforeEach(() => {
     fixture = createControlCoverageFixture();
-    projectDir = fixture.projectDir;
+    scopeRoot = fixture.workspaceRoot;
     runDirPath = fixture.runDirPath;
   });
 
@@ -102,7 +102,7 @@ describe("control monitor coverage artifacts", () => {
       },
     ]);
 
-    const reviewerDir = join(projectDir, ".kota", "runs", "review-run");
+    const reviewerDir = join(scopeRoot, ".kota", "runs", "review-run");
     mkdirSync(reviewerDir, { recursive: true });
     writeJson(join(reviewerDir, "metadata.json"), {
       ...baseMetadata({
@@ -121,7 +121,7 @@ describe("control monitor coverage artifacts", () => {
     writeJson(join(reviewerDir, "progress-review.json"), { verdict: "pass" });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       nowIso: "2026-06-22T10:03:00.000Z",
@@ -150,11 +150,11 @@ describe("control monitor coverage artifacts", () => {
 
   it("prefers the runtime-owned published head for an integrated writer", () => {
     writeJson(join(runDirPath, "workflow.json"), { steps: [] });
-    writeWriterIntegrationEvidence(projectDir, {
+    writeWriterIntegrationEvidence(scopeRoot, {
       version: 1,
       runId: "run-control",
       workflow: "builder",
-      projectId: "project-control",
+      scopeId: "scope-control",
       targetBranch: "main",
       baseHead: "base-head",
       integratedFromHead: "canonical-before-publication",
@@ -166,7 +166,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata: baseMetadata(),
       headSha: "base-head",
@@ -193,7 +193,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -242,7 +242,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -284,7 +284,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -342,7 +342,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -404,7 +404,7 @@ describe("control monitor coverage artifacts", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       nowIso: "2026-06-22T10:03:00.000Z",

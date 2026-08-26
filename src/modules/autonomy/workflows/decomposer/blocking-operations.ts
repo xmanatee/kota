@@ -13,7 +13,7 @@ export type { AppliedDecomposition } from "./decomposition-actions.js";
 export type { DecomposerAssessment };
 
 type ApplyDecompositionInput = {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   assessment: Extract<DecomposerAssessment, { shouldDecompose: true }>;
   plan: DecompositionPlan;
@@ -22,9 +22,9 @@ type ApplyDecompositionInput = {
 export function applyDecompositionInWorker(
   input: ApplyDecompositionInput,
 ): AppliedDecomposition {
-  assertDecompositionOwnership(input.projectDir, input.stateDir, input.assessment);
+  assertDecompositionOwnership(input.workspaceRoot, input.stateDir, input.assessment);
   return applyDecompositionPlan({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     taskId: input.assessment.taskId,
     failedRunId: input.assessment.failedRunId,
     plan: input.plan,

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   localWriteEffect,
   readOnlyLocalEffect,
@@ -69,16 +69,16 @@ function registerEffectTool(name: string, effect: ToolEffect): void {
 }
 
 function createStoredRun(root: string, state: RunStateDatabase, runId: string): StoredRun {
-  const projectId = `project-${runId}`;
-  state.registerProject({
-    id: projectId,
+  const scopeId = `scope-${runId}`;
+  state.registerScope({
+    id: scopeId,
     rootPath: root,
     createdAt: "2026-08-25T10:00:00.000Z",
   });
   const { epoch } = state.beginDaemonSession("2026-08-25T10:00:01.000Z");
   state.admitRun({
     id: runId,
-    projectId,
+    scopeId,
     workflow: "tool-effects",
     repository: "none",
     trigger,
@@ -108,8 +108,8 @@ function fixture(runTool: WorkflowRunToolRunner): Fixture {
     runId,
     attempt: run.attempt,
     daemonEpoch: 1,
-    projectId: run.projectId,
-    projectRoot: root,
+    scopeId: run.scopeId,
+    scopeRoot: root,
     workflow: run.workflow,
     trigger,
     sandbox: {
@@ -149,10 +149,10 @@ function fixture(runTool: WorkflowRunToolRunner): Fixture {
   };
   const bus = new EventBus();
   const context = createStepContext(metadata, trigger, undefined, {}, {}, [], {
-    projectDir: workspaceDir,
-    scopeDir: root,
+    workspaceRoot: workspaceDir,
+    scopeRoot: root,
     bus,
-    pbus: new ProjectScopedEventBus(bus, run.projectId),
+    pbus: new ScopedEventBus(bus, run.scopeId),
     store: new WorkflowRunStore(root),
     runContext,
     runTool,
@@ -299,10 +299,10 @@ describe("declarative workflow tool effects", () => {
         };
         const bus = new EventBus();
         const context = createStepContext(metadata, trigger, undefined, {}, {}, [], {
-          projectDir: runContext.sandbox.workspaceDir,
-          scopeDir: value.root,
+          workspaceRoot: runContext.sandbox.workspaceDir,
+          scopeRoot: value.root,
           bus,
-          pbus: new ProjectScopedEventBus(bus, value.run.projectId),
+          pbus: new ScopedEventBus(bus, value.run.scopeId),
           store: new WorkflowRunStore(value.root),
           runContext,
           runTool,

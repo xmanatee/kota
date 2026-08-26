@@ -4,15 +4,15 @@ import type {
   InboundSignalRoutingStatus,
 } from "./routing.js";
 
-export type InboundSignalProjectSelection = ScopeSelector;
+export type InboundSignalScopeSelection = ScopeSelector;
 
 export type InboundSignalRouteListResult = InboundSignalRoutingStatus;
 
 export type InboundSignalsClient = {
   listRoutes(
-    project?: InboundSignalProjectSelection,
+    scopeSelector?: InboundSignalScopeSelection,
   ): Promise<InboundSignalRouteListResult>;
   validateRoutes(
-    project?: InboundSignalProjectSelection,
+    scopeSelector?: InboundSignalScopeSelection,
   ): Promise<InboundSignalRouteValidationResult>;
 };

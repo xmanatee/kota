@@ -1,7 +1,7 @@
 /**
  * Static web UI route registrations contributed by the `web` module.
  *
- * Runtime hosts pass their project directory so the daemon and `kota serve`
+ * Runtime hosts pass their scope directory so the daemon and `kota serve`
  * resolve the same `clients/web/dist` path from the same module context.
  */
 
@@ -26,14 +26,14 @@ const MIME_TYPES: Record<string, string> = {
 export type StaticWebUiRoutesOptions = {
   /** Explicit built UI directory. Mostly useful for tests. */
   webUiDir?: string;
-  /** Project directory containing `clients/web/dist`. */
-  projectDir?: string;
+  /** Scope directory containing `clients/web/dist`. */
+  scopeRoot?: string;
 };
 
 function resolveWebUiDir(options: StaticWebUiRoutesOptions): string | undefined {
   if (options.webUiDir !== undefined) return options.webUiDir;
-  if (options.projectDir !== undefined) {
-    return resolve(options.projectDir, "clients", "web", "dist");
+  if (options.scopeRoot !== undefined) {
+    return resolve(options.scopeRoot, "clients", "web", "dist");
   }
   return undefined;
 }

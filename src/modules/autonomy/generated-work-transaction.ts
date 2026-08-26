@@ -37,26 +37,26 @@ export type FinalizedGeneratedWorkOwnerEffects = {
 };
 
 export function stageGeneratedWorkProposal(args: {
-  projectDir: string;
+  workspaceRoot: string;
   proposal: GeneratedWorkProposal;
 }): StagedGeneratedWorkProposalResult {
   const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
   const proposal = { ...args.proposal, proposalKey } as GeneratedWorkProposal;
-  const existingTask = findGeneratedWorkTask(args.projectDir, proposalKey);
+  const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
   const actions: StagedGeneratedWorkProposalResult["actions"] = [];
 
   if (proposal.kind === "task") {
     actions.push({ kind: "owner-question-dismissal-pending" });
     actions.push(...writeGeneratedWorkTask({
-      projectDir: args.projectDir,
+      workspaceRoot: args.workspaceRoot,
       proposal,
       existing: existingTask,
     }));
   } else if (proposal.kind === "owner-question") {
-    actions.push(...dropGeneratedWorkTask(args.projectDir, existingTask));
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
     actions.push({ kind: "owner-question-pending" });
   } else {
-    actions.push(...dropGeneratedWorkTask(args.projectDir, existingTask));
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
     actions.push({ kind: "owner-question-dismissal-pending" });
   }
 
@@ -82,7 +82,7 @@ export function stageGeneratedWorkProposal(args: {
 }
 
 export function finalizeGeneratedWorkProposal(args: {
-  projectDir: string;
+  workspaceRoot: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   proposal: GeneratedWorkProposal;
   staged: StagedGeneratedWorkProposalResult;
@@ -97,7 +97,7 @@ export function finalizeGeneratedWorkProposal(args: {
       action.kind !== "owner-question-dismissal-pending",
   );
   const ownerEffects = finalizeGeneratedWorkOwnerEffects({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     ownerQuestionQueue: args.ownerQuestionQueue,
     proposal: args.proposal,
   });
@@ -112,14 +112,14 @@ export function finalizeGeneratedWorkProposal(args: {
 }
 
 export function finalizeGeneratedWorkOwnerEffects(args: {
-  projectDir: string;
+  workspaceRoot: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   proposal: GeneratedWorkProposal;
 }): FinalizedGeneratedWorkOwnerEffects {
   const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
   if (args.proposal.kind === "owner-question") {
     const reconciled = reconcileGeneratedWorkQuestion({
-      projectDir: args.projectDir,
+      workspaceRoot: args.workspaceRoot,
       queue: args.ownerQuestionQueue,
       input: {
         dedupeKey: generatedWorkQuestionDedupeKey(proposalKey),

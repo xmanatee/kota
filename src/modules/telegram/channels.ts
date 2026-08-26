@@ -4,11 +4,11 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
 import { createTelegramCallbackHandler, type PendingApprovalMessage } from "./callback-poll.js";
 import { callTelegramApi } from "./client.js";
-import { renderProjectLabelPrefix } from "./notification-delivery.js";
+import { renderScopeLabelPrefix } from "./notification-delivery.js";
 import { type PendingMessage, tryHandleOwnerQuestionReply } from "./owner-question-reply.js";
-import { resolveTelegramProjectRouting, tryResolveTelegramClient } from "./project-routing.js";
-import type { TelegramChatProjectBinding } from "./project-selection.js";
 import { emitTelegramPollConflictHealthSignal, getCredentials, type TelegramConfig, telegramInteractiveBackendError } from "./readiness.js";
+import { resolveTelegramScopeRouting, tryResolveTelegramClient } from "./scope-routing.js";
+import type { TelegramChatScopeBinding } from "./scope-selection.js";
 import { buildStatusText, handleTelegramStatusCommand, type TelegramStatusScope } from "./status-poll.js";
 
 export function makeTelegramStatusChannel(
@@ -48,7 +48,7 @@ export function makeTelegramStatusChannel(
 
 export function makeTelegramInteractiveChannel(
   ctx: ModuleContext,
-  chatProjectBindings: TelegramChatProjectBinding[],
+  chatScopeBindings: TelegramChatScopeBinding[],
 ): ChannelDef {
   return {
     name: "telegram-interactive",
@@ -78,9 +78,9 @@ export function makeTelegramInteractiveChannel(
       }
 
       const allowedChatIds = telegramConfig?.allowedChatIds;
-      const projectRouting = resolveTelegramProjectRouting(
+      const scopeRouting = resolveTelegramScopeRouting(
         ctx,
-        chatProjectBindings,
+        chatScopeBindings,
       );
       const bot = new TelegramBot({
         token,
@@ -93,10 +93,10 @@ export function makeTelegramInteractiveChannel(
           owner: "telegram-interactive",
           source: "daemon channel",
         },
-        defaultProjectRuntime: channelCtx.getDefaultProjectRuntime(),
-        getProjectRuntime: channelCtx.getProjectRuntime,
+        defaultScopeRuntime: channelCtx.getDefaultScopeRuntime(),
+        getScopeRuntime: channelCtx.getScopeRuntime,
         allowedChatIds,
-        projectSelection: projectRouting?.selection,
+        scopeSelection: scopeRouting?.selection,
         inboundSignals: telegramConfig?.inboundSignals
           ? {
               config: telegramConfig.inboundSignals,
@@ -134,7 +134,7 @@ export function makeTelegramInteractiveChannel(
             return true;
           }
           const defaultScope: TelegramStatusScope = {
-            projectDir: channelCtx.getDefaultProjectRuntime().project.projectDir,
+            scopeRoot: channelCtx.getDefaultScopeRuntime().scope.scopeRoot,
             getStatusInfo: channelCtx.getWorkflowStatus,
             knowledge: client.knowledge,
             memory: client.memory,
@@ -150,7 +150,7 @@ export function makeTelegramInteractiveChannel(
             messageChatId: chatId,
             text,
             defaultScope,
-            projectRouting,
+            scopeRouting,
           });
         },
       });
@@ -159,25 +159,25 @@ export function makeTelegramInteractiveChannel(
         const description = typeof payload.description === "string"
           ? payload.description
           : JSON.stringify(payload);
-        const projectId = typeof payload.projectId === "string" ? payload.projectId : undefined;
+        const scopeId = typeof payload.scopeId === "string" ? payload.scopeId : undefined;
         void (async () => {
-          const prefix = await renderProjectLabelPrefix(
-            projectId,
-            projectRouting?.selection,
+          const prefix = await renderScopeLabelPrefix(
+            scopeId,
+            scopeRouting?.selection,
             ctx.log,
           );
-          bot.broadcastToChats(`${prefix}⏰ Reminder: ${description}`, projectId);
+          bot.broadcastToChats(`${prefix}⏰ Reminder: ${description}`, scopeId);
         })();
       });
       const unsubscribeScopeLifecycle = ctx.events.subscribe(
         "scope.lifecycle.changed",
         (payload) => {
           if (
-            projectRouting ||
+            scopeRouting ||
             payload.transition !== "default-changed" ||
             payload.previousDefaultScopeId === undefined
           ) return;
-          bot.setDefaultProjectRuntime(channelCtx.getDefaultProjectRuntime());
+          bot.setDefaultScopeRuntime(channelCtx.getDefaultScopeRuntime());
           bot.closeScopeSessions(payload.previousDefaultScopeId);
         },
       );
@@ -193,7 +193,7 @@ export function makeTelegramInteractiveChannel(
               if (err instanceof TelegramGetUpdatesConflictError) {
                 emitTelegramPollConflictHealthSignal(
                   ctx,
-                  channelCtx.getDefaultProjectRuntime().project.projectId,
+                  channelCtx.getDefaultScopeRuntime().scope.scopeId,
                 );
               }
               ctx.log.error(`telegram-interactive channel poll loop exited: ${message}`);

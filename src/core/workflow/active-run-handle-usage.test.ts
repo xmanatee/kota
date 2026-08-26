@@ -43,7 +43,7 @@ describe("active run usage accounting", () => {
     };
     const handle = createActiveRunHandle({
       id: metadata.id,
-      projectDir: root,
+      scopeRoot: root,
       runDirPath,
       metadata,
       headSha: null,

@@ -38,8 +38,8 @@ export function buildDaemonOpsDaemonHandler(link: DaemonTransport): DaemonOpsCli
       const identity = await link.request<ClientIdentity>("GET", "/identity");
       const timeoutSec = options?.timeoutSec ?? 90;
       const result = await stopDaemonPid(status.pid, timeoutSec);
-      if (!result.ok && result.reason !== "not_running" && identity?.projectDir) {
-        recordDaemonStopAttempt({ projectDir: identity.projectDir, timeoutSec, result });
+      if (!result.ok && result.reason !== "not_running" && identity?.scopeRoot) {
+        recordDaemonStopAttempt({ scopeRoot: identity.scopeRoot, timeoutSec, result });
       }
       return result;
     },

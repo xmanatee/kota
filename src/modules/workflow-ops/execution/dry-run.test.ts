@@ -39,7 +39,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
   };
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-workflow-dry-run-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -86,11 +86,11 @@ describe("workflow run --dry-run", () => {
   });
 
   it("prints the run plan without creating run artifacts, emitting bus events, or executing steps", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     let stepExecuted = false;
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
         {
           id: "would-execute",
@@ -98,14 +98,14 @@ describe("workflow run --dry-run", () => {
           run: ({ emit }) => {
             stepExecuted = true;
             emit("dry-run.executed", { ok: true });
-            writeFileSync(join(projectDir, "executed.txt"), "should not exist", "utf-8");
+            writeFileSync(join(workspaceRoot, "executed.txt"), "should not exist", "utf-8");
             return { ok: true };
           },
         },
       ],
     });
     const ctx = {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       config: {},
       getContributedWorkflows: () => [definition],
       listTools: () => [],
@@ -129,8 +129,8 @@ describe("workflow run --dry-run", () => {
 
     expect(stdout.output()).toContain("Result: PASS");
     expect(stepExecuted).toBe(false);
-    expect(existsSync(join(projectDir, "executed.txt"))).toBe(false);
-    expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, "executed.txt"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "runs"))).toBe(false);
     expect(eventSpy).not.toHaveBeenCalled();
     stdout.restore();
   });
@@ -471,7 +471,6 @@ describe("buildDryRunPlan with options", () => {
       scope: {
         kind: "scope",
         scopeId: "scope-a",
-        projectId: "scope-a",
         lineage: ["global", "scope-a"],
       },
       timestamps: {
@@ -524,7 +523,7 @@ describe("buildDryRunPlan with options", () => {
           filter: { tags: ["monitored"] },
           batch: {
             maxCount: 5,
-            groupBy: ["projectId"],
+            groupBy: ["scopeId"],
             maxBufferSize: 20,
             overflow: "flush-oldest",
           },
@@ -553,7 +552,6 @@ describe("buildDryRunPlan with options", () => {
       scope: {
         kind: "scope",
         scopeId: "scope-a",
-        projectId: "scope-a",
         lineage: ["global", "scope-a"],
       },
       timestamps: {
@@ -581,9 +579,8 @@ describe("buildDryRunPlan with options", () => {
         kind: "inline",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           sourceEventName: "workflow.completed",
-          groupingKey: "projectId=scope-a",
+          groupingKey: "scopeId=scope-a",
           reason: "count",
           count: 5,
           window: {

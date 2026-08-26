@@ -22,12 +22,12 @@ export type WorkflowTrialRuntime = {
 };
 
 export type WorkflowTrialRuntimeFactory = (
-  trialProjectDir: string,
-  sourceProjectDir?: string,
+  trialWorkspaceRoot: string,
+  sourceScopeRoot?: string,
 ) => Promise<WorkflowTrialRuntime>;
 
 export type RunWorkflowTrialArgs = {
-  sourceProjectDir: string;
+  sourceScopeRoot: string;
   workflowName: string;
   options?: WorkflowTrialOptions;
   runtimeFactory: WorkflowTrialRuntimeFactory;
@@ -41,9 +41,9 @@ export type TrialVariant = {
 
 export type QueuedWorkflowReport = WorkflowTrialAttemptReport["queuedWorkflows"][number];
 export type WorkflowRuntimePayload = WorkflowRunTrigger["payload"];
-export type TrialProjectResolution =
-  | { ok: true; sourceProjectDir: string; projectId: string }
-  | { ok: false; projectId: string; message: string };
+export type TrialScopeResolution =
+  | { ok: true; sourceScopeRoot: string; scopeId: string }
+  | { ok: false; scopeId: string; message: string };
 export type TrialResolvedToolEffect = {
   effect: ToolEffect;
   manifest?: {

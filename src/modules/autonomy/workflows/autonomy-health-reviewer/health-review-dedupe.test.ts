@@ -54,39 +54,39 @@ function signal(
 }
 
 describe("autonomy health repair task deduplication", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-health-review-dedupe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function applyReview(review: ReturnType<typeof buildAutonomyHealthReviewFromSignals>) {
-    const currentProjection = readAutonomyIssueProjection(projectDir);
+    const currentProjection = readAutonomyIssueProjection(workspaceRoot);
     const repositoryActions = stageAutonomyHealthReviewActions({
-      projectDir,
+      workspaceRoot,
       currentProjection,
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       review,
     });
     const finalized = finalizeAutonomyHealthReviewActions({
       currentProjection,
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       ownerQuestionQueue: new OwnerQuestionQueue(
-        join(projectDir, ".kota", "owner-questions"),
+        join(workspaceRoot, ".kota", "owner-questions"),
       ),
       review,
       repositoryActions,
     });
-    materializeAutonomyIssueProjection(projectDir, finalized.projection);
+    materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
     return finalized;
   }
 

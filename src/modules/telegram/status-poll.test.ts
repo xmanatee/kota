@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import type { KotaClient } from "#core/server/kota-client.js";
 import type {
   AnswerClient,
@@ -24,7 +24,7 @@ import {
   acquireTelegramPollingOwner,
   resetTelegramPollingOwnersForTests,
 } from "./polling-ownership.js";
-import type { TelegramProjectSelection } from "./project-selection.js";
+import type { TelegramScopeSelection } from "./scope-selection.js";
 import {
   buildStatusText,
   type StatusInfo,
@@ -57,7 +57,7 @@ const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
 const FAKE_TOKEN = "bot-token-123";
 const FAKE_CHAT_ID = "987654321";
-const FAKE_PROJECT_DIR = "/fake/project";
+const FAKE_SCOPE_DIR = "/fake/scope";
 
 function emitTelegramKnowledgeEvidence(
   fileName: string,
@@ -116,7 +116,7 @@ function makeHistoryStub(
 ): HistoryClient {
   return {
     list: vi.fn(),
-    listDiscoveredProjectRecords: vi.fn(),
+    listDiscoveredScopeRecords: vi.fn(),
     show: vi.fn(),
     delete: vi.fn(),
     search,
@@ -274,7 +274,7 @@ describe("startTelegramStatusPoll", () => {
         startTelegramStatusPoll(
           FAKE_TOKEN,
           FAKE_CHAT_ID,
-          FAKE_PROJECT_DIR,
+          FAKE_SCOPE_DIR,
           makeStatusInfo,
           makeKnowledgeStub(),
           makeMemoryStub(),
@@ -295,7 +295,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("polls getUpdates on start", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 10));
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
@@ -308,7 +308,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
@@ -319,14 +319,14 @@ describe("startTelegramStatusPoll", () => {
     expect((sendCall?.[2] as { text: string }).text).toContain("*Dispatch:*");
   });
 
-  it("routes /status through the resolved project-scoped workflow client", async () => {
-    const project: ConfiguredProject = {
-      projectId: "project-b",
-      projectDir: "/tmp/project-b",
-      displayName: "Project B",
+  it("routes /status through the resolved scoped workflow client", async () => {
+    const scope: DirectoryScope = {
+      scopeId: "scope-b",
+      scopeRoot: "/tmp/scope-b",
+      displayName: "Scope B",
     };
     const rootStatusInfo = vi.fn(() => makeStatusInfo());
-    const projectWorkflowStatus = vi.fn(async () => ({
+    const scopeWorkflowStatus = vi.fn(async () => ({
       activeRuns: [],
       pendingRuns: [],
       queueLength: 0,
@@ -337,9 +337,9 @@ describe("startTelegramStatusPoll", () => {
       concurrency: 4,
     }));
     const client = {
-      forProject: vi.fn(() => ({
+      forScope: vi.fn(() => ({
         workflow: {
-          status: projectWorkflowStatus,
+          status: scopeWorkflowStatus,
         },
         knowledge: makeKnowledgeStub(),
         memory: makeMemoryStub(),
@@ -354,12 +354,12 @@ describe("startTelegramStatusPoll", () => {
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: true as const,
-        project,
-        showProjectLabels: true,
+        scope,
+        showScopeLabels: true,
       })),
       switchChat: vi.fn(),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
 
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/status")])
@@ -367,7 +367,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       rootStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -383,8 +383,8 @@ describe("startTelegramStatusPoll", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
-    expect(client.forProject).toHaveBeenCalledWith("project-b");
-    expect(projectWorkflowStatus).toHaveBeenCalledOnce();
+    expect(client.forScope).toHaveBeenCalledWith("scope-b");
+    expect(scopeWorkflowStatus).toHaveBeenCalledOnce();
     expect(rootStatusInfo).not.toHaveBeenCalled();
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect((sendCall?.[2] as { text: string }).text).toContain("*Dispatch:* paused");
@@ -400,12 +400,12 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
 
     expect(mockedRenderOnDemandDigest).toHaveBeenCalledWith({
-      projectDir: FAKE_PROJECT_DIR,
-      stateDir: join(FAKE_PROJECT_DIR, ".kota"),
+      scopeRoot: FAKE_SCOPE_DIR,
+      stateDir: join(FAKE_SCOPE_DIR, ".kota"),
     });
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
@@ -426,12 +426,12 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/attention")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
 
     expect(mockedRenderOnDemandAttention).toHaveBeenCalledWith({
-      projectDir: FAKE_PROJECT_DIR,
-      runsDir: `${FAKE_PROJECT_DIR}/.kota/runs`,
+      scopeRoot: FAKE_SCOPE_DIR,
+      runsDir: `${FAKE_SCOPE_DIR}/.kota/runs`,
     });
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();
@@ -450,7 +450,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/attention")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     expect(mockedRenderOnDemandAttention).not.toHaveBeenCalled();
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
@@ -462,7 +462,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     expect(mockedRenderOnDemandDigest).not.toHaveBeenCalled();
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
@@ -475,7 +475,7 @@ describe("startTelegramStatusPoll", () => {
       entries: [
         {
           id: "kn-001",
-          title: "Project vision",
+          title: "Scope vision",
           type: "note",
           tags: [],
           status: "active",
@@ -506,7 +506,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       knowledge,
       makeMemoryStub(),
@@ -531,7 +531,7 @@ describe("startTelegramStatusPoll", () => {
     expect(payload.chat_id).toBe(FAKE_CHAT_ID);
     // Plain text — id, type, status, title, one entry per line.
     expect(payload.text).toContain("kn-001");
-    expect(payload.text).toContain("Project vision");
+    expect(payload.text).toContain("Scope vision");
     expect(payload.text).toContain("kn-002");
     expect(payload.text).toContain("Architecture decisions");
     expect(payload.text).toContain("note");
@@ -556,7 +556,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       knowledge,
       makeMemoryStub(),
@@ -594,7 +594,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       knowledge,
       makeMemoryStub(),
@@ -636,7 +636,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       knowledge,
       makeMemoryStub(),
@@ -672,7 +672,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       knowledge,
       makeMemoryStub(),
@@ -715,7 +715,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       memory,
@@ -759,7 +759,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       memory,
@@ -792,7 +792,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       memory,
@@ -829,7 +829,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       memory,
@@ -860,7 +860,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       memory,
@@ -911,7 +911,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -955,7 +955,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -988,7 +988,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1025,7 +1025,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1056,7 +1056,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1109,7 +1109,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1154,7 +1154,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1187,7 +1187,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1224,7 +1224,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1255,7 +1255,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1311,7 +1311,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1358,7 +1358,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1390,7 +1390,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1426,7 +1426,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1456,7 +1456,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1478,7 +1478,7 @@ describe("startTelegramStatusPoll", () => {
     const answerFn = vi.fn().mockResolvedValue({
       ok: true,
       answer:
-        "Strict typed protocols are the project standard [knowledge:kn-001]; the owner reaffirmed this preference in memory [memory:mem-002].",
+        "Strict typed protocols are the scope standard [knowledge:kn-001]; the owner reaffirmed this preference in memory [memory:mem-002].",
       citations: [
         { source: "knowledge", id: "kn-001" },
         { source: "memory", id: "mem-002" },
@@ -1488,7 +1488,7 @@ describe("startTelegramStatusPoll", () => {
           source: "knowledge",
           score: 0.92,
           id: "kn-001",
-          title: "Project conventions",
+          title: "Scope conventions",
           preview: "Strict by default...",
           updated: "2026-04-26",
         },
@@ -1509,7 +1509,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1534,7 +1534,7 @@ describe("startTelegramStatusPoll", () => {
     expect(payload.chat_id).toBe(FAKE_CHAT_ID);
     // Prose appears first with markers preserved inline.
     expect(payload.text).toMatch(
-      /^Strict typed protocols are the project standard \[knowledge:kn-001\]; the owner reaffirmed this preference in memory \[memory:mem-002\]\./,
+      /^Strict typed protocols are the scope standard \[knowledge:kn-001\]; the owner reaffirmed this preference in memory \[memory:mem-002\]\./,
     );
     // Citation block follows the prose, separated by a blank line and a header.
     expect(payload.text).toContain("\n\nCitations\n");
@@ -1546,7 +1546,7 @@ describe("startTelegramStatusPoll", () => {
     expect(memoryRow).toBeDefined();
     expect(knowledgeRow).toContain("kn-001");
     expect(knowledgeRow).toContain("0.920");
-    expect(knowledgeRow).toContain("Project conventions");
+    expect(knowledgeRow).toContain("Scope conventions");
     expect(memoryRow).toContain("mem-002");
     expect(memoryRow).toContain("0.710");
     expect(memoryRow).toContain("owner prefers strict typed protocols");
@@ -1563,7 +1563,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1617,7 +1617,7 @@ describe("startTelegramStatusPoll", () => {
       const localStop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1647,7 +1647,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -1671,7 +1671,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/digest")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     const text = (sendCall?.[2] as { text: string }).text;
@@ -1716,7 +1716,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1771,7 +1771,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1809,7 +1809,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1842,7 +1842,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1881,7 +1881,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1913,7 +1913,7 @@ describe("startTelegramStatusPoll", () => {
           source: "knowledge",
           score: 0.92,
           id: "kn-001",
-          title: "Project conventions",
+          title: "Scope conventions",
           preview: "Strict by default...",
           updated: "2026-04-26",
         },
@@ -1928,7 +1928,7 @@ describe("startTelegramStatusPoll", () => {
             source: "knowledge",
             score: 0.92,
             id: "kn-001",
-            title: "Project conventions",
+            title: "Scope conventions",
             preview: "Strict by default...",
             updated: "2026-04-26",
           },
@@ -1965,7 +1965,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -1991,7 +1991,7 @@ describe("startTelegramStatusPoll", () => {
       );
       expect((sendCall?.[2] as { text: string }).text).toContain("Citations");
       expect((sendCall?.[2] as { text: string }).text).toContain(
-        "Project conventions",
+        "Scope conventions",
       );
     });
 
@@ -2014,7 +2014,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2057,7 +2057,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2096,7 +2096,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2135,7 +2135,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2169,7 +2169,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2339,7 +2339,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2381,7 +2381,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2415,7 +2415,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2563,7 +2563,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2602,7 +2602,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2646,7 +2646,7 @@ describe("startTelegramStatusPoll", () => {
       stop = startTelegramStatusPoll(
         FAKE_TOKEN,
         FAKE_CHAT_ID,
-        FAKE_PROJECT_DIR,
+        FAKE_SCOPE_DIR,
         makeStatusInfo,
         makeKnowledgeStub(),
         makeMemoryStub(),
@@ -2671,7 +2671,7 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, 111111, "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
@@ -2681,22 +2681,22 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/help")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeUndefined();
   });
 
-  it("preserves the unbound-project reply for unknown multi-project chat text", async () => {
+  it("preserves the unbound-scope reply for unknown multi-scope chat text", async () => {
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: false as const,
-        message: "This Telegram chat is not bound to a KOTA project.",
+        message: "This Telegram chat is not bound to a KOTA scope.",
       })),
       switchChat: vi.fn(),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
-    const client = { forProject: vi.fn() } as unknown as KotaClient;
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
+    const client = { forScope: vi.fn() } as unknown as KotaClient;
 
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "hello")])
@@ -2704,7 +2704,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -2720,12 +2720,12 @@ describe("startTelegramStatusPoll", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
-    expect(client.forProject).not.toHaveBeenCalled();
+    expect(client.forScope).not.toHaveBeenCalled();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
       expect.objectContaining({
-        text: "This Telegram chat is not bound to a KOTA project.",
+        text: "This Telegram chat is not bound to a KOTA scope.",
       }),
     );
   });
@@ -2734,20 +2734,20 @@ describe("startTelegramStatusPoll", () => {
     mockedCallTelegramApi
       .mockResolvedValueOnce([makeUpdate(42, Number(FAKE_CHAT_ID), "/status")])
       .mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 20));
     const sendCalls = mockedCallTelegramApi.mock.calls.filter((c) => c[1] === "sendMessage");
     expect(sendCalls).toHaveLength(1);
   });
 
-  it("routes per-store commands through the resolved project-scoped KotaClient", async () => {
-    const project: ConfiguredProject = {
-      projectId: "project-b",
-      projectDir: "/tmp/project-b",
-      displayName: "Project B",
+  it("routes per-store commands through the resolved scoped KotaClient", async () => {
+    const scope: DirectoryScope = {
+      scopeId: "scope-b",
+      scopeRoot: "/tmp/scope-b",
+      displayName: "Scope B",
     };
     const rootTasksSearch = vi.fn();
-    const projectTasksSearch: RepoTasksClient["search"] = vi.fn(async () => ({
+    const scopeTasksSearch: RepoTasksClient["search"] = vi.fn(async () => ({
       ok: true as const,
       tasks: [{
         id: "task-b",
@@ -2755,21 +2755,21 @@ describe("startTelegramStatusPoll", () => {
         priority: "p2",
         state: "ready" as const,
         area: "modules",
-        summary: "Project B task",
+        summary: "Scope B task",
         updatedAt: "2026-01-01T00:00:00.000Z",
         score: 1,
       }],
     }));
-    const projectTasks = makeTasksStub(projectTasksSearch);
+    const scopeTasks = makeTasksStub(scopeTasksSearch);
     const client = {
-      forProject: vi.fn(() => ({
+      forScope: vi.fn(() => ({
         workflow: {
           status: vi.fn(),
         },
         knowledge: makeKnowledgeStub(),
         memory: makeMemoryStub(),
         history: makeHistoryStub(),
-        tasks: projectTasks,
+        tasks: scopeTasks,
         recall: makeRecallStub(),
         answer: makeAnswerStub(),
         capture: makeCaptureStub(),
@@ -2779,20 +2779,20 @@ describe("startTelegramStatusPoll", () => {
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: true as const,
-        project,
-        showProjectLabels: true,
+        scope,
+        showScopeLabels: true,
       })),
       switchChat: vi.fn(),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
 
     mockedCallTelegramApi
-      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks project")])
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks scope")])
       .mockResolvedValue([]);
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -2808,30 +2808,30 @@ describe("startTelegramStatusPoll", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(selection.resolveChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID));
-    expect(client.forProject).toHaveBeenCalledWith("project-b");
-    expect(projectTasksSearch).toHaveBeenCalledWith("project", { semantic: true, limit: 10 });
+    expect(client.forScope).toHaveBeenCalledWith("scope-b");
+    expect(scopeTasksSearch).toHaveBeenCalledWith("scope", { semantic: true, limit: 10 });
     expect(rootTasksSearch).not.toHaveBeenCalled();
   });
 
-  it("fails loudly when a multi-project chat has no selected project", async () => {
+  it("fails loudly when a multi-scope chat has no selected scope", async () => {
     const selection = {
       resolveChat: vi.fn(async () => ({
         ok: false as const,
-        message: "This Telegram chat is not bound to a KOTA project.",
+        message: "This Telegram chat is not bound to a KOTA scope.",
       })),
       switchChat: vi.fn(),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
-    const client = { forProject: vi.fn() } as unknown as KotaClient;
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
+    const client = { forScope: vi.fn() } as unknown as KotaClient;
     const tasksSearch = vi.fn();
 
     mockedCallTelegramApi
-      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks project")])
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/tasks scope")])
       .mockResolvedValue([]);
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -2846,42 +2846,42 @@ describe("startTelegramStatusPoll", () => {
     );
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(client.forProject).not.toHaveBeenCalled();
+    expect(client.forScope).not.toHaveBeenCalled();
     expect(tasksSearch).not.toHaveBeenCalled();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
       expect.objectContaining({
-        text: "This Telegram chat is not bound to a KOTA project.",
+        text: "This Telegram chat is not bound to a KOTA scope.",
       }),
     );
   });
 
-  it("handles /project through the chat project selector before command routing", async () => {
+  it("handles /scope through the chat scope selector before command routing", async () => {
     const selection = {
       resolveChat: vi.fn(),
       switchChat: vi.fn(async () => ({
         ok: true as const,
-        project: {
-          projectId: "project-b",
-          projectDir: "/tmp/project-b",
-          displayName: "Project B",
+        scope: {
+          scopeId: "scope-b",
+          scopeRoot: "/tmp/scope-b",
+          displayName: "Scope B",
         },
         changed: true,
-        showProjectLabels: true,
-        message: "Telegram chat is now using Project B (project-b).",
+        showScopeLabels: true,
+        message: "Telegram chat is now using Scope B (scope-b).",
       })),
-      renderProjectLabelPrefix: vi.fn(),
-    } as unknown as TelegramProjectSelection;
-    const client = { forProject: vi.fn() } as unknown as KotaClient;
+      renderScopeLabelPrefix: vi.fn(),
+    } as unknown as TelegramScopeSelection;
+    const client = { forScope: vi.fn() } as unknown as KotaClient;
 
     mockedCallTelegramApi
-      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/project project-b")])
+      .mockResolvedValueOnce([makeUpdate(1, Number(FAKE_CHAT_ID), "/scope scope-b")])
       .mockResolvedValue([]);
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -2896,13 +2896,13 @@ describe("startTelegramStatusPoll", () => {
     );
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(selection.switchChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID), "project-b");
+    expect(selection.switchChat).toHaveBeenCalledWith(Number(FAKE_CHAT_ID), "scope-b");
     expect(selection.resolveChat).not.toHaveBeenCalled();
     expect(mockedCallTelegramApi).toHaveBeenCalledWith(
       FAKE_TOKEN,
       "sendMessage",
       expect.objectContaining({
-        text: "Telegram chat is now using Project B (project-b).",
+        text: "Telegram chat is now using Scope B (scope-b).",
       }),
     );
   });
@@ -2915,7 +2915,7 @@ describe("startTelegramStatusPoll", () => {
     stop = startTelegramStatusPoll(
       FAKE_TOKEN,
       FAKE_CHAT_ID,
-      FAKE_PROJECT_DIR,
+      FAKE_SCOPE_DIR,
       makeStatusInfo,
       makeKnowledgeStub(),
       makeMemoryStub(),
@@ -2933,7 +2933,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("stops polling after stop() is called", async () => {
     mockedCallTelegramApi.mockResolvedValue([]);
-    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_PROJECT_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
+    stop = startTelegramStatusPoll(FAKE_TOKEN, FAKE_CHAT_ID, FAKE_SCOPE_DIR, makeStatusInfo, makeKnowledgeStub(), makeMemoryStub(), makeHistoryStub(), makeTasksStub(), makeRecallStub(), makeAnswerStub(), makeCaptureStub(), makeRetractStub());
     await new Promise((r) => setTimeout(r, 10));
     const callsBefore = mockedCallTelegramApi.mock.calls.length;
     stop();

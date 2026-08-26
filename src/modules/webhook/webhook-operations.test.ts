@@ -51,27 +51,27 @@ afterEach(() => {
   rmSync(FAKE_HOME, { recursive: true, force: true });
 });
 
-function trustProjectConfig(projectDir: string): void {
+function trustScopeConfig(scopeRoot: string): void {
   mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
   writeFileSync(
     join(FAKE_HOME, ".kota", "config.json"),
-    JSON.stringify({ trustedProjects: [projectDir] }),
+    JSON.stringify({ trustedScopes: [scopeRoot] }),
   );
 }
 
 describe("webhook-operations (local handler / daemon-up shared logic)", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-webhook-ops-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-webhook-ops-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("listWebhooks surfaces only webhook-triggered workflows with no-secret status", () => {
-    const ctx = stubCtx(projectDir, [
+    const ctx = stubCtx(scopeRoot, [
       workflowDef("hooked", [{ event: "webhook", webhook: true }]),
       workflowDef("unhooked", [{ event: "runtime.idle" }]),
     ]);
@@ -83,14 +83,14 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("listWebhooks reports configured status when a secret exists in config", () => {
-    trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    trustScopeConfig(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({ webhooks: { hooked: { secret: "abc123" } } }),
     );
 
-    const ctx = stubCtx(projectDir, [
+    const ctx = stubCtx(scopeRoot, [
       workflowDef("hooked", [{ event: "webhook", webhook: true }]),
     ]);
 
@@ -99,7 +99,7 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("generateWebhookSecret writes a 64-char hex secret to .kota/config.json", () => {
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
 
     const result = generateWebhookSecret(ctx, "hooked");
     expect(result.workflow).toBe("hooked");
@@ -108,19 +108,19 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
     expect(/^[0-9a-f]+$/.test(result.secret)).toBe(true);
 
     const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
+      readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
     );
     expect(saved.webhooks?.hooked?.secret).toBe(result.secret);
   });
 
   it("generateWebhookSecret reports overwrote: true when an existing secret was replaced", () => {
-    trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    trustScopeConfig(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({ webhooks: { hooked: { secret: "old" } } }),
     );
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
 
     const result = generateWebhookSecret(ctx, "hooked");
     expect(result.overwrote).toBe(true);
@@ -128,72 +128,72 @@ describe("webhook-operations (local handler / daemon-up shared logic)", () => {
   });
 
   it("generateWebhookSecret preserves other config fields", () => {
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({ model: "claude-opus-4", webhooks: {} }),
     );
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
 
     generateWebhookSecret(ctx, "hooked");
     const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
+      readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
     );
     expect(saved.model).toBe("claude-opus-4");
     expect(saved.webhooks?.hooked?.secret).toBeTruthy();
   });
 
   it("removeWebhookSecret returns removed: false when no secret existed", () => {
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
     const result = removeWebhookSecret(ctx, "missing");
     expect(result).toEqual({ ok: true, workflow: "missing", removed: false });
   });
 
   it("removeWebhookSecret deletes the entry and preserves siblings", () => {
-    trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    trustScopeConfig(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({
         webhooks: { hooked: { secret: "x" }, other: { secret: "keep" } },
       }),
     );
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
 
     const result = removeWebhookSecret(ctx, "hooked");
     expect(result).toEqual({ ok: true, workflow: "hooked", removed: true });
 
     const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
+      readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
     );
     expect(saved.webhooks?.hooked).toBeUndefined();
     expect(saved.webhooks?.other?.secret).toBe("keep");
   });
 
   it("removeWebhookSecret drops the webhooks key entirely when last entry is deleted", () => {
-    trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    trustScopeConfig(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({ webhooks: { hooked: { secret: "only" } } }),
     );
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
 
     removeWebhookSecret(ctx, "hooked");
     const saved = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
+      readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
     );
     expect(saved.webhooks).toBeUndefined();
   });
 
   it("listWebhooks does not surface secret values", () => {
-    trustProjectConfig(projectDir);
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    trustScopeConfig(scopeRoot);
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
+      join(scopeRoot, ".kota", "config.json"),
       JSON.stringify({ webhooks: { hooked: { secret: "supersecret" } } }),
     );
-    const ctx = stubCtx(projectDir, [
+    const ctx = stubCtx(scopeRoot, [
       workflowDef("hooked", [{ event: "webhook", webhook: true }]),
     ]);
 

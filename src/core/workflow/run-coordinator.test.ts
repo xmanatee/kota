@@ -30,8 +30,8 @@ function createStore(): RunStateDatabase {
   roots.push(root);
   const store = new RunStateDatabase(root);
   stores.push(store);
-  for (const id of ["project-a", "project-b"]) {
-    store.registerProject({
+  for (const id of ["scope-a", "scope-b"]) {
+    store.registerScope({
       id,
       rootPath: join(root, id),
       createdAt: "2026-08-25T09:00:00.000Z",
@@ -43,7 +43,7 @@ function createStore(): RunStateDatabase {
 function admit(
   store: RunStateDatabase,
   id: string,
-  projectId: string,
+  scopeId: string,
   workflow: string,
   admittedAt: string,
   notBeforeAt?: string,
@@ -51,7 +51,7 @@ function admit(
 ): void {
   store.admitRun({
     id,
-    projectId,
+    scopeId,
     workflow,
     repository: "none",
     trigger: { event: "test.requested", schemaRef: null, payload: { id } },
@@ -67,12 +67,12 @@ afterEach(() => {
 });
 
 describe("RunCoordinator", () => {
-  test("shares one limit across projects and workflows and refills on completion", async () => {
+  test("shares one limit across scopes and workflows and refills on completion", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-b", "beta", "2026-08-25T10:00:02.000Z");
-    admit(store, "run-c", "project-a", "gamma", "2026-08-25T10:00:03.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-b", "beta", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-c", "scope-a", "gamma", "2026-08-25T10:00:03.000Z");
 
     const outcomes = new Map(
       ["run-a", "run-b", "run-c"].map((id) => [id, deferred<RunExecutionOutcome>()]),
@@ -113,7 +113,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "run-owner",
-      "project-a",
+      "scope-a",
       "alpha",
       "2026-08-25T10:00:01.000Z",
       undefined,
@@ -122,7 +122,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "run-waiter",
-      "project-a",
+      "scope-a",
       "beta",
       "2026-08-25T10:00:02.000Z",
       undefined,
@@ -131,7 +131,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "run-unrelated",
-      "project-b",
+      "scope-b",
       "gamma",
       "2026-08-25T10:00:03.000Z",
       undefined,
@@ -166,12 +166,12 @@ describe("RunCoordinator", () => {
     await coordinator.whenIdle();
   });
 
-  test("drains an awaited child while global and project admission are paused", async () => {
+  test("drains an awaited child while global and scope admission are paused", async () => {
     const store = createStore();
     const now = "2026-08-25T10:00:03.000Z";
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "parent", "project-a", "parent-workflow", "2026-08-25T10:00:01.000Z");
-    admit(store, "child", "project-a", "child-workflow", "2026-08-25T10:00:02.000Z");
+    admit(store, "parent", "scope-a", "parent-workflow", "2026-08-25T10:00:01.000Z");
+    admit(store, "child", "scope-a", "child-workflow", "2026-08-25T10:00:02.000Z");
     let coordinator!: RunCoordinator;
     let childAttempts = 0;
     let parentObservedChild = "";
@@ -185,7 +185,7 @@ describe("RunCoordinator", () => {
         occupied.push(coordinator.occupiedCapacity);
         if (run.id === "parent") {
           coordinator.pauseGlobalAdmission();
-          coordinator.pauseProjectAdmission("project-a");
+          coordinator.pauseScopeAdmission("scope-a");
           const child = await coordinator.waitForChild(run.id, "child", signal);
           parentObservedChild = child.state;
           occupied.push(coordinator.occupiedCapacity);
@@ -205,7 +205,7 @@ describe("RunCoordinator", () => {
     expect(parentObservedChild).toBe("succeeded");
     expect(Math.max(...occupied)).toBe(1);
     expect(coordinator.isGlobalAdmissionPaused()).toBe(true);
-    expect(coordinator.isProjectAdmissionPaused("project-a")).toBe(true);
+    expect(coordinator.isScopeAdmissionPaused("scope-a")).toBe(true);
     expect(store.getRun("parent")?.state).toBe("succeeded");
     expect(store.getRun("child")?.state).toBe("succeeded");
   });
@@ -214,11 +214,11 @@ describe("RunCoordinator", () => {
     const store = createStore();
     const now = "2026-08-25T10:00:01.000Z";
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    const projectDir = store.getProjectRoot("project-a")!;
+    const scopeRoot = store.getScopeRoot("scope-a")!;
     const definition: WorkflowDefinition = {
       name: "alpha",
       enabled: true,
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       repository: "none",
       tags: [],
       definitionPath: "src/core/workflow/run-coordinator.test.ts",
@@ -246,11 +246,11 @@ describe("RunCoordinator", () => {
       },
     });
     const queue = new WorkflowQueueManager({
-      store: new WorkflowRunStore(projectDir),
+      store: new WorkflowRunStore(scopeRoot),
       runState: store,
       coordinator,
-      projectId: "project-a",
-      projectDir,
+      scopeId: "scope-a",
+      scopeRoot,
       getScopeId: () => "test-scope",
       getActiveBackoff: () => null,
       workflowUsesAgent: () => false,
@@ -276,8 +276,8 @@ describe("RunCoordinator", () => {
   test("cancels and waits for one project without disturbing another", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-b", "beta", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-b", "beta", "2026-08-25T10:00:02.000Z");
     const startedA = deferred<void>();
     const startedB = deferred<void>();
     const finishB = deferred<RunExecutionOutcome>();
@@ -286,7 +286,7 @@ describe("RunCoordinator", () => {
       daemonEpoch: epoch,
       concurrency: 2,
       execute: (run, signal) => {
-        if (run.projectId === "project-b") {
+        if (run.scopeId === "scope-b") {
           startedB.resolve();
           return finishB.promise;
         }
@@ -303,15 +303,15 @@ describe("RunCoordinator", () => {
 
     coordinator.refill();
     await Promise.all([startedA.promise, startedB.promise]);
-    expect(coordinator.activeRunIdsForProject("project-a")).toEqual(["run-a"]);
-    expect(coordinator.activeRunIdsForProject("project-b")).toEqual(["run-b"]);
+    expect(coordinator.activeRunIdsForScope("scope-a")).toEqual(["run-a"]);
+    expect(coordinator.activeRunIdsForScope("scope-b")).toEqual(["run-b"]);
 
-    const projectAIdle = coordinator.whenProjectIdle("project-a");
-    expect(coordinator.cancelProject("project-a")).toBe(1);
+    const projectAIdle = coordinator.whenScopeIdle("scope-a");
+    expect(coordinator.cancelScope("scope-a")).toBe(1);
     await projectAIdle;
 
-    expect(coordinator.isProjectBusy("project-a")).toBe(false);
-    expect(coordinator.isProjectBusy("project-b")).toBe(true);
+    expect(coordinator.isScopeBusy("scope-a")).toBe(false);
+    expect(coordinator.isScopeBusy("scope-b")).toBe(true);
     expect(store.getRun("run-a")?.state).toBe("cancelled");
     expect(store.getRun("run-b")?.state).toBe("running");
 
@@ -322,8 +322,8 @@ describe("RunCoordinator", () => {
   test("pauses only new admission and resumes queued work", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-a", "alpha", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-a", "alpha", "2026-08-25T10:00:02.000Z");
     const first = deferred<RunExecutionOutcome>();
     const secondStarted = deferred<void>();
     const coordinator = new RunCoordinator({
@@ -352,8 +352,8 @@ describe("RunCoordinator", () => {
   test("cancels queued and active runs without admitting replacement early", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-a", "alpha", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-a", "alpha", "2026-08-25T10:00:02.000Z");
     const started = deferred<void>();
     const aborted = deferred<void>();
     const coordinator = new RunCoordinator({
@@ -389,7 +389,7 @@ describe("RunCoordinator", () => {
   test("preserves lifecycle attention after cancellation when cleanup is not safe", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     const started = deferred<void>();
     const coordinator = new RunCoordinator({
       store,
@@ -427,7 +427,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "parent",
-      "project-a",
+      "scope-a",
       "parent-workflow",
       "2026-08-25T10:00:01.000Z",
       undefined,
@@ -436,7 +436,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "child",
-      "project-a",
+      "scope-a",
       "child-workflow",
       "2026-08-25T10:00:02.000Z",
       undefined,
@@ -468,9 +468,9 @@ describe("RunCoordinator", () => {
   test("applies terminal, suspension, and thrown execution outcomes", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-b", "beta", "2026-08-25T10:00:02.000Z");
-    admit(store, "run-c", "project-a", "gamma", "2026-08-25T10:00:03.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-b", "beta", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-c", "scope-a", "gamma", "2026-08-25T10:00:03.000Z");
     const coordinator = new RunCoordinator({
       store,
       daemonEpoch: epoch,
@@ -506,12 +506,12 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "run-delayed",
-      "project-a",
+      "scope-a",
       "alpha",
       "2026-08-25T10:00:01.000Z",
       "2026-08-25T10:01:00.000Z",
     );
-    admit(store, "run-ready", "project-b", "beta", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-ready", "scope-b", "beta", "2026-08-25T10:00:02.000Z");
     const order: string[] = [];
     const coordinator = new RunCoordinator({
       store,
@@ -538,7 +538,7 @@ describe("RunCoordinator", () => {
   test("executes a durable run once when coordinators race to start it", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     const finish = deferred<RunExecutionOutcome>();
     const execute = vi.fn(async () => finish.promise);
     const options = {
@@ -564,7 +564,7 @@ describe("RunCoordinator", () => {
   test("retries a durable terminal publication after delivery fails", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     let shouldFail = true;
     const delivered: string[] = [];
     const coordinator = new RunCoordinator({
@@ -577,7 +577,7 @@ describe("RunCoordinator", () => {
         publication: {
           id: `workflow:${run.id}:completed`,
           runId: run.id,
-          projectId: run.projectId,
+          scopeId: run.scopeId,
           event: "workflow.completed",
           payload: { runId: run.id },
         },
@@ -602,7 +602,7 @@ describe("RunCoordinator", () => {
   test("delivers staged workflow events when a run terminates without an inline publication", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     const delivered: string[] = [];
     const coordinator = new RunCoordinator({
       store,
@@ -634,7 +634,7 @@ describe("RunCoordinator", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     for (const runId of ["run-a", "run-b"]) {
-      admit(store, runId, "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+      admit(store, runId, "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
       store.startRun(runId, epoch, "2026-08-25T10:00:02.000Z");
     }
     store.stageEmitIntent({
@@ -685,7 +685,7 @@ describe("RunCoordinator", () => {
   test("disposes active work before its run-state database can be closed", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     const started = deferred<void>();
     const aborted = deferred<void>();
     const coordinator = new RunCoordinator({
@@ -724,7 +724,7 @@ describe("RunCoordinator", () => {
     admit(
       store,
       "run-delayed",
-      "project-a",
+      "scope-a",
       "alpha",
       "2026-08-25T10:00:01.000Z",
       "2026-08-25T10:01:00.000Z",
@@ -745,7 +745,7 @@ describe("RunCoordinator", () => {
 
     expect(coordinator.refill()).toBe(0);
     expect(coordinator.resumeGlobalAdmission()).toBe(0);
-    expect(coordinator.resumeProjectAdmission("project-a")).toBe(0);
+    expect(coordinator.resumeScopeAdmission("scope-a")).toBe(0);
     await expect(coordinator.drainPublications()).resolves.toBeUndefined();
     await vi.runAllTimersAsync();
     vi.useRealTimers();
@@ -756,7 +756,7 @@ describe("RunCoordinator", () => {
     try {
       const store = createStore();
       const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-      admit(store, "run-stuck", "project-a", "alpha", "2026-08-25T10:00:01.000Z");
+      admit(store, "run-stuck", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
       const started = deferred<void>();
       const coordinator = new RunCoordinator({
         store,

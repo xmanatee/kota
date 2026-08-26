@@ -21,20 +21,20 @@ vi.mock("#core/util/repo-worktree.js", () => ({
 
 const roots: string[] = [];
 
-function makeProjectDir(): { projectDir: string; outsidePath: string } {
+function makeScopeRoot(): { workspaceRoot: string; outsidePath: string } {
   const root = mkdtempSync(join(tmpdir(), "backlog-promoter-path-safety-"));
   roots.push(root);
-  const projectDir = join(root, "project");
+  const workspaceRoot = join(root, "project");
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(projectDir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
+    writeFileSync(join(workspaceRoot, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
   }
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "test@example.com"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  return { projectDir, outsidePath: join(root, "outside-host-target.md") };
+  execFileSync("git", ["config", "user.name", "test"], { cwd: workspaceRoot });
+  return { workspaceRoot, outsidePath: join(root, "outside-host-target.md") };
 }
 
 function taskTemplate(id: string): string {
@@ -94,26 +94,26 @@ afterEach(() => {
 
 describe("backlog-promoter task path safety", () => {
   it("rejects a symlinked task in the autonomous host promotion step", async () => {
-    const { projectDir, outsidePath } = makeProjectDir();
+    const { workspaceRoot, outsidePath } = makeScopeRoot();
     const taskId = "task-linked-host-promotion";
     const outsideContent = taskTemplate(taskId);
     writeFileSync(outsidePath, outsideContent, "utf-8");
     const linkedTaskPath = join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "backlog",
       `${taskId}.md`,
     );
     symlinkSync(outsidePath, linkedTaskPath);
-    execFileSync("git", ["add", "-A"], { cwd: projectDir });
+    execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
     execFileSync("git", ["commit", "-m", "initial", "--quiet"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
 
     const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 
@@ -126,7 +126,7 @@ describe("backlog-promoter task path safety", () => {
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
     expect(lstatSync(linkedTaskPath).isSymbolicLink()).toBe(true);
     expect(
-      existsSync(join(projectDir, "data", "tasks", "ready", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`)),
     ).toBe(false);
   });
 });

@@ -23,16 +23,16 @@ import type {
 } from "./supervision-load-types.js";
 
 export function readSupervisionLoadStores(input: {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   runs: readonly WorkflowRunMetadata[];
 }): SupervisionLoadStoreReads {
   return {
     activeRuns: readActiveRuns(input.runsDir, input.runs),
-    approvals: readApprovals(input.projectDir),
-    ownerQuestions: readOwnerQuestions(input.projectDir),
-    deadLetters: readDeadLetters(input.projectDir),
-    attentionItems: readAttentionItems(input.projectDir, input.runsDir),
+    approvals: readApprovals(input.workspaceRoot),
+    ownerQuestions: readOwnerQuestions(input.workspaceRoot),
+    deadLetters: readDeadLetters(input.workspaceRoot),
+    attentionItems: readAttentionItems(input.workspaceRoot, input.runsDir),
   };
 }
 
@@ -48,26 +48,26 @@ function readActiveRuns(
   };
 }
 
-function readApprovals(projectDir: string): StoreResult<ApprovalRecord> {
+function readApprovals(workspaceRoot: string): StoreResult<ApprovalRecord> {
   return readJsonDirectory(
     "approvals",
-    join(projectDir, ".kota", "approvals"),
+    join(workspaceRoot, ".kota", "approvals"),
     decodeApprovalRecord,
   );
 }
 
 function readOwnerQuestions(
-  projectDir: string,
+  workspaceRoot: string,
 ): StoreResult<OwnerQuestionRecord> {
   return readJsonDirectory(
     "owner-questions",
-    join(projectDir, ".kota", "owner-questions"),
+    join(workspaceRoot, ".kota", "owner-questions"),
     decodeOwnerQuestionRecord,
   );
 }
 
-function readDeadLetters(projectDir: string): StoreResult<DeadLetterRecord> {
-  const path = join(projectDir, ".kota", "dead-letter-queue", "items.json");
+function readDeadLetters(workspaceRoot: string): StoreResult<DeadLetterRecord> {
+  const path = join(workspaceRoot, ".kota", "dead-letter-queue", "items.json");
   if (!existsSync(path)) {
     return {
       items: null,
@@ -105,11 +105,11 @@ function readDeadLetters(projectDir: string): StoreResult<DeadLetterRecord> {
 }
 
 function readAttentionItems(
-  projectDir: string,
+  workspaceRoot: string,
   runsDir: string,
 ): StoreResult<AttentionRecord> {
   try {
-    const rendered = renderOnDemandAttention({ projectDir, runsDir });
+    const rendered = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
     return {
       items: rendered.items.map((item, index) => ({
         id: `attention-${index + 1}`,
@@ -119,7 +119,7 @@ function readAttentionItems(
       evidence: {
         source: "attention-items",
         status: "available",
-        path: `${projectDir}/data/tasks + ${runsDir}`,
+        path: `${workspaceRoot}/data/tasks + ${runsDir}`,
         message: "attention detector read existing task and run surfaces",
       },
     };
@@ -241,7 +241,6 @@ function decodeDeadLetterRecord(
     type: stringField(item.type) ?? "dead-letter",
     workflows: stringArray(item.affectedWorkflowNames),
     scopeId: stringField(item.scopeId),
-    projectId: stringField(item.projectId),
     failedRunId: source ? stringField(source.failedRunId) : null,
   };
 }

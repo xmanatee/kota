@@ -7,25 +7,25 @@ import { scopePolicySnapshotForTest } from "./scope-policy-test-support.js";
 
 export const SCOPE_TEST_NOW = new Date("2026-08-15T12:00:00.000Z");
 
-export function runScopeFixtureGit(projectDir: string, args: string[]): string {
+export function runScopeFixtureGit(workspaceRoot: string, args: string[]): string {
   return execFileSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 }
 
 export function makeScopeFixture(label: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), `kota-scope-semantic-${label}-`));
+  const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-scope-semantic-${label}-`));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(projectDir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
+    writeFileSync(join(workspaceRoot, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
   }
-  mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
-  runScopeFixtureGit(projectDir, ["init", "--quiet"]);
-  runScopeFixtureGit(projectDir, ["add", "."]);
-  runScopeFixtureGit(projectDir, [
+  mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n", "utf8");
+  runScopeFixtureGit(workspaceRoot, ["init", "--quiet"]);
+  runScopeFixtureGit(workspaceRoot, ["add", "."]);
+  runScopeFixtureGit(workspaceRoot, [
     "-c",
     "user.email=kota@example.test",
     "-c",
@@ -36,16 +36,16 @@ export function makeScopeFixture(label: string): string {
     "-m",
     "initial scope",
   ]);
-  return projectDir;
+  return workspaceRoot;
 }
 
 export function automaticScopeRequest(
-  projectDir: string,
+  workspaceRoot: string,
   boundary: "initial-onboarding" | "content-policy-changed",
 ) {
-  const scopePolicySnapshot = scopePolicySnapshotForTest(projectDir);
+  const scopePolicySnapshot = scopePolicySnapshotForTest(workspaceRoot);
   const fingerprint = computeScopeContentFingerprint(
-    projectDir,
+    workspaceRoot,
     scopePolicySnapshot.policy,
   );
   return {

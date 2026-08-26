@@ -187,7 +187,6 @@ describe("geminiAgentHarness — permission policy", () => {
       sessionContext: {
         sessionId: "gemini-session",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
     });
 
@@ -222,7 +221,6 @@ describe("geminiAgentHarness — permission policy", () => {
       sessionContext: {
         sessionId: "gemini-client-session",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
     });
 

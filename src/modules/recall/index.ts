@@ -21,23 +21,23 @@ import {
   getRepoTasksProvider,
 } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import { createHistoryProjectStores } from "#modules/history/project-scope.js";
-import { createKnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
-import { createMemoryProjectStores } from "#modules/memory/project-scope.js";
-import { createRepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
+import { createHistoryScopeStores } from "#modules/history/scope.js";
+import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
+import { createMemoryScopeStores } from "#modules/memory/scope.js";
+import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import { createRecallReadinessSource } from "./capability-readiness.js";
 import { registerRecallCommand } from "./cli.js";
 import type { RecallClient, RecallFilter, RecallResult } from "./client.js";
 import {
-  createProjectHistoryContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeHistoryContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "./contributors.js";
-import { createRecallProjectContextResolver } from "./project-context.js";
 import { RecallProviderImpl } from "./recall-provider.js";
 import { RECALL_PROVIDER_TOKEN, type RecallProvider } from "./recall-types.js";
 import { recallApiRoutes, recallControlRoutes } from "./routes.js";
+import { createRecallScopeContextResolver } from "./scope-context.js";
 import {
   buildRecallDynamicStateProvider,
   RECALL_DYNAMIC_STATE_NAME,
@@ -86,25 +86,25 @@ const recallModule: KotaModule = {
   uiSurfaces: [recallUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveProjectContext = createRecallProjectContextResolver(ctx.cwd);
+    const resolveScopeContext = createRecallScopeContextResolver(ctx.cwd);
     const provider = new RecallProviderImpl({
-      resolveProjectContext,
+      resolveScopeContext,
       onContributorError: (source, err) => {
         const msg = err instanceof Error ? err.message : String(err);
         ctx.log.warn(`recall: ${source} contributor failed — ${msg}`);
       },
     });
-    provider.register(createProjectKnowledgeContributor(
-      createKnowledgeProjectStores(ctx.cwd, () => getKnowledgeProvider()),
+    provider.register(createScopeKnowledgeContributor(
+      createKnowledgeScopeStores(ctx.cwd, () => getKnowledgeProvider()),
     ));
-    provider.register(createProjectMemoryContributor(
-      createMemoryProjectStores(ctx.cwd, () => getMemoryProvider()),
+    provider.register(createScopeMemoryContributor(
+      createMemoryScopeStores(ctx.cwd, () => getMemoryProvider()),
     ));
-    provider.register(createProjectHistoryContributor(
-      createHistoryProjectStores(ctx.cwd, () => getHistoryProvider()),
+    provider.register(createScopeHistoryContributor(
+      createHistoryScopeStores(ctx.cwd, () => getHistoryProvider()),
     ));
-    provider.register(createProjectTasksContributor(
-      createRepoTasksProjectStores(ctx.cwd, () => getRepoTasksProvider()),
+    provider.register(createScopeTasksContributor(
+      createRepoTasksScopeStores(ctx.cwd, () => getRepoTasksProvider()),
     ));
     activeProvider = provider;
     // Expose the live provider through the provider-registry seam so other
@@ -137,13 +137,13 @@ const recallModule: KotaModule = {
   controlRoutes: (ctx) =>
     recallControlRoutes(
       resolveActiveProvider,
-      createRecallProjectContextResolver(ctx.cwd),
+      createRecallScopeContextResolver(ctx.cwd),
     ),
 
   routes: (ctx) =>
     recallApiRoutes(
       resolveActiveProvider,
-      createRecallProjectContextResolver(ctx.cwd),
+      createRecallScopeContextResolver(ctx.cwd),
     ),
 
   localClient: () => {

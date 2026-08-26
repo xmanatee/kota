@@ -75,7 +75,7 @@ export type McpServerOptions = {
 	input?: NodeJS.ReadableStream;
 	output?: NodeJS.WritableStream;
 	log?: (msg: string) => void;
-	projectDir?: string;
+	scopeRoot?: string;
 	eventBus?: EventBus | null;
 	moduleTools?: ToolDef[];
 	modelClient?: ModelClient;
@@ -374,7 +374,7 @@ export class McpServer {
 		this.deprecatedWarnings = new DeprecatedMcpCapabilityWarnings((message) =>
 			this.log(message),
 		);
-		const projectDir = options.projectDir ?? process.cwd();
+		const scopeRoot = options.scopeRoot ?? process.cwd();
 
 		const send = (m: JsonRpcOutboundPayload) => this.sendPayload(m);
 		const transport: McpTransport = {
@@ -399,12 +399,12 @@ export class McpServer {
 			sendProgress: (progress, details) => this.sendProgress(progress, details),
 		};
 		const mrtr = new McpMrtrStateCodec();
-		let resolveEffectiveProjectDir = () => projectDir;
+		let resolveEffectiveScopeRoot = () => scopeRoot;
 		const advertiseSkills = () => {
 			if (options.moduleSummaries === undefined) return false;
 			try {
 				return hasSkillResourceProjection({
-					projectDir: resolveEffectiveProjectDir(),
+					scopeRoot: resolveEffectiveScopeRoot(),
 					moduleSummaries: options.moduleSummaries,
 				});
 			} catch (err) {
@@ -422,27 +422,27 @@ export class McpServer {
 			samplingModel:
 				options.samplingModel ??
 				resolveActivePresetFromConfig(undefined).defaultModel,
-			projectDir,
+			scopeRoot,
 		});
 		this.initialize = new InitializeHandler(ctx, {
 			serverName: options.name ?? "kota",
 			serverVersion: options.version ?? "0.1.0",
-			projectDir,
+			scopeRoot,
 			advertiseSampling: () => sampling.isAvailable(),
 			advertiseSkills,
 			warnDeprecatedCapability: (warning) => this.deprecatedWarnings.warn(warning),
 		});
-		resolveEffectiveProjectDir = () => this.initialize.getEffectiveProjectDir();
+		resolveEffectiveScopeRoot = () => this.initialize.getEffectiveScopeRoot();
 		this.resources = new ResourcesHandler(
 			ctx,
 			options.eventBus,
-			() => this.initialize.getEffectiveProjectDir(),
+			() => this.initialize.getEffectiveScopeRoot(),
 			mrtr,
 			options.moduleSummaries ?? null,
 		);
 		const prompts = new PromptsHandler(
 			ctx,
-			() => this.initialize.getEffectiveProjectDir(),
+			() => this.initialize.getEffectiveScopeRoot(),
 			mrtr,
 		);
 		this.taskStore = options.taskStore ?? new McpTaskStore();
@@ -453,7 +453,7 @@ export class McpServer {
 		});
 		const completion = new CompletionHandler(
 			ctx,
-			() => this.initialize.getEffectiveProjectDir(),
+			() => this.initialize.getEffectiveScopeRoot(),
 		);
 		const tasks = new TasksHandler(ctx, this.taskStore, {
 			resumeInput: (args) => this.tools.prepareTaskInputResponse(args),
@@ -516,8 +516,8 @@ export class McpServer {
 		return this.initialize.getClientRoots();
 	}
 
-	getEffectiveProjectDir(): string {
-		return this.initialize.getEffectiveProjectDir();
+	getEffectiveScopeRoot(): string {
+		return this.initialize.getEffectiveScopeRoot();
 	}
 
 	getExposedTools(): KotaTool[] {

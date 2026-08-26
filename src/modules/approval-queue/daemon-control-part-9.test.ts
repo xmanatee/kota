@@ -32,9 +32,10 @@ import {
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import type { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
-import type {
-  ConfiguredProject,
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import {
+  buildScopeRegistryProjection,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import {
   initProviderRegistry,
@@ -92,16 +93,16 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => ({ rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] })),
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: { rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -158,41 +159,41 @@ function _approveAllPost(queue: ApprovalQueue): RequestInit {
   };
 }
 
-function _registerProjectQueueProvider(
+function _registerScopeQueueProvider(
   entries: Array<{
-    project: ConfiguredProject;
+    scope: DirectoryScope;
     approvalQueue: ApprovalQueue;
     ownerDecisionStore: OwnerDecisionStore;
     ownerQuestionQueue: OwnerQuestionQueue;
   }>,
 ): void {
   const defaultEntry = entries[0];
-  if (!defaultEntry) throw new Error("expected at least one project");
-  const byId = new Map(entries.map((entry) => [entry.project.projectId, entry]));
+  if (!defaultEntry) throw new Error("expected at least one scope");
+  const byId = new Map(entries.map((entry) => [entry.scope.scopeId, entry]));
   const registry = initProviderRegistry();
-  registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
-    getProjectRegistryProjection: () => ({
-      defaultProjectId: defaultEntry.project.projectId,
-      projects: entries.map((entry) => entry.project),
-    }),
-    getActiveProjectId: () => null,
-    resolveProjectRuntime: (projectId) => {
-      const selected = projectId?.trim() || defaultEntry.project.projectId;
+  registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "test", {
+    getScopeRegistryProjection: () => buildScopeRegistryProjection(
+      defaultEntry.scope.scopeId,
+      entries.map((entry) => entry.scope),
+    ),
+    getActiveScopeId: () => null,
+    resolveScopeRuntime: (scopeId) => {
+      const selected = scopeId?.trim() || defaultEntry.scope.scopeId;
       const entry = byId.get(selected);
       if (!entry) {
         return {
           ok: false,
           error: {
-            error: "Unknown project",
-            reason: "unknown_project",
-            projectId: selected,
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: selected,
           },
         };
       }
       return {
         ok: true,
         runtime: {
-          project: entry.project,
+          scope: entry.scope,
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,

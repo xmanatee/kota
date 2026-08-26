@@ -35,14 +35,14 @@ export function registerWorkflowDefinition(
  */
 export function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
-  projectDir = process.cwd(),
+  workspaceRoot = process.cwd(),
   options: WorkflowValidationOptions = {},
 ): WorkflowDefinition[] {
   const seenWorkflowNames = new Map<string, RegisteredWorkflowDefinitionInput>();
 
   return definitions.map((definition, definitionIndex) => {
     const { definitionPath, name, moduleRoot, defaultAutonomyMode } =
-      validateWorkflowShape(definition, definitionIndex, projectDir, seenWorkflowNames);
+      validateWorkflowShape(definition, definitionIndex, workspaceRoot, seenWorkflowNames);
 
     const steps = definition.steps.map((step, stepIndex) =>
       validateStep(

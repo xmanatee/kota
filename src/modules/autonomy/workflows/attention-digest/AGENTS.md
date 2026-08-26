@@ -8,7 +8,7 @@ This directory contains the attention digest workflow definition and test.
 
 ## On-Demand Seam
 
-`renderOnDemandAttention({ projectDir, runsDir })` in `step.ts` runs the same
+`renderOnDemandAttention({ scopeRoot, runsDir })` in `step.ts` runs the same
 detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
 calls the same seam so the two paths cannot drift. Operator-facing pull

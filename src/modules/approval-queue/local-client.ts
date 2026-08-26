@@ -6,7 +6,7 @@ import {
 	getApprovalQueue,
 	isApprovalId,
 } from "#core/daemon/approval-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import {
 	type ScopeSelector,
@@ -22,8 +22,8 @@ import {
 import type {
 	ApprovalApproveResult,
 	ApprovalListFilter,
-	ApprovalProjectScope,
 	ApprovalRejectResult,
+	ApprovalScopeSelection,
 	ApprovalsClient,
 } from "./client.js";
 
@@ -33,23 +33,22 @@ type LocalApprovalTarget = {
 };
 
 function resolveLocalApprovalTarget(selector?: ScopeSelector): LocalApprovalTarget {
-	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-	const projectId = selectedScopeSelectorId(selector);
-	if (!projectScope) {
-		if (projectId) throw new Error(`Unknown project: ${projectId}`);
+	const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+	const scopeId = selectedScopeSelectorId(selector);
+	if (!scopeProvider) {
+		if (scopeId) throw new Error(`Unknown scope: ${scopeId}`);
 		return { queue: getApprovalQueue() };
 	}
-	const resolved = projectScope.resolveProjectRuntime(projectId);
+	const resolved = scopeProvider.resolveScopeRuntime(scopeId);
 	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+		throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
 	}
 	return {
 		queue: resolved.runtime.approvalQueue,
 		executionContext: {
-			scopeId: resolved.runtime.project.projectId,
-			projectId: resolved.runtime.project.projectId,
-			projectDir: resolved.runtime.project.projectDir,
-			cwd: resolved.runtime.project.projectDir,
+			scopeId: resolved.runtime.scope.scopeId,
+			scopeRoot: resolved.runtime.scope.scopeRoot,
+			cwd: resolved.runtime.scope.scopeRoot,
 		},
 	};
 }
@@ -82,10 +81,10 @@ async function approveLocalApproval(
 	id: string,
 	reviewDigest: string,
 	note?: string,
-	project?: ApprovalProjectScope,
+	scopeSelector?: ApprovalScopeSelection,
 ): Promise<ApprovalApproveResult> {
 	if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-	const { queue, executionContext } = resolveLocalApprovalTarget(project);
+	const { queue, executionContext } = resolveLocalApprovalTarget(scopeSelector);
 	const selection = queue.getExecutionSnapshot(id);
 	if (!selection.ok) return failedApprovalMutation(selection.reason) as ApprovalApproveResult;
 	if (selection.snapshot.descriptor.reviewDigest !== reviewDigest) {
@@ -131,9 +130,9 @@ export function buildLocalApprovalsClient(): ApprovalsClient {
 			return listLocalApprovals(filter);
 		},
 		approve: approveLocalApproval,
-		async reject(id, reason, project) {
+		async reject(id, reason, scopeSelector) {
 			if (!isApprovalId(id)) return { ok: false, reason: "invalid_id" };
-			const item = resolveLocalApprovalTarget(project).queue.reject(id, reason);
+			const item = resolveLocalApprovalTarget(scopeSelector).queue.reject(id, reason);
 			return item ? { ok: true, approval: item } : { ok: false, reason: "not_found" };
 		},
 	};

@@ -8,8 +8,11 @@ import {
 	ApprovalQueue,
 	resetApprovalQueue,
 } from "#core/daemon/approval-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import {
+	buildDirectoryScope,
+	buildScopeRegistryProjection,
+} from "#core/daemon/scope-registry.js";
 import {
 	initProviderRegistry,
 	resetProviderRegistry,
@@ -40,26 +43,24 @@ afterEach(() => {
 describe("approval-queue local client execution", () => {
 	it("dispatches through the daemon runtime registered after client construction", async () => {
 		testDir = mkdtempSync(join(tmpdir(), "approval-local-client-"));
-		const project = buildConfiguredProject({
-			projectDir: testDir,
+		const scope = buildDirectoryScope({
+			scopeRoot: testDir,
 			displayName: "approval runtime",
 		});
 		const queue = new ApprovalQueue(
 			join(testDir, ".kota", "approvals"),
 			null,
-			{ scopeId: project.projectId },
+			{ scopeId: scope.scopeId },
 		);
 		const client = approvalQueueModule.localClient!({} as never).approvals!;
-		initProviderRegistry().register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
-			getProjectRegistryProjection: () => ({
-				defaultProjectId: project.projectId,
-				projects: [project],
-			}),
-			getActiveProjectId: () => project.projectId,
-			resolveProjectRuntime: () => ({
+		initProviderRegistry().register(DAEMON_SCOPE_PROVIDER_TYPE, "daemon", {
+			getScopeRegistryProjection: () =>
+				buildScopeRegistryProjection(scope.scopeId, [scope]),
+			getActiveScopeId: () => scope.scopeId,
+			resolveScopeRuntime: () => ({
 				ok: true,
 				runtime: {
-					project,
+					scope,
 					approvalQueue: queue,
 					secretStore: {} as never,
 					ownerDecisionStore: {} as never,
@@ -85,7 +86,7 @@ describe("approval-queue local client execution", () => {
 			pending.id,
 			review.digest,
 			undefined,
-			{ projectId: project.projectId },
+			{ scopeId: scope.scopeId },
 		);
 		await vi.waitFor(() => {
 			expect(queue.get(pending.id)?.status).toBe("approved");
@@ -106,8 +107,7 @@ describe("approval-queue local client execution", () => {
 			{ operation: "deploy", accessToken: "raw-secret" },
 			expect.objectContaining({
 				cwd: testDir,
-				projectId: project.projectId,
-				scopeId: project.projectId,
+				scopeId: scope.scopeId,
 			}),
 		);
 		expect(listActiveApprovalExecutionIds(queue)).toEqual([]);

@@ -11,17 +11,17 @@ function candidateTaskId(candidate: FixtureCandidateRecord): string {
 }
 
 export function createCandidateTask(
-  projectDir: string,
+  workspaceRoot: string,
   candidate: FixtureCandidateRecord,
   nowIso: string,
 ): FixtureCandidateAcceptedAction | null {
   if (candidate.disposition !== "proposed") return null;
   const id = candidateTaskId(candidate);
   const state = "backlog" as const;
-  const taskDir = join(projectDir, "data", "tasks", state);
+  const taskDir = join(workspaceRoot, "data", "tasks", state);
   const taskPath = join(taskDir, `${id}.md`);
   mkdirSync(taskDir, { recursive: true });
-  const relativeTaskPath = relative(projectDir, taskPath);
+  const relativeTaskPath = relative(workspaceRoot, taskPath);
   if (!existsSync(taskPath)) {
     const title = `Add eval fixture for ${candidate.failurePattern.kind} from ${candidate.runId}`;
     const attrs: Record<string, string> = {

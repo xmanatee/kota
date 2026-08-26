@@ -6,7 +6,7 @@
  * resolves filter field names against `fields` here.
  */
 
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 import type { EvalRunConfigurationSummary } from "./run-configuration.js";
 import type { FixtureDiagnosticAggregate } from "./scoring.js";
 
@@ -30,13 +30,13 @@ export type EvalHarnessSetCompletedPayload = {
  * store. Operators wire telemetry exporters to this event to publish
  * `pass@k` / `pass^k` trends.
  *
- * Project-scoped: each eval run belongs to exactly one directory scope, so
+ * Scope-scoped: each eval run belongs to exactly one directory scope, so
  * subscribers can filter aggregate telemetry per scope. The helper prepends
- * canonical `scopeId` and compatibility `projectId` to the declared field set;
- * emitters route through a {@link ProjectScopedEventBus}, which injects both.
+ * canonical `scopeId` to the declared field set; emitters route through a
+ * {@link ScopedEventBus}, which injects it.
  */
 export const evalHarnessSetCompleted =
-  defineProjectScopedModuleEvent<EvalHarnessSetCompletedPayload>(
+  defineScopedModuleEvent<EvalHarnessSetCompletedPayload>(
     "eval-harness.set.completed",
     [
       "fixtureCount",

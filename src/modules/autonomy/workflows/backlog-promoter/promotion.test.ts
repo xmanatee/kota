@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { buildPromotionRationale, compareBacklogCandidates } from "./promotion.js";
 
-const projects: string[] = [];
+const scopes: string[] = [];
 
 function record(
   id: string,
@@ -30,7 +30,7 @@ function record(
 
 function project(): string {
   const dir = mkdtempSync(join(tmpdir(), "backlog-promotion-"));
-  projects.push(dir);
+  scopes.push(dir);
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
   }
@@ -38,7 +38,7 @@ function project(): string {
 }
 
 function writeTask(args: {
-  projectDir: string;
+  workspaceRoot: string;
   id: string;
   state?: "backlog" | "ready" | "done";
   priority?: string;
@@ -69,13 +69,13 @@ function writeTask(args: {
     "Natural task intent.",
   ];
   writeFileSync(
-    join(args.projectDir, "data", "tasks", state, `${args.id}.md`),
+    join(args.workspaceRoot, "data", "tasks", state, `${args.id}.md`),
     `${lines.join("\n")}\n`,
   );
 }
 
 afterEach(() => {
-  for (const dir of projects.splice(0)) {
+  for (const dir of scopes.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -111,22 +111,22 @@ describe("backlog promotion order", () => {
   });
 
   it("selects a small priority-and-age batch", () => {
-    const projectDir = project();
-    writeTask({ projectDir, id: "task-p2", priority: "p2" });
+    const workspaceRoot = project();
+    writeTask({ workspaceRoot, id: "task-p2", priority: "p2" });
     writeTask({
-      projectDir,
+      workspaceRoot,
       id: "task-p1-new",
       priority: "p1",
       updatedAt: "2026-02-01T00:00:00.000Z",
     });
     writeTask({
-      projectDir,
+      workspaceRoot,
       id: "task-p1-old",
       priority: "p1",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
 
-    const rationale = buildPromotionRationale(projectDir);
+    const rationale = buildPromotionRationale(workspaceRoot);
 
     expect(rationale.selected.map((item) => item.id)).toEqual([
       "task-p1-old",
@@ -136,18 +136,18 @@ describe("backlog promotion order", () => {
   });
 
   it("skips anchors and dependency-waiting work", () => {
-    const projectDir = project();
-    writeTask({ projectDir, id: "task-anchor", priority: "p0", anchor: true });
-    writeTask({ projectDir, id: "task-enabler", priority: "p2" });
+    const workspaceRoot = project();
+    writeTask({ workspaceRoot, id: "task-anchor", priority: "p0", anchor: true });
+    writeTask({ workspaceRoot, id: "task-enabler", priority: "p2" });
     writeTask({
-      projectDir,
+      workspaceRoot,
       id: "task-waiting",
       priority: "p0",
       dependsOn: ["task-enabler"],
     });
-    writeTask({ projectDir, id: "task-free", priority: "p1" });
+    writeTask({ workspaceRoot, id: "task-free", priority: "p1" });
 
-    const rationale = buildPromotionRationale(projectDir);
+    const rationale = buildPromotionRationale(workspaceRoot);
 
     expect(rationale.selected.map((item) => item.id)).toContain("task-free");
     expect(rationale.rejected).toEqual(expect.arrayContaining([
@@ -157,21 +157,21 @@ describe("backlog promotion order", () => {
   });
 
   it("promotes only work that outranks the current ready frontier", () => {
-    const projectDir = project();
+    const workspaceRoot = project();
     writeTask({
-      projectDir,
+      workspaceRoot,
       id: "task-ready",
       state: "ready",
       priority: "p1",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });
     writeTask({
-      projectDir,
+      workspaceRoot,
       id: "task-backlog",
       priority: "p1",
       updatedAt: "2026-02-01T00:00:00.000Z",
     });
 
-    expect(buildPromotionRationale(projectDir).selected).toEqual([]);
+    expect(buildPromotionRationale(workspaceRoot).selected).toEqual([]);
   });
 });

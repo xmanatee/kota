@@ -27,11 +27,11 @@ const RUNTIME_CONFIG = {
   model: "ollama/gpt-5.6-sol",
 } as const;
 
-export function initializeRuntimeRoutingProject(projectDir: string): void {
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf-8");
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+export function initializeRuntimeRoutingScope(scopeRoot: string): void {
+  mkdirSync(scopeRoot, { recursive: true });
+  writeFileSync(join(scopeRoot, ".gitignore"), ".kota/\n", "utf-8");
+  execFileSync("git", ["init", "--quiet"], { cwd: scopeRoot });
+  execFileSync("git", ["add", ".gitignore"], { cwd: scopeRoot });
   execFileSync(
     "git",
     [
@@ -45,19 +45,18 @@ export function initializeRuntimeRoutingProject(projectDir: string): void {
       "-m",
       "seed runtime routing fixture",
     ],
-    { cwd: projectDir },
+    { cwd: scopeRoot },
   );
 }
 
 export type RuntimeDecision = {
   scopeId: string;
-  projectId: string;
   issueKey: string;
 };
 
 export type RuntimeRoutingScenario = {
   eventBus: EventBus;
-  projectB: string;
+  scopeB: string;
   fixtureA: RuntimeSourceFixture;
   fixtureB: RuntimeSourceFixture;
   healthSignals: ScopedAutonomyHealthSignal[];
@@ -83,17 +82,17 @@ async function waitFor(
 
 export async function startRuntimeRoutingScenario(args: {
   rootDir: string;
-  projectDir: string;
+  scopeRoot: string;
   stateDir: string;
 }): Promise<RuntimeRoutingScenario> {
-  const { rootDir, projectDir, stateDir } = args;
-  const projectB = join(rootDir, "project-b");
-  initializeRuntimeRoutingProject(projectDir);
-  initializeRuntimeRoutingProject(projectB);
+  const { rootDir, scopeRoot, stateDir } = args;
+  const scopeB = join(rootDir, "scope-b");
+  initializeRuntimeRoutingScope(scopeRoot);
+  initializeRuntimeRoutingScope(scopeB);
   const eventBus = initEventBus();
   const loader = await loadRuntimeModules({
     config: RUNTIME_CONFIG,
-    cwd: projectDir,
+    cwd: scopeRoot,
     eventBus,
   });
   const sourceListenerCounts = new Map(
@@ -122,7 +121,7 @@ export async function startRuntimeRoutingScenario(args: {
 
   const daemon = new Daemon({
     runtimeModuleHost: { eventBus, moduleLoader: loader },
-    projects: [{ projectDir }, { projectDir: projectB }],
+    scopes: [{ scopeRoot }, { scopeRoot: scopeB }],
     stateDir,
     idleIntervalMs: 60_000,
     pollIntervalMs: 60_000,
@@ -145,14 +144,14 @@ export async function startRuntimeRoutingScenario(args: {
       "two-scope daemon did not host both runtimes",
     );
     const provider = getProviderRegistry()?.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE);
-    const runtimeA = provider?.resolve(deriveDirectoryScopeId(projectDir));
-    const runtimeB = provider?.resolve(deriveDirectoryScopeId(projectB));
+    const runtimeA = provider?.resolve(deriveDirectoryScopeId(scopeRoot));
+    const runtimeB = provider?.resolve(deriveDirectoryScopeId(scopeB));
     if (!runtimeA?.ok || !runtimeB?.ok) {
       throw new Error("production daemon did not expose both runtime scopes");
     }
     await waitFor(
       () => [runtimeA.runtime, runtimeB.runtime].every((runtime) => {
-        const runs = runtime.runState.listRuns(runtime.project.projectId);
+        const runs = runtime.runState.listRuns(runtime.scope.scopeId);
         return runs.some(
           (run) =>
             run.workflow === "autonomy-health-reviewer" &&
@@ -167,7 +166,7 @@ export async function startRuntimeRoutingScenario(args: {
     );
     return {
       eventBus,
-      projectB,
+      scopeB,
       fixtureA: createRuntimeSourceFixture({ bus: eventBus, scope: runtimeA.runtime, tag: "a" }),
       fixtureB: createRuntimeSourceFixture({ bus: eventBus, scope: runtimeB.runtime, tag: "b" }),
       healthSignals,
@@ -184,10 +183,10 @@ export async function startRuntimeRoutingScenario(args: {
 }
 
 export function projectionContains(
-  projectDir: string,
+  scopeRoot: string,
   predicate: (rootCauseKey: string) => boolean,
 ): boolean {
-  return readAutonomyIssueProjection(projectDir).issues.some(
+  return readAutonomyIssueProjection(scopeRoot).issues.some(
     (issue) => predicate(issue.rootCauseKey),
   );
 }

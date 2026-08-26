@@ -35,7 +35,7 @@ import { harnessParityControlRoutes } from "./routes.js";
 function resolveDeps(ctx: ModuleContext): HarnessParityDeps {
   const moduleDir = resolve(ctx.cwd, "src/modules/harness-parity");
   return {
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     scenariosRoot: join(moduleDir, "scenarios"),
     evalFixturesRoot: join(ctx.cwd, "src/modules/eval-harness/fixtures"),
     defaultOutBaseDir: join(ctx.cwd, ".kota/runs"),

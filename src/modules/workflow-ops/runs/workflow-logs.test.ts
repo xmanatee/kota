@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
@@ -166,7 +167,7 @@ describe("formatAgentMessage", () => {
 describe("followRunLogs", () => {
   let tmpDir: string;
   let runsDir: string;
-  let projectDir: string;
+  let scopeRoot: string;
 
   const RUN_ID = "2026-01-01T00-00-00-000Z-builder-abc123";
   const STEP_ID = "build";
@@ -206,9 +207,9 @@ describe("followRunLogs", () => {
   beforeEach(() => {
     tmpDir = join(tmpdir(), `kota-follow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     runsDir = join(tmpDir, "runs");
-    projectDir = join(tmpDir, "project");
+    scopeRoot = join(tmpDir, "project");
     mkdirSync(runsDir, { recursive: true });
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
   });
 
   afterEach(() => {
@@ -223,7 +224,7 @@ describe("followRunLogs", () => {
     try {
       await followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
       );
@@ -243,7 +244,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
         200,
@@ -263,7 +264,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         undefined,
         undefined,
         200,
@@ -275,16 +276,17 @@ describe("followRunLogs", () => {
       writeMetadata(makeMetadata("running"));
       writeEvents([assistantEvent]);
       const runState = new RunStateDatabase(tmpDir);
-      runState.registerProject({
-        id: "project-follow",
-        rootPath: projectDir,
+      const scope = buildDirectoryScope({ scopeRoot });
+      runState.registerScope({
+        id: scope.scopeId,
+        rootPath: scope.scopeRoot,
         createdAt: new Date().toISOString(),
       });
       const { epoch } = runState.beginDaemonSession(new Date().toISOString());
       const startedAt = new Date().toISOString();
       runState.admitRun({
         id: RUN_ID,
-        projectId: "project-follow",
+        scopeId: scope.scopeId,
         workflow: "builder",
         repository: "read",
         trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -315,7 +317,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
         200,

@@ -144,9 +144,9 @@ async function ensureResource(
   }
   const existing = resourceForIdentity(identity);
   if (existing) {
-    if (existing.identity.projectDir !== identity.projectDir) {
+    if (existing.identity.scopeRoot !== identity.scopeRoot) {
       throw new Error(
-        "Browser session scope was invoked with a different project directory",
+        "Browser session scope was invoked with a different scope directory",
       );
     }
     await existing.initializing;
@@ -221,9 +221,9 @@ export async function persistBrowserProfile(
   const identity = resolveBrowserSessionIdentity(context);
   const resource = resourceForIdentity(identity);
   if (!resource) return;
-  if (resource.identity.projectDir !== identity.projectDir) {
+  if (resource.identity.scopeRoot !== identity.scopeRoot) {
     throw new Error(
-      "Browser session scope was invoked with a different project directory",
+      "Browser session scope was invoked with a different scope directory",
     );
   }
   await resource.initializing;
@@ -270,9 +270,9 @@ export async function closeBrowserSession(
   const identity = resolveBrowserSessionIdentity(context);
   const resource = resourceForIdentity(identity);
   if (!resource) return;
-  if (resource.identity.projectDir !== identity.projectDir) {
+  if (resource.identity.scopeRoot !== identity.scopeRoot) {
     throw new Error(
-      "Browser session scope was invoked with a different project directory",
+      "Browser session scope was invoked with a different scope directory",
     );
   }
   await closeSessionResource(resource);

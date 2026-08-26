@@ -139,13 +139,13 @@ export function getExecuteToolSet(): ResolvedToolSet {
 
 export type PromptConfig = {
   cwd?: string;
-  projectContext?: string;
+  scopeContext?: string;
   instructionContext?: string;
   tools?: readonly KotaTool[];
   toolNames?: readonly string[];
 };
 
-/** Build a sub-agent system prompt enriched with project context. */
+/** Build a sub-agent system prompt enriched with scope context. */
 export function buildSubAgentPrompt(
   base: string,
   config: PromptConfig,
@@ -165,8 +165,8 @@ export function buildSubAgentPrompt(
     const overview = getDirectoryOverview(config.cwd);
     if (overview) parts.push(`Directory:\n${overview}`);
   }
-  if (config.projectContext) {
-    parts.push(`\n${config.projectContext}`);
+  if (config.scopeContext) {
+    parts.push(`\n${config.scopeContext}`);
   }
   if (config.instructionContext) {
     parts.push(`\n${config.instructionContext}`);

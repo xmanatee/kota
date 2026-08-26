@@ -7,31 +7,30 @@
  */
 
 import { join } from "node:path";
-import type { ProjectId } from "#core/events/project-scope.js";
+import type { ScopeId } from "#core/events/scope.js";
 import {
   JsonFileError,
   readOptionalJsonFile,
 } from "#core/util/json-file.js";
 
 export type { DirectoryScopeResolution } from "./scope-directory.js";
-export { buildConfiguredProject, deriveDirectoryScopeId } from "./scope-directory.js";
+export { buildDirectoryScope, deriveDirectoryScopeId } from "./scope-directory.js";
 export {
+  buildScopeRegistryProjection,
   GLOBAL_SCOPE_ID,
-  resolveConfiguredProjects,
-  scopeProjectionFromProjects,
+  resolveConfiguredScopes,
 } from "./scope-registry-projection.js";
 
-export type ScopeId = ProjectId;
-export type { ProjectId };
+export type { ScopeId };
 
-export type ConfiguredProjectInput = {
-  projectDir: string;
+export type DirectoryScopeInput = {
+  scopeRoot: string;
   displayName?: string;
 };
 
-export type ConfiguredProject = {
-  readonly projectId: ProjectId;
-  readonly projectDir: string;
+export type DirectoryScope = {
+  readonly scopeId: ScopeId;
+  readonly scopeRoot: string;
   readonly displayName: string;
 };
 
@@ -48,30 +47,40 @@ export type ScopeRegistryProjection = {
   readonly scopes: ConfiguredScope[];
 };
 
-export type ProjectRegistryProjection = {
-  defaultProjectId: ProjectId;
-  projects: ConfiguredProject[];
-};
+/** Return the directory-backed scopes from the public hierarchical graph. */
+export function directoryScopesFromProjection(
+  projection: ScopeRegistryProjection,
+): DirectoryScope[] {
+  return projection.scopes.flatMap((scope) =>
+    scope.directoryRoot === undefined
+      ? []
+      : [{
+          scopeId: scope.scopeId,
+          scopeRoot: scope.directoryRoot,
+          displayName: scope.displayName,
+        }]
+  );
+}
 
-export const PROJECT_REGISTRY_SCHEMA_VERSION = 1;
-const REGISTRY_FILE = "project-registry.json";
+export const SCOPE_REGISTRY_SCHEMA_VERSION = 1;
+const REGISTRY_FILE = "scope-registry.json";
 
-export type ProjectRegistryFile = {
-  schema: typeof PROJECT_REGISTRY_SCHEMA_VERSION;
-  defaultProjectId: ProjectId;
-  projects: ConfiguredProject[];
+export type ScopeRegistryFile = {
+  schema: typeof SCOPE_REGISTRY_SCHEMA_VERSION;
+  defaultScopeId: ScopeId;
+  scopes: DirectoryScope[];
 };
 
 export type ScopeRegistryInit = {
   stateDir: string;
-  projects: readonly ConfiguredProjectInput[];
+  scopes: readonly DirectoryScopeInput[];
 };
 
 export { ScopeRegistry } from "./scope-registry-state.js";
 
 export function loadRegistryFileFromDisk(
   stateDir: string,
-): ProjectRegistryFile | null {
+): ScopeRegistryFile | null {
   const path = scopeRegistryPath(stateDir);
   const raw = readOptionalJsonFile<unknown>(path);
   return raw === null ? null : assertRegistryFile(path, raw);
@@ -85,53 +94,53 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function assertConfiguredProject(
+function assertDirectoryScope(
   path: string,
   index: number,
   raw: unknown,
-): ConfiguredProject {
+): DirectoryScope {
   if (!isPlainObject(raw)) {
-    throw new JsonFileError(path, "parse", `projects[${index}] is not an object`);
+    throw new JsonFileError(path, "parse", `scopes[${index}] is not an object`);
   }
-  const { projectId, projectDir, displayName } = raw;
-  if (typeof projectId !== "string" || !projectId.trim()) {
-    throw new JsonFileError(path, "parse", `projects[${index}].projectId must be a non-empty string`);
+  const { scopeId, scopeRoot, displayName } = raw;
+  if (typeof scopeId !== "string" || !scopeId.trim()) {
+    throw new JsonFileError(path, "parse", `scopes[${index}].scopeId must be a non-empty string`);
   }
-  if (typeof projectDir !== "string" || !projectDir.trim()) {
-    throw new JsonFileError(path, "parse", `projects[${index}].projectDir must be a non-empty string`);
+  if (typeof scopeRoot !== "string" || !scopeRoot.trim()) {
+    throw new JsonFileError(path, "parse", `scopes[${index}].scopeRoot must be a non-empty string`);
   }
   if (typeof displayName !== "string" || !displayName.trim()) {
-    throw new JsonFileError(path, "parse", `projects[${index}].displayName must be a non-empty string`);
+    throw new JsonFileError(path, "parse", `scopes[${index}].displayName must be a non-empty string`);
   }
-  return { projectId, projectDir, displayName };
+  return { scopeId, scopeRoot, displayName };
 }
 
-function assertRegistryFile(path: string, raw: unknown): ProjectRegistryFile {
+function assertRegistryFile(path: string, raw: unknown): ScopeRegistryFile {
   if (!isPlainObject(raw)) {
     throw new JsonFileError(path, "parse", "registry file is not an object");
   }
-  if (raw.schema !== PROJECT_REGISTRY_SCHEMA_VERSION) {
+  if (raw.schema !== SCOPE_REGISTRY_SCHEMA_VERSION) {
     throw new JsonFileError(path, "parse", `unsupported registry schema: ${String(raw.schema)}`);
   }
-  if (!Array.isArray(raw.projects)) {
-    throw new JsonFileError(path, "parse", "projects must be an array");
+  if (!Array.isArray(raw.scopes)) {
+    throw new JsonFileError(path, "parse", "scopes must be an array");
   }
-  const projects = raw.projects.map((entry, index) =>
-    assertConfiguredProject(path, index, entry),
+  const scopes = raw.scopes.map((entry, index) =>
+    assertDirectoryScope(path, index, entry),
   );
-  if (projects.length === 0) {
-    throw new JsonFileError(path, "parse", "registry must declare at least one project");
+  if (scopes.length === 0) {
+    throw new JsonFileError(path, "parse", "registry must declare at least one scope");
   }
-  const defaultProjectId = raw.defaultProjectId;
-  if (typeof defaultProjectId !== "string" || !defaultProjectId.trim()) {
-    throw new JsonFileError(path, "parse", "defaultProjectId must be a non-empty string");
+  const defaultScopeId = raw.defaultScopeId;
+  if (typeof defaultScopeId !== "string" || !defaultScopeId.trim()) {
+    throw new JsonFileError(path, "parse", "defaultScopeId must be a non-empty string");
   }
-  if (!projects.some((project) => project.projectId === defaultProjectId)) {
+  if (!scopes.some((scope) => scope.scopeId === defaultScopeId)) {
     throw new JsonFileError(
       path,
       "parse",
-      `defaultProjectId ${defaultProjectId} does not match any registered project`,
+      `defaultScopeId ${defaultScopeId} does not match any registered scope`,
     );
   }
-  return { schema: PROJECT_REGISTRY_SCHEMA_VERSION, defaultProjectId, projects };
+  return { schema: SCOPE_REGISTRY_SCHEMA_VERSION, defaultScopeId, scopes };
 }

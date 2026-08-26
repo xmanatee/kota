@@ -19,7 +19,7 @@ const setupRequirements: ModuleSetupRequirement[] = [
     description:
       "Configured calendar tool used by the reference workflow to read busy windows before owner escalation.",
     required: false,
-    scope: "project",
+    scope: "scope",
     owner: "channel-opportunity-reference",
     sensitivity: "none",
     setup: {
@@ -45,7 +45,7 @@ const setupRequirements: ModuleSetupRequirement[] = [
     description:
       "Module-owned adapter name recorded in owner-confirmed action metadata for dry-run booking or reaction dispatch.",
     required: false,
-    scope: "project",
+    scope: "scope",
     owner: "channel-opportunity-reference",
     sensitivity: "none",
     setup: {
@@ -111,7 +111,7 @@ const channelOpportunityReferenceModule: KotaModule = {
         id: "channel-opportunity-reference.matching",
         description:
           "Batch, classify, calendar-check, and escalate community-channel opportunities as a reference workflow.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["owner-confirmation", "setup", "external-effects"],
         setupRequirementIds: ["calendar-provider", "provider-action-adapter"],
       },

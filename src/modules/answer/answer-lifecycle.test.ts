@@ -22,11 +22,11 @@ import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { RECALL_PROVIDER_TOKEN } from "#modules/recall/recall-types.js";
 import answerModule from "./index.js";
 
-let projectRoot: string;
+let scopeRoot: string;
 let recallProvider: RecallProviderImpl;
 
 beforeEach(() => {
-  projectRoot = mkdtempSync(join(tmpdir(), "kota-answer-lifecycle-"));
+  scopeRoot = mkdtempSync(join(tmpdir(), "kota-answer-lifecycle-"));
   resetProviderRegistry();
   const reg = initProviderRegistry();
   recallProvider = new RecallProviderImpl({ onContributorError: () => {} });
@@ -35,7 +35,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetProviderRegistry();
-  rmSync(projectRoot, { recursive: true, force: true });
+  rmSync(scopeRoot, { recursive: true, force: true });
 });
 
 describe("answer module lifecycle — recall contributor registration", () => {
@@ -43,7 +43,7 @@ describe("answer module lifecycle — recall contributor registration", () => {
     expect(recallProvider.contributors()).toEqual([]);
 
     const harness = await ModuleTestHarness.create(answerModule, {
-      cwd: projectRoot,
+      cwd: scopeRoot,
     });
 
     expect(recallProvider.contributors()).toContain("answer");
@@ -53,7 +53,7 @@ describe("answer module lifecycle — recall contributor registration", () => {
 
   it("unregisters the `answer` contributor on onUnload", async () => {
     const harness = await ModuleTestHarness.create(answerModule, {
-      cwd: projectRoot,
+      cwd: scopeRoot,
     });
     expect(recallProvider.contributors()).toContain("answer");
 
@@ -68,7 +68,7 @@ describe("answer module lifecycle — recall contributor registration", () => {
   it("throws cleanly when the recall provider is not registered before answer", async () => {
     resetProviderRegistry();
     initProviderRegistry();
-    const harness = new ModuleTestHarness(answerModule, { cwd: projectRoot });
+    const harness = new ModuleTestHarness(answerModule, { cwd: scopeRoot });
     await expect(harness.load()).rejects.toThrow(
       /recall.*not registered/i,
     );

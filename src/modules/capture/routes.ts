@@ -25,7 +25,7 @@ import type {
   CaptureResult,
   CaptureTarget,
 } from "./client.js";
-import type { ResolveCaptureProjectContext } from "./project-context.js";
+import type { ResolveCaptureScopeContext } from "./scope-context.js";
 
 function parseFilter(value: unknown): CaptureFilter | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -39,9 +39,6 @@ function parseFilter(value: unknown): CaptureFilter | undefined {
   if (typeof raw.hint === "string" && raw.hint !== "") {
     filter.hint = raw.hint;
   }
-  if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
-    filter.projectId = raw.projectId;
-  }
   if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
     filter.scopeId = raw.scopeId;
   }
@@ -50,7 +47,7 @@ function parseFilter(value: unknown): CaptureFilter | undefined {
 
 export function createCaptureRouteHandler(
   resolveProvider: () => CaptureProvider,
-  resolveProjectContext?: ResolveCaptureProjectContext,
+  resolveScopeContext?: ResolveCaptureScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -72,17 +69,17 @@ export function createCaptureRouteHandler(
     try {
       const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
       if (selectedId === null) return;
-      const project = resolveProjectContext?.(selectedId);
-      if (project && "error" in project) {
+      const scope = resolveScopeContext?.(selectedId);
+      if (scope && "error" in scope) {
         jsonResponse(res, 404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: project.projectId,
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: scope.scopeId,
         });
         return;
       }
       const provider = resolveProvider();
-      const result = await provider.capture(text, filter, project);
+      const result = await provider.capture(text, filter, scope);
       jsonResponse(res, 200, result satisfies CaptureResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -93,27 +90,27 @@ export function createCaptureRouteHandler(
 
 export function captureControlRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveProjectContext?: ResolveCaptureProjectContext,
+  resolveScopeContext?: ResolveCaptureScopeContext,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/capture",
       capabilityScope: "control",
-      handler: createCaptureRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
     },
   ];
 }
 
 export function captureApiRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveProjectContext?: ResolveCaptureProjectContext,
+  resolveScopeContext?: ResolveCaptureScopeContext,
 ): RouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/api/capture",
-      handler: createCaptureRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
     },
   ];
 }

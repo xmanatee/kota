@@ -143,7 +143,7 @@ describe('reducer', () => {
         ok: false,
         reason: 'contributor_failed',
         target: 'inbox',
-        message: 'inbox writer cannot reach project root',
+        message: 'inbox writer cannot reach scope root',
       },
     ];
     for (const result of arms) {

@@ -12,7 +12,7 @@ updated_at: 2026-04-19T11:00:36.549Z
 ## Problem
 
 The previously completed external-project task landed `DaemonConfig.projectDir`,
-`resolveProjectDir()`, and per-module install root for workflow prompts, but
+`resolveScopeRoot()`, and per-module install root for workflow prompts, but
 no integration test boots the daemon with a `projectDir` outside KOTA's own
 source tree. Every existing integration test runs against KOTA's own repo, so
 the claim "KOTA can operate on external projects" is unproven end-to-end.

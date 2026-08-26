@@ -125,7 +125,7 @@ function rebuildKnownNames(): void {
 
 export function filterTools(tools: readonly KotaTool[]): KotaTool[] {
   const active = getActiveToolNames();
-  // Include active project tools + any custom-registered tools (not in any group/core)
+  // Include active scope tools + any custom-registered tools (not in any group/core)
   const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
   // enable_tools is not in the tool list but must always be available — rebuild with current groups
   if (!filtered.some((t) => t.name === "enable_tools")) {

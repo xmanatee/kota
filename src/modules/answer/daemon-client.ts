@@ -24,14 +24,14 @@ export function buildAnswerDaemonHandler(link: DaemonTransport): AnswerClient {
       const params = new URLSearchParams();
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
-      if (filter?.projectId !== undefined) params.set("projectId", filter.projectId);
+      if (filter?.scopeId !== undefined) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const decoded = await link.requestStrict<unknown>("GET", `/answers${query}`);
       return decodeAnswerHistoryListResult(decoded);
     },
-    show: async (id: string, project): Promise<AnswerHistoryShowResult> => {
+    show: async (id: string, scope): Promise<AnswerHistoryShowResult> => {
       const params = new URLSearchParams();
-      if (project?.projectId !== undefined) params.set("projectId", project.projectId);
+      if (scope?.scopeId !== undefined) params.set("scopeId", scope.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const decoded = await link.requestStrict<unknown>(
         "GET",

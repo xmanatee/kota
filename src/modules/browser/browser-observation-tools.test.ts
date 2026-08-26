@@ -126,8 +126,7 @@ describe("browser observation tool runners", () => {
     const context = {
       sessionId: "session-a",
       scopeId: "scope-a",
-      projectId: "scope-a",
-      cwd: "/project-a",
+      cwd: "/scope-a",
     };
     const result = await runBrowserClose({}, context);
     expect(result.content).toBe("Browser closed.");

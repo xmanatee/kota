@@ -162,7 +162,7 @@ describe("eval-harness cadence isolation backend selection", () => {
       priorBaseline,
     );
     const context = {
-      projectDir: "/project",
+      workspaceRoot: "/project",
       workflow: { runDirPath: "/run" },
       runBlocking,
       emit,
@@ -171,7 +171,7 @@ describe("eval-harness cadence isolation backend selection", () => {
 
     await expect(runHarness.run(context)).resolves.toEqual(result);
     expect(runBlocking).toHaveBeenCalledWith(evalHarnessCadenceOperation, {
-      projectDir: "/project",
+      workspaceRoot: "/project",
       runDirPath: "/run",
       isolationBackend: {
         kind: "container",

@@ -41,7 +41,7 @@ export function cleanupTempDirs(): void {
   }
 }
 
-export function makeProjectDir(label: string): string {
+export function makeScopeRoot(label: string): string {
   const dir = makeTempDir(label);
   for (const state of TASK_STATES) {
     const stateDir = join(dir, "data", "tasks", state);
@@ -56,14 +56,14 @@ export function makeStateDir(label: string): string {
 }
 
 export function appendJournalEvent(args: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir?: string;
   event: string;
   receivedAt: string;
   payload: EventJsonObject;
   retention?: EventJournalRetentionPolicy;
 }): EventEnvelope {
-  const stateDir = args.stateDir ?? join(args.projectDir, ".kota");
+  const stateDir = args.stateDir ?? join(args.workspaceRoot, ".kota");
   const journal = new EventJournal(join(stateDir, "events"), {
     now: () => new Date(args.receivedAt),
     ...(args.retention ? { retention: args.retention } : {}),
@@ -76,13 +76,13 @@ export function appendJournalEvent(args: {
 }
 
 export function batchPayload(args: {
-  projectDir: string;
+  workspaceRoot: string;
   sourceEventName?: string;
   triggerIndex?: number;
   liveEnvelope?: EventEnvelope;
   livePayload?: EventJsonObject;
 }): WorkflowBatchFlushPayload {
-  const scopeId = deriveDirectoryScopeId(args.projectDir);
+  const scopeId = deriveDirectoryScopeId(args.workspaceRoot);
   const sourceEventName = args.sourceEventName ?? "workflow.completed";
   const liveInput =
     args.liveEnvelope && args.livePayload
@@ -96,9 +96,8 @@ export function batchPayload(args: {
       : null;
   return {
     scopeId,
-    projectId: scopeId,
     sourceEventName,
-    groupingKey: `projectId=${scopeId}`,
+    groupingKey: `scopeId=${scopeId}`,
     reason: liveInput ? "count" : "overflow",
     count: liveInput ? 1 : 0,
     window: {
@@ -118,14 +117,14 @@ export function batchPayload(args: {
 }
 
 export function collectFromBatch(
-  projectDir: string,
+  workspaceRoot: string,
   payload: WorkflowBatchFlushPayload,
   options: { stateDir?: string; eventJournal?: EventJournal } = {},
 ) {
-  const stateDir = options.stateDir ?? join(projectDir, ".kota");
+  const stateDir = options.stateDir ?? join(workspaceRoot, ".kota");
   return collectProgressReviewEvidence({
-    projectDir,
-    scopeDir: projectDir,
+    workspaceRoot,
+    scopeRoot: workspaceRoot,
     stateDir,
     eventJournal: options.eventJournal,
     trigger: {
@@ -144,7 +143,6 @@ export function reviewBatchCases(scopeId: string): ReviewBatchCase[] {
       triggerIndex: 2,
       droppedPayload: {
         scopeId,
-        projectId: scopeId,
         workflow: "builder",
         runId: "dropped-builder-run",
         status: "success",
@@ -152,7 +150,6 @@ export function reviewBatchCases(scopeId: string): ReviewBatchCase[] {
       },
       livePayload: {
         scopeId,
-        projectId: scopeId,
         workflow: "builder",
         runId: "live-builder-run",
         status: "success",
@@ -165,7 +162,6 @@ export function reviewBatchCases(scopeId: string): ReviewBatchCase[] {
       rawSecret: "raw-token-should-not-leak",
       droppedPayload: {
         scopeId,
-        projectId: scopeId,
         provider: "slack",
         channel: "slack",
         sourceId: "C123",
@@ -175,7 +171,6 @@ export function reviewBatchCases(scopeId: string): ReviewBatchCase[] {
       },
       livePayload: {
         scopeId,
-        projectId: scopeId,
         provider: "slack",
         channel: "slack",
         sourceId: "C123",

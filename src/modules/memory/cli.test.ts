@@ -89,7 +89,7 @@ function stubCtx(): ModuleContext {
 	} as unknown as ModuleContext;
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
 	const dir = join(
 		tmpdir(),
 		`kota-memory-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -121,7 +121,7 @@ describe("kota memory add", () => {
 	let storeDir: string;
 
 	beforeEach(() => {
-		storeDir = makeProjectDir();
+		storeDir = makeScopeRoot();
 		resetMemoryStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
@@ -186,7 +186,7 @@ describe("kota memory search", () => {
 	let storeDir: string;
 
 	beforeEach(() => {
-		storeDir = makeProjectDir();
+		storeDir = makeScopeRoot();
 		resetMemoryStore();
 		getMemoryStore(storeDir);
 	});

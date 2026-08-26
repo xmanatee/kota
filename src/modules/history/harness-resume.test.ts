@@ -8,7 +8,7 @@ import {
 	transcriptFromKotaMessages,
 } from "./harness-resume.js";
 import { ConversationHistory } from "./history.js";
-import { getProjectHistoryDir } from "./history-utils.js";
+import { getScopeHistoryDir } from "./history-utils.js";
 
 function transcriptFixtureMessages() {
 	return [
@@ -31,15 +31,15 @@ function makeHarness(run: AgentHarness["run"]): AgentHarness {
 }
 
 describe("harness conversation resume", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 
 	beforeEach(() => {
-		projectDir = mkdtempSync(join(tmpdir(), "kota-harness-resume-"));
+		scopeRoot = mkdtempSync(join(tmpdir(), "kota-harness-resume-"));
 		vi.clearAllMocks();
 	});
 
 	afterEach(() => {
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 	});
 
 	it("runs plain harness calls without reading conversation history", async () => {
@@ -72,8 +72,8 @@ describe("harness conversation resume", () => {
 			isError: false,
 		}));
 		const harness = makeHarness(run);
-		const history = new ConversationHistory(getProjectHistoryDir(projectDir));
-		const conversationId = history.create("model", projectDir);
+		const history = new ConversationHistory(getScopeHistoryDir(scopeRoot));
+		const conversationId = history.create("model", scopeRoot);
 		history.save(conversationId, transcriptFixtureMessages(), 0, 0);
 
 		await runAgentHarnessWithConversationResume({
@@ -84,7 +84,7 @@ describe("harness conversation resume", () => {
 				autonomyMode: "passive",
 				model: "model",
 				resumeConversation: conversationId,
-				projectDir,
+				scopeRoot,
 			},
 		});
 

@@ -235,8 +235,8 @@ export function parseBlockedPrecondition(
 
 const requireFromHere = createRequire(import.meta.url);
 
-function isPlaywrightAvailable(projectDir: string): boolean {
-  const projectRequire = createRequire(join(projectDir, "package.json"));
+function isPlaywrightAvailable(workspaceRoot: string): boolean {
+  const projectRequire = createRequire(join(workspaceRoot, "package.json"));
   if (canResolvePlaywright(projectRequire)) return true;
   return canResolvePlaywright(requireFromHere);
 }
@@ -284,14 +284,14 @@ const PREFLIGHT_ONLY_TEXT_RE =
 const MAX_OPERATOR_CAPTURE_SCAN_DEPTH = 4;
 
 function resolveOperatorCaptureCandidates(
-  projectDir: string,
+  workspaceRoot: string,
   capturePath: string,
 ): string[] {
   const star = capturePath.indexOf("*");
   if (star === -1) {
     const absolute = isAbsolute(capturePath)
       ? capturePath
-      : resolve(projectDir, capturePath);
+      : resolve(workspaceRoot, capturePath);
     return fileExists(absolute) ? [absolute] : [];
   }
   const before = capturePath.slice(0, star);
@@ -300,7 +300,7 @@ function resolveOperatorCaptureCandidates(
   const baseDirRel = baseSlash === -1 ? "" : before.slice(0, baseSlash);
   const prefix = baseSlash === -1 ? before : before.slice(baseSlash + 1);
   const suffix = after;
-  const baseDir = isAbsolute(baseDirRel) ? baseDirRel : resolve(projectDir, baseDirRel);
+  const baseDir = isAbsolute(baseDirRel) ? baseDirRel : resolve(workspaceRoot, baseDirRel);
   if (!existsSync(baseDir)) return [];
   let entries: string[];
   try {
@@ -364,10 +364,10 @@ function pathContainsOperatorProof(path: string): boolean {
 }
 
 function evaluateOperatorCapturePath(
-  projectDir: string,
+  workspaceRoot: string,
   capturePath: string,
 ): OperatorCapturePathEvaluation {
-  const candidates = resolveOperatorCaptureCandidates(projectDir, capturePath);
+  const candidates = resolveOperatorCaptureCandidates(workspaceRoot, capturePath);
   if (candidates.length === 0) {
     return { status: "missing", reason: `operator capture missing at ${capturePath}` };
   }
@@ -487,7 +487,7 @@ export function upsertOperatorCaptureInstructedMarker(
 }
 
 export type EvaluationContext = {
-  projectDir: string;
+  workspaceRoot: string;
   taskBody: string;
 };
 
@@ -510,7 +510,7 @@ export function evaluateBlockedPrecondition(
   switch (precondition.kind) {
     case "task-done": {
       const path = join(
-        getRepoTaskStateDir(ctx.projectDir, "done"),
+        getRepoTaskStateDir(ctx.workspaceRoot, "done"),
         `${precondition.ref}.md`,
       );
       if (existsSync(path)) {
@@ -523,7 +523,7 @@ export function evaluateBlockedPrecondition(
     }
     case "capability-installed": {
       if (precondition.probe === "playwright") {
-        return isPlaywrightAvailable(ctx.projectDir)
+        return isPlaywrightAvailable(ctx.workspaceRoot)
           ? { satisfied: true, reason: "playwright is resolvable" }
           : { satisfied: false, reason: "playwright is not installed" };
       }
@@ -534,7 +534,7 @@ export function evaluateBlockedPrecondition(
       const kind = precondition.probe.slice(0, colon);
       const arg = precondition.probe.slice(colon + 1).trim();
       if (kind === "storageState") {
-        const absolute = isAbsolute(arg) ? arg : resolve(ctx.projectDir, arg);
+        const absolute = isAbsolute(arg) ? arg : resolve(ctx.workspaceRoot, arg);
         return fileExists(absolute)
           ? { satisfied: true, reason: `storage-state file exists at ${arg}` }
           : { satisfied: false, reason: `storage-state file missing at ${arg}` };
@@ -555,7 +555,7 @@ export function evaluateBlockedPrecondition(
       };
     }
     case "operator-capture": {
-      const evaluation = evaluateOperatorCapturePath(ctx.projectDir, precondition.path);
+      const evaluation = evaluateOperatorCapturePath(ctx.workspaceRoot, precondition.path);
       if (evaluation.status === "complete") {
         return { satisfied: true, reason: evaluation.reason };
       }

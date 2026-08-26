@@ -58,14 +58,6 @@ extension DaemonClient {
         }
     }
 
-    private static func withScope(_ path: String, scopeId: String?) -> String {
-        guard let scopeId, !scopeId.isEmpty,
-              let encoded = scopeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-        else { return path }
-        let separator = path.contains("?") ? "&" : "?"
-        return "\(path)\(separator)scopeId=\(encoded)"
-    }
-
     private static func liveEvent(type: String, rawJSON: String) -> UiSurfaceLiveEvent {
         let object = rawJSON.data(using: .utf8).flatMap {
             try? JSONSerialization.jsonObject(with: $0) as? [String: Any]

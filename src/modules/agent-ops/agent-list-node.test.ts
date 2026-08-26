@@ -8,7 +8,7 @@ const ROWS = [
   {
     name: "builder",
     source: "autonomy",
-    moduleSource: "project" as const,
+    moduleSource: "bundled" as const,
     sourcePath: "src/modules/autonomy",
     sourcePaths: [
       "src/modules/autonomy",
@@ -28,7 +28,7 @@ const ROWS = [
   {
     name: "critic",
     source: "autonomy",
-    moduleSource: "project" as const,
+    moduleSource: "bundled" as const,
     sourcePath: "src/modules/autonomy",
     sourcePaths: [
       "src/modules/autonomy",

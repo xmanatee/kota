@@ -23,16 +23,16 @@ const workflow: WorkflowDefinitionInput = {
       queueMode: "all",
     },
   ],
-  triggerAdmission: ({ projectDir, trigger, state: projectState }) => {
+  triggerAdmission: ({ scopeRoot, trigger, state: scopeState }) => {
     const payload = trigger.payload;
     if (payload.transition !== "registered") {
       return { admitted: false, reason: "scope lifecycle transition is not registration" };
     }
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
     if (
       payload.affectedScopeId !== scopeId ||
       typeof payload.directoryRoot !== "string" ||
-      resolve(payload.directoryRoot) !== resolve(projectDir)
+      resolve(payload.directoryRoot) !== resolve(scopeRoot)
     ) {
       return {
         admitted: false,
@@ -40,7 +40,7 @@ const workflow: WorkflowDefinitionInput = {
       };
     }
     const state = decodeScopeImprovementState(
-      projectState.read<ScopeImprovementState>(SCOPE_IMPROVEMENT_STATE_KEY).value,
+      scopeState.read<ScopeImprovementState>(SCOPE_IMPROVEMENT_STATE_KEY).value,
       scopeId,
     );
     if (
@@ -64,7 +64,7 @@ const workflow: WorkflowDefinitionInput = {
             "scope onboarding requires an authoritative resolved scope-policy snapshot",
           );
         }
-        const scopeId = deriveDirectoryScopeId(ctx.scopeDir);
+        const scopeId = deriveDirectoryScopeId(ctx.scopeRoot);
         const snapshot = ctx.state.read<ScopeImprovementState>(
           SCOPE_IMPROVEMENT_STATE_KEY,
         );
@@ -76,7 +76,7 @@ const workflow: WorkflowDefinitionInput = {
           return { disposition: "already-reserved" };
         }
         const fingerprint = computeScopeContentFingerprint(
-          ctx.scopeDir,
+          ctx.scopeRoot,
           ctx.scopePolicySnapshot.policy,
           ctx.stateDir,
         );

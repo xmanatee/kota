@@ -12,7 +12,7 @@ export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
 
 export function abortActiveRuns(state: WorkflowRuntimeRunsControlState): { aborted: number } {
   return {
-    aborted: state.runCoordinator.cancelProject(state.runtimeConfig.projectId),
+    aborted: state.runCoordinator.cancelScope(state.runtimeConfig.scopeId),
   };
 }
 
@@ -22,7 +22,7 @@ export function abortActiveRun(
 ): { ok: boolean; notFound?: boolean; queued?: boolean } {
   if (
     state.runCoordinator
-      .activeRunIdsForProject(state.runtimeConfig.projectId)
+      .activeRunIdsForScope(state.runtimeConfig.scopeId)
       .includes(runId)
   ) {
     return state.runCoordinator.cancel(runId) ? { ok: true } : { ok: false, notFound: true };
@@ -100,7 +100,7 @@ export function cancelQueuedRun(
   const { cancelled } = state.wfQueue.cancel(runId);
   if (cancelled) return { ok: true };
   const isActive = state.runCoordinator
-    .activeRunIdsForProject(state.runtimeConfig.projectId)
+    .activeRunIdsForScope(state.runtimeConfig.scopeId)
     .includes(runId);
   if (isActive) return { ok: false, active: true };
   return { ok: false, notFound: true };

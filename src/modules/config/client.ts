@@ -20,7 +20,7 @@
  * round-trips it for rendering.
  */
 export type ConfigValidateResult = {
-  sources: { label: "global" | "project"; path: string }[];
+  sources: { label: "global" | "scope"; path: string }[];
   warnings: string[];
   resolved: Record<string, unknown>;
 };

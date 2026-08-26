@@ -90,16 +90,16 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
  * to `applyPromotion` (which performs the `git mv` via `moveTaskById`).
  */
 export function buildPromotionRationale(
-  projectDir: string,
+  workspaceRoot: string,
   options: { batchLimit?: number } = {},
 ): PromotionRationale {
   const batchLimit = options.batchLimit ?? PROMOTION_BATCH_LIMIT;
-  const records = listFullRepoTasks(projectDir, ["backlog", "blocked"]);
-  const actionable = listFullRepoTasks(projectDir, ["ready", "doing"])
+  const records = listFullRepoTasks(workspaceRoot, ["backlog", "blocked"]);
+  const actionable = listFullRepoTasks(workspaceRoot, ["ready", "doing"])
     .sort(compareAutonomyTasks);
   const incumbent = actionable.find((record) => record.state === "ready") ?? null;
   const waitingById = new Map(
-    listRepoTaskDependencyWaits(projectDir, ["backlog", "blocked"]).map((wait) => [
+    listRepoTaskDependencyWaits(workspaceRoot, ["backlog", "blocked"]).map((wait) => [
       wait.id,
       wait.waitingOn,
     ]),

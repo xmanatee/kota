@@ -107,7 +107,7 @@ export function preflightHostSubprocess(
     {
       severity: "info" as const,
       message:
-        "Host subprocess execution remaps HOME and KOTA_PROJECT_DIR but does not enforce CPU or memory allocation or kill thresholds.",
+        "Host subprocess execution remaps HOME and KOTA_SCOPE_ROOT but does not enforce CPU or memory allocation or kill thresholds.",
     },
   ];
   if (!resourceProfilesComparable(requestedProfile, observedProfile)) {

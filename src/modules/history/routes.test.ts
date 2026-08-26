@@ -3,15 +3,15 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import type {
   ConversationData,
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
 } from "#core/modules/provider-types.js";
-import { HistoryProjectStores } from "./project-scope.js";
 import { handleGetHistory, handleSearchHistory } from "./routes.js";
+import { HistoryScopeStores } from "./scope.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -322,22 +322,22 @@ describe("history-routes", () => {
       });
     });
 
-    it("isolates project history entries and rejects unknown project ids", async () => {
-      const root = mkdtempSync(join(tmpdir(), "kota-history-projects-"));
+    it("isolates project history entries and rejects unknown scope ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-scopes-"));
       try {
         mkdirSync(join(root, "a"));
         mkdirSync(join(root, "b"));
-        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
-        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
-        const stores = new HistoryProjectStores({
-          defaultProjectDir: projectA.projectDir,
-          defaultProjectId: projectA.projectId,
-          projects: [projectA, projectB],
+        const scopeA = buildDirectoryScope({ scopeRoot: join(root, "a") });
+        const scopeB = buildDirectoryScope({ scopeRoot: join(root, "b") });
+        const stores = new HistoryScopeStores({
+          defaultScopeRoot: scopeA.scopeRoot,
+          defaultScopeId: scopeA.scopeId,
+          scopes: [scopeA, scopeB],
         });
 
-        const scopedA = stores.resolve(projectA.projectId);
+        const scopedA = stores.resolve(scopeA.scopeId);
         if (!scopedA.ok) throw new Error("project A did not resolve");
-        const id = scopedA.store.create("claude-sonnet-4-6", projectA.projectDir);
+        const id = scopedA.store.create("claude-sonnet-4-6", scopeA.scopeRoot);
         scopedA.store.save(
           id,
           [{ role: "user", content: "private alpha discussion" }],
@@ -347,7 +347,7 @@ describe("history-routes", () => {
 
         const searchA = mockResponse();
         await handleSearchHistory(
-          searchRequest(`?q=alpha&projectId=${projectA.projectId}`),
+          searchRequest(`?q=alpha&scopeId=${scopeA.scopeId}`),
           searchA.res,
           stores,
         );
@@ -359,7 +359,7 @@ describe("history-routes", () => {
 
         const searchB = mockResponse();
         await handleSearchHistory(
-          searchRequest(`?q=alpha&projectId=${projectB.projectId}`),
+          searchRequest(`?q=alpha&scopeId=${scopeB.scopeId}`),
           searchB.res,
           stores,
         );
@@ -371,15 +371,15 @@ describe("history-routes", () => {
 
         const unknown = mockResponse();
         await handleSearchHistory(
-          searchRequest("?q=alpha&projectId=missing-project"),
+          searchRequest("?q=alpha&scopeId=missing-scope"),
           unknown.res,
           stores,
         );
         expect(unknown.result.status).toBe(404);
         expect(unknown.result.body).toEqual({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "missing-scope",
         });
       } finally {
         rmSync(root, { recursive: true, force: true });

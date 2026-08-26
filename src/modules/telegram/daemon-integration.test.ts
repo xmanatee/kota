@@ -70,17 +70,17 @@ function fixedTime(): number {
 }
 
 describe("Telegram personal-assistant daemon integration", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-telegram-integration-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), {
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"), {
       recursive: true,
     });
     resetEventBus();
@@ -92,12 +92,12 @@ describe("Telegram personal-assistant daemon integration", () => {
     globalThis.fetch = originalFetch;
     resetEventBus();
     resetScheduler();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
     return new Daemon({
-      projectDir,
+      scopeRoot,
       model: "claude-sonnet-4-6",
       verbose: false,
       idleIntervalMs: 1000,
@@ -165,13 +165,13 @@ describe("Telegram personal-assistant daemon integration", () => {
     const bus = initEventBus();
 
     const stubCtx: ModuleRuntimeContext = {
-      cwd: projectDir,
+      cwd: scopeRoot,
       verbose: false,
       config: {
         model: "claude-sonnet-4-6",
         modelProvider: { type: "anthropic", apiKey: "sk-test" },
       } as ModuleRuntimeContext["config"],
-      storage: new ModuleStorage(projectDir, "telegram"),
+      storage: new ModuleStorage(scopeRoot, "telegram"),
       registerGroup: () => {},
       getRoutes: () => [],
       getContributedWorkflows: () => [],

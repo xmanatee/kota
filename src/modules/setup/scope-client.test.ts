@@ -2,11 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
 import {
   resolveScopePolicy,
   type ScopePolicyAuthority,
 } from "#core/daemon/scope-policy.js";
+import type { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import setupModule from "./index.js";
@@ -17,7 +17,7 @@ function setupSummary() {
     kind: "config" as const,
     title: "Endpoint",
     required: true,
-    scope: "project" as const,
+    scope: "scope" as const,
     sensitivity: "none" as const,
     setup: {
       mode: "form" as const,
@@ -32,7 +32,7 @@ function setupSummary() {
   };
   return {
     name: "demo",
-    source: "project" as const,
+    source: "bundled" as const,
     dependencies: [],
     toolNames: [],
     workflowNames: [],
@@ -101,18 +101,18 @@ describe("setup client scope", () => {
     const scopedDir = mkdtempSync(join(tmpdir(), "kota-setup-scoped-"));
     const operatorDir = mkdtempSync(join(tmpdir(), "kota-setup-authority-"));
     const authorityConfigPath = join(operatorDir, "config.json");
-    writeFileSync(authorityConfigPath, JSON.stringify({ trustedProjects: [scopedDir] }));
+    writeFileSync(authorityConfigPath, JSON.stringify({ trustedScopes: [scopedDir] }));
     try {
       const provider = {
-        resolveProjectRuntime: (scopeId: string) => scopeId === "scope-b"
+        resolveScopeRuntime: (scopeId: string) => scopeId === "scope-b"
           ? {
               ok: true as const,
               runtime: {
                 authorityConfigPath,
                 scopePolicyAuthority: authorityFor(scopedDir),
-                project: {
-                  projectId: "scope-b",
-                  projectDir: scopedDir,
+                scope: {
+                  scopeId: "scope-b",
+                  scopeRoot: scopedDir,
                   displayName: "Scoped",
                 },
               },
@@ -122,7 +122,7 @@ describe("setup client scope", () => {
       const handlers = setupModule.localClient!({
         cwd: baseDir,
         getModuleSummaries: () => [setupSummary()],
-        getProvider: (_token: typeof DAEMON_PROJECT_SCOPE_PROVIDER_TYPE) => provider,
+        getProvider: (_token: typeof DAEMON_SCOPE_PROVIDER_TYPE) => provider,
       } as unknown as ModuleContext);
       const client = handlers.setup!;
 
@@ -175,7 +175,7 @@ describe("setup client scope", () => {
   });
 });
 
-function authorityFor(projectDir: string): ScopePolicyAuthority {
+function authorityFor(scopeRoot: string): ScopePolicyAuthority {
   const policy = resolveScopePolicy({
     projection: {
       rootScopeId: "global",
@@ -186,7 +186,7 @@ function authorityFor(projectDir: string): ScopePolicyAuthority {
           scopeId: "scope-b",
           displayName: "Scoped",
           parentScopeId: "global",
-          directoryRoot: projectDir,
+          directoryRoot: scopeRoot,
         },
       ],
     },

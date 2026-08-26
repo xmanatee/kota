@@ -343,10 +343,8 @@ async function sendTriggerThroughDaemon(
 function scopedDaemonPath(req: IncomingMessage, path: string): string {
   const requestUrl = new URL(req.url ?? "/", "http://localhost");
   const scopeQuery = new URLSearchParams();
-  for (const key of ["scopeId", "projectId"] as const) {
-    const value = requestUrl.searchParams.get(key);
-    if (value !== null) scopeQuery.set(key, value);
-  }
+  const scopeId = requestUrl.searchParams.get("scopeId");
+  if (scopeId !== null) scopeQuery.set("scopeId", scopeId);
   const query = scopeQuery.toString();
   return `${path}${query ? `?${query}` : ""}`;
 }

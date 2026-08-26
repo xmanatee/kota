@@ -27,7 +27,7 @@ import {
 // Absolute path to KOTA's install root (the directory that contains `src/` in
 // source mode and `dist/` in built mode). Workflow `promptPath` values are
 // resolved against this root so the daemon can load KOTA-owned workflow
-// prompts even when `projectDir` points at an external project.
+// prompts even when `workspaceRoot` points at an external scope.
 const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 type AutonomyWorkflowModule = {
@@ -124,8 +124,8 @@ const autonomyModule: KotaModule = {
     buildReportCommand(),
   ],
   routes: (ctx) => [
-    ...digestRoutes({ projectDir: ctx.cwd }),
-    ...attentionRoutes({ projectDir: ctx.cwd }),
+    ...digestRoutes({ workspaceRoot: ctx.cwd }),
+    ...attentionRoutes({ workspaceRoot: ctx.cwd }),
   ],
 };
 

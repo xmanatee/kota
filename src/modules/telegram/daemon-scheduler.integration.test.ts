@@ -37,17 +37,17 @@ function neverCalledClient<T>(): T {
 }
 
 describe("Telegram daemon scheduling", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-telegram-scheduler-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), {
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"), {
       recursive: true,
     });
     resetEventBus();
@@ -59,12 +59,12 @@ describe("Telegram daemon scheduling", () => {
     globalThis.fetch = originalFetch;
     resetEventBus();
     resetScheduler();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("serves status and fires a scheduled item in one daemon process", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -116,7 +116,7 @@ describe("Telegram daemon scheduling", () => {
               stop = startTelegramStatusPoll(
                 "test-token",
                 String(statusChatId),
-                ctx.getDefaultProjectRuntime().project.projectDir,
+                ctx.getDefaultScopeRuntime().scope.scopeRoot,
                 ctx.getWorkflowStatus,
                 neverCalledClient<Parameters<typeof startTelegramStatusPoll>[4]>(),
                 neverCalledClient<Parameters<typeof startTelegramStatusPoll>[5]>(),
@@ -136,7 +136,7 @@ describe("Telegram daemon scheduling", () => {
     };
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       model: "claude-sonnet-4-6",
       verbose: false,
       idleIntervalMs: 1000,
@@ -160,7 +160,7 @@ describe("Telegram daemon scheduling", () => {
       channels: [telegramStatusChannel],
       pollIntervalMs: 100,
     });
-    new Scheduler(projectDir, stateDir).add("Test reminder", new Date(Date.now() - 1000));
+    new Scheduler(scopeRoot, stateDir).add("Test reminder", new Date(Date.now() - 1000));
 
     const startPromise = daemon.start();
     const deadline = Date.now() + 10_000;
@@ -170,7 +170,7 @@ describe("Telegram daemon scheduling", () => {
       sawStatusReply = fetchMock.mock.calls.some(([url]) =>
         (url as string).endsWith("/sendMessage")
       );
-      sawSchedulerFire = new Scheduler(projectDir, stateDir)
+      sawSchedulerFire = new Scheduler(scopeRoot, stateDir)
         .list()
         .some((item) => item.status === "fired");
       if (sawStatusReply && sawSchedulerFire) break;

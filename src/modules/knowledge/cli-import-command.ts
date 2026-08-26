@@ -15,11 +15,11 @@ export function registerKnowledgeImportCommand(
 		.description("Bulk import knowledge entries from a JSON or JSONL file")
 		.option("--type <type>", "Entry type for all imported entries", "note")
 		.option("--status <status>", "Entry status for all imported entries", "active")
-		.option("--scope <scope>", "Storage scope: project or global", "project")
+		.option("--scope <scope>", "Storage scope: scope or global", "scope")
 		.action(async (file: string, opts: { type: string; status: string; scope: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
+			if (opts.scope !== "scope" && opts.scope !== "global") {
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "scope" or "global".`, "error")));
 				process.exit(1);
 			}
 			const entries = readImportEntries(file);
@@ -42,7 +42,7 @@ export function registerKnowledgeImportCommand(
 					type: opts.type,
 					tags,
 					status: opts.status,
-					scope: opts.scope as "project" | "global",
+					scope: opts.scope as "scope" | "global",
 				});
 				imported++;
 			}

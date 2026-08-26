@@ -157,7 +157,7 @@ export async function runHarnessParityModelMatrix(
   if (!Array.isArray(harnesses)) return harnesses;
   const specs = buildModelSpecs(deps.config, options);
   if (!Array.isArray(specs)) return specs;
-  const openRouterPreflight = resolveOpenRouterPreflight(deps.projectDir);
+  const openRouterPreflight = resolveOpenRouterPreflight(deps.scopeRoot);
   const evalResourceProfile =
     evalFixtures.fixtures.length > 0
       ? resolveEvalResourceProfile(options)

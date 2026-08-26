@@ -29,8 +29,8 @@ import {
 } from "./scenario.js";
 
 export type HarnessParityDeps = {
-  /** KOTA project root used for eval-harness fixture execution and source evidence. */
-  projectDir: string;
+  /** KOTA scope root used for eval-harness fixture execution and source evidence. */
+  scopeRoot: string;
   /** Root directory containing per-scenario subdirectories. */
   scenariosRoot: string;
   /** Root directory containing eval-harness fixtures. */

@@ -8,11 +8,8 @@ import {
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
 } from "./kota-client.js";
-import {
-  createProjectScopedKotaClient,
-  createScopeScopedKotaClient,
-} from "./project-scoped-kota-client.js";
 import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
+import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 /**
  * The OS-managed daemon flag is filesystem-scoped (it checks for a
@@ -109,7 +106,7 @@ export class DaemonControlClient implements KotaClient {
   readonly config: KotaClient["config"];
   readonly modulesAdmin: KotaClient["modulesAdmin"];
   readonly daemonOps: KotaClient["daemonOps"];
-  readonly projects: KotaClient["projects"];
+  readonly scopes: KotaClient["scopes"];
   readonly ui: KotaClient["ui"];
   readonly doctor: KotaClient["doctor"];
   readonly evalHarness: KotaClient["evalHarness"];
@@ -149,7 +146,7 @@ export class DaemonControlClient implements KotaClient {
     this.config = handlers.config;
     this.modulesAdmin = handlers.modulesAdmin;
     this.daemonOps = handlers.daemonOps;
-    this.projects = handlers.projects;
+    this.scopes = handlers.scopes;
     this.ui = handlers.ui;
     this.doctor = handlers.doctor;
     this.evalHarness = handlers.evalHarness;
@@ -161,12 +158,8 @@ export class DaemonControlClient implements KotaClient {
     this.setup = handlers.setup;
   }
 
-  forProject(projectId: string): KotaClient {
-    return createProjectScopedKotaClient(this, projectId);
-  }
-
   forScope(scopeId: string): KotaClient {
-    return createScopeScopedKotaClient(this, scopeId);
+    return createScopedKotaClient(this, scopeId);
   }
 
   /**

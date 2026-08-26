@@ -18,11 +18,8 @@ import {
   type KotaClientNamespace,
   type LocalClientHandlers,
 } from "./kota-client.js";
-import {
-  createProjectScopedKotaClient,
-  createScopeScopedKotaClient,
-} from "./project-scoped-kota-client.js";
 import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
+import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 /** Validate `handlers` covers every declared namespace, then assemble. */
 export function buildLocalKotaClient(
@@ -68,7 +65,7 @@ export class LocalKotaClient implements KotaClient {
   readonly config: KotaClient["config"];
   readonly modulesAdmin: KotaClient["modulesAdmin"];
   readonly daemonOps: KotaClient["daemonOps"];
-  readonly projects: KotaClient["projects"];
+  readonly scopes: KotaClient["scopes"];
   readonly ui: KotaClient["ui"];
   readonly doctor: KotaClient["doctor"];
   readonly evalHarness: KotaClient["evalHarness"];
@@ -79,12 +76,8 @@ export class LocalKotaClient implements KotaClient {
   readonly retract: KotaClient["retract"];
   readonly setup: KotaClient["setup"];
 
-  forProject(projectId: string): KotaClient {
-    return createProjectScopedKotaClient(this, projectId);
-  }
-
   forScope(scopeId: string): KotaClient {
-    return createScopeScopedKotaClient(this, scopeId);
+    return createScopedKotaClient(this, scopeId);
   }
 
   constructor(handlers: LocalClientHandlers) {
@@ -111,7 +104,7 @@ export class LocalKotaClient implements KotaClient {
     this.config = handlers.config;
     this.modulesAdmin = handlers.modulesAdmin;
     this.daemonOps = handlers.daemonOps;
-    this.projects = handlers.projects;
+    this.scopes = handlers.scopes;
     this.ui = handlers.ui;
     this.doctor = handlers.doctor;
     this.evalHarness = handlers.evalHarness;

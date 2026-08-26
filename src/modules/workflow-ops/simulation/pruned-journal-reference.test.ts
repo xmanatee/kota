@@ -7,7 +7,7 @@ import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { simulateAutomation } from "./engine.js";
 import { formatWorkflowSimulationResult } from "./format.js";
 
-function projectDir(): string {
+function workspaceRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-simulation-pruned-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -46,7 +46,7 @@ describe("workflow automation simulation pruned journal references", () => {
   });
 
   it("reports policy-pruned journal references without replaying unavailable payloads", async () => {
-    dir = projectDir();
+    dir = workspaceRoot();
     const journal = new EventJournal(join(dir, ".kota", "events"), {
       now: () => new Date("2026-06-05T12:00:00.000Z"),
       retention: { kind: "expire-after-ms", durationMs: 1 },
@@ -57,7 +57,6 @@ describe("workflow automation simulation pruned journal references", () => {
       schemaRef: { name: "booking.requested", version: 1 },
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         requestedBy: "operator",
         workflow: "booking-workflow",
         runId: "booking-run",
@@ -67,7 +66,7 @@ describe("workflow automation simulation pruned journal references", () => {
     });
 
     const replayed = await simulateAutomation({
-      projectDir: dir,
+      scopeRoot: dir,
       definitions: [bookingWorkflow],
       request: {
         journal: {

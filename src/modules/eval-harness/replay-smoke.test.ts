@@ -14,7 +14,7 @@
  * standard suite:
  *   - `decomposer-agent-call-replay` is the smallest fixture and is the only
  *     one whose repair loop runs `pnpm run validate-tasks` against the
- *     fixture's tmp project root, so it gates the task-validator-as-repair-
+ *     fixture's tmp scope root, so it gates the task-validator-as-repair-
  *     check path against silent regression. Its `review-decomposition`
  *     recording also covers judge-prompt routing.
  *   - `inbox-sorter-agent-call-replay` covers the `autonomy.inbox.available`
@@ -64,7 +64,7 @@ import {
   detectHostSubprocessResourceProfile,
 } from "./subprocess-executor.js";
 
-const PROJECT_DIR = fileURLToPath(new URL("../../..", import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 const SMOKE_FIXTURE_IDS = [
   "decomposer-agent-call-replay",
@@ -79,7 +79,7 @@ describe("eval-harness shipped replay-fixture smoke gate", () => {
       `replays ${fixtureId} end-to-end through the subprocess executor`,
       async () => {
         const fixturesRoot = join(
-          PROJECT_DIR,
+          REPO_ROOT,
           "src/modules/eval-harness/fixtures",
         );
         const fixture = loadFixture(fixturesRoot, fixtureId);
@@ -87,7 +87,7 @@ describe("eval-harness shipped replay-fixture smoke gate", () => {
           join(tmpdir(), `kota-replay-smoke-${fixtureId}-`),
         );
         const executor = createSubprocessExecutor({
-          kotaBinaryPath: resolve(join(PROJECT_DIR, "bin/kota.mjs")),
+          kotaBinaryPath: resolve(join(REPO_ROOT, "bin/kota.mjs")),
         });
         const executionProfile = executor.preflight(
           detectHostSubprocessResourceProfile("pnpm-test-smoke"),

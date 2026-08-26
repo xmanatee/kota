@@ -11,7 +11,7 @@ import type { WorkflowRunDetail, WorkflowRunSummary } from "@/api/types";
  */
 import { RunCompare } from "@/components/run-detail/RunCompare";
 import { RunDetail } from "@/components/run-detail/RunDetail";
-import { TestProjectProvider } from "@/lib/project-context";
+import { TestScopeProvider } from "@/lib/scope-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
@@ -47,7 +47,7 @@ function makeWrapper() {
   function Wrapper({ children }: { children: ReactNode }): ReactElement {
     return (
       <QueryClientProvider client={client}>
-        <TestProjectProvider>{children}</TestProjectProvider>
+        <TestScopeProvider>{children}</TestScopeProvider>
       </QueryClientProvider>
     );
   }

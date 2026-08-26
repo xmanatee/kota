@@ -17,9 +17,9 @@ function createStore(): RunStateDatabase {
   const root = mkdtempSync(join(tmpdir(), "kota-run-state-"));
   roots.push(root);
   const store = new RunStateDatabase(root);
-  store.registerProject({
-    id: "project-a",
-    rootPath: join(root, "project-a"),
+  store.registerScope({
+    id: "scope-a",
+    rootPath: join(root, "scope-a"),
     createdAt: "2026-08-25T09:00:00.000Z",
   });
   return store;
@@ -32,7 +32,7 @@ function admitAndStart(
 ): void {
   store.admitRun({
     id: runId,
-    projectId: "project-a",
+    scopeId: "scope-a",
     workflow: "publisher",
     repository: "none",
     trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -47,7 +47,7 @@ function completionPublication(runId: string) {
   return {
     id,
     runId,
-    projectId: "project-a",
+    scopeId: "scope-a",
     event: "workflow.completed",
     payload: { runId, publicationId: id },
   };
@@ -66,13 +66,13 @@ describe("RunStateDatabase", () => {
 
     const admitted = store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
       resources: ["task:task-a"],
       admission: {
-        scopeId: "project-a",
+        scopeId: "scope-a",
         key: "event:task-a",
         parameterFingerprint: "fingerprint-a",
       },
@@ -89,13 +89,13 @@ describe("RunStateDatabase", () => {
     expect(
       store.admitRun({
         id: "run-b",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
         resources: ["task:task-a"],
         admission: {
-          scopeId: "project-a",
+          scopeId: "scope-a",
           key: "event:task-b",
           parameterFingerprint: "fingerprint-b",
         },
@@ -110,13 +110,13 @@ describe("RunStateDatabase", () => {
     expect(
       store.admitRun({
         id: "run-duplicate",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
         resources: ["task:task-a"],
         admission: {
-          scopeId: "project-a",
+          scopeId: "scope-a",
           key: "event:task-a",
           parameterFingerprint: "fingerprint-a",
         },
@@ -127,13 +127,13 @@ describe("RunStateDatabase", () => {
     expect(() =>
       store.admitRun({
         id: "run-conflict",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
         resources: [],
         admission: {
-          scopeId: "project-a",
+          scopeId: "scope-a",
           key: "event:task-a",
           parameterFingerprint: "different-fingerprint",
         },
@@ -156,13 +156,13 @@ describe("RunStateDatabase", () => {
       const store = createStore();
       const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
       const contract = {
-        scopeId: "project-a",
+        scopeId: "scope-a",
         key: "event:task-a",
         parameterFingerprint: "fingerprint-a",
       };
       store.admitRun({
         id: "run-a",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -181,7 +181,7 @@ describe("RunStateDatabase", () => {
       expect(
         store.admitRun({
           id: "run-b",
-          projectId: "project-a",
+          scopeId: "scope-a",
           workflow: "builder",
           repository: "write",
           trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -193,7 +193,7 @@ describe("RunStateDatabase", () => {
       expect(
         store.admitRun({
           id: "run-c",
-          projectId: "project-a",
+          scopeId: "scope-a",
           workflow: "builder",
           repository: "write",
           trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -217,13 +217,13 @@ describe("RunStateDatabase", () => {
       const store = createStore();
       const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
       const contract = {
-        scopeId: "project-a",
+        scopeId: "scope-a",
         key: "event:task-a",
         parameterFingerprint: "fingerprint-a",
       };
       store.admitRun({
         id: "run-a",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -248,7 +248,7 @@ describe("RunStateDatabase", () => {
       expect(
         store.admitRun({
           id: "run-b",
-          projectId: "project-a",
+          scopeId: "scope-a",
           workflow: "builder",
           repository: "write",
           trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -265,13 +265,13 @@ describe("RunStateDatabase", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     const contract = {
-      scopeId: "project-a",
+      scopeId: "scope-a",
       key: "event:task-a",
       parameterFingerprint: "fingerprint-a",
     };
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -283,7 +283,7 @@ describe("RunStateDatabase", () => {
     store.finishRun("run-a", epoch, "failed", "2026-08-25T10:00:03.000Z");
     store.admitRun({
       id: "run-blocker",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "operator",
       repository: "write",
       trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -295,7 +295,7 @@ describe("RunStateDatabase", () => {
     expect(
       store.admitRun({
         id: "run-retry",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -316,7 +316,7 @@ describe("RunStateDatabase", () => {
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-owner",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "publisher",
       repository: "none",
       trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -326,7 +326,7 @@ describe("RunStateDatabase", () => {
     store.startRun("run-owner", epoch, "2026-08-25T10:00:02.000Z");
     store.admitRun({
       id: "run-multi",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "publisher",
       repository: "none",
       trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -337,7 +337,7 @@ describe("RunStateDatabase", () => {
     expect(store.startRun("run-multi", epoch, "2026-08-25T10:00:04.000Z")).toBeNull();
     expect(
       store.withResourceAvailable({
-        projectId: "project-a",
+        scopeId: "scope-a",
         resourceKey: "projection:a",
         operation: () => "available",
       }),
@@ -351,7 +351,7 @@ describe("RunStateDatabase", () => {
     for (const [index, runId] of ["run-owner", "run-waiter"].entries()) {
       store.admitRun({
         id: runId,
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "publisher",
         repository: "none",
         trigger: { event: "manual", schemaRef: null, payload: { runId } },
@@ -373,7 +373,7 @@ describe("RunStateDatabase", () => {
         reopened.listDispatchableRuns({
           now: "2026-08-25T10:01:01.000Z",
           limit: 2,
-          excludedProjectIds: [],
+          excludedScopeIds: [],
         }),
       ).toEqual([]);
 
@@ -392,7 +392,7 @@ describe("RunStateDatabase", () => {
     const { epoch } = contender.beginDaemonSession("2026-08-25T10:00:00.000Z");
     contender.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "publisher",
       repository: "none",
       trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -402,7 +402,7 @@ describe("RunStateDatabase", () => {
 
     try {
       store.withResourceAvailable({
-        projectId: "project-a",
+        scopeId: "scope-a",
         resourceKey: "projection:shared",
         operation: () => {
           expect(() =>
@@ -421,7 +421,7 @@ describe("RunStateDatabase", () => {
     const firstSession = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -475,7 +475,7 @@ describe("RunStateDatabase", () => {
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -497,7 +497,7 @@ describe("RunStateDatabase", () => {
     expect(() =>
       store.admitRun({
         id: "run-b",
-        projectId: "project-a",
+        scopeId: "scope-a",
         workflow: "builder",
         repository: "write",
         trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -512,16 +512,16 @@ describe("RunStateDatabase", () => {
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     admitAndStart(store, "run-a", epoch);
     admitAndStart(store, "run-b", epoch);
-    const first = store.readProjectStateValue<{ count: number }>(
-      "project-a",
+    const first = store.readScopeStateValue<{ count: number }>(
+      "scope-a",
       "attention/counter",
     );
-    const second = store.readProjectStateValue<{ count: number }>(
-      "project-a",
+    const second = store.readScopeStateValue<{ count: number }>(
+      "scope-a",
       "attention/counter",
     );
 
-    store.stageProjectStateMutation({
+    store.stageScopeStateMutation({
       runId: "run-a",
       key: "attention/counter",
       expectedRevision: first.revision,
@@ -529,7 +529,7 @@ describe("RunStateDatabase", () => {
       stagedAt: "2026-08-25T10:00:03.000Z",
     });
     expect(() =>
-      store.stageProjectStateMutation({
+      store.stageScopeStateMutation({
         runId: "run-b",
         key: "attention/counter",
         expectedRevision: second.revision,
@@ -551,7 +551,7 @@ describe("RunStateDatabase", () => {
       "2026-08-25T10:00:06.000Z",
     );
     expect(
-      store.readProjectStateValue("project-a", "attention/counter"),
+      store.readScopeStateValue("scope-a", "attention/counter"),
     ).toEqual({ revision: 1, value: { count: 1 } });
   });
 
@@ -559,7 +559,7 @@ describe("RunStateDatabase", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     admitAndStart(store, "run-a", epoch);
-    store.stageProjectStateMutation({
+    store.stageScopeStateMutation({
       runId: "run-a",
       key: "digest/window",
       expectedRevision: 0,
@@ -573,7 +573,7 @@ describe("RunStateDatabase", () => {
       payload: { completed: 4 },
       stagedAt: "2026-08-25T10:00:03.000Z",
     });
-    expect(store.readProjectStateValue("project-a", "digest/window")).toEqual({
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
       revision: 0,
       value: null,
     });
@@ -585,7 +585,7 @@ describe("RunStateDatabase", () => {
       "succeeded",
       "2026-08-25T10:00:04.000Z",
     );
-    expect(store.readProjectStateValue("project-a", "digest/window")).toEqual({
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
       revision: 1,
       value: { completed: 4 },
     });
@@ -594,7 +594,7 @@ describe("RunStateDatabase", () => {
     ]);
 
     admitAndStart(store, "run-b", epoch);
-    store.stageProjectStateMutation({
+    store.stageScopeStateMutation({
       runId: "run-b",
       key: "digest/window",
       expectedRevision: 1,
@@ -615,7 +615,7 @@ describe("RunStateDatabase", () => {
       "2026-08-25T10:00:06.000Z",
     );
 
-    expect(store.readProjectStateValue("project-a", "digest/window")).toEqual({
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
       revision: 1,
       value: { completed: 4 },
     });
@@ -639,7 +639,7 @@ describe("RunStateDatabase", () => {
     );
 
     admitAndStart(store, "run-b", epoch);
-    store.stageProjectStateMutation({
+    store.stageScopeStateMutation({
       runId: "run-b",
       key: "digest/window",
       expectedRevision: 0,
@@ -661,7 +661,7 @@ describe("RunStateDatabase", () => {
       ),
     ).toThrow();
     expect(store.getRun("run-b")?.state).toBe("running");
-    expect(store.readProjectStateValue("project-a", "digest/window")).toEqual({
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
       revision: 0,
       value: null,
     });
@@ -673,7 +673,7 @@ describe("RunStateDatabase", () => {
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -691,7 +691,7 @@ describe("RunStateDatabase", () => {
       {
         id: "workflow:run-a:completed",
         runId: "run-a",
-        projectId: "project-a",
+        scopeId: "scope-a",
         event: "workflow.completed",
         payload: { runId: "run-a", publicationId: "workflow:run-a:completed" },
       },
@@ -811,7 +811,7 @@ describe("RunStateDatabase", () => {
       const store = createStore();
       const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
       admitAndStart(store, `run-${terminalState}`, epoch);
-      store.stageProjectStateMutation({
+      store.stageScopeStateMutation({
         runId: `run-${terminalState}`,
         key: "digest/window",
         expectedRevision: 0,
@@ -841,7 +841,7 @@ describe("RunStateDatabase", () => {
           event: "workflow.completed",
         }),
       ]);
-      expect(store.readProjectStateValue("project-a", "digest/window")).toEqual({
+      expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({
         revision: 0,
         value: null,
       });
@@ -856,7 +856,7 @@ describe("RunStateDatabase", () => {
       CREATE TABLE run_publications (
         publication_id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL UNIQUE,
-        project_id TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
         event_name TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
@@ -868,9 +868,9 @@ describe("RunStateDatabase", () => {
     let store = new RunStateDatabase(root);
     store.close();
     store = new RunStateDatabase(root);
-    store.registerProject({
-      id: "project-a",
-      rootPath: join(root, "project-a"),
+    store.registerScope({
+      id: "scope-a",
+      rootPath: join(root, "scope-a"),
       createdAt: "2026-08-25T10:00:00.000Z",
     });
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
@@ -906,7 +906,7 @@ describe("RunStateDatabase", () => {
     const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
@@ -943,7 +943,7 @@ describe("RunStateDatabase", () => {
     const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     store.admitRun({
       id: "run-a",
-      projectId: "project-a",
+      scopeId: "scope-a",
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },

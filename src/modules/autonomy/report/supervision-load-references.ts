@@ -54,7 +54,6 @@ function activeRunReferences(
       taskId: taskAssociation?.taskId ?? null,
       taskTitle: taskAssociation?.task?.title ?? null,
       scopeId: scope.scopeId,
-      projectId: scope.projectId,
     };
   });
 }
@@ -72,7 +71,6 @@ function approvalReferences(
       taskId: null,
       taskTitle: null,
       scopeId: null,
-      projectId: null,
     }));
 }
 
@@ -92,7 +90,6 @@ function ownerQuestionReferences(
         ? taskById.get(question.taskId)?.title ?? null
         : null,
       scopeId: null,
-      projectId: null,
     }));
 }
 
@@ -109,7 +106,6 @@ function deadLetterReferences(
       taskId: null,
       taskTitle: null,
       scopeId: item.scopeId,
-      projectId: item.projectId,
     }));
 }
 
@@ -124,7 +120,6 @@ function attentionReferences(
     taskId: taskIdFromText(item.detail),
     taskTitle: null,
     scopeId: null,
-    projectId: null,
   }));
 }
 
@@ -139,6 +134,5 @@ function followUpReferences(
     taskId: link.activeFollowUpTaskId,
     taskTitle: link.activeFollowUpTitle,
     scopeId: null,
-    projectId: null,
   }));
 }

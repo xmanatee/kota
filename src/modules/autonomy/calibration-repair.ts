@@ -77,7 +77,7 @@ export type CalibrationRepairProposal =
     };
 
 export type CalibrationRepairContext = {
-  projectDir: string;
+  workspaceRoot: string;
   decisionReason: string;
   driftKinds: readonly CalibrationDriftKind[];
   aggregate: EvaluatorCalibrationAggregate;
@@ -87,8 +87,8 @@ export type CalibrationRepairContext = {
   nowIso: string;
 };
 
-function findExistingRepairTaskState(projectDir: string): RepoTaskState | null {
-  const tasksDir = getRepoTasksDir(projectDir);
+function findExistingRepairTaskState(workspaceRoot: string): RepoTaskState | null {
+  const tasksDir = getRepoTasksDir(workspaceRoot);
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     if (existsSync(candidate)) return state;
@@ -104,7 +104,7 @@ export async function proposeCalibrationRepair(
   ctx: CalibrationRepairContext,
   runCommand: WorkflowCommandRunner,
 ): Promise<CalibrationRepairProposal> {
-  const existing = findExistingRepairTaskState(ctx.projectDir);
+  const existing = findExistingRepairTaskState(ctx.workspaceRoot);
   if (existing && NOOP_STATES.has(existing)) {
     const reason = existing === "blocked"
       ? `${CALIBRATION_REPAIR_TASK_ID} is honestly blocked — let the blocked-promoter handle the precondition.`
@@ -126,11 +126,11 @@ export async function proposeCalibrationRepair(
     // prove that the repaired evaluator has observed a run; require a source
     // revision descended from the commit that closed the repair task.
     const previousTaskPath = join(
-      getRepoTaskStateDir(ctx.projectDir, existing),
+      getRepoTaskStateDir(ctx.workspaceRoot, existing),
       `${CALIBRATION_REPAIR_TASK_ID}.md`,
     );
     const freshness = await inspectCalibrationRepairFreshness(
-      ctx.projectDir,
+      ctx.workspaceRoot,
       previousTaskPath,
       CALIBRATION_REPAIR_TASK_ID,
       runCommand,
@@ -187,13 +187,13 @@ export function applyCalibrationRepair(
   }
 
   if (proposal.action === "promote") {
-    const move = moveTaskById(ctx.projectDir, proposal.taskId, "ready");
+    const move = moveTaskById(ctx.workspaceRoot, proposal.taskId, "ready");
     return { kind: "promoted", taskId: proposal.taskId, move };
   }
 
   if (proposal.action === "recreate") {
     const targetPath = join(
-      getRepoTaskStateDir(ctx.projectDir, "ready"),
+      getRepoTaskStateDir(ctx.workspaceRoot, "ready"),
       `${proposal.taskId}.md`,
     );
     if (existsSync(targetPath)) {
@@ -201,9 +201,9 @@ export function applyCalibrationRepair(
         `calibration-repair: refusing to overwrite existing ${targetPath} during recreate`,
       );
     }
-    const move = moveTaskById(ctx.projectDir, proposal.taskId, "ready");
+    const move = moveTaskById(ctx.workspaceRoot, proposal.taskId, "ready");
     writeRepoTaskFile(
-      ctx.projectDir,
+      ctx.workspaceRoot,
       targetPath,
       buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
     );
@@ -216,7 +216,7 @@ export function applyCalibrationRepair(
   }
 
   // action === "create"
-  const targetDir = getRepoTaskStateDir(ctx.projectDir, "ready");
+  const targetDir = getRepoTaskStateDir(ctx.workspaceRoot, "ready");
   const targetPath = join(targetDir, `${proposal.taskId}.md`);
   if (existsSync(targetPath)) {
     throw new Error(
@@ -224,14 +224,14 @@ export function applyCalibrationRepair(
     );
   }
   writeRepoTaskFile(
-    ctx.projectDir,
+    ctx.workspaceRoot,
     targetPath,
     buildCalibrationRepairTaskFile(proposal.taskId, "ready", ctx),
   );
   return {
     kind: "created",
     taskId: proposal.taskId,
-    path: targetPath.slice(ctx.projectDir.length + 1),
+    path: targetPath.slice(ctx.workspaceRoot.length + 1),
   };
 }
 
@@ -257,9 +257,9 @@ export type CalibrationRepairArtifact = {
 };
 
 export function readExistingCalibrationRepairTask(
-  projectDir: string,
+  workspaceRoot: string,
 ): { state: RepoTaskState; content: string } | null {
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(workspaceRoot);
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     if (existsSync(candidate)) {

@@ -54,12 +54,12 @@ export function tryReadUtf8(path: string): string | null {
 }
 
 export function readStateTasks(
-  projectDir: string,
+  repoRoot: string,
   tasksDir: string,
   state: RepoTaskState,
 ): DaemonTaskDetail[] {
   const waitingById = new Map(
-    listRepoTaskDependencyWaits(projectDir, [state]).map((wait) => [
+    listRepoTaskDependencyWaits(repoRoot, [state]).map((wait) => [
       wait.id,
       wait.waitingOn,
     ]),

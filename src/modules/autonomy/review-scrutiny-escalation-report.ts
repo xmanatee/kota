@@ -30,7 +30,7 @@ function summarizePattern(
 }
 
 export function buildReviewScrutinyEscalationReport(args: {
-  projectDir: string;
+  workspaceRoot: string;
   detection: ReviewScrutinyEscalationDetection;
   config?: ReviewScrutinyEscalationConfig;
   limit?: number;
@@ -39,7 +39,7 @@ export function buildReviewScrutinyEscalationReport(args: {
   const cooldownPatterns: ReviewScrutinyPatternSummary[] = [];
   for (const pattern of args.detection.patterns) {
     const proposal = proposeReviewScrutinyEscalation(
-      args.projectDir,
+      args.workspaceRoot,
       pattern,
       args.config,
     );

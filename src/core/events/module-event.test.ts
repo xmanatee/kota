@@ -15,7 +15,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "./module-event.js";
-import { defineProjectScopedModuleEvent } from "./project-scope.js";
+import { defineScopedModuleEvent } from "./scope.js";
 
 beforeEach(() => {
   resetEventBus();
@@ -60,13 +60,13 @@ describe("defineModuleEvent", () => {
     expect(decl.fields).toEqual(["id"]);
   });
 
-  it("defineProjectScopedModuleEvent yields scope: 'project' and prepends scope selectors", () => {
-    const decl = defineProjectScopedModuleEvent<{ id: string }>(
+  it("defineScopedModuleEvent yields scope: 'project' and prepends scope selectors", () => {
+    const decl = defineScopedModuleEvent<{ id: string }>(
       "project.sugar",
       ["id"],
     );
-    expect(decl.scope).toBe("project");
-    expect(decl.fields).toEqual(["scopeId", "projectId", "id"]);
+    expect(decl.scope).toBe("scope");
+    expect(decl.fields).toEqual(["scopeId", "id"]);
   });
 });
 
@@ -215,54 +215,29 @@ describe("EventBus.emit with ModuleEventDef overload", () => {
     );
   });
 
-  it("rejects emit of a project-scoped module event without a scope selector", () => {
+  it("rejects emit of a scope-scoped module event without a scope selector", () => {
     const bus = initEventBus();
-    const decl = defineProjectScopedModuleEvent<{ value: number }>(
+    const decl = defineScopedModuleEvent<{ value: number }>(
       "scoped.event",
       ["value"],
     );
     // Cast bypasses the typed overload to exercise the runtime guard against a
-    // payload that genuinely omits both scope selectors.
+    // payload that genuinely omits scope identity.
     expect(() =>
       bus.emit(decl, { value: 1 } as unknown as never),
-    ).toThrow(/project-scoped/);
+    ).toThrow(/scope-scoped/);
   });
 
-  it("accepts emit of a project-scoped module event when both selectors are present", () => {
+  it("accepts emit of a scope-scoped module event with scope identity", () => {
     const bus = initEventBus();
-    const decl = defineProjectScopedModuleEvent<{ value: number }>(
+    const decl = defineScopedModuleEvent<{ value: number }>(
       "scoped.ok",
       ["value"],
     );
-    const received: { scopeId: string; projectId: string; value: number }[] = [];
+    const received: { scopeId: string; value: number }[] = [];
     bus.on(decl, (payload) => received.push(payload));
-    bus.emit(decl, { scopeId: "p1", projectId: "p1", value: 5 });
-    expect(received).toEqual([{ scopeId: "p1", projectId: "p1", value: 5 }]);
+    bus.emit(decl, { scopeId: "p1", value: 5 });
+    expect(received).toEqual([{ scopeId: "p1", value: 5 }]);
   });
 
-  it("keeps raw projectId-only emits as compatibility callers", () => {
-    const bus = initEventBus();
-    const decl = defineProjectScopedModuleEvent<{ value: number }>(
-      "scoped.compat",
-      ["value"],
-    );
-    const received: { projectId?: string; value: number }[] = [];
-    bus.on(decl, (payload) => received.push(payload));
-    bus.emit(decl, { projectId: "p1", value: 5 } as unknown as never);
-    expect(received).toEqual([{ projectId: "p1", value: 5 }]);
-  });
-
-  it("rejects conflicting raw scope selectors", () => {
-    const bus = initEventBus();
-    const decl = defineProjectScopedModuleEvent<{ value: number }>(
-      "scoped.conflict",
-      ["value"],
-    );
-    expect(() =>
-      bus.emit(
-        decl,
-        { scopeId: "p1", projectId: "p2", value: 5 } as unknown as never,
-      ),
-    ).toThrow(/conflicting scope selectors/);
-  });
 });

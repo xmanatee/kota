@@ -10,7 +10,7 @@
  * adding a fifth store is a registration, not an enum edit.
  */
 
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -64,9 +64,9 @@ export const RECALL_SOURCE_ORDER: ReadonlyArray<RecallSource> = [
  */
 export const RECALL_DEFAULT_TOP_K = 20;
 
-export type RecallProjectContext = {
-  projectId: ProjectId;
-  projectDir: string;
+export type RecallScopeContext = {
+  scopeId: ScopeId;
+  scopeRoot: string;
   knowledge: KnowledgeProvider;
   memory: MemoryProvider;
   history: HistoryProvider;
@@ -155,7 +155,7 @@ export interface RecallContributor {
   readonly source: RecallSource;
   recall(
     query: string,
-    options: { topK: number; project?: RecallProjectContext },
+    options: { topK: number; scope?: RecallScopeContext },
   ): Promise<RawRecallEntry[]>;
 }
 
@@ -180,7 +180,7 @@ export interface RecallProvider {
   recall(
     query: string,
     filter?: RecallFilter,
-    project?: RecallProjectContext,
+    scope?: RecallScopeContext,
   ): Promise<RecallHit[]>;
 }
 

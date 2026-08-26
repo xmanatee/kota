@@ -35,36 +35,36 @@ function taskFixture(
 }
 
 describe("repo task helpers", () => {
-  let projectDir: string;
+  let repoRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    repoRoot = join(
       tmpdir(),
       `kota-repo-tasks-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
 
     for (const state of REPO_TASK_STATES) {
-      mkdirSync(join(projectDir, REPO_TASKS_DIR, state), { recursive: true });
-      writeFileSync(join(projectDir, REPO_TASKS_DIR, state, "AGENTS.md"), `# ${state}\n`);
+      mkdirSync(join(repoRoot, REPO_TASKS_DIR, state), { recursive: true });
+      writeFileSync(join(repoRoot, REPO_TASKS_DIR, state, "AGENTS.md"), `# ${state}\n`);
     }
-    mkdirSync(join(projectDir, REPO_INBOX_DIR), { recursive: true });
-    writeFileSync(join(projectDir, REPO_INBOX_DIR, "AGENTS.md"), "# inbox\n");
+    mkdirSync(join(repoRoot, REPO_INBOX_DIR), { recursive: true });
+    writeFileSync(join(repoRoot, REPO_INBOX_DIR, "AGENTS.md"), "# inbox\n");
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("counts markdown task files while ignoring AGENTS.md", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-one.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-two.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-one.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-two.md"), "task");
 
-    expect(countRepoTaskState(projectDir, "ready")).toBe(2);
+    expect(countRepoTaskState(repoRoot, "ready")).toBe(2);
   });
 
   it("counts only non-anchor backlog tasks as promotable", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-work.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-work.md"),
       [
         "---",
         "id: task-work",
@@ -79,7 +79,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
       [
         "---",
         "id: task-anchor",
@@ -95,12 +95,12 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
+    expect(countRepoPromotableBacklogTasks(repoRoot)).toBe(1);
   });
 
   it("counts backlog work as promotable without interpreting task labels or prose", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
       [
         "---",
         "id: task-meta-no-link",
@@ -120,18 +120,18 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
+    expect(countRepoPromotableBacklogTasks(repoRoot)).toBe(1);
   });
 
   it("summarizes the open task queue by state", () => {
-    writeFileSync(join(projectDir, REPO_INBOX_DIR, "task-capture.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "doing", "task-doing.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "done", "task-done.md"), "task");
+    writeFileSync(join(repoRoot, REPO_INBOX_DIR, "task-capture.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "doing", "task-doing.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "done", "task-done.md"), "task");
 
-    expect(countRepoInboxEntries(projectDir)).toBe(1);
+    expect(countRepoInboxEntries(repoRoot)).toBe(1);
 
-    expect(getRepoTaskQueueSnapshot(projectDir)).toEqual({
+    expect(getRepoTaskQueueSnapshot(repoRoot)).toEqual({
       counts: {
         backlog: 0,
         ready: 1,
@@ -154,7 +154,7 @@ describe("repo task helpers", () => {
 
   it("subtracts unfinished hard dependencies from pullable and actionable counts", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "ready", "task-dependent.md"),
+      join(repoRoot, REPO_TASKS_DIR, "ready", "task-dependent.md"),
       [
         "---",
         "id: task-dependent",
@@ -170,7 +170,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-enabler.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-enabler.md"),
       [
         "---",
         "id: task-enabler",
@@ -185,7 +185,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+    const snapshot = getRepoTaskQueueSnapshot(repoRoot);
 
     expect(snapshot.counts.ready).toBe(1);
     expect(snapshot.pullableCount).toBe(1);
@@ -206,7 +206,7 @@ describe("repo task helpers", () => {
 
   it("counts dependency-clear backlog work as promotable after predecessors are done", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-dependent.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-dependent.md"),
       [
         "---",
         "id: task-dependent",
@@ -222,7 +222,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "done", "task-enabler.md"),
+      join(repoRoot, REPO_TASKS_DIR, "done", "task-enabler.md"),
       [
         "---",
         "id: task-enabler",
@@ -237,13 +237,13 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
-    expect(getRepoTaskQueueSnapshot(projectDir).dependencyBlockedTasks).toEqual([]);
+    expect(countRepoPromotableBacklogTasks(repoRoot)).toBe(1);
+    expect(getRepoTaskQueueSnapshot(repoRoot).dependencyBlockedTasks).toEqual([]);
   });
 
   it("excludes anchors but not task classes from dispatchable work", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
       [
         "---",
         "id: task-meta-no-link",
@@ -263,7 +263,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-anchor.md"),
       [
         "---",
         "id: task-anchor",
@@ -279,7 +279,7 @@ describe("repo task helpers", () => {
       ].join("\n"),
     );
 
-    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+    const snapshot = getRepoTaskQueueSnapshot(repoRoot);
 
     expect(snapshot.openCount).toBe(2);
     expect(snapshot.pullableCount).toBe(1);
@@ -291,44 +291,44 @@ describe("repo task helpers", () => {
 
   it("detects a one-item promotable backlog tail as dispatchable-thin", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-tail.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-tail.md"),
       taskFixture("task-tail", "backlog"),
     );
 
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
   });
 
   it("detects a single ready task as dispatchable-thin", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
 
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
   });
 
   it("detects two dependency-clear dispatchable tasks as thin", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-b.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-b.md"),
       taskFixture("task-b", "backlog"),
     );
 
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
   });
 
   it("does not treat dependency-blocked ready and backlog tails as thin", () => {
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "ready", "task-ready-dependent.md"),
+      join(repoRoot, REPO_TASKS_DIR, "ready", "task-ready-dependent.md"),
       taskFixture("task-ready-dependent", "ready", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-backlog-dependent.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-backlog-dependent.md"),
       taskFixture("task-backlog-dependent", "backlog", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "blocked", "task-enabler.md"),
+      join(repoRoot, REPO_TASKS_DIR, "blocked", "task-enabler.md"),
       taskFixture("task-enabler", "blocked"),
     );
 
-    const snapshot = getRepoTaskQueueSnapshot(projectDir);
+    const snapshot = getRepoTaskQueueSnapshot(repoRoot);
 
     expect(snapshot.pullableCount).toBe(0);
     expect(snapshot.dependencyBlockedTasks).toEqual([
@@ -351,23 +351,23 @@ describe("repo task helpers", () => {
   });
 
   it("does not treat three or more dispatchable tasks as thin", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-b.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-a.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "ready", "task-b.md"), "task");
     writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-c.md"),
+      join(repoRoot, REPO_TASKS_DIR, "backlog", "task-c.md"),
       taskFixture("task-c", "backlog"),
     );
 
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(false);
   });
 
   it("is thin when only a doing task remains and nothing waits behind it", () => {
-    writeFileSync(join(projectDir, REPO_TASKS_DIR, "doing", "task-active.md"), "task");
+    writeFileSync(join(repoRoot, REPO_TASKS_DIR, "doing", "task-active.md"), "task");
 
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(true);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
   });
 
   it("is not thin when queue is empty", () => {
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(projectDir))).toBe(false);
+    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(false);
   });
 });

@@ -31,10 +31,10 @@ function daemonStatus(pid: number): DaemonLiveStatus {
   };
 }
 
-function writeControlFile(projectDir: string, pid: number): void {
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
+function writeControlFile(scopeRoot: string, pid: number): void {
+  mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
   writeFileSync(
-    join(projectDir, ".kota", "daemon-control.json"),
+    join(scopeRoot, ".kota", "daemon-control.json"),
     JSON.stringify({
       port: 56789,
       pid,
@@ -45,33 +45,33 @@ function writeControlFile(projectDir: string, pid: number): void {
 }
 
 describe("localDaemonStop", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalFetch: typeof globalThis.fetch;
   let killSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-local-daemon-stop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     originalFetch = globalThis.fetch;
     killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
   it("refuses to signal the recorded pid when /status is unauthenticated", async () => {
     const pid = 4321;
-    writeControlFile(projectDir, pid);
+    writeControlFile(scopeRoot, pid);
     mockedIsProcessAlive.mockReturnValue(true);
     globalThis.fetch = vi.fn(async () => new Response(null, { status: 401 })) as typeof fetch;
 
-    await expect(localDaemonStop({ projectDir, timeoutSec: 1 })).resolves.toEqual({
+    await expect(localDaemonStop({ scopeRoot, timeoutSec: 1 })).resolves.toEqual({
       ok: false,
       reason: "unavailable",
       pid,
@@ -88,7 +88,7 @@ describe("localDaemonStop", () => {
 
   it("refuses to signal the recorded pid when authenticated /status reports a different pid", async () => {
     const pid = 4321;
-    writeControlFile(projectDir, pid);
+    writeControlFile(scopeRoot, pid);
     mockedIsProcessAlive.mockReturnValue(true);
     globalThis.fetch = vi.fn(async () =>
       new Response(JSON.stringify(daemonStatus(9876)), {
@@ -97,7 +97,7 @@ describe("localDaemonStop", () => {
       })
     ) as typeof fetch;
 
-    await expect(localDaemonStop({ projectDir, timeoutSec: 1 })).resolves.toEqual({
+    await expect(localDaemonStop({ scopeRoot, timeoutSec: 1 })).resolves.toEqual({
       ok: false,
       reason: "unavailable",
       pid,
@@ -107,7 +107,7 @@ describe("localDaemonStop", () => {
 
   it("signals the recorded pid only after authenticated /status reports the same pid", async () => {
     const pid = 4321;
-    writeControlFile(projectDir, pid);
+    writeControlFile(scopeRoot, pid);
     mockedIsProcessAlive
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(true)
@@ -119,7 +119,7 @@ describe("localDaemonStop", () => {
       })
     ) as typeof fetch;
 
-    await expect(localDaemonStop({ projectDir, timeoutSec: 1 })).resolves.toEqual({
+    await expect(localDaemonStop({ scopeRoot, timeoutSec: 1 })).resolves.toEqual({
       ok: true,
     });
     expect(killSpy).toHaveBeenCalledWith(pid, "SIGTERM");

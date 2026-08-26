@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   isWithinQuietHours,
   msUntilQuietHoursEnd,
@@ -116,13 +116,13 @@ describe("parseQuietHours", () => {
 
 describe("NotificationGate", () => {
   let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
+  let pbus: ScopedEventBus;
   let received: Array<{ event: string; payload: Record<string, unknown> }>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, "test-project");
+    pbus = new ScopedEventBus(bus, "test-scope");
     received = [];
     bus.on("workflow.attention.digest", (p) => received.push({ event: "workflow.attention.digest", payload: p }));
     bus.on("workflow.failure.alert", (p) => received.push({ event: "workflow.failure.alert", payload: p }));

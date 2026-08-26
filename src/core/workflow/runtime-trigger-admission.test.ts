@@ -7,27 +7,27 @@ import { EventBus } from "#core/events/event-bus.js";
 import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
 
 describe("runtime trigger admission", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-trigger-admission-"));
-    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-trigger-admission-"));
+    writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync("git", ["add", ".gitignore"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
     execFileSync(
       "git",
       ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "init"],
-      { cwd: projectDir, stdio: "ignore" },
+      { cwd: workspaceRoot, stdio: "ignore" },
     );
   });
 
   afterEach(() => {
     for (const runState of runStates.splice(0)) runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("applies definition-owned admission before pending queue mutation", async () => {
@@ -35,7 +35,7 @@ describe("runtime trigger admission", () => {
     const admittedVersions: number[] = [];
     const { runtime, runState } = createTestWorkflowRuntime({
       bus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -74,7 +74,7 @@ describe("runtime trigger admission", () => {
     const bus = new EventBus();
     const { runtime, runState } = createTestWorkflowRuntime({
       bus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {

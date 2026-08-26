@@ -63,7 +63,7 @@ describe("runtime module event lifecycle", () => {
     });
     expect(context).toBeDefined();
     const failure = {
-      projectId: "scope-a",
+      scopeId: "scope-a",
       workflow: "builder",
       runId: "missing-bus",
       status: "failed" as const,

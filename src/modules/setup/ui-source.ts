@@ -3,7 +3,7 @@ import { buildSetupUiSurface } from "./ui-surface.js";
 
 export const setupUiSurfaceSource: UiSurfaceSource = {
   sourceId: "setup",
-  project: async (context) => {
+  scope: async (context) => {
     const setup = await context.read("setup", () => context.client.setup.list());
     return [buildSetupUiSurface({ scopeId: context.scopeId, setup })];
   },

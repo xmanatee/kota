@@ -18,7 +18,7 @@ function context(): RunContext {
   const workspaceDir = process.cwd();
   return {
     run: { id: "run-1", attempt: 1, daemonEpoch: 1 },
-    project: { id: "project-1", root: workspaceDir },
+    scope: { id: "scope-1", root: workspaceDir },
     workflow: "integration-policy-test",
     trigger: { event: "manual", schemaRef: null, payload: {} },
     sandbox: {

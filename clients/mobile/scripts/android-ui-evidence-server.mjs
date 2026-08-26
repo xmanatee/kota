@@ -132,15 +132,21 @@ function assertBundle(value) {
 function identity(value) {
   const scopeId = value.surfaces[0].scopeId;
   return {
-    projectName: 'android-ui-evidence',
-    projectDir: '/android-ui-evidence',
-    projects: {
-      defaultProjectId: scopeId,
-      projects: [
+    scopeName: 'android-ui-evidence',
+    scopeRoot: '/android-ui-evidence',
+    scopeRegistry: {
+      rootScopeId: 'global',
+      defaultScopeId: scopeId,
+      scopes: [
         {
-          projectId: scopeId,
-          projectDir: '/android-ui-evidence',
+          scopeId: 'global',
+          displayName: 'Global',
+        },
+        {
+          scopeId: scopeId,
           displayName: 'Android UI evidence',
+          parentScopeId: 'global',
+          directoryRoot: '/android-ui-evidence',
         },
       ],
     },

@@ -105,7 +105,7 @@ function seedCalibration(
   );
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "cal-monitor-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -140,9 +140,9 @@ function commitSourceChange(dir: string, name: string): string {
 }
 
 function calibrationWorkflowCommandRunner(
-  projectDir: string,
+  workspaceRoot: string,
 ): WorkflowCommandRunner {
-  const runCommand = createWorkflowCommandRunner({ cwd: projectDir });
+  const runCommand = createWorkflowCommandRunner({ cwd: workspaceRoot });
   return (input) =>
     input.command === "git"
       ? runCommand(input)
@@ -164,7 +164,7 @@ const builderCompletionTrigger = {
 } as const;
 
 describe("evaluator-calibration-monitor workflow", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   const originalThreshold = process.env.KOTA_EVALUATOR_CALIBRATION_THRESHOLD_RATE;
   const originalMinSample = process.env.KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE;
@@ -174,8 +174,8 @@ describe("evaluator-calibration-monitor workflow", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     await mockCleanWorktree();
-    projectDir = makeProjectDir();
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = makeScopeRoot();
+    runsDir = join(workspaceRoot, ".kota", "runs");
     process.env.KOTA_EVALUATOR_CALIBRATION_THRESHOLD_RATE = "0.25";
     process.env.KOTA_EVALUATOR_CALIBRATION_MIN_SAMPLE = "1";
     process.env.KOTA_EVALUATOR_CALIBRATION_PWW_THRESHOLD_RATE = "0.4";
@@ -183,7 +183,7 @@ describe("evaluator-calibration-monitor workflow", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     function restore(name: string, value: string | undefined): void {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
@@ -205,7 +205,7 @@ describe("evaluator-calibration-monitor workflow", () => {
   });
 
   it("emits the regression event AND opens a calibration repair task when the gate fires for the first time", async () => {
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
     const now = new Date();
     const hour = 60 * 60 * 1000;
     seedCalibration(runsDir, "run-older", new Date(now.getTime() - 5 * hour).toISOString(), {
@@ -218,10 +218,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -243,7 +243,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const readyTaskPath = join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "ready",
@@ -256,7 +256,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(taskContent).toContain("pass-contradiction");
 
     const calibrationArtifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "harness",
@@ -292,10 +292,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -306,12 +306,12 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(regression).toHaveLength(0);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+        join(workspaceRoot, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(false);
     const artifact = JSON.parse(
       readFileSync(
-        join(projectDir, ".kota", "runs", "harness", "calibration-repair.json"),
+        join(workspaceRoot, ".kota", "runs", "harness", "calibration-repair.json"),
         "utf-8",
       ),
     );
@@ -328,7 +328,7 @@ describe("evaluator-calibration-monitor workflow", () => {
       DEFAULT_CALIBRATION_MIN_SAMPLE,
     );
     process.env.KOTA_EVALUATOR_CALIBRATION_PWW_MIN_SAMPLE = "5";
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
     const now = Date.now();
     const hour = 60 * 60 * 1000;
     for (let index = 0; index < 10; index++) {
@@ -372,10 +372,10 @@ describe("evaluator-calibration-monitor workflow", () => {
       );
     }
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -388,7 +388,7 @@ describe("evaluator-calibration-monitor workflow", () => {
 
     const artifact = JSON.parse(
       readFileSync(
-        join(projectDir, ".kota", "runs", "harness", "calibration-repair.json"),
+        join(workspaceRoot, ".kota", "runs", "harness", "calibration-repair.json"),
         "utf-8",
       ),
     );
@@ -413,7 +413,7 @@ describe("evaluator-calibration-monitor workflow", () => {
   });
 
   it("leaves an in-flight repair task alone (noop) when the gate fires again", async () => {
-    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const readyDir = join(workspaceRoot, "data", "tasks", "ready");
     const existingPath = join(readyDir, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     const existingBody = [
       "---",
@@ -433,7 +433,7 @@ describe("evaluator-calibration-monitor workflow", () => {
       "",
     ].join("\n");
     writeFileSync(existingPath, existingBody);
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const now = new Date();
     const hour = 60 * 60 * 1000;
@@ -447,10 +447,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -464,7 +464,7 @@ describe("evaluator-calibration-monitor workflow", () => {
   });
 
   it("recreates the repair task when a previous one is in done/ and post-fix calibration evidence has accrued", async () => {
-    const doneDir = join(projectDir, "data", "tasks", "done");
+    const doneDir = join(workspaceRoot, "data", "tasks", "done");
     const donePath = join(doneDir, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     writeFileSync(
       donePath,
@@ -484,8 +484,8 @@ describe("evaluator-calibration-monitor workflow", () => {
         "",
       ].join("\n"),
     );
-    commitInitial(projectDir);
-    const postFixRevision = commitSourceChange(projectDir, "post-fix-calibration");
+    commitInitial(workspaceRoot);
+    const postFixRevision = commitSourceChange(workspaceRoot, "post-fix-calibration");
 
     const now = new Date();
     const hour = 60 * 60 * 1000;
@@ -500,17 +500,17 @@ describe("evaluator-calibration-monitor workflow", () => {
     // The recreate-loop guard accepts only canonical builder evidence whose
     // source revision descends from the repair-closing commit.
     seedBoundCalibrationArtifact(
-      projectDir,
+      workspaceRoot,
       "run-post-fix",
       postFixRevision,
       "task-post-fix",
     );
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -523,7 +523,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(existsSync(donePath)).toBe(false);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+        join(workspaceRoot, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(true);
   });
@@ -531,8 +531,8 @@ describe("evaluator-calibration-monitor workflow", () => {
   it("noops the recreate when the previous repair task was just closed and no post-fix calibration artifact exists", async () => {
     const now = new Date();
     const hour = 60 * 60 * 1000;
-    commitInitial(projectDir);
-    const preFixRevision = headRevision(projectDir);
+    commitInitial(workspaceRoot);
+    const preFixRevision = headRevision(workspaceRoot);
     // Seed pre-fix calibration evidence first so the gate fires.
     seedCalibration(runsDir, "run-older", new Date(now.getTime() - 5 * hour).toISOString(), {
       verdict: "pass",
@@ -548,7 +548,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     // Then close the previous repair task to done/. Its commit is later than
     // every artifact above — no post-fix builder run has written calibration
     // evidence yet.
-    const doneDir = join(projectDir, "data", "tasks", "done");
+    const doneDir = join(workspaceRoot, "data", "tasks", "done");
     const donePath = join(doneDir, `${CALIBRATION_REPAIR_TASK_ID}.md`);
     writeFileSync(
       donePath,
@@ -568,13 +568,13 @@ describe("evaluator-calibration-monitor workflow", () => {
         "",
       ].join("\n"),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -587,7 +587,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     expect(existsSync(donePath)).toBe(true);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+        join(workspaceRoot, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(false);
   });
@@ -598,7 +598,7 @@ describe("evaluator-calibration-monitor workflow", () => {
     process.env.KOTA_EVALUATOR_CALIBRATION_PWW_THRESHOLD_RATE = "0.4";
     process.env.KOTA_EVALUATOR_CALIBRATION_PWW_MIN_SAMPLE = "1";
 
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
     const now = new Date();
     const hour = 60 * 60 * 1000;
     seedCalibration(runsDir, "run-pww-a", new Date(now.getTime() - 5 * hour).toISOString(), {
@@ -611,10 +611,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();
@@ -642,10 +642,10 @@ describe("evaluator-calibration-monitor workflow", () => {
     });
 
     const harness = new WorkflowTestHarness(evaluatorCalibrationMonitor, {
-      projectDir,
+      workspaceRoot,
       trigger: builderCompletionTrigger,
       contextOverrides: {
-        runCommand: calibrationWorkflowCommandRunner(projectDir),
+        runCommand: calibrationWorkflowCommandRunner(workspaceRoot),
       },
     });
     const result = await harness.run();

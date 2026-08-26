@@ -1,5 +1,5 @@
 import type { KotaConfig } from "#core/config/config.js";
-import { updateProjectConfig } from "#core/config/config.js";
+import { updateScopeConfig } from "#core/config/config.js";
 import type {
   ModuleSetupFormValue,
   ModuleSetupJsonValue,
@@ -22,12 +22,12 @@ export function readConfigPath(
   return undefined;
 }
 
-export function setProjectConfigPath(
-  projectDir: string,
+export function setScopeConfigPath(
+  scopeRoot: string,
   path: string,
   value: ModuleSetupFormValue,
 ): void {
-  updateProjectConfig(projectDir, (raw) => {
+  updateScopeConfig(scopeRoot, (raw) => {
     const root = raw as SetupConfigObject;
     const parts = path.split(".");
     let current = root;
@@ -44,8 +44,8 @@ export function setProjectConfigPath(
   });
 }
 
-export function deleteProjectConfigPath(projectDir: string, path: string): void {
-  updateProjectConfig(projectDir, (raw) => {
+export function deleteScopeConfigPath(scopeRoot: string, path: string): void {
+  updateScopeConfig(scopeRoot, (raw) => {
     const root = raw as SetupConfigObject;
     const parts = path.split(".");
     let current = root;

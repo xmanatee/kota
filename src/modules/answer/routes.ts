@@ -28,7 +28,7 @@ import type {
   AnswerHistoryShowResult,
   AnswerResult,
 } from "./client.js";
-import type { ResolveAnswerProjectContext } from "./project-context.js";
+import type { ResolveAnswerScopeContext } from "./scope-context.js";
 
 const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
   "knowledge",
@@ -54,9 +54,6 @@ function parseFilter(value: unknown): AnswerFilter | undefined {
     );
     if (sources.length > 0) filter.sources = sources;
   }
-  if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
-    filter.projectId = raw.projectId;
-  }
   if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
     filter.scopeId = raw.scopeId;
   }
@@ -65,7 +62,7 @@ function parseFilter(value: unknown): AnswerFilter | undefined {
 
 export function createAnswerRouteHandler(
   resolveProvider: () => AnswerProvider,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -87,17 +84,17 @@ export function createAnswerRouteHandler(
     try {
       const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
       if (selectedId === null) return;
-      const project = resolveProjectContext?.(selectedId);
-      if (project && "error" in project) {
+      const scope = resolveScopeContext?.(selectedId);
+      if (scope && "error" in scope) {
         jsonResponse(res, 404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: project.projectId,
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: scope.scopeId,
         });
         return;
       }
       const provider = resolveProvider();
-      const result = await provider.answer(query, filter, project);
+      const result = await provider.answer(query, filter, scope);
       jsonResponse(res, 200, result satisfies AnswerResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -109,18 +106,18 @@ export function createAnswerRouteHandler(
 export function answerControlRoutes(
   resolveProvider: () => AnswerProvider,
   resolveHistory: () => AnswerHistoryStore,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): ControlRouteRegistration[] {
   const historyHandlers = createAnswerHistoryRouteHandler(
     resolveHistory,
-    resolveProjectContext,
+    resolveScopeContext,
   );
   return [
     {
       method: "POST",
       path: "/answer",
       capabilityScope: "read",
-      handler: createAnswerRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createAnswerRouteHandler(resolveProvider, resolveScopeContext),
     },
     {
       method: "GET",
@@ -140,17 +137,17 @@ export function answerControlRoutes(
 export function answerApiRoutes(
   resolveProvider: () => AnswerProvider,
   resolveHistory: () => AnswerHistoryStore,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): RouteRegistration[] {
   const historyHandlers = createAnswerHistoryRouteHandler(
     resolveHistory,
-    resolveProjectContext,
+    resolveScopeContext,
   );
   return [
     {
       method: "POST",
       path: "/api/answer",
-      handler: createAnswerRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createAnswerRouteHandler(resolveProvider, resolveScopeContext),
     },
     {
       method: "GET",
@@ -185,8 +182,6 @@ function parseListQuery(req: IncomingMessage): ListQuery {
   }
   const beforeId = params.get("beforeId");
   if (beforeId !== null && beforeId !== "") out.beforeId = beforeId;
-  const projectId = params.get("projectId");
-  if (projectId !== null && projectId.trim() !== "") out.projectId = projectId;
   const scopeId = params.get("scopeId");
   if (scopeId !== null && scopeId.trim() !== "") out.scopeId = scopeId;
   return out;
@@ -194,7 +189,7 @@ function parseListQuery(req: IncomingMessage): ListQuery {
 
 export function createAnswerHistoryRouteHandler(
   resolveHistory: () => AnswerHistoryStore,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): {
   list: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   showById: (
@@ -209,17 +204,17 @@ export function createAnswerHistoryRouteHandler(
         const query = parseListQuery(req);
         const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
-        const project = resolveProjectContext?.(selectedId);
-        if (project && "error" in project) {
+        const scope = resolveScopeContext?.(selectedId);
+        if (scope && "error" in scope) {
           jsonResponse(res, 404, {
-            error: "Unknown project",
-            reason: "unknown_project",
-            projectId: project.projectId,
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: scope.scopeId,
           });
           return;
         }
-        const history = project?.history ?? resolveHistory();
-        const { projectId: _projectId, scopeId: _scopeId, ...filter } = query;
+        const history = scope?.history ?? resolveHistory();
+        const { scopeId: _scopeId, ...filter } = query;
         const entries = await history.listAnswers(filter);
         const body: AnswerHistoryListResult = { entries };
         jsonResponse(res, 200, body);
@@ -237,16 +232,16 @@ export function createAnswerHistoryRouteHandler(
         const query = parseListQuery(req);
         const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
-        const project = resolveProjectContext?.(selectedId);
-        if (project && "error" in project) {
+        const scope = resolveScopeContext?.(selectedId);
+        if (scope && "error" in scope) {
           jsonResponse(res, 404, {
-            error: "Unknown project",
-            reason: "unknown_project",
-            projectId: project.projectId,
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: scope.scopeId,
           });
           return;
         }
-        const history = project?.history ?? resolveHistory();
+        const history = scope?.history ?? resolveHistory();
         const record = await history.getAnswer(id);
         const body: AnswerHistoryShowResult = record
           ? { ok: true, record }

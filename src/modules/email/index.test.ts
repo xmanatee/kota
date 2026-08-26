@@ -116,8 +116,8 @@ describe("email module setup", () => {
       throw new Error("expected smtp-credentials setup requirement");
     }
     expect(secretRequirement.secretRefs).toEqual([
-      { name: "SMTP_USER", scope: "project" },
-      { name: "SMTP_PASS", scope: "project" },
+      { name: "SMTP_USER", scope: "scope" },
+      { name: "SMTP_PASS", scope: "scope" },
     ]);
   });
 

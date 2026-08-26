@@ -465,15 +465,15 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
     );
 
     const originalCwd = process.cwd();
-    const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-file-read-protected-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-file-read-protected-"));
     try {
-      mkdirSync(join(projectDir, ".kota"), { recursive: true });
+      mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
       writeFileSync(
-        join(projectDir, ".kota", "secrets.json"),
+        join(scopeRoot, ".kota", "secrets.json"),
         '{"API_KEY":"file-backed-secret"}\n',
       );
-      writeFileSync(join(projectDir, ".env"), "API_KEY=env-file-secret\n");
-      process.chdir(projectDir);
+      writeFileSync(join(scopeRoot, ".env"), "API_KEY=env-file-secret\n");
+      process.chdir(scopeRoot);
 
       executeToolMock.mockImplementation(async (name: string, input: Record<string, unknown>) => {
         if (name !== "file_read") throw new Error(`unexpected tool call: ${name}`);
@@ -484,15 +484,15 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
         prompt: "read credentials",
         model: "openai/gpt-5.6-luna",
         effort: "xhigh",
-        cwd: projectDir,
+        cwd: scopeRoot,
       });
     } finally {
       process.chdir(originalCwd);
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
 
     const followUpTurn = JSON.stringify(streamCallSnapshots[1].messages[2]);
-    expect(followUpTurn).toContain("protected project runtime credential");
+    expect(followUpTurn).toContain("protected scope runtime credential");
     expect(followUpTurn).not.toContain("file-backed-secret");
     expect(followUpTurn).not.toContain("env-file-secret");
   });
@@ -839,10 +839,10 @@ describe("openaiToolsAgentHarness — unsupported options rejection", () => {
       prompt: "x",
       model: "openai/gpt-5.6-luna",
       effort: "xhigh",
-      systemPrompt: "## Project context\n\nProject is named KOTA.",
+      systemPrompt: "## Scope context\n\nProject is named KOTA.",
     });
     expect(streamCallSnapshots[0].system).toBe(
-      "## Project context\n\nProject is named KOTA.",
+      "## Scope context\n\nProject is named KOTA.",
     );
   });
 

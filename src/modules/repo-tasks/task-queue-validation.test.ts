@@ -19,22 +19,22 @@ import {
   validateTaskQueue,
 } from "./task-queue-validation.js";
 
-function findingCodes(projectDir: string): string[] {
-  return validateTaskQueue(projectDir).findings.map((finding) => finding.code);
+function findingCodes(repoRoot: string): string[] {
+  return validateTaskQueue(repoRoot).findings.map((finding) => finding.code);
 }
 
 describe("task queue integrity", () => {
-  let projectDir: string;
+  let repoRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-task-integrity-"));
+    repoRoot = mkdtempSync(join(tmpdir(), "kota-task-integrity-"));
     for (const state of REPO_TASK_STATES) {
-      mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+      mkdirSync(join(repoRoot, "data", "tasks", state), { recursive: true });
     }
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   function writeTask(
@@ -43,7 +43,7 @@ describe("task queue integrity", () => {
     overrides: Record<string, string | string[]> = {},
     body = "Clear natural-language intent with no prescribed headings or proof artifacts.",
   ): string {
-    const path = join(projectDir, "data", "tasks", state, `${id}.md`);
+    const path = join(repoRoot, "data", "tasks", state, `${id}.md`);
     writeFileSync(
       path,
       serializeFlatFrontMatter(
@@ -69,12 +69,12 @@ describe("task queue integrity", () => {
     const id = "task-natural-intent";
     writeTask(id, "backlog");
 
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
-    expect(moveTaskById(projectDir, id, "ready")).toMatchObject({
+    expect(() => assertTaskQueueValid(repoRoot)).not.toThrow();
+    expect(moveTaskById(repoRoot, id, "ready")).toMatchObject({
       fromState: "backlog",
       toState: "ready",
     });
-    expect(moveTaskById(projectDir, id, "done")).toMatchObject({
+    expect(moveTaskById(repoRoot, id, "done")).toMatchObject({
       fromState: "ready",
       toState: "done",
     });
@@ -82,7 +82,7 @@ describe("task queue integrity", () => {
 
   it("rejects malformed or duplicate frontmatter fields", () => {
     const path = join(
-      projectDir,
+      repoRoot,
       "data",
       "tasks",
       "backlog",
@@ -90,7 +90,7 @@ describe("task queue integrity", () => {
     );
     writeFileSync(path, "---\nid: task-malformed\nid: task-malformed\nbroken\n---\nIntent\n");
 
-    expect(findingCodes(projectDir)).toContain("task-frontmatter-invalid");
+    expect(findingCodes(repoRoot)).toContain("task-frontmatter-invalid");
   });
 
   it("checks task id, filename, and state agreement", () => {
@@ -99,7 +99,7 @@ describe("task queue integrity", () => {
       status: "ready",
     });
 
-    expect(findingCodes(projectDir)).toEqual(expect.arrayContaining([
+    expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
       "task-id-invalid",
       "task-id-mismatch",
       "task-status-mismatch",
@@ -113,7 +113,7 @@ describe("task queue integrity", () => {
       updated_at: "yesterday-ish",
     });
 
-    expect(findingCodes(projectDir)).toEqual(expect.arrayContaining([
+    expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
       "task-missing-required-attr",
       "task-invalid-priority",
       "task-date-invalid",
@@ -129,7 +129,7 @@ describe("task queue integrity", () => {
       ],
     });
 
-    expect(findingCodes(projectDir)).toEqual(expect.arrayContaining([
+    expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
       "task-dependency-missing",
       "task-dependency-duplicate",
       "task-dependency-self",
@@ -140,20 +140,20 @@ describe("task queue integrity", () => {
     writeTask("task-cycle-a", "backlog", { depends_on: ["task-cycle-b"] });
     writeTask("task-cycle-b", "backlog", { depends_on: ["task-cycle-a"] });
 
-    expect(findingCodes(projectDir)).toContain("task-dependency-cycle");
+    expect(findingCodes(repoRoot)).toContain("task-dependency-cycle");
   });
 
   it("rejects live work that depends on a dropped task", () => {
     writeTask("task-retired", "dropped");
     writeTask("task-live", "backlog", { depends_on: ["task-retired"] });
 
-    expect(findingCodes(projectDir)).toContain("task-dependency-dropped");
+    expect(findingCodes(repoRoot)).toContain("task-dependency-dropped");
   });
 
   it("requires blocked tasks to declare one parseable precondition", () => {
     writeTask("task-blocked", "blocked");
 
-    expect(findingCodes(projectDir)).toContain("blocked-task-precondition-invalid");
+    expect(findingCodes(repoRoot)).toContain("blocked-task-precondition-invalid");
   });
 
   it("keeps task-done preconditions aligned with the dependency edge", () => {
@@ -165,7 +165,7 @@ describe("task queue integrity", () => {
       "## Unblock Precondition\n\n```\nkind: task-done\nref: task-enabler\n```",
     );
 
-    expect(findingCodes(projectDir)).toContain(
+    expect(findingCodes(repoRoot)).toContain(
       "blocked-task-done-dependency-mismatch",
     );
   });
@@ -174,18 +174,18 @@ describe("task queue integrity", () => {
     writeTask("task-duplicate", "backlog");
     writeTask("task-duplicate", "ready");
 
-    expect(findingCodes(projectDir)).toContain("task-duplicate-state");
+    expect(findingCodes(repoRoot)).toContain("task-duplicate-state");
   });
 
   it("rejects linked task entries and runtime state nested under data", () => {
     const target = writeTask("task-target", "backlog");
     symlinkSync(
       target,
-      join(projectDir, "data", "tasks", "ready", "task-linked.md"),
+      join(repoRoot, "data", "tasks", "ready", "task-linked.md"),
     );
-    mkdirSync(join(projectDir, "data", "nested", ".kota"), { recursive: true });
+    mkdirSync(join(repoRoot, "data", "nested", ".kota"), { recursive: true });
 
-    expect(findingCodes(projectDir)).toEqual(expect.arrayContaining([
+    expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
       "task-path-unsafe",
       "data-nested-runtime-state",
     ]));
@@ -199,6 +199,6 @@ describe("task queue integrity", () => {
       "The owner mentioned npm, a small diff, screenshots, and an inaccessible source. Review the actual desired behavior instead of classifying these words.",
     );
 
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
+    expect(() => assertTaskQueueValid(repoRoot)).not.toThrow();
   });
 });

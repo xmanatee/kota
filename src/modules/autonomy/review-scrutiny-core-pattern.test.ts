@@ -101,17 +101,17 @@ function criticRecord(args: {
 }
 
 describe("review scrutiny core critic pattern", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "review-scrutiny-core-pattern-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "review-scrutiny-core-pattern-"));
     for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-      mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+      mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
     }
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("keeps fresh warning-backed builder core acceptances out of the escalation gate", () => {
@@ -147,7 +147,7 @@ describe("review scrutiny core critic pattern", () => {
     );
 
     const operatorReport = buildReviewScrutinyEscalationReport({
-      projectDir,
+      workspaceRoot,
       detection,
       config: CONFIG,
     });

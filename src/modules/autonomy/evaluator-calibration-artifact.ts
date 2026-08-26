@@ -82,12 +82,12 @@ export function isCalibrationSourceFile(path: string): boolean {
 }
 
 type FindTaskFinalState = (
-  projectDir: string,
+  workspaceRoot: string,
   taskId: string,
 ) => RepoTaskState | null;
 
 export function findCalibrationTaskFinalState(
-  projectDir: string,
+  workspaceRoot: string,
   taskId: string,
 ): RepoTaskState | null {
   const states: RepoTaskState[] = [
@@ -99,7 +99,7 @@ export function findCalibrationTaskFinalState(
     "backlog",
   ];
   for (const state of states) {
-    const candidate = join(projectDir, TASK_PATH_PREFIX, state, `${taskId}.md`);
+    const candidate = join(workspaceRoot, TASK_PATH_PREFIX, state, `${taskId}.md`);
     if (existsSync(candidate)) return state;
   }
   return null;
@@ -193,7 +193,7 @@ export function writeCalibrationArtifact(
     terminalRunStatus,
     taskId,
     taskFinalState: taskId
-      ? findTaskFinalState(ctx.projectDir, taskId)
+      ? findTaskFinalState(ctx.workspaceRoot, taskId)
       : null,
     sourceRevision: null,
     sourceFilesChanged: [],

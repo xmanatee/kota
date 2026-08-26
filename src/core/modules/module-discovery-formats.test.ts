@@ -9,14 +9,14 @@ import { discoverModules } from "./module-discovery.js";
 import type { ModuleLoader } from "./module-loader.js";
 
 describe("installed module formats", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let globalConfigPath: string;
   let loader: ModuleLoader;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-module-formats-"));
-    globalConfigPath = join(projectDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-module-formats-"));
+    globalConfigPath = join(scopeRoot, "machine-config.json");
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [scopeRoot] }));
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
@@ -25,16 +25,16 @@ describe("installed module formats", () => {
 
   afterEach(async () => {
     await loader.unloadAll();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   function writeModule(name: string, code: string): void {
-    const moduleDir = join(projectDir, ".kota", "modules", name);
+    const moduleDir = join(scopeRoot, ".kota", "modules", name);
     mkdirSync(moduleDir, { recursive: true });
     writeFileSync(join(moduleDir, "index.mjs"), code);
   }
 
-  const discover = () => discoverModules(projectDir, false, { globalConfigPath });
+  const discover = () => discoverModules(scopeRoot, false, { globalConfigPath });
 
   it("registers ModuleContext groups with auto-detect patterns", async () => {
     writeModule("custom-group", `
@@ -73,7 +73,7 @@ describe("installed module formats", () => {
   });
 
   it("discovers a manifest.json module", async () => {
-    const moduleDir = join(projectDir, ".kota", "modules", "manifest-ext");
+    const moduleDir = join(scopeRoot, ".kota", "modules", "manifest-ext");
     mkdirSync(moduleDir, { recursive: true });
     writeFileSync(
       join(moduleDir, "manifest.json"),
@@ -86,7 +86,7 @@ describe("installed module formats", () => {
   });
 
   it("discovers a packaged module via package.json main field", async () => {
-    const moduleDir = join(projectDir, ".kota", "modules", "packaged-ext");
+    const moduleDir = join(scopeRoot, ".kota", "modules", "packaged-ext");
     mkdirSync(join(moduleDir, "dist"), { recursive: true });
     writeFileSync(
       join(moduleDir, "package.json"),

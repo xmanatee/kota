@@ -29,14 +29,14 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],
-  projectDir = process.cwd(),
+  scopeRoot = process.cwd(),
   options: WorkflowValidationOptions = {},
 ) {
-  return validateWorkflowDefinitionsCore(definitions, projectDir, {
+  return validateWorkflowDefinitionsCore(definitions, scopeRoot, {
     defaultAgentHarness: "claude-agent-sdk",
     preset: getPreset("claude"),
     ...options,
@@ -64,26 +64,26 @@ function captureTerminalStderr(): { output: () => string; restore: () => void } 
 }
 
 describe("workflow validation", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-workflow-validation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     mkdirSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"),
       { recursive: true },
     );
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("validates a discovered workflow set", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -105,7 +105,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]).toMatchObject({
@@ -118,7 +118,7 @@ describe("workflow validation", () => {
 
   it("accepts idleTimeoutMs on agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -141,7 +141,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.steps[0]).toMatchObject({ idleTimeoutMs: 60_000 });
@@ -149,7 +149,7 @@ describe("workflow validation", () => {
 
   it("rejects malformed idleTimeoutMs values", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -173,7 +173,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/idleTimeoutMs must be an integer >= 1/);
   });
@@ -201,7 +201,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.steps[0]).toMatchObject({
@@ -234,7 +234,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/idleTimeoutMs is not supported on parallel groups/);
   });
@@ -263,7 +263,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/steps\[0\]\.steps\[0\]\.idleTimeoutMs must be an integer >= 1/);
   });
@@ -288,7 +288,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/idleTimeoutMs is not supported on await-event steps/);
   });
@@ -317,7 +317,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.triggers[0]?.filter).toEqual({
@@ -343,7 +343,7 @@ describe("workflow validation", () => {
           steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.triggers[0]).toMatchObject({
@@ -368,7 +368,7 @@ describe("workflow validation", () => {
             steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/runOn is only valid on schedule or interval triggers/);
 
@@ -387,7 +387,7 @@ describe("workflow validation", () => {
             steps: [{ id: "mark", type: "code", run: () => ({ ok: true }) }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/payload is only valid on schedule or interval triggers/);
   });
@@ -421,7 +421,7 @@ describe("workflow validation", () => {
               ],
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/ghostField.*not filterable on event "fixture\.module\.event"/);
     } finally {
@@ -473,7 +473,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(definitions[0]?.triggers[0]?.filter).toEqual({
         "actor.trust": "trusted",
@@ -520,7 +520,7 @@ describe("workflow validation", () => {
               ],
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/schemaVersion 1.*currently declares schemaVersion 2/);
     } finally {
@@ -556,7 +556,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(definitions[0]?.triggers[0]?.filter).toEqual({ passAtK: 1 });
     } finally {
@@ -564,12 +564,12 @@ describe("workflow validation", () => {
     }
   });
 
-  it("accepts scopeId filters for project-scoped module events that declare projectId", () => {
+  it("accepts scopeId filters for scope-scoped module events that declare scopeId", () => {
     resetModuleEventRegistry();
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register(
       "fixture-module",
-      defineProjectScopedModuleEvent<{ taskId: string }>(
+      defineScopedModuleEvent<{ taskId: string }>(
         "fixture.scoped.event",
         ["taskId"],
       ),
@@ -592,7 +592,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(definitions[0]?.triggers[0]?.filter).toEqual({
         scopeId: "scope-a",
@@ -625,7 +625,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.steps[0]).toMatchObject({
@@ -636,7 +636,7 @@ describe("workflow validation", () => {
 
   it("accepts repair checks with severity and code validators", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -676,14 +676,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).not.toThrow();
   });
 
   it("preserves phase on repair checks through validation", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -726,7 +726,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     const step = definitions[0]?.steps[0] as { repairLoop?: { checks: Array<{ id: string; phase?: number }> } };
@@ -754,7 +754,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -769,7 +769,7 @@ describe("workflow validation", () => {
           steps: [{ id: "run", type: "emit", event: "listener.done" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
     expect(definitions[0]?.triggers[0]?.queueMode).toBe("all");
 
@@ -785,14 +785,14 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "listener.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/queueMode must be "latest" or "all"/);
   });
 
   it("preserves timeoutMs on agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -815,7 +815,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.steps[0]).toMatchObject({
@@ -842,7 +842,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.steps[0]).toMatchObject({
@@ -867,7 +867,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/timeoutMs may be null only when idleTimeoutMs is set/);
   });
@@ -891,14 +891,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow('promptPath does not exist: src/modules/autonomy/workflows/builder/missing.md');
   });
 
   it("rejects duplicate workflow names", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -933,14 +933,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
 
   it("requires restart steps to declare prior verification steps", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -967,7 +967,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       'restart step "request-restart" must declare at least one required verification step',
@@ -976,7 +976,7 @@ describe("workflow validation", () => {
 
   it("requires restart verification steps to be prior tool or code steps", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1004,7 +1004,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       'restart step "request-restart" may only require tool, code, or parallel steps, got "agent" for "build"',
@@ -1038,14 +1038,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow('restart step "request-restart" must be the final step');
   });
 
   it("rejects an unknown model id when the resolved harness declares a catalog", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1068,7 +1068,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       /workflow "builder" steps\[0\] resolved agent run contract is incompatible: unknown model "gpt-4-turbo" for harness "claude-agent-sdk"/,
@@ -1077,7 +1077,7 @@ describe("workflow validation", () => {
 
   it("accepts every model id the active harness declares in its catalog", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1102,7 +1102,7 @@ describe("workflow validation", () => {
               ],
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).not.toThrow();
     }
@@ -1110,7 +1110,7 @@ describe("workflow validation", () => {
 
   it("accepts a non-claude model id when the resolved harness declares no catalog (codex)", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1134,14 +1134,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).not.toThrow();
   });
 
   it("rejects a passive Codex contract with its exact workflow and step path", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1165,7 +1165,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       /test\/builder\.ts: workflow "passive-codex-fixture" steps\[0\] resolved agent run contract is incompatible: Agent harness "codex" cannot honor requested run option\(s\): autonomyMode="passive"\. autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA's passive contract\./,
@@ -1174,7 +1174,7 @@ describe("workflow validation", () => {
 
   it("accepts a non-claude model id when the resolved harness declares no catalog (gemini)", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1198,14 +1198,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).not.toThrow();
   });
 
   it("accepts a non-claude model id when the resolved harness declares no catalog (gemini-cli)", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1229,14 +1229,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).not.toThrow();
   });
 
   it("resolves a tier through config.modelTiers and stores the model on the validated step", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1258,7 +1258,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     const step = definitions[0]?.steps[0];
@@ -1268,7 +1268,7 @@ describe("workflow validation", () => {
 
   it("resolves a tier through caller-supplied modelTiers when the operator overrides the shipped default", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1291,7 +1291,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
       {
         defaultAgentHarness: "claude-agent-sdk",
         modelTiers: { capable: "gpt-5.6-sol" },
@@ -1305,7 +1305,7 @@ describe("workflow validation", () => {
 
   it("resolves a tier through the active preset's tiers when no operator override is given", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1331,7 +1331,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
       {
         defaultAgentHarness: "codex",
         preset: codex,
@@ -1345,7 +1345,7 @@ describe("workflow validation", () => {
 
   it("operator modelTiers wins per-tier over the active preset's tiers", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1371,7 +1371,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
       {
         defaultAgentHarness: "codex",
         preset: codex,
@@ -1385,7 +1385,7 @@ describe("workflow validation", () => {
 
   it("rejects an agent step that declares both model and tier", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1409,14 +1409,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/declares both "model" and "tier"/);
   });
 
   it("rejects an agent step that declares neither model nor tier", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1438,14 +1438,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/must declare either "model" .*or "tier"/);
   });
 
   it("rejects an unknown tier value", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1468,14 +1468,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/tier must be one of fast, balanced, capable/);
   });
 
   it("rejects invalid autonomyMode in agent steps", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1498,14 +1498,14 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow("autonomyMode");
   });
 
   it("rejects agent steps that omit autonomyMode and have no workflow-level default", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1527,7 +1527,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       "autonomyMode is required — set autonomyMode on the step or declare defaultAutonomyMode on the workflow",
@@ -1536,7 +1536,7 @@ describe("workflow validation", () => {
 
   it("rejects agent steps that omit harness and have no configured default harness", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1559,7 +1559,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       "harness is required — set harness on the step or configure KotaConfig.defaultAgentHarness",
@@ -1568,7 +1568,7 @@ describe("workflow validation", () => {
 
   it("applies workflow-level defaultAutonomyMode to agent steps that omit autonomyMode", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1590,7 +1590,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.defaultAutonomyMode).toBe("autonomous");
@@ -1600,7 +1600,7 @@ describe("workflow validation", () => {
 
   it("allows per-step autonomyMode to override workflow defaultAutonomyMode", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1623,7 +1623,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     const step = definitions[0]?.steps[0];
@@ -1632,7 +1632,7 @@ describe("workflow validation", () => {
 
   it("rejects supervised autonomyMode when the resolved harness cannot honor it", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1655,7 +1655,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(
       /claude-agent-sdk.*autonomyMode="supervised".*no native route into KOTA's approval queue/,
@@ -1674,14 +1674,14 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "builder.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow("defaultAutonomyMode must be one of passive, supervised, autonomous");
   });
 
   it("rejects agent steps without a model or tier field", () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
 
@@ -1703,7 +1703,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/steps\[0\] must declare either "model" .*or "tier"/);
   });
@@ -1734,7 +1734,7 @@ describe("workflow validation", () => {
           steps: [{ id: "run", type: "emit", event: "deploy.done" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.triggers[0]).toEqual({ event: "webhook", cooldownMs: 0, webhook: true });
@@ -1751,7 +1751,7 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "deploy.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -1767,7 +1767,7 @@ describe("workflow validation", () => {
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/infinite loop/);
   });
@@ -1788,7 +1788,7 @@ describe("workflow validation", () => {
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/infinite loop/);
   });
@@ -1809,7 +1809,7 @@ describe("workflow validation", () => {
             steps: [{ id: "notify", type: "emit", event: "notifier.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).not.toThrow();
   });
@@ -1831,7 +1831,7 @@ describe("workflow validation", () => {
           ],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0].steps[0]).toMatchObject({
@@ -1852,7 +1852,7 @@ describe("workflow validation", () => {
           steps: [{ id: "notify", type: "trigger", workflow: "child" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect((definitions[0].steps[0] as { waitFor: string }).waitFor).toBe("queued");
@@ -1869,7 +1869,7 @@ describe("workflow validation", () => {
             steps: [{ id: "self-trigger", type: "trigger", workflow: "recursive" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/recursive call/);
   });
@@ -1892,7 +1892,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(/waitFor/);
   });
@@ -1907,7 +1907,7 @@ describe("workflow validation", () => {
           steps: [{ id: "run", type: "emit", event: "watcher.done" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     expect(definitions[0]?.triggers[0]).toMatchObject({
@@ -1928,7 +1928,7 @@ describe("workflow validation", () => {
           steps: [{ id: "run", type: "emit", event: "watcher.done" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
 
     const trigger = definitions[0]?.triggers[0];
@@ -1947,7 +1947,7 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -1963,7 +1963,7 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -1979,7 +1979,7 @@ describe("workflow validation", () => {
             steps: [{ id: "run", type: "emit", event: "watcher.done" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -1995,7 +1995,7 @@ describe("workflow validation", () => {
           webhookRateLimit: { maxPerMinute: 10 },
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
     expect(definitions[0]?.webhookRateLimit).toEqual({ maxPerMinute: 10 });
   });
@@ -2012,7 +2012,7 @@ describe("workflow validation", () => {
             webhookRateLimit: { maxPerMinute: 0 },
           }),
         ],
-        projectDir,
+        scopeRoot,
       ),
     ).toThrow(WorkflowDefinitionError);
   });
@@ -2027,7 +2027,7 @@ describe("workflow validation", () => {
           steps: [{ id: "run", type: "emit", event: "deploy.done" }],
         }),
       ],
-      projectDir,
+      scopeRoot,
     );
     expect(definitions[0]?.webhookRateLimit).toBeUndefined();
   });
@@ -2044,7 +2044,7 @@ describe("workflow validation", () => {
             notify: { onFailure: false, onSuccess: true },
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(definitions[0]?.notify).toEqual({ onFailure: false, onSuccess: true });
     });
@@ -2061,7 +2061,7 @@ describe("workflow validation", () => {
               notify: { onFailure: false, onCostAnomaly: true } as any,
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/notify has unknown key\(s\): "onCostAnomaly"/);
     });
@@ -2078,7 +2078,7 @@ describe("workflow validation", () => {
               notify: { onFailure: "no" } as any,
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/notify\.onFailure must be a boolean/);
     });
@@ -2095,7 +2095,7 @@ describe("workflow validation", () => {
               notify: [] as any,
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/notify must be an object/);
     });
@@ -2124,7 +2124,7 @@ describe("workflow validation", () => {
             },
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
 
       const output = stderr.output();
@@ -2159,7 +2159,7 @@ describe("workflow validation", () => {
             },
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
 
       const output = stderr.output();
@@ -2193,7 +2193,7 @@ describe("workflow validation", () => {
             },
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
 
       expect(stderr.output()).not.toContain("outputSchema");
@@ -2213,7 +2213,7 @@ describe("workflow validation", () => {
             steps: [{ id: "confirm", type: "approval" }],
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(defs[0].steps[0]).toMatchObject({ id: "confirm", type: "approval" });
     });
@@ -2236,7 +2236,7 @@ describe("workflow validation", () => {
             ],
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       expect(defs[0].steps[0]).toMatchObject({
         id: "confirm",
@@ -2264,7 +2264,7 @@ describe("workflow validation", () => {
               ],
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow('must be "deny" or "approve"');
     });
@@ -2287,7 +2287,7 @@ describe("workflow validation", () => {
               ],
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow("approval steps are not allowed inside branch arms");
     });
@@ -2299,7 +2299,7 @@ describe("workflow validation", () => {
       overrides?: { harness?: string },
     ): RegisteredWorkflowDefinitionInput {
       writeFileSync(
-        join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+        join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
         "Build.\n",
       );
       return registerWorkflowDefinition("test/builder.ts", {
@@ -2331,7 +2331,7 @@ describe("workflow validation", () => {
             },
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
       expect(step.harnessOptions).toEqual({
@@ -2345,7 +2345,7 @@ describe("workflow validation", () => {
     it("normalizes an empty harnessOptions object to undefined", () => {
       const defs = validateWorkflowDefinitions(
         [makeAgentStepWithHarnessOptions({})],
-        projectDir,
+        scopeRoot,
       );
       const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
       expect(step.harnessOptions).toBeUndefined();
@@ -2358,7 +2358,7 @@ describe("workflow validation", () => {
             "claude-agent-sdk": {},
           }),
         ],
-        projectDir,
+        scopeRoot,
       );
       const step = defs[0].steps[0] as { harnessOptions?: Record<string, unknown> };
       expect(step.harnessOptions).toBeUndefined();
@@ -2372,7 +2372,7 @@ describe("workflow validation", () => {
               "openai-tools": { permissionMode: "acceptEdits" },
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(
         /harnessOptions key "openai-tools" does not match the step's resolved harness "claude-agent-sdk"/,
@@ -2388,7 +2388,7 @@ describe("workflow validation", () => {
               "openai-tools": {},
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/harnessOptions must contain at most one key/);
     });
@@ -2402,7 +2402,7 @@ describe("workflow validation", () => {
               { harness: "made-up-harness" },
             ),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(/harnessOptions references unknown harness "made-up-harness"/);
     });
@@ -2415,7 +2415,7 @@ describe("workflow validation", () => {
               "claude-agent-sdk": { permissionMode: "nope" },
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(
         /steps\[0\].harnessOptions\["claude-agent-sdk"\] rejected by harness validator: .*permissionMode must be one of/,
@@ -2430,7 +2430,7 @@ describe("workflow validation", () => {
               "claude-agent-sdk": { bogus: true },
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(
         /rejected by harness validator: unknown key\(s\): "bogus"/,
@@ -2445,7 +2445,7 @@ describe("workflow validation", () => {
               "claude-agent-sdk": { settingSources: ["project", "bogus"] },
             }),
           ],
-          projectDir,
+          scopeRoot,
         ),
       ).toThrow(
         /settingSources entries must be one of project, local, user/,

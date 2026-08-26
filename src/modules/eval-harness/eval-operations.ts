@@ -9,7 +9,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type {
   EvalListResult,
   EvalRunOptions,
@@ -33,16 +33,16 @@ export { runEvalCalibration } from "./eval-calibration-operation.js";
 
 const DEFAULT_REPEATS = 3;
 
-export function fixturesRootFor(projectDir: string): string {
-  return join(projectDir, "src/modules/eval-harness/fixtures");
+export function fixturesRootFor(workspaceRoot: string): string {
+  return join(workspaceRoot, "src/modules/eval-harness/fixtures");
 }
 
-export function evalRunsRootFor(projectDir: string): string {
-  return join(projectDir, ".kota/eval-runs");
+export function evalRunsRootFor(workspaceRoot: string): string {
+  return join(workspaceRoot, ".kota/eval-runs");
 }
 
-export function listEvalFixtures(projectDir: string): EvalListResult {
-  const fixtures = loadAllFixtures(fixturesRootFor(projectDir));
+export function listEvalFixtures(workspaceRoot: string): EvalListResult {
+  const fixtures = loadAllFixtures(fixturesRootFor(workspaceRoot));
   return {
     fixtures: fixtures.map((f) => ({
       id: f.spec.id,
@@ -61,11 +61,11 @@ export function listEvalFixtures(projectDir: string): EvalListResult {
 }
 
 export async function runEvalHarness(
-  projectDir: string,
+  workspaceRoot: string,
   options: EvalRunOptions = {},
   bus?: EventBus,
 ): Promise<EvalRunResult> {
-  const fixturesRoot = fixturesRootFor(projectDir);
+  const fixturesRoot = fixturesRootFor(workspaceRoot);
   let fixtures: ReturnType<typeof loadAllFixtures>;
   try {
     fixtures = options.fixtureIds && options.fixtureIds.length > 0
@@ -91,17 +91,17 @@ export async function runEvalHarness(
   }
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const runArtifactBaseDir = join(evalRunsRootFor(projectDir), stamp);
+  const runArtifactBaseDir = join(evalRunsRootFor(workspaceRoot), stamp);
   mkdirSync(runArtifactBaseDir, { recursive: true });
   const { executor, requestedProfile } = createEvalRunExecution(
-    projectDir,
+    workspaceRoot,
     options,
   );
   const repeatCount = options.repeatCount ?? DEFAULT_REPEATS;
   let report: Awaited<ReturnType<typeof runEvalSet>>;
   try {
     report = await runEvalSet({
-      projectDir,
+      workspaceRoot,
       fixtures,
       executor,
       requestedProfile,
@@ -123,7 +123,7 @@ export async function runEvalHarness(
   }
 
   if (bus) {
-    const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
+    const pbus = new ScopedEventBus(bus, deriveDirectoryScopeId(workspaceRoot));
     pbus.emit(evalHarnessSetCompleted, {
       fixtureCount: report.aggregate.fixtureCount,
       repeatCount: report.repeatCount,

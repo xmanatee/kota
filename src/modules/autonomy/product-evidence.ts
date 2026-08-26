@@ -70,12 +70,12 @@ function changedFileEvidenceRefs(changedFiles: string): string[] {
 }
 
 export function resolveDurableOperatorEvidenceDir(
-  projectDir: string,
+  workspaceRoot: string,
   runDirPath: string,
 ): string {
-  const projectRoot = resolve(projectDir);
+  const resolvedWorkspaceRoot = resolve(workspaceRoot);
   const runRoot = resolve(runDirPath);
-  const relativeRunDir = relative(projectRoot, runRoot);
+  const relativeRunDir = relative(resolvedWorkspaceRoot, runRoot);
   if (relativeRunDir.startsWith("..") || isAbsolute(relativeRunDir)) {
     return runDirPath;
   }
@@ -87,7 +87,7 @@ export function resolveDurableOperatorEvidenceDir(
   ) {
     return runDirPath;
   }
-  return join(projectRoot, ".kota", "runs", parts[2], "evidence");
+  return join(resolvedWorkspaceRoot, ".kota", "runs", parts[2], "evidence");
 }
 
 export function collectOperatorEvidenceRefs(args: {

@@ -5,13 +5,13 @@ import {
 } from "./repo-tasks-domain.js";
 
 export type RepoTaskQueueSnapshotInput = {
-  projectDir: string;
+  repoRoot: string;
 };
 
 export function inspectRepoTaskQueueSnapshot(
   input: RepoTaskQueueSnapshotInput,
 ): RepoTaskQueueSnapshot {
-  return getRepoTaskQueueSnapshot(input.projectDir);
+  return getRepoTaskQueueSnapshot(input.repoRoot);
 }
 
 export const repoTaskQueueSnapshotOperation =

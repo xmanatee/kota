@@ -59,7 +59,7 @@ describe("loadFromFile — corrupt JSON", () => {
 
 describe("loadFromFile — project mismatch", () => {
   it("returns empty items and nextId=1 when stored project differs", () => {
-    persistToFile(filePath, "other-project", [makeItem(1, "pending")], 2);
+    persistToFile(filePath, "other-scope", [makeItem(1, "pending")], 2);
     const result = loadFromFile(filePath, "my-project");
     expect(result).toEqual({ items: [], nextId: 1 });
   });
@@ -189,7 +189,7 @@ describe("persistToFile — creates parent directory", () => {
     persistToFile(nested, "proj", [makeItem(1, "pending")], 2);
     expect(existsSync(nested)).toBe(true);
     const raw = JSON.parse(readFileSync(nested, "utf-8"));
-    expect(raw.project).toBe("proj");
+    expect(raw.scope).toBe("proj");
     expect(raw.items).toHaveLength(1);
   });
 });

@@ -4,25 +4,25 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createWorkflowDispatchDeadLetter,
-  deadLetterStoreForProject,
+  deadLetterStoreForScope,
 } from "#core/daemon/dead-letter-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import workflowOpsModule from "./index.js";
 
 describe("workflow-ops local dead-letter client", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-dead-letter-client-"));
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-dead-letter-client-"));
+    mkdirSync(join(workspaceRoot, ".kota"), { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("lists, exports, and mutates without runtime event authority", async () => {
-    const dlq = deadLetterStoreForProject(projectDir);
+    const dlq = deadLetterStoreForScope(workspaceRoot);
     const item = createWorkflowDispatchDeadLetter({
       store: dlq,
       scopeId: "scope-a",
@@ -37,7 +37,7 @@ describe("workflow-ops local dead-letter client", () => {
       errorClass: "validation",
     });
     const handlers = workflowOpsModule.localClient!({
-      cwd: projectDir,
+      cwd: workspaceRoot,
     } as ModuleContext);
     if (!handlers.workflow) throw new Error("workflow handler missing");
     const handler = handlers.workflow;
@@ -64,14 +64,14 @@ describe("workflow-ops local dead-letter client", () => {
       item: { id: item.id, status: "dismissed" },
     });
 
-    expect(deadLetterStoreForProject(projectDir).get(item.id)).toMatchObject({
+    expect(deadLetterStoreForScope(workspaceRoot).get(item.id)).toMatchObject({
       status: "dismissed",
       dismissalReason: "operator closed",
     });
   });
 
   it("requires the daemon for original redrive admission", async () => {
-    const dlq = deadLetterStoreForProject(projectDir);
+    const dlq = deadLetterStoreForScope(workspaceRoot);
     const item = createWorkflowDispatchDeadLetter({
       store: dlq,
       scopeId: "scope-a",
@@ -85,7 +85,7 @@ describe("workflow-ops local dead-letter client", () => {
       reason: "runtime unavailable",
       errorClass: "runtime",
     });
-    const handlers = workflowOpsModule.localClient!({ cwd: projectDir } as ModuleContext);
+    const handlers = workflowOpsModule.localClient!({ cwd: workspaceRoot } as ModuleContext);
     const handler = handlers.workflow;
     if (!handler) throw new Error("workflow handler missing");
 
@@ -95,6 +95,6 @@ describe("workflow-ops local dead-letter client", () => {
         target: "original",
       }),
     ).resolves.toEqual({ ok: false, reason: "daemon_required" });
-    expect(deadLetterStoreForProject(projectDir).get(item.id)?.status).toBe("open");
+    expect(deadLetterStoreForScope(workspaceRoot).get(item.id)?.status).toBe("open");
   });
 });

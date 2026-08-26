@@ -197,8 +197,8 @@ export function getMemoryStore(dir?: string): MemoryStore {
   return store;
 }
 
-export function getProjectMemoryStore(projectDir: string): MemoryStore {
-  return getMemoryStore(join(projectDir, ".kota"));
+export function getScopeMemoryStore(scopeRoot: string): MemoryStore {
+  return getMemoryStore(join(scopeRoot, ".kota"));
 }
 
 export function resetMemoryStore(): void {

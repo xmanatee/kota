@@ -122,8 +122,8 @@ export function repoRelativeTrajectoryArtifactPath(
   runsDir: string,
   artifactPath: string,
 ): string {
-  const projectRoot = dirname(dirname(runsDir));
-  return relative(projectRoot, artifactPath).split("\\").join("/");
+  const scopeRoot = dirname(dirname(runsDir));
+  return relative(scopeRoot, artifactPath).split("\\").join("/");
 }
 
 export function stepIdFromArtifactPath(artifactPath: string): string {

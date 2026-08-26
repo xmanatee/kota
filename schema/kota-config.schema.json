@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://kota.dev/schema/kota-config.schema.json",
   "title": "KotaConfig",
-  "description": "KOTA configuration file. Project config overrides global config except trustedProjects, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
+  "description": "KOTA configuration file. Scope config overrides global config except trustedScopes, scopePolicies, and scopeAuthority, which are machine-owned global authority; CLI flags override ordinary config.",
   "additionalProperties": false,
   "properties": {
     "agentModels": {
@@ -69,7 +69,7 @@
       "type": "string"
     },
     "defaultPreset": {
-      "description": "Default preset id for this project. Selects harness + default model + fast/balanced/capable tier mapping + default reasoning effort + auth contract together. Resolution priority: `--preset` flag > `KOTA_PRESET` env > this field > shipped default preset. Must match a shipped preset id (`claude` | `codex` | `gemini` | `gemini-cli` | `antigravity-cli`). When unset, KOTA selects the shipped default preset (`codex`).",
+      "description": "Default preset id for this scope. Selects harness + default model + fast/balanced/capable tier mapping + default reasoning effort + auth contract together. Resolution priority: `--preset` flag > `KOTA_PRESET` env > this field > shipped default preset. Must match a shipped preset id (`claude` | `codex` | `gemini` | `gemini-cli` | `antigravity-cli`). When unset, KOTA selects the shipped default preset (`codex`).",
       "type": "string"
     },
     "editorModel": {
@@ -133,7 +133,7 @@
                 "type": "string"
               },
               "cwd": {
-                "description": "Working directory for the subprocess. Relative paths are resolved from the KOTA project root. Defaults to the KOTA project root.",
+                "description": "Working directory for the subprocess. Relative paths are resolved from the KOTA scope root. Defaults to the KOTA scope root.",
                 "type": "string"
               },
               "env": {
@@ -934,20 +934,20 @@
               },
               "uniqueItems": true
             },
-            "chatProjectBindings": {
+            "chatScopeBindings": {
               "type": "array",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
                   "chatId",
-                  "projectId"
+                  "scopeId"
                 ],
                 "properties": {
                   "chatId": {
                     "type": "integer"
                   },
-                  "projectId": {
+                  "scopeId": {
                     "type": "string",
                     "minLength": 1
                   }
@@ -1740,8 +1740,8 @@
       "type": "object",
       "description": "OpenTelemetry trace, metrics, and security log export config"
     },
-    "trustedProjects": {
-      "description": "Operator-owned project trust list. Only persisted global config can grant trust to target project `.kota/config.json`; project config and caller overrides cannot provide machine authority. Entries must be absolute paths, with `~/` accepted for the operator home.",
+    "trustedScopes": {
+      "description": "Operator-owned scope trust list. Only persisted global config can grant trust to a target scope's `.kota/config.json`; scope config and caller overrides cannot provide machine authority. Entries must be absolute paths, with `~/` accepted for the operator home.",
       "items": {
         "type": "string"
       },

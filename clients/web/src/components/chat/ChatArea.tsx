@@ -5,7 +5,7 @@ import { AutonomyModeSelect } from "@/components/autonomy/AutonomyModeControl";
 import { SlashCommandPalette } from "@/components/chat/SlashCommandPalette";
 import { VoiceControls } from "@/components/chat/VoiceControls";
 import { Button } from "@/components/ui/button";
-import { useProjectId } from "@/lib/project-context";
+import { useScopeId } from "@/lib/scope-context";
 import { renderMarkdown } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -30,8 +30,8 @@ export function ChatArea({
   onSessionCreated: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const projectId = useProjectId();
-  const { data: sessionsData } = useQuery(sessionsQuery(projectId));
+  const scopeId = useScopeId();
+  const { data: sessionsData } = useQuery(sessionsQuery(scopeId));
   const activeSession = sessionId
     ? (sessionsData?.sessions.find((s) => s.id === sessionId) ?? null)
     : null;
@@ -68,7 +68,7 @@ export function ChatArea({
       api.setSessionAutonomyMode(id, mode),
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions(projectId),
+        queryKey: queryKeys.sessions(scopeId),
       }),
   });
 
@@ -147,11 +147,11 @@ export function ChatArea({
     let sid = sessionId;
     if (!sid) {
       try {
-        const res = await api.createSession(projectId, pendingMode);
+        const res = await api.createSession(scopeId, pendingMode);
         sid = res.session_id;
         onSessionCreated(sid);
         void queryClient.invalidateQueries({
-          queryKey: queryKeys.sessions(projectId),
+          queryKey: queryKeys.sessions(scopeId),
         });
       } catch {
         setMessages((prev) => [

@@ -4,7 +4,7 @@ import type {
   UiSurfaceBundle,
 } from './conformance/ui-surface.generated';
 import { parseUiSurfaceBundle } from './conformance/ui-surface.generated';
-import { daemonRequest, type DaemonHttp, withProject } from './http';
+import { daemonRequest, type DaemonHttp, withScope } from './http';
 
 export type {
   UiAction,
@@ -22,11 +22,11 @@ export type UiDaemonRouteDocument = UiJsonValue;
 
 export async function getUiSurfaces(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<UiSurfaceBundle> {
   const raw = await daemonRequest<unknown>(
     http,
-    withProject('/ui/surfaces', projectId),
+    withScope('/ui/surfaces', scopeId),
   );
   return parseUiSurfaceBundle(raw);
 }

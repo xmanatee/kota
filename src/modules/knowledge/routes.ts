@@ -6,10 +6,10 @@ import {
   type WorkMemoryMetadata,
 } from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import type { KnowledgeProjectStores } from "./project-scope.js";
 import { handleDeleteKnowledgeScoped } from "./route-delete.js";
 import { handleGetKnowledgeScoped } from "./route-get.js";
 import { resolveKnowledgeRouteProvider } from "./route-provider.js";
+import type { KnowledgeScopeStores } from "./scope.js";
 
 export { handleDeleteKnowledge } from "./route-delete.js";
 export { handleGetKnowledge } from "./route-get.js";
@@ -18,8 +18,8 @@ type KnowledgeRequestBody = Awaited<ReturnType<typeof readBody>>;
 
 type KnowledgeListResponse = { entries: KnowledgeEntry[] };
 
-function parseScope(value: string | null): "project" | "global" | "all" | undefined {
-  if (value === "project" || value === "global" || value === "all") return value;
+function parseScope(value: string | null): "scope" | "global" | "all" | undefined {
+  if (value === "scope" || value === "global" || value === "all") return value;
   return undefined;
 }
 
@@ -39,10 +39,10 @@ function parseListFilters(req: IncomingMessage): SearchFilters {
 export function handleListKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: KnowledgeProjectStores,
+  scopeStores?: KnowledgeScopeStores,
 ): void {
   try {
-    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const filters = parseListFilters(req);
     const entries = provider.list(filters);
@@ -55,7 +55,7 @@ export function handleListKnowledge(
 export async function handleAddKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: KnowledgeProjectStores,
+  scopeStores?: KnowledgeScopeStores,
 ): Promise<void> {
   let body: KnowledgeRequestBody;
   try {
@@ -76,7 +76,7 @@ export async function handleAddKnowledge(
     ? (body.tags as unknown[]).filter((t): t is string => typeof t === "string")
     : [];
   const scope =
-    body.scope === "project" || body.scope === "global" ? body.scope : undefined;
+    body.scope === "scope" || body.scope === "global" ? body.scope : undefined;
   const meta =
     body.meta && typeof body.meta === "object" && !Array.isArray(body.meta)
       ? Object.fromEntries(
@@ -91,7 +91,7 @@ export async function handleAddKnowledge(
     return;
   }
   try {
-    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const id = provider.create({
       title,
@@ -117,7 +117,7 @@ export async function handleAddKnowledge(
 export async function handleSearchKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: KnowledgeProjectStores,
+  scopeStores?: KnowledgeScopeStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "", "http://localhost");
   const query = url.searchParams.get("q") ?? "";
@@ -136,7 +136,7 @@ export async function handleSearchKnowledge(
   if (status) filters.status = status;
   if (scope) filters.scope = scope;
   try {
-    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     if (semantic && !provider.supportsSemanticSearch()) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
@@ -154,10 +154,10 @@ export async function handleSearchKnowledge(
 export async function handleReindexKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: KnowledgeProjectStores,
+  scopeStores?: KnowledgeScopeStores,
 ): Promise<void> {
   try {
-    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const result = await provider.reindex();
     jsonResponse(res, 200, result);
@@ -170,7 +170,7 @@ export async function handleUpdateKnowledge(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
-  projectStores?: KnowledgeProjectStores,
+  scopeStores?: KnowledgeScopeStores,
 ): Promise<void> {
   let body: KnowledgeRequestBody;
   try {
@@ -205,7 +205,7 @@ export async function handleUpdateKnowledge(
     changes.freshness = metadata.metadata?.freshness ?? null;
   }
   try {
-    const provider = resolveKnowledgeRouteProvider(req, res, projectStores);
+    const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const existing = provider.read(id);
     if (!existing) {
@@ -220,36 +220,36 @@ export async function handleUpdateKnowledge(
   }
 }
 
-export function knowledgeRoutes(projectStores: KnowledgeProjectStores): RouteRegistration[] {
+export function knowledgeRoutes(scopeStores: KnowledgeScopeStores): RouteRegistration[] {
   return [
     {
       method: "GET", path: "/api/knowledge",
-      handler: (req, res) => handleListKnowledge(req, res, projectStores),
+      handler: (req, res) => handleListKnowledge(req, res, scopeStores),
     },
     {
       method: "GET", path: "/api/knowledge/search",
-      handler: (req, res) => handleSearchKnowledge(req, res, projectStores),
+      handler: (req, res) => handleSearchKnowledge(req, res, scopeStores),
     },
     {
       method: "POST", path: "/api/knowledge",
-      handler: (req, res) => handleAddKnowledge(req, res, projectStores),
+      handler: (req, res) => handleAddKnowledge(req, res, scopeStores),
     },
     {
       method: "POST", path: "/api/knowledge/reindex",
-      handler: (req, res) => handleReindexKnowledge(req, res, projectStores),
+      handler: (req, res) => handleReindexKnowledge(req, res, scopeStores),
     },
     {
       method: "GET", path: "/api/knowledge/:id",
-      handler: (req, res, params) => handleGetKnowledgeScoped(req, res, params.id, projectStores),
+      handler: (req, res, params) => handleGetKnowledgeScoped(req, res, params.id, scopeStores),
     },
     {
       method: "DELETE", path: "/api/knowledge/:id",
-      handler: (req, res, params) => handleDeleteKnowledgeScoped(req, res, params.id, projectStores),
+      handler: (req, res, params) => handleDeleteKnowledgeScoped(req, res, params.id, scopeStores),
     },
     {
       method: "PATCH", path: "/api/knowledge/:id",
       handler: (req, res, params) =>
-        handleUpdateKnowledge(req, res, params.id, projectStores),
+        handleUpdateKnowledge(req, res, params.id, scopeStores),
     },
   ];
 }

@@ -33,7 +33,7 @@ const workflow: WorkflowDefinitionInput = {
         const snapshot = ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY);
         const nextState = publishExplorerCompletion({
           sourceRunId: request.sourceRunId,
-          scopeDir: ctx.scopeDir,
+          scopeRoot: ctx.scopeRoot,
         });
         if (nextState === null) return { published: false };
         ctx.state.compareAndSet(

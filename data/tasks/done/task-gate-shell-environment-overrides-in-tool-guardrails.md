@@ -15,7 +15,7 @@ KOTA's shell and background-process tools run commands through the shared
 guardrails classifier, but the classifier treats the command as plain text and
 only escalates known destructive command patterns. It does not parse leading
 environment-variable assignments such as `AWS_PROFILE=prod command`,
-`GITHUB_TOKEN=... command`, `KOTA_PROJECT_DIR=/other/project command`, or
+`GITHUB_TOKEN=... command`, `KOTA_SCOPE_ROOT=/other/project command`, or
 `OTEL_EXPORTER_OTLP_ENDPOINT=... command`.
 
 That leaves a policy gap: an agent can change the authority, target project,

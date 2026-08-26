@@ -25,9 +25,9 @@ function makeAggregate(): EvaluatorCalibrationAggregate {
   };
 }
 
-function makeContext(projectDir: string): CalibrationRepairContext {
+function makeContext(workspaceRoot: string): CalibrationRepairContext {
   return {
-    projectDir,
+    workspaceRoot,
     decisionReason: "Pass-verdict contradiction rate 50.0% exceeds threshold 25.0%.",
     driftKinds: ["pass-contradiction"],
     aggregate: makeAggregate(),
@@ -37,7 +37,7 @@ function makeContext(projectDir: string): CalibrationRepairContext {
   };
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "cal-repair-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -53,8 +53,8 @@ function makeProjectDir(): string {
   return dir;
 }
 
-function seedTask(projectDir: string, state: string): string {
-  const path = join(projectDir, "data", "tasks", state, `${CALIBRATION_REPAIR_TASK_ID}.md`);
+function seedTask(workspaceRoot: string, state: string): string {
+  const path = join(workspaceRoot, "data", "tasks", state, `${CALIBRATION_REPAIR_TASK_ID}.md`);
   writeFileSync(
     path,
     [
@@ -74,34 +74,34 @@ function seedTask(projectDir: string, state: string): string {
       "",
     ].join("\n"),
   );
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-m", `seed ${state}`, "--quiet"], { cwd: projectDir });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "-m", `seed ${state}`, "--quiet"], { cwd: workspaceRoot });
   return path;
 }
 
 describe("proposeCalibrationRepair", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("proposes create when the repair task does not exist anywhere", async () => {
     const proposal = await proposeCalibrationRepair(
-      makeContext(projectDir),
+      makeContext(workspaceRoot),
       unexpectedWorkflowCommandRun,
     );
     expect(proposal.action).toBe("create");
   });
 
   it("proposes noop when the repair task is in ready/", async () => {
-    seedTask(projectDir, "ready");
+    seedTask(workspaceRoot, "ready");
     const proposal = await proposeCalibrationRepair(
-      makeContext(projectDir),
+      makeContext(workspaceRoot),
       unexpectedWorkflowCommandRun,
     );
     expect(proposal.action).toBe("noop");
@@ -110,18 +110,18 @@ describe("proposeCalibrationRepair", () => {
   });
 
   it("proposes noop when the repair task is in doing/", async () => {
-    seedTask(projectDir, "doing");
+    seedTask(workspaceRoot, "doing");
     const proposal = await proposeCalibrationRepair(
-      makeContext(projectDir),
+      makeContext(workspaceRoot),
       unexpectedWorkflowCommandRun,
     );
     expect(proposal.action).toBe("noop");
   });
 
   it("proposes noop with a precondition reason when the repair task is in blocked/", async () => {
-    seedTask(projectDir, "blocked");
+    seedTask(workspaceRoot, "blocked");
     const proposal = await proposeCalibrationRepair(
-      makeContext(projectDir),
+      makeContext(workspaceRoot),
       unexpectedWorkflowCommandRun,
     );
     expect(proposal.action).toBe("noop");
@@ -131,9 +131,9 @@ describe("proposeCalibrationRepair", () => {
   });
 
   it("proposes promote when the repair task is in backlog/", async () => {
-    seedTask(projectDir, "backlog");
+    seedTask(workspaceRoot, "backlog");
     const proposal = await proposeCalibrationRepair(
-      makeContext(projectDir),
+      makeContext(workspaceRoot),
       unexpectedWorkflowCommandRun,
     );
     expect(proposal.action).toBe("promote");
@@ -145,18 +145,18 @@ describe("proposeCalibrationRepair", () => {
 });
 
 describe("applyCalibrationRepair", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("creates a new ready/ task with the calibration evidence in its body", async () => {
-    const ctx = makeContext(projectDir);
+    const ctx = makeContext(workspaceRoot);
     const proposal = await proposeCalibrationRepair(
       ctx,
       unexpectedWorkflowCommandRun,
@@ -164,7 +164,7 @@ describe("applyCalibrationRepair", () => {
     const applied = applyCalibrationRepair(proposal, ctx);
     expect(applied.kind).toBe("created");
     const targetPath = join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "ready",
@@ -181,8 +181,8 @@ describe("applyCalibrationRepair", () => {
   });
 
   it("promotes from backlog/ to ready/", async () => {
-    seedTask(projectDir, "backlog");
-    const ctx = makeContext(projectDir);
+    seedTask(workspaceRoot, "backlog");
+    const ctx = makeContext(workspaceRoot);
     const proposal = await proposeCalibrationRepair(
       ctx,
       unexpectedWorkflowCommandRun,
@@ -191,20 +191,20 @@ describe("applyCalibrationRepair", () => {
     expect(applied.kind).toBe("promoted");
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+        join(workspaceRoot, "data", "tasks", "backlog", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(false);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
+        join(workspaceRoot, "data", "tasks", "ready", `${CALIBRATION_REPAIR_TASK_ID}.md`),
       ),
     ).toBe(true);
   });
 
   it("returns noop without disk changes when the repair task is already in ready/", async () => {
-    const seededPath = seedTask(projectDir, "ready");
+    const seededPath = seedTask(workspaceRoot, "ready");
     const seededBody = readFileSync(seededPath, "utf-8");
-    const ctx = makeContext(projectDir);
+    const ctx = makeContext(workspaceRoot);
     const proposal = await proposeCalibrationRepair(
       ctx,
       unexpectedWorkflowCommandRun,

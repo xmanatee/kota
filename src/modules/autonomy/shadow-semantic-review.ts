@@ -139,7 +139,7 @@ export async function runShadowSemanticReview(args: {
   invoker?: ShadowSemanticReviewInvoker;
 }): Promise<ShadowSemanticReviewStepResult> {
   const { ctx, declaration } = args;
-  validateShadowSemanticReviewerDeclaration(ctx.projectDir, declaration);
+  validateShadowSemanticReviewerDeclaration(ctx.workspaceRoot, declaration);
   const resolution = await declaration.targetResolver(ctx);
   if (resolution.kind === "skip") {
     const { path } = writeShadowSemanticReviewArtifact(ctx, declaration, {
@@ -158,7 +158,7 @@ export async function runShadowSemanticReview(args: {
   const startedAt = Date.now();
   try {
     const prompt = buildShadowSemanticReviewPrompt(declaration, resolution);
-    const cwd = ctx.projectDir;
+    const cwd = ctx.workspaceRoot;
     const response = args.invoker
       ? await args.invoker(prompt, cwd, declaration)
       : await defaultInvoker(prompt, cwd, declaration, ctx);

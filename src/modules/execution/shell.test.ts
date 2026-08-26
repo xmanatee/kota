@@ -46,20 +46,20 @@ function makeTempProject(prefix: string): string {
   return dir;
 }
 
-function createNestedBareRepoWithHookConfig(projectDir: string): {
+function createNestedBareRepoWithHookConfig(scopeRoot: string): {
   bareDir: string;
   markerPath: string;
 } {
-  const bareDir = join(projectDir, "nested.git");
-  const hooksDir = join(projectDir, "malicious-hooks");
-  const markerPath = join(projectDir, "hook-marker");
+  const bareDir = join(scopeRoot, "nested.git");
+  const hooksDir = join(scopeRoot, "malicious-hooks");
+  const markerPath = join(scopeRoot, "hook-marker");
   mkdirSync(hooksDir, { recursive: true });
-  execFileSync("git", ["init", "--bare", bareDir], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["init", "--bare", bareDir], { cwd: scopeRoot, stdio: "ignore" });
   const hookPath = join(hooksDir, "pre-commit");
   writeFileSync(hookPath, `#!/bin/sh\necho hook-ran > ${JSON.stringify(markerPath)}\n`, "utf8");
   chmodSync(hookPath, 0o755);
   execFileSync("git", ["--git-dir", bareDir, "config", "core.hooksPath", hooksDir], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     stdio: "ignore",
   });
   return { bareDir, markerPath };
@@ -140,28 +140,28 @@ describe("shell: successful commands", () => {
   });
 
   it("runs normal git commands in ordinary worktrees", async () => {
-    const projectDir = makeTempProject("kota-shell-git");
+    const scopeRoot = makeTempProject("kota-shell-git");
     try {
-      execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
-      writeFileSync(join(projectDir, "README.md"), "hello\n");
+      execFileSync("git", ["init"], { cwd: scopeRoot, stdio: "ignore" });
+      writeFileSync(join(scopeRoot, "README.md"), "hello\n");
 
       const result = await runShell({
         command: "git status --short",
-        cwd: projectDir,
+        cwd: scopeRoot,
         stream_output: false,
       });
 
       expect(result.is_error).toBeUndefined();
       expect(result.content).toContain("README.md");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("rejects implicit nested bare repository discovery before hook-capable config can run", async () => {
-    const projectDir = makeTempProject("kota-shell-bare");
+    const scopeRoot = makeTempProject("kota-shell-bare");
     try {
-      const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(projectDir);
+      const { bareDir, markerPath } = createNestedBareRepoWithHookConfig(scopeRoot);
 
       const result = await runShell({
         command: "git status",
@@ -174,7 +174,7 @@ describe("shell: successful commands", () => {
       expect(result.content).toContain("explicit");
       expect(existsSync(markerPath)).toBe(false);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });
@@ -248,40 +248,40 @@ describe("shell: working directory (cwd)", () => {
   });
 
   it("uses context cwd when input cwd is not specified", async () => {
-    const projectDir = makeTempProject("kota-shell-context-cwd");
+    const scopeRoot = makeTempProject("kota-shell-context-cwd");
     try {
       const result = await runShell(
         { command: "pwd", stream_output: false },
-        { cwd: projectDir },
+        { cwd: scopeRoot },
       );
 
       expect(result.is_error).toBeUndefined();
-      expect(realpathSync(result.content)).toBe(realpathSync(projectDir));
+      expect(realpathSync(result.content)).toBe(realpathSync(scopeRoot));
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("resolves relative input cwd against context cwd", async () => {
     const originalCwd = process.cwd();
     const daemonDir = makeTempProject("kota-shell-daemon-cwd");
-    const projectDir = makeTempProject("kota-shell-project-cwd");
+    const scopeRoot = makeTempProject("kota-shell-project-cwd");
     try {
       mkdirSync(join(daemonDir, "subdir"), { recursive: true });
-      mkdirSync(join(projectDir, "subdir"), { recursive: true });
+      mkdirSync(join(scopeRoot, "subdir"), { recursive: true });
       process.chdir(daemonDir);
 
       const result = await runShell(
         { command: "pwd", cwd: "subdir", stream_output: false },
-        { cwd: projectDir },
+        { cwd: scopeRoot },
       );
 
       expect(result.is_error).toBeUndefined();
-      expect(realpathSync(result.content)).toBe(realpathSync(join(projectDir, "subdir")));
+      expect(realpathSync(result.content)).toBe(realpathSync(join(scopeRoot, "subdir")));
     } finally {
       process.chdir(originalCwd);
       rmSync(daemonDir, { recursive: true, force: true });
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

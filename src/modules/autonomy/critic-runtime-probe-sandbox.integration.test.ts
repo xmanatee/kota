@@ -35,15 +35,15 @@ function makeFixture(mode: "staged" | "untracked") {
     tmpdir(),
     `kota-probe-containment-${mode}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   );
-  const projectDir = join(parent, "project");
+  const workspaceRoot = join(parent, "project");
   const taskName = `task-${mode}-package-probe.md`;
-  const readyTask = join(projectDir, "data/tasks/ready", taskName);
-  const doingTask = join(projectDir, "data/tasks/doing", taskName);
+  const readyTask = join(workspaceRoot, "data/tasks/ready", taskName);
+  const doingTask = join(workspaceRoot, "data/tasks/doing", taskName);
   const outsideMarker = join(parent, "outside-marker.txt");
   const outsideHardLinkMarker = join(parent, "outside-hard-link-marker.txt");
-  const insideHardLink = join(projectDir, "host-hard-link.txt");
-  const packageLaunchMarker = join(projectDir, "package-code-ran.txt");
-  const packageSocket = join(projectDir, "package-created.sock");
+  const insideHardLink = join(workspaceRoot, "host-hard-link.txt");
+  const packageLaunchMarker = join(workspaceRoot, "package-code-ran.txt");
+  const packageSocket = join(workspaceRoot, "package-created.sock");
   const outsideSecret = join(parent, "outside-secret.txt");
   const outsideSocket = join(
     tmpdir(),
@@ -62,11 +62,11 @@ function makeFixture(mode: "staged" | "untracked") {
     "timeoutMs: 5000",
   ].join("\n");
   writeFileSync(readyTask, taskContent);
-  runGit(projectDir, ["init"]);
-  runGit(projectDir, ["config", "user.email", "test@example.com"]);
-  runGit(projectDir, ["config", "user.name", "Test User"]);
-  runGit(projectDir, ["add", "data/tasks/ready"]);
-  runGit(projectDir, ["commit", "-m", "seed trusted task"]);
+  runGit(workspaceRoot, ["init"]);
+  runGit(workspaceRoot, ["config", "user.email", "test@example.com"]);
+  runGit(workspaceRoot, ["config", "user.name", "Test User"]);
+  runGit(workspaceRoot, ["add", "data/tasks/ready"]);
+  runGit(workspaceRoot, ["commit", "-m", "seed trusted task"]);
   mkdirSync(dirname(doingTask), { recursive: true });
   renameSync(readyTask, doingTask);
   const detachedProgram = [
@@ -99,7 +99,7 @@ function makeFixture(mode: "staged" | "untracked") {
     "setTimeout(() => process.exit(31), 500)",
   ].join("; ");
   writeFileSync(
-    join(projectDir, "package.json"),
+    join(workspaceRoot, "package.json"),
     JSON.stringify(
       {
         name: "untrusted-probe-package",
@@ -113,13 +113,13 @@ function makeFixture(mode: "staged" | "untracked") {
     ),
   );
   if (mode === "staged") {
-    runGit(projectDir, ["add", "package.json", "host-hard-link.txt"]);
+    runGit(workspaceRoot, ["add", "package.json", "host-hard-link.txt"]);
   }
-  const runDir = join(projectDir, ".kota/runs/test-run");
+  const runDir = join(workspaceRoot, ".kota/runs/test-run");
   mkdirSync(runDir, { recursive: true });
   return {
     parent,
-    projectDir,
+    workspaceRoot,
     doingTask,
     outsideMarker,
     outsideHardLinkMarker,
@@ -181,9 +181,9 @@ describe("Runtime Probe mutable workspace containment", () => {
         const result = await runProbeIfDeclared(
           fixture.taskContent,
           fixture.doingTask,
-          fixture.projectDir,
+          fixture.workspaceRoot,
           fixture.runDir,
-          createWorkflowCommandRunner({ cwd: fixture.projectDir }),
+          createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),
         );
 
         expect(result).not.toBeNull();
@@ -238,15 +238,15 @@ describe("Runtime Probe mutable workspace containment", () => {
     "fails closed before package launch when the workspace contains an ordinary FIFO",
     async () => {
       const fixture = makeFixture("untracked");
-      makeFifo(join(fixture.projectDir, "host.fifo"));
+      makeFifo(join(fixture.workspaceRoot, "host.fifo"));
 
       try {
         const result = await runProbeIfDeclared(
           fixture.taskContent,
           fixture.doingTask,
-          fixture.projectDir,
+          fixture.workspaceRoot,
           fixture.runDir,
-          createWorkflowCommandRunner({ cwd: fixture.projectDir }),
+          createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),
         );
 
         expect(result).toMatchObject({

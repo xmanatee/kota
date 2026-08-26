@@ -24,10 +24,10 @@ export type EvaluatorCalibrationInspection = {
 };
 
 export function inspectEvaluatorCalibrationInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
 }): EvaluatorCalibrationInspection {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
   const config = resolveCalibrationGateConfig();
   const criticPromptHash = getCriticPromptHash();
@@ -52,6 +52,6 @@ export function inspectEvaluatorCalibrationInWorker(input: {
 
 export const inspectEvaluatorCalibrationOperation =
   defineWorkflowBlockingOperation<
-    { projectDir: string; stateDir: string },
+    { workspaceRoot: string; stateDir: string },
     EvaluatorCalibrationInspection
   >(import.meta.url, "inspectEvaluatorCalibrationInWorker");

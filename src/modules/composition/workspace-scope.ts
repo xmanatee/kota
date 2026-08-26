@@ -18,7 +18,6 @@ export function resolveWorkspaceScope(context?: ToolRunnerContext): WorkspaceSco
       workflowName: context.workflow.workflowName,
       runId: context.workflow.runId,
       scopeId: context.workflow.scopeId,
-      projectId: context.workflow.projectId,
     };
   }
   if (context?.sessionId) {
@@ -40,7 +39,6 @@ export function workspaceSourceFromContext(context?: ToolRunnerContext): Workspa
       stepId: context.workflow.stepId,
       spanId: context.workflow.spanId,
       scopeId: context.workflow.scopeId,
-      projectId: context.workflow.projectId,
     };
     if (context.toolUseId) source.toolUseId = context.toolUseId;
     if (context.sessionId) source.sessionId = context.sessionId;

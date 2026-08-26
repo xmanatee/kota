@@ -39,7 +39,7 @@ const tasksSemanticModule: KotaModule = {
 			return;
 		}
 		const store = new SemanticTasksStore({
-			projectDir: ctx.cwd,
+			scopeRoot: ctx.cwd,
 			provider,
 			onBackgroundError: (err) => {
 				const msg = err instanceof Error ? err.message : String(err);

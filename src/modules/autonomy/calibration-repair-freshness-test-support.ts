@@ -9,45 +9,45 @@ import {
   type EvaluatorCalibrationArtifact,
 } from "./evaluator-calibration.js";
 
-export function git(projectDir: string, args: string[]): string {
-  return execFileSync("git", args, { cwd: projectDir, encoding: "utf8" }).trim();
+export function git(workspaceRoot: string, args: string[]): string {
+  return execFileSync("git", args, { cwd: workspaceRoot, encoding: "utf8" }).trim();
 }
 
-export function commitAll(projectDir: string, message: string): string {
-  git(projectDir, ["add", "-A"]);
-  git(projectDir, ["commit", "--allow-empty", "-m", message, "--quiet"]);
-  return git(projectDir, ["rev-parse", "HEAD"]);
+export function commitAll(workspaceRoot: string, message: string): string {
+  git(workspaceRoot, ["add", "-A"]);
+  git(workspaceRoot, ["commit", "--allow-empty", "-m", message, "--quiet"]);
+  return git(workspaceRoot, ["rev-parse", "HEAD"]);
 }
 
 export function makeProject(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "cal-freshness-"));
-  mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-  git(projectDir, ["init", "--quiet"]);
-  git(projectDir, ["config", "user.email", "test@example.com"]);
-  git(projectDir, ["config", "user.name", "test"]);
-  git(projectDir, ["config", "commit.gpgsign", "false"]);
-  commitAll(projectDir, "initial");
-  return projectDir;
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "cal-freshness-"));
+  mkdirSync(join(workspaceRoot, "data", "tasks", "done"), { recursive: true });
+  mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+  git(workspaceRoot, ["init", "--quiet"]);
+  git(workspaceRoot, ["config", "user.email", "test@example.com"]);
+  git(workspaceRoot, ["config", "user.name", "test"]);
+  git(workspaceRoot, ["config", "commit.gpgsign", "false"]);
+  commitAll(workspaceRoot, "initial");
+  return workspaceRoot;
 }
 
 export function closeRepairTask(
-  projectDir: string,
+  workspaceRoot: string,
 ): { path: string; revision: string } {
   const path = join(
-    projectDir,
+    workspaceRoot,
     "data",
     "tasks",
     "done",
     `${CALIBRATION_REPAIR_TASK_ID}.md`,
   );
   writeFileSync(path, `---\nid: ${CALIBRATION_REPAIR_TASK_ID}\nstatus: done\n---\n`);
-  return { path, revision: commitAll(projectDir, "close repair") };
+  return { path, revision: commitAll(workspaceRoot, "close repair") };
 }
 
-export function commitDescendant(projectDir: string): string {
-  writeFileSync(join(projectDir, "post-fix.ts"), "export const fixed = true;\n");
-  return commitAll(projectDir, "post-fix builder");
+export function commitDescendant(workspaceRoot: string): string {
+  writeFileSync(join(workspaceRoot, "post-fix.ts"), "export const fixed = true;\n");
+  return commitAll(workspaceRoot, "post-fix builder");
 }
 
 export type SeedArtifactOptions = {
@@ -73,13 +73,13 @@ function writeJson(path: string, value: object): void {
 }
 
 export function seedArtifact(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   sourceRevision: string,
   taskId: string | null,
   options: SeedArtifactOptions = {},
 ): SeededArtifact {
-  const runDir = join(projectDir, ".kota", "runs", runId);
+  const runDir = join(workspaceRoot, ".kota", "runs", runId);
   mkdirSync(join(runDir, "steps"), { recursive: true });
   const artifact: EvaluatorCalibrationArtifact = {
     runId: options.artifactRunId ?? runId,

@@ -35,17 +35,17 @@ vi.mock("#core/daemon/owner-question-queue.js", async () => {
 const TOKEN = "digest-route-test-token";
 
 describe("GET /api/digest", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let server: Server;
   let baseUrl: string;
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-digest-route-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "blocked"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-digest-route-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
 
     observed.length = 0;
     const bus = initEventBus();
@@ -56,7 +56,7 @@ describe("GET /api/digest", () => {
 
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
 
     const pool = new SessionPool();
     const requestHandler = buildRequestHandler({
@@ -64,7 +64,7 @@ describe("GET /api/digest", () => {
       pool,
       scheduler: { count: () => 0 } as unknown as Scheduler,
       bus,
-      moduleRoutes: digestRoutes({ projectDir }),
+      moduleRoutes: digestRoutes({ workspaceRoot }),
       makeAgent: () => {
         throw new Error("makeAgent should not be invoked by /api/digest tests");
       },
@@ -85,14 +85,14 @@ describe("GET /api/digest", () => {
     await new Promise<void>((res) => {
       server.close(() => res());
     });
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns the same body and structured payload renderOnDemandDigest produces", async () => {
     const windowEndMs = Date.parse("2026-04-26T03:30:00.000Z");
     const expected = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       windowEndMs,
     });
 
@@ -108,7 +108,7 @@ describe("GET /api/digest", () => {
   });
 
   it("does not create cadence state or emit workflow.daily.digest", async () => {
-    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    const databasePath = join(workspaceRoot, ".kota", "kota.sqlite");
     expect(existsSync(databasePath)).toBe(false);
 
     const res = await fetch(`${baseUrl}/api/digest`, {

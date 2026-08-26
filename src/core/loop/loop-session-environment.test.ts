@@ -12,8 +12,8 @@ vi.mock("#core/model/model-client.js", () => ({
   })),
   registerModelClientFactory: vi.fn(),
 }));
-vi.mock("./project-context.js", () => ({
-  loadProjectContext: vi.fn(() => ""),
+vi.mock("./scope-context.js", () => ({
+  loadScopeContext: vi.fn(() => ""),
 }));
 vi.mock("./instruction-files.js", () => ({
   loadInstructionContext: vi.fn(() => ""),
@@ -51,8 +51,8 @@ vi.mock("#core/mcp/manager.js", () => ({
     }
   },
 }));
-vi.mock("#core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("#core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 vi.mock("#core/modules/module-discovery.js", () => ({
   discoverModules: vi.fn(async () => []),

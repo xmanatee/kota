@@ -74,8 +74,8 @@ describe("slackChannelModule metadata", () => {
       throw new Error("expected socket-mode-credentials setup requirement");
     }
     expect(credentialsRequirement.secretRefs).toEqual([
-      { name: "SLACK_BOT_TOKEN", scope: "project" },
-      { name: "SLACK_APP_TOKEN", scope: "project" },
+      { name: "SLACK_BOT_TOKEN", scope: "scope" },
+      { name: "SLACK_APP_TOKEN", scope: "scope" },
     ]);
   });
 

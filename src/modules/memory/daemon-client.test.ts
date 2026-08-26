@@ -179,12 +179,12 @@ describe("memory module daemonClient(link)", () => {
     });
   });
 
-  it("threads an explicit project id through list()", async () => {
+  it("threads an explicit scope id through list()", async () => {
     const wirePayload = { entries: [] };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.list({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
+    await contributed.memory!.list({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory?scopeId=scope-b");
   });
 
   it("routes add(content, tags) through POST /api/memory via requestStrict<T> with body { content, tags }", async () => {
@@ -217,13 +217,13 @@ describe("memory module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through add()", async () => {
+  it("threads an explicit scope id through add()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ id: "new-id" }));
     const contributed = memoryModule.daemonClient!(transport);
     await contributed.memory!.add("the content", ["alpha"], {
-      projectId: "project-b",
+      scopeId: "scope-b",
     });
-    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
+    expect(calls[0]!.path).toBe("/api/memory?scopeId=scope-b");
   });
 
   it("routes delete(id) through DELETE /api/memory/:id via fetchRaw with encodeURIComponent and no body", async () => {
@@ -248,28 +248,28 @@ describe("memory module daemonClient(link)", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("threads an explicit project id through delete()", async () => {
+  it("threads an explicit scope id through delete()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ deleted: "plain-id" }));
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.delete("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/plain-id?projectId=project-b");
+    await contributed.memory!.delete("plain-id", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/plain-id?scopeId=scope-b");
   });
 
-  it("throws the typed unknown project route error from delete()", async () => {
+  it("throws the typed unknown scope route error from delete()", async () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
         JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
         { status: 404 },
       ),
     );
     const contributed = memoryModule.daemonClient!(transport);
     await expect(
-      contributed.memory!.delete("plain-id", { projectId: "ghost" }),
-    ).rejects.toThrow("Unknown project: ghost");
+      contributed.memory!.delete("plain-id", { scopeId: "ghost" }),
+    ).rejects.toThrow("Unknown scope: ghost");
   });
 
   it("routes search(query) through GET /api/memory/search?q=... via requestStrict<T> with no filter", async () => {
@@ -310,12 +310,12 @@ describe("memory module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/memory/search?q=query&semantic=true");
   });
 
-  it("threads an explicit project id through search()", async () => {
+  it("threads an explicit scope id through search()", async () => {
     const expected: MemorySearchResult = { ok: true, entries: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.search("query", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/search?q=query&projectId=project-b");
+    await contributed.memory!.search("query", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/search?q=query&scopeId=scope-b");
   });
 
   it("decodes a multi-entry MemorySearchResult ok: true arm unchanged", async () => {
@@ -357,12 +357,12 @@ describe("memory module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through reindex()", async () => {
+  it("threads an explicit scope id through reindex()", async () => {
     const expected: MemoryReindexResult = { indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.reindex({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/reindex?projectId=project-b");
+    await contributed.memory!.reindex({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/reindex?scopeId=scope-b");
   });
 
   it("the assembly path fails loudly when the memory module's daemonClient(link) is removed", () => {

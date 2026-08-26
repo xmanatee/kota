@@ -29,8 +29,8 @@ export type WorkflowQueueManagerConfig = {
   store: WorkflowRunStore;
   runState: RunStateDatabase;
   coordinator: RunCoordinator;
-  projectId: string;
-  projectDir: string;
+  scopeId: string;
+  scopeRoot: string;
   deadLetterQueue?: DeadLetterQueueStore;
   getScopeId: () => string;
   getActiveBackoff: () => WorkflowAgentBackoffState | null;
@@ -110,7 +110,7 @@ export class WorkflowQueueManager {
 
   getRuns(): WorkflowQueuedRun[] {
     return this.config.runState
-      .listRuns(this.config.projectId, ["queued"])
+      .listRuns(this.config.scopeId, ["queued"])
       .map(asQueued);
   }
 
@@ -122,7 +122,7 @@ export class WorkflowQueueManager {
         .filter((definition) => definition.enabled)
         .map((definition) => [definition.name, definition]),
     );
-    const pending = this.config.runState.listRuns(this.config.projectId, [
+    const pending = this.config.runState.listRuns(this.config.scopeId, [
       "queued",
     ]);
     let restored = 0;
@@ -156,9 +156,9 @@ export class WorkflowQueueManager {
       if (
         rejectUnadmittedWorkflowTrigger({
           definition,
-          projectDir: this.config.projectDir,
+          scopeRoot: this.config.scopeRoot,
           stateDir: this.config.store.rootDir,
-          projectId: this.config.projectId,
+          scopeId: this.config.scopeId,
           runState: this.config.runState,
           trigger: run.trigger,
           log: this.config.log,
@@ -168,7 +168,7 @@ export class WorkflowQueueManager {
         continue;
       }
       const resources = definition.resources?.({
-        projectDir: this.config.projectDir,
+        scopeRoot: this.config.scopeRoot,
         stateDir: this.config.store.rootDir,
         workflowName: definition.name,
         trigger: run.trigger,
@@ -206,9 +206,9 @@ export class WorkflowQueueManager {
       }) ||
       rejectUnadmittedWorkflowTrigger({
         definition,
-        projectDir: this.config.projectDir,
+        scopeRoot: this.config.scopeRoot,
         stateDir: this.config.store.rootDir,
-        projectId: this.config.projectId,
+        scopeId: this.config.scopeId,
         runState: this.config.runState,
         trigger,
         log: this.config.log,
@@ -232,7 +232,7 @@ export class WorkflowQueueManager {
       `Workflow "${definition.name}" trigger`,
     );
     const resources = definition.resources?.({
-      projectDir: this.config.projectDir,
+      scopeRoot: this.config.scopeRoot,
       stateDir: this.config.store.rootDir,
       workflowName: definition.name,
       trigger,
@@ -244,7 +244,7 @@ export class WorkflowQueueManager {
     const existing = distinct
       ? null
       : this.config.runState.findQueuedRun({
-          projectId: this.config.projectId,
+          scopeId: this.config.scopeId,
           workflow: definition.name,
           triggerEvent: trigger.event,
         });
@@ -298,9 +298,9 @@ export class WorkflowQueueManager {
       }) ||
       rejectUnadmittedWorkflowTrigger({
         definition,
-        projectDir: this.config.projectDir,
+        scopeRoot: this.config.scopeRoot,
         stateDir: this.config.store.rootDir,
-        projectId: this.config.projectId,
+        scopeId: this.config.scopeId,
         runState: this.config.runState,
         trigger: queued.trigger,
         log: this.config.log,
@@ -336,7 +336,7 @@ export class WorkflowQueueManager {
 
   cancelByWorkflow(workflowName: string): number {
     let cancelled = 0;
-    for (const run of this.config.runState.listRuns(this.config.projectId)) {
+    for (const run of this.config.runState.listRuns(this.config.scopeId)) {
       if (run.workflow !== workflowName) continue;
       if (this.config.coordinator.cancel(run.id)) cancelled += 1;
     }
@@ -364,7 +364,7 @@ export class WorkflowQueueManager {
     resolvedAdmission?: ReturnType<typeof workflowDispatchIdempotency> | undefined,
   ): RunAdmissionDisposition | null {
     const resources = resolvedResources ?? definition.resources?.({
-      projectDir: this.config.projectDir,
+      scopeRoot: this.config.scopeRoot,
       stateDir: this.config.store.rootDir,
       workflowName: definition.name,
       trigger,
@@ -377,7 +377,7 @@ export class WorkflowQueueManager {
     try {
       const disposition = this.config.runState.admitRun({
         id: runId,
-        projectId: this.config.projectId,
+        scopeId: this.config.scopeId,
         workflow: definition.name,
         trigger,
         repository: definition.repository,

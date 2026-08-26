@@ -11,7 +11,7 @@ export type RepoAiChecksCompletedPayload = {
 };
 
 // GitHub pull-request webhook payloads are daemon-wide today. This event should
-// become project-scoped when GitHub webhook delivery carries project identity.
+// become scope-bound when GitHub webhook delivery carries scope identity.
 export const repoAiChecksCompletedEvent =
   defineDaemonWideModuleEvent<RepoAiChecksCompletedPayload>(
     "repo-ai-checks.completed",

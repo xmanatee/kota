@@ -4,7 +4,7 @@ import type { ConnectionStatus } from "@/hooks/use-daemon-events";
 import { cn } from "@/lib/utils";
 import { Moon, PanelLeftClose, Plus, Sun } from "lucide-react";
 import type { UiSurfaceBundle } from "../../../../conformance/ui-surface.generated";
-import { ProjectSelector } from "./ProjectSelector";
+import { ScopeSelector } from "./ScopeSelector";
 
 export function Sidebar({
   collapsed,
@@ -67,7 +67,7 @@ export function Sidebar({
           </Button>
         </div>
 
-        <ProjectSelector />
+        <ScopeSelector />
 
         <SharedUiNavigation
           bundle={uiBundle}

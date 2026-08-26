@@ -44,12 +44,12 @@ function signal(
 
 describe("autonomy health review publication", () => {
   let rootDir: string;
-  let scopeDir: string;
+  let scopeRoot: string;
   let sandboxDir: string;
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), "kota-health-publication-"));
-    scopeDir = join(rootDir, "scope");
+    scopeRoot = join(rootDir, "scope");
     sandboxDir = join(rootDir, "sandbox");
   });
 
@@ -59,24 +59,25 @@ describe("autonomy health review publication", () => {
 
   it("reuses its durable pre-mutation event plan after finalization replays", () => {
     const ownerQuestionQueue = new OwnerQuestionQueue(
-      join(scopeDir, ".kota", "owner-questions"),
+      join(scopeRoot, ".kota", "owner-questions"),
     );
     const openedReview = buildAutonomyHealthReviewFromSignals({
       signals: [signal("workflow:builder:runtime-failure", "present")],
       generatedAt: NOW,
       sourceEventName: "autonomy.runtime-health.audit",
       reason: "fixture setup",
+      scopeId: SCOPE_ID,
     });
     let currentProjection = emptyAutonomyIssueProjection();
     const opened = finalizeAutonomyHealthReviewActions({
       currentProjection,
-      scopeDir,
+      scopeRoot,
       ownerQuestionQueue,
       review: openedReview,
       repositoryActions: stageAutonomyHealthReviewActions({
-        projectDir: sandboxDir,
+        workspaceRoot: sandboxDir,
         currentProjection,
-        scopeDir,
+        scopeRoot,
         review: openedReview,
       }),
     });
@@ -103,7 +104,7 @@ describe("autonomy health review publication", () => {
     mkdirSync(sandboxDir, { recursive: true });
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: sandboxDir });
     const task = materializeGeneratedWorkProposal({
-      projectDir: sandboxDir,
+      workspaceRoot: sandboxDir,
       proposal: {
         kind: "task",
         proposalKey: `autonomy-issue:${issueKey}`,
@@ -130,14 +131,15 @@ describe("autonomy health review publication", () => {
       generatedAt: "2026-08-25T10:05:00.000Z",
       sourceEventName: "autonomy.runtime-health.audit",
       reason: "fixture publication",
+      scopeId: SCOPE_ID,
     });
     const repositoryActions = stageAutonomyHealthReviewActions({
-      projectDir: sandboxDir,
+      workspaceRoot: sandboxDir,
       currentProjection,
-      scopeDir,
+      scopeRoot,
       review,
     });
-    const runDir = join(scopeDir, ".kota", "runs", "health-review-run");
+    const runDir = join(scopeRoot, ".kota", "runs", "health-review-run");
     writeAutonomyHealthReviewArtifact(runDir, {
       generatedAt: review.generatedAt,
       review,
@@ -148,7 +150,7 @@ describe("autonomy health review publication", () => {
     expect(existsSync(
       join(sandboxDir, "data", "tasks", "dropped", `${task.taskId}.md`),
     )).toBe(true);
-    expect(existsSync(join(scopeDir, "data", "tasks"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "data", "tasks"))).toBe(false);
     expect(currentProjection.issues[0]?.status).toBe(
       "needs-decision",
     );
@@ -159,13 +161,13 @@ describe("autonomy health review publication", () => {
     expect(ownerQuestionQueue.get(question.id)?.status).toBe("pending");
 
     const plan = planAutonomyHealthReviewPublication({
-      scopeDir,
+      scopeRoot,
       sourceRunId: "health-review-run",
       scopeId: SCOPE_ID,
       currentProjection,
     });
     const publication = publishAutonomyHealthReview({
-      scopeDir,
+      scopeRoot,
       sourceRunId: "health-review-run",
       scopeId: SCOPE_ID,
       currentProjection,
@@ -180,7 +182,7 @@ describe("autonomy health review publication", () => {
     expect(publication.result.attentionDigest).not.toBeNull();
 
     const replay = publishAutonomyHealthReview({
-      scopeDir,
+      scopeRoot,
       sourceRunId: "health-review-run",
       scopeId: SCOPE_ID,
       currentProjection,

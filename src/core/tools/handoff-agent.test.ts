@@ -15,23 +15,23 @@ import { setDelegateConfig } from "./delegate-config.js";
 import { runHandoffAgent } from "./handoff-agent.js";
 import { withHandoffAgentRuntime } from "./handoff-agent-runtime.js";
 
-function initGit(projectDir: string): void {
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: projectDir });
-  execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: projectDir });
-  writeFileSync(join(projectDir, "seed.txt"), "seed\n");
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
-  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+function initGit(scopeRoot: string): void {
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
+  execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: scopeRoot });
+  writeFileSync(join(scopeRoot, "seed.txt"), "seed\n");
+  execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
+  execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
 }
 
-function scopeInput(projectDir: string): { scope_id: string; project_id: string } {
-  const scopeId = deriveDirectoryScopeId(projectDir);
-  return { scope_id: scopeId, project_id: scopeId };
+function scopeInput(scopeRoot: string): { scope_id: string } {
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
+  return { scope_id: scopeId };
 }
 
 describe("handoff_agent", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let reviewer: AgentDef;
   let receivedOptions: AgentHarnessRunOptions[];
   const delegateModelProvider = {
@@ -41,10 +41,10 @@ describe("handoff_agent", () => {
   };
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "reviewer.md"), "Reviewer prompt.\n");
-    initGit(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-agent-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "reviewer.md"), "Reviewer prompt.\n");
+    initGit(scopeRoot);
     reviewer = {
       name: "reviewer",
       role: "Review structured handoff work.",
@@ -81,7 +81,7 @@ describe("handoff_agent", () => {
     setDelegateConfig({
       model: "unused",
       modelProvider: delegateModelProvider,
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: "handoff-test",
       resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
       resolveSkillsPrompt: () => "Skill prompt.",
@@ -89,20 +89,19 @@ describe("handoff_agent", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     clearAgentHarnessRegistryForTest();
     setDelegateConfig({ model: "gpt-5.6-sol" });
   });
 
   it("dispatches a registered agent with trace links, workflow metadata, and validated structured output", async () => {
-    const scope = scopeInput(projectDir);
+    const scope = scopeInput(scopeRoot);
     const workflowMetadata = {
       workflowName: "builder",
       runId: "run-observable",
       stepId: "build",
       spanId: "run-observable:build",
       scopeId: scope.scope_id,
-      projectId: scope.project_id,
     };
 
     const result = await runHandoffAgent(
@@ -180,7 +179,7 @@ describe("handoff_agent", () => {
 
     const result = await withHandoffAgentRuntime(
       {
-        cwd: projectDir,
+        cwd: scopeRoot,
         harness: "handoff-test",
         resolveAgentDef: (name) => (name === reviewer.name ? reviewer : undefined),
         modelProvider: scopedModelProvider,
@@ -194,7 +193,7 @@ describe("handoff_agent", () => {
           reason: "Need specialist review.",
           autonomy_mode: "autonomous",
           budget: { max_turns: 3 },
-          scope: scopeInput(projectDir),
+          scope: scopeInput(scopeRoot),
         }),
     );
 
@@ -211,7 +210,7 @@ describe("handoff_agent", () => {
       reason: "Prove an empty allowlist cannot mean unrestricted.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
       allowed_tools: [],
     });
 
@@ -223,38 +222,37 @@ describe("handoff_agent", () => {
   });
 
   it("uses the runner context cwd for approved selected-project handoffs", async () => {
-    const selectedProjectDir = mkdtempSync(join(tmpdir(), "kota-handoff-selected-project-"));
-    mkdirSync(join(selectedProjectDir, "agents"), { recursive: true });
-    writeFileSync(join(selectedProjectDir, "agents", "reviewer.md"), "Selected project prompt.\n");
-    initGit(selectedProjectDir);
-    const selectedScope = scopeInput(selectedProjectDir);
+    const selectedScopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-selected-project-"));
+    mkdirSync(join(selectedScopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(selectedScopeRoot, "agents", "reviewer.md"), "Selected scope prompt.\n");
+    initGit(selectedScopeRoot);
+    const selectedScope = scopeInput(selectedScopeRoot);
 
     try {
       const result = await runHandoffAgent(
         {
           agent: "reviewer",
           mode: "call",
-          input: { task: "Review the selected project." },
+          input: { task: "Review the selected scope." },
           reason: "Approved selected-project handoff.",
           autonomy_mode: "autonomous",
           budget: { max_turns: 3 },
           scope: selectedScope,
         },
         {
-          cwd: selectedProjectDir,
+          cwd: selectedScopeRoot,
           scopeId: selectedScope.scope_id,
-          projectId: selectedScope.project_id,
           sessionId: "session-b",
         },
       );
 
       expect(result.is_error).toBeUndefined();
       expect(receivedOptions).toHaveLength(1);
-      expect(receivedOptions[0].cwd).toBe(selectedProjectDir);
-      expect(receivedOptions[0].systemPrompt).toContain("Selected project prompt.");
+      expect(receivedOptions[0].cwd).toBe(selectedScopeRoot);
+      expect(receivedOptions[0].systemPrompt).toContain("Selected scope prompt.");
       expect(receivedOptions[0].systemPrompt).not.toContain("Reviewer prompt.");
     } finally {
-      rmSync(selectedProjectDir, { recursive: true, force: true });
+      rmSync(selectedScopeRoot, { recursive: true, force: true });
     }
   });
 
@@ -266,7 +264,7 @@ describe("handoff_agent", () => {
       reason: "Need passive specialist review.",
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBeUndefined();
@@ -291,7 +289,7 @@ describe("handoff_agent", () => {
       reason: "Need passive specialist review.",
       autonomy_mode: "passive",
       budget: { max_turns: 3 },
-      scope: scopeInput(projectDir),
+      scope: scopeInput(scopeRoot),
     });
 
     expect(result.is_error).toBe(true);

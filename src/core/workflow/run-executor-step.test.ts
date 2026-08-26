@@ -127,7 +127,8 @@ describe("executeWorkflowStep — costUsd capture", () => {
   const trigger = { event: "runtime.idle" as const, schemaRef: null, payload: {} };
 
   const context = {
-    projectDir: "/tmp",
+    workspaceRoot: "/tmp",
+    scopeRoot: "/tmp",
     workflow: { name: "test-wf", runId: "run-cost-01", runDir: ".kota/runs/run-cost-01", definitionPath: "src/modules/test/workflows/test/workflow.ts" },
     trigger,
     previousOutput: undefined,
@@ -144,11 +145,15 @@ describe("executeWorkflowStep — costUsd capture", () => {
   const bus = { emit: vi.fn() } as any;
   const pbus = {
     emit: bus.emit,
-    getScopeId: () => "test-project",
-    getProjectId: () => "test-project",
+    getScopeId: () => "test-scope",
   } as any;
   const log = vi.fn();
-  const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
+  const agentConfig = {
+    config: {},
+    log,
+    workspaceRoot: "/tmp",
+    scopeRoot: "/tmp",
+  } as any;
   it("captures costUsd from agent step output onto WorkflowStepResult", async () => {
     const agentOutput = { content: "done", totalCostUsd: 0.42, turns: 3 };
     executeStepMock.mockResolvedValueOnce({
@@ -193,7 +198,7 @@ describe("executeWorkflowStep — costUsd capture", () => {
         sessionId: expect.stringMatching(/^workflow:/),
       });
       registerSessionEnvironmentResource(
-        { ...toolContext, scopeId: "test-project", projectId: "test-project" },
+        { ...toolContext, scopeId: "test-scope" },
         cleanup,
       );
       return { content: "ok" };

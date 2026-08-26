@@ -63,10 +63,10 @@ describe("api client", () => {
     });
 
     const { api } = await import("./client");
-    await api.pauseWorkflow("project-a");
+    await api.pauseWorkflow("scope-a");
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/workflow/pause?projectId=project-a",
+      "/api/workflow/pause?scopeId=scope-a",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -137,7 +137,7 @@ describe("api client", () => {
     });
   });
 
-  it("binds every approval request to the selected project", async () => {
+  it("binds every approval request to the selected scope", async () => {
     Object.defineProperty(window, "location", {
       value: { search: "", pathname: "/", hash: "" },
       writable: true,
@@ -149,22 +149,22 @@ describe("api client", () => {
 
     const { api } = await import("./client");
     const digest = "a".repeat(64);
-    await api.listApprovals("project one");
-    await api.approveApproval("project one", "approval/one", digest);
-    await api.rejectApproval("project one", "approval/two", "unsafe");
-    await api.approveAll("project one", [{ id: "approval-three", digest }]);
-    await api.rejectAll("project one", "cancel batch");
+    await api.listApprovals("scope one");
+    await api.approveApproval("scope one", "approval/one", digest);
+    await api.rejectApproval("scope one", "approval/two", "unsafe");
+    await api.approveAll("scope one", [{ id: "approval-three", digest }]);
+    await api.rejectAll("scope one", "cancel batch");
 
     expect(
       (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
         ([path]) => path,
       ),
     ).toEqual([
-      "/api/approvals?projectId=project%20one",
-      "/api/approvals/approval%2Fone/approve?projectId=project%20one",
-      "/api/approvals/approval%2Ftwo/reject?projectId=project%20one",
-      "/api/approvals/approve-all?projectId=project%20one",
-      "/api/approvals/reject-all?projectId=project%20one",
+      "/api/approvals?scopeId=scope%20one",
+      "/api/approvals/approval%2Fone/approve?scopeId=scope%20one",
+      "/api/approvals/approval%2Ftwo/reject?scopeId=scope%20one",
+      "/api/approvals/approve-all?scopeId=scope%20one",
+      "/api/approvals/reject-all?scopeId=scope%20one",
     ]);
   });
 
@@ -228,7 +228,7 @@ describe("api client", () => {
         "/identity",
         expect.any(Object),
       );
-      expect(result.projectName).toBe("kota");
+      expect(result.scopeName).toBe("kota");
       if (!result.dashboard.available) {
         throw new Error("expected dashboard.available=true");
       }

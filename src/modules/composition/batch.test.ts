@@ -78,9 +78,8 @@ describe("runBatch execution", () => {
 
 	it("passes runner context through to delegated tasks", async () => {
 		const context: ToolRunnerContext = {
-			cwd: "/tmp/project-b",
-			scopeId: "project-b",
-			projectId: "project-b",
+			cwd: "/tmp/scope-b",
+			scopeId: "scope-b",
 			sessionId: "session-b",
 		};
 		mockDelegate.mockResolvedValue({ content: "done" });

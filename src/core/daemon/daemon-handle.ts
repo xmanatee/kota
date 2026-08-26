@@ -13,7 +13,7 @@ import type {
   DaemonControlHandle,
   InteractiveSession,
   ModuleHealthCheckResult,
-  SetActiveProjectResult,
+  SetActiveScopeResult,
 } from "./daemon-control-types.js";
 import { buildDaemonConfigReloadHandle } from "./daemon-handle-config-reload.js";
 import { buildDaemonRunHandle } from "./daemon-handle-runs.js";
@@ -21,7 +21,6 @@ import { buildDaemonWorkflowHandle } from "./daemon-handle-workflows.js";
 import { buildDaemonHealthStatus } from "./daemon-health.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { EventLoopLatencySnapshot } from "./event-loop-latency.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type {
   ScopeAuthorityOperatorAction,
   ScopeAuthorityOperatorRequest,
@@ -35,11 +34,11 @@ import {
   type ScopePolicyRouteResponse,
 } from "./scope-policy.js";
 import type {
-  ProjectId,
-  ProjectRegistryProjection,
+  ScopeId,
   ScopeRegistry,
   ScopeRegistryProjection,
 } from "./scope-registry.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 export type DaemonHandleContext = {
   getState: () => DaemonState;
@@ -48,12 +47,12 @@ export type DaemonHandleContext = {
   bus: EventBus;
   sessions: Map<string, InteractiveSession>;
   runStore: WorkflowRunStore;
-  projectDir: string;
-  projectRegistry: ScopeRegistry;
+  scopeRoot: string;
+  scopeRegistry: ScopeRegistry;
   scopeAuthority?: ScopeAuthorityService;
   scopeAuthorityOperatorVerifier?: ScopeAuthorityOperatorTokenVerifier;
-  projectRuntimes: ProjectRuntimeRegistry;
-  getScopeHostingState: (scopeId: ProjectId) => ScopeHostingState;
+  scopeRuntimes: ScopeRuntimeRegistry;
+  getScopeHostingState: (scopeId: ScopeId) => ScopeHostingState;
   config: DaemonConfig;
   refreshLiveSessionGuardrails: (config: GuardrailsConfig) => {
     refreshed: number;
@@ -68,30 +67,30 @@ export type DaemonHandleContext = {
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
-  const { sessions, projectDir, projectRegistry, projectRuntimes, config, bus } = ctx;
+  const { sessions, scopeRoot, scopeRegistry, scopeRuntimes, config, bus } = ctx;
   const setupService = new ModuleSetupService({
-    projectDir,
+    scopeRoot,
     ...(config.authorityConfigPath !== undefined
       ? { authorityConfigPath: config.authorityConfigPath }
       : {}),
     getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
     probeCapabilities: async () => (await ctx.probeCapabilityReadiness()).capabilities,
     getVisibility: () => {
-      const runtime = projectRuntimes.getDefault();
+      const runtime = scopeRuntimes.getDefault();
       if (!runtime.scopePolicyAuthority) {
         throw new Error("Scope policy authority is unavailable for the default runtime");
       }
-      return runtime.scopePolicyAuthority.getSnapshot(runtime.project.projectId).policy.setup
+      return runtime.scopePolicyAuthority.getSnapshot(runtime.scope.scopeId).policy.setup
         .visibility;
     },
   });
-  let activeProjectId: ProjectId | null = null;
-  const lookupRuntime = (projectId?: ProjectId): ProjectRuntime =>
-    projectId === undefined ? projectRuntimes.getDefault() : projectRuntimes.get(projectId);
+  let activeScopeId: ScopeId | null = null;
+  const lookupRuntime = (scopeId?: ScopeId): ScopeRuntime =>
+    scopeId === undefined ? scopeRuntimes.getDefault() : scopeRuntimes.get(scopeId);
   const getUnavailableScopeState = (
-    projectId: ProjectId,
+    scopeId: ScopeId,
   ): Exclude<ScopeHostingState, "hosted"> | null => {
-    const state = ctx.getScopeHostingState(projectId);
+    const state = ctx.getScopeHostingState(scopeId);
     return state === "hosted" ? null : state;
   };
 
@@ -114,11 +113,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       setupService.refresh(moduleName, requirementId),
     revokeModuleSetup: (moduleName, requirementId) =>
       setupService.revoke(moduleName, requirementId),
-    getProjectRegistryProjection: (): ProjectRegistryProjection => projectRegistry.toProjection(),
-    getScopeRegistryProjection: (): ScopeRegistryProjection => projectRegistry.toScopeProjection(),
-    getScopeHostingState: (scopeId: ProjectId) => ctx.getScopeHostingState(scopeId),
-    hasScope: (scopeId: string) =>
-      projectRegistry.toScopeProjection().scopes.some((scope) => scope.scopeId === scopeId),
+    getScopeRegistryProjection: (): ScopeRegistryProjection => scopeRegistry.toProjection(),
+    getScopeHostingState: (scopeId: ScopeId) => ctx.getScopeHostingState(scopeId),
     getScopePolicy: (scopeId: string): ScopePolicyRouteResponse => {
       if (!ctx.scopeAuthority) throw new Error("Scope policy authority is unavailable");
       const snapshot = ctx.scopeAuthority.getSnapshot(scopeId);
@@ -143,33 +139,33 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         suppliedProof: string | undefined,
       ) => ctx.scopeAuthorityOperatorVerifier?.authorize(request, suppliedProof),
     } : {}),
-    hasProject: (projectId: string) =>
-      projectRegistry.get(projectId) !== undefined
-      && getUnavailableScopeState(projectId) === null,
-    getActiveProjectId: (): ProjectId | null => {
+    hasScope: (scopeId: string) =>
+      scopeRegistry.get(scopeId) !== undefined
+      && getUnavailableScopeState(scopeId) === null,
+    getActiveScopeId: (): ScopeId | null => {
       if (
-        activeProjectId !== null
+        activeScopeId !== null
         && (
-          projectRegistry.get(activeProjectId) === undefined
-          || getUnavailableScopeState(activeProjectId) !== null
+          scopeRegistry.get(activeScopeId) === undefined
+          || getUnavailableScopeState(activeScopeId) !== null
         )
       ) {
-        activeProjectId = null;
+        activeScopeId = null;
       }
-      return activeProjectId;
+      return activeScopeId;
     },
-    setActiveProjectId: (next: ProjectId | null): SetActiveProjectResult => {
+    setActiveScopeId: (next: ScopeId | null): SetActiveScopeResult => {
       if (next === null) {
-        activeProjectId = null;
-        return { ok: true, activeProjectId: null };
+        activeScopeId = null;
+        return { ok: true, activeScopeId: null };
       }
-      if (projectRegistry.get(next) === undefined) {
-        return { ok: false, reason: "not_found", projectId: next };
+      if (scopeRegistry.get(next) === undefined) {
+        return { ok: false, reason: "not_found", scopeId: next };
       }
       const state = getUnavailableScopeState(next);
-      if (state !== null) return { ok: false, reason: "not_hosted", projectId: next, state };
-      activeProjectId = next;
-      return { ok: true, activeProjectId: next };
+      if (state !== null) return { ok: false, reason: "not_hosted", scopeId: next, state };
+      activeScopeId = next;
+      return { ok: true, activeScopeId: next };
     },
     ...buildDaemonWorkflowHandle(ctx, lookupRuntime, getUnavailableScopeState),
     ...buildDaemonConfigReloadHandle(ctx),
@@ -220,26 +216,26 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     },
     ...buildDaemonRunHandle(lookupRuntime),
     listDeadLetters: (opts) => {
-      const runtime = lookupRuntime(opts?.projectId);
+      const runtime = lookupRuntime(opts?.scopeId);
       return {
         items: runtime.deadLetterQueue.list({
           status: opts?.status,
           type: opts?.type,
           workflowName: opts?.workflowName,
           limit: opts?.limit,
-          scopeId: runtime.project.projectId,
+          scopeId: runtime.scope.scopeId,
         }),
-        counts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+        counts: runtime.deadLetterQueue.counts(runtime.scope.scopeId),
       };
     },
-    getDeadLetter: (id: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).deadLetterQueue.get(id),
-    dismissDeadLetter: (id: string, reason: string, projectId?: ProjectId) => {
-      const item = lookupRuntime(projectId).deadLetterQueue.dismiss(id, reason);
+    getDeadLetter: (id: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).deadLetterQueue.get(id),
+    dismissDeadLetter: (id: string, reason: string, scopeId?: ScopeId) => {
+      const item = lookupRuntime(scopeId).deadLetterQueue.dismiss(id, reason);
       return item ? { ok: true, item } : { ok: false, reason: "not_found" };
     },
-    redriveDeadLetter: (id, reason, target, projectId) => {
-      const runtime = lookupRuntime(projectId);
+    redriveDeadLetter: (id, reason, target, scopeId) => {
+      const runtime = lookupRuntime(scopeId);
       const result = runtime.workflowRuntime.redriveDeadLetter(id, reason, target);
       const item = runtime.deadLetterQueue.get(id);
       if (!result.ok) return { ok: false, reason: result.reason ?? "not_found" };
@@ -252,43 +248,42 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         ...(result.event !== undefined ? { event: result.event } : {}),
       };
     },
-    exportDeadLetterDiagnostics: (id: string, projectId?: ProjectId) =>
-      lookupRuntime(projectId).deadLetterQueue.diagnostics(id),
-    registerSession: (id, createdAt, autonomyMode, projectId) => {
-      const resolvedProjectId = projectId ?? projectRegistry.getDefaultProjectId();
-      const state = getUnavailableScopeState(resolvedProjectId);
+    exportDeadLetterDiagnostics: (id: string, scopeId?: ScopeId) =>
+      lookupRuntime(scopeId).deadLetterQueue.diagnostics(id),
+    registerSession: (id, createdAt, autonomyMode, scopeId) => {
+      const resolvedScopeId = scopeId ?? scopeRegistry.getDefaultScopeId();
+      const state = getUnavailableScopeState(resolvedScopeId);
       if (state !== null) {
         return {
           ok: false,
           reason: "scope_not_hosted",
-          scopeId: resolvedProjectId,
+          scopeId: resolvedScopeId,
           state,
         };
       }
       sessions.set(id, {
         id,
-        scopeId: resolvedProjectId,
-        projectId: resolvedProjectId,
+        scopeId: resolvedScopeId,
         createdAt,
         lastActive: Date.now(),
         autonomyMode,
         source: "serve",
       });
-      lookupRuntime(resolvedProjectId).pbus.emit("session.registered", {
+      lookupRuntime(resolvedScopeId).pbus.emit("session.registered", {
         id,
         createdAt,
         autonomyMode,
       });
-      return { ok: true, scopeId: resolvedProjectId };
+      return { ok: true, scopeId: resolvedScopeId };
     },
     unregisterSession: (id: string) => {
       const session = sessions.get(id);
       if (!session) return;
       sessions.delete(id);
-      lookupRuntime(session.projectId).pbus.emit("session.unregistered", { id });
+      lookupRuntime(session.scopeId).pbus.emit("session.unregistered", { id });
     },
-    listSessions: (projectId?: ProjectId) => [...sessions.values()].filter(
-      (session) => projectId === undefined || session.projectId === projectId,
+    listSessions: (scopeId?: ScopeId) => [...sessions.values()].filter(
+      (session) => scopeId === undefined || session.scopeId === scopeId,
     ),
     setSessionAutonomyMode: (id: string, mode: AutonomyMode) => {
       const session = sessions.get(id);

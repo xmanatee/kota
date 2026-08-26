@@ -32,11 +32,9 @@ export type AutonomyHealthReview = {
     groupingKey?: string;
     reason?: string;
     scopeId?: string;
-    projectId?: string;
   };
   scope: {
     scopeId?: string;
-    projectId?: string;
   };
   signals: AutonomyHealthSignal[];
   groups: AutonomyHealthReviewGroup[];

@@ -91,7 +91,6 @@ export function completionEnvelope(
     eventId: row.eventId,
     payload: {
       scopeId,
-      projectId: scopeId,
       workflow: row.workflow,
       runId: row.runId,
       status: row.status,
@@ -165,10 +164,10 @@ export function asOpenDeadLetter(
 }
 
 export function writeDeadLetterSnapshot(
-  projectDir: string,
+  workspaceRoot: string,
   items: DeadLetterItem[],
 ): void {
-  const dir = join(projectDir, ".kota", "dead-letter-queue");
+  const dir = join(workspaceRoot, ".kota", "dead-letter-queue");
   mkdirSync(dir, { recursive: true });
   const replayItems = items.map((item) => ({
     ...item,

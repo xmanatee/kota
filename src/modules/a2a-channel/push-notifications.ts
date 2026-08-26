@@ -26,7 +26,6 @@ import type {
 import {
   DEFAULT_PUSH_NOTIFICATION_PAGE_SIZE,
   MAX_PUSH_NOTIFICATION_PAGE_SIZE,
-  projectIdFromTaskMetadata,
   pushConfigMatchesFilter,
   pushConfigMatchesSelector,
   pushNotificationPageStart,
@@ -34,6 +33,7 @@ import {
   readStoredPushNotificationConfigs,
   redactPushNotificationConfig,
   type StoredPushNotificationConfig,
+  scopeIdFromTaskMetadata,
   writeStoredPushNotificationConfigs,
 } from "./push-notification-storage.js";
 
@@ -75,7 +75,7 @@ export class A2APushNotificationManager {
       id,
       taskId: input.taskId,
       contextId: task.contextId,
-      projectId: input.projectId ?? projectIdFromTaskMetadata(task.metadata),
+      scopeId: input.scopeId ?? scopeIdFromTaskMetadata(task.metadata),
       url: input.url,
       token: input.token,
       authentication: input.authentication,
@@ -93,7 +93,7 @@ export class A2APushNotificationManager {
     this.ensureSubscription(backend, {
       taskId: task.id,
       contextId: task.contextId,
-      projectId: projectIdFromTaskMetadata(task.metadata),
+      scopeId: scopeIdFromTaskMetadata(task.metadata),
     });
   }
 
@@ -252,7 +252,7 @@ export class A2APushNotificationManager {
       selectors.set(key, {
         taskId: config.taskId,
         contextId: config.contextId,
-        projectId: config.projectId,
+        scopeId: config.scopeId,
       });
     }
     return [...selectors.values()];
@@ -278,7 +278,7 @@ function configMatchesTaskScope(
   selector: TaskSelector,
 ): boolean {
   if (config.taskId !== selector.taskId) return false;
-  if (selector.projectId !== null && config.projectId !== selector.projectId) return false;
+  if (selector.scopeId !== null && config.scopeId !== selector.scopeId) return false;
   if (selector.contextId !== null && config.contextId !== selector.contextId) return false;
   return true;
 }

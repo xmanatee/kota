@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import {
-  createProjectRuntime,
-  type ProjectRuntime,
-  type ProjectRuntimeFactoryOptions,
-} from "#core/daemon/project-runtime.js";
+  createScopeRuntime,
+  type ScopeRuntime,
+  type ScopeRuntimeFactoryOptions,
+} from "#core/daemon/scope-runtime.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 
@@ -12,29 +12,29 @@ export {
   type TestWorkflowRuntime,
 } from "#core/workflow/testing/runtime-fixture.js";
 
-function initializeRunState(projectDir: string, projectId: string) {
-  const runState = new RunStateDatabase(join(projectDir, ".kota"));
+function initializeRunState(scopeRoot: string, scopeId: string) {
+  const runState = new RunStateDatabase(join(scopeRoot, ".kota"));
   const startedAt = new Date().toISOString();
-  runState.registerProject({
-    id: projectId,
-    rootPath: projectDir,
+  runState.registerScope({
+    id: scopeId,
+    rootPath: scopeRoot,
     createdAt: startedAt,
   });
   const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
   return { runState, daemonEpoch };
 }
 
-export function createTestProjectRuntime(
+export function createTestScopeRuntime(
   options: Omit<
-    ProjectRuntimeFactoryOptions,
+    ScopeRuntimeFactoryOptions,
     "runState" | "runCoordinator" | "daemonEpoch"
   >,
-): ProjectRuntime {
+): ScopeRuntime {
   const { runState, daemonEpoch } = initializeRunState(
-    options.project.projectDir,
-    options.project.projectId,
+    options.scope.scopeRoot,
+    options.scope.scopeId,
   );
-  let runtime!: ProjectRuntime;
+  let runtime!: ScopeRuntime;
   const runCoordinator = new RunCoordinator({
     store: runState,
     daemonEpoch,
@@ -43,7 +43,7 @@ export function createTestProjectRuntime(
     deliverPublication: (publication) =>
       runtime.workflowRuntime.deliverPublication(publication),
   });
-  runtime = createProjectRuntime({
+  runtime = createScopeRuntime({
     ...options,
     runState,
     runCoordinator,

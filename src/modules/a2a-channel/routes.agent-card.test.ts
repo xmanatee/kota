@@ -64,7 +64,7 @@ describe("a2a channel Agent Card routes", () => {
     expect(unscopedExtended.supportedInterfaces).toEqual(card.supportedInterfaces);
     expect(unscopedExtended.supportedInterfaces[0].tenant).toBeUndefined();
 
-    const scopedExtended = await fetch(`${server.baseUrl}${A2A_EXTENDED_CARD_PATH}?projectId=proj-1`);
+    const scopedExtended = await fetch(`${server.baseUrl}${A2A_EXTENDED_CARD_PATH}?scopeId=proj-1`);
     expect(scopedExtended.headers.get("cache-control")).toBe("no-store");
     expect((await scopedExtended.json()).supportedInterfaces).toEqual([
       {

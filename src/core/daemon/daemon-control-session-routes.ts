@@ -12,20 +12,20 @@ import {
 import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
 import { handleRegisterSession, handleUnregisterSession } from "./daemon-control-sessions.js";
 import type { InteractiveSession } from "./daemon-control-types.js";
-import { jsonResponse, resolveProjectIdParam } from "./daemon-control-utils.js";
-import type { ProjectId } from "./scope-registry.js";
+import { jsonResponse, resolveScopeIdParam } from "./daemon-control-utils.js";
+import type { ScopeId } from "./scope-registry.js";
 
 function listInteractiveSessions(
   deps: BuiltinControlRouteDeps,
-  projectId: ProjectId | undefined,
+  scopeId: ScopeId | undefined,
 ): InteractiveSession[] {
   const { handle, chatPool } = deps;
-  const resolvedProjectId = projectId ?? handle.getProjectRegistryProjection().defaultProjectId;
-  if (!chatPool) return handle.listSessions(resolvedProjectId);
-  const daemonEntries = chatPool.list(resolvedProjectId);
+  const resolvedScopeId = scopeId ?? handle.getScopeRegistryProjection().defaultScopeId;
+  if (!chatPool) return handle.listSessions(resolvedScopeId);
+  const daemonEntries = chatPool.list(resolvedScopeId);
   const daemonIds = new Set(daemonEntries.map((session) => session.id));
   const serveSessions = handle
-    .listSessions(resolvedProjectId)
+    .listSessions(resolvedScopeId)
     .filter((session) => !daemonIds.has(session.id))
     .map((session) => ({ ...session, source: "serve" as const }));
   return [...serveSessions, ...daemonEntries];
@@ -33,11 +33,11 @@ function listInteractiveSessions(
 
 function listDaemonChatBindings(
   chatBindings: DaemonChatBindingStore,
-  projectId: ProjectId | undefined,
+  scopeId: ScopeId | undefined,
 ) {
   return chatBindings
     .list()
-    .filter((binding) => projectId === undefined || binding.projectId === projectId);
+    .filter((binding) => scopeId === undefined || binding.scopeId === scopeId);
 }
 
 function unavailableChatPool(res: Parameters<ControlRouteRegistration["handler"]>[1]): void {
@@ -61,12 +61,12 @@ export function buildDaemonSessionControlRoutes(
       path: "/sessions",
       capabilityScope: "read",
       handler: (req, res) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
-        jsonResponse(res, 200, { sessions: listInteractiveSessions(deps, scope.projectId) });
+        jsonResponse(res, 200, { sessions: listInteractiveSessions(deps, scope.scopeId) });
       },
     },
     {
@@ -78,12 +78,12 @@ export function buildDaemonSessionControlRoutes(
           jsonResponse(res, 503, { error: "Daemon chat session bindings not available" });
           return;
         }
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
-        jsonResponse(res, 200, { bindings: listDaemonChatBindings(chatBindings, scope.projectId) });
+        jsonResponse(res, 200, { bindings: listDaemonChatBindings(chatBindings, scope.scopeId) });
       },
     },
     {
@@ -95,12 +95,12 @@ export function buildDaemonSessionControlRoutes(
           unavailableChatPool(res);
           return;
         }
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
-        const projectId = scope.projectId ?? h.getProjectRegistryProjection().defaultProjectId;
+        const scopeId = scope.scopeId ?? h.getScopeRegistryProjection().defaultScopeId;
         return handleCreateDaemonSession(
           chatPool,
           chatBindings,
@@ -108,13 +108,13 @@ export function buildDaemonSessionControlRoutes(
           res,
           makeAgent,
           defaultAutonomyMode,
-          projectId,
+          scopeId,
           conversationResolver,
           () => {
-            const state = h.getScopeHostingState(projectId);
+            const state = h.getScopeHostingState(scopeId);
             return state === "hosted"
               ? { ok: true }
-              : { ok: false, reason: "scope_not_hosted", scopeId: projectId, state };
+              : { ok: false, reason: "scope_not_hosted", scopeId: scopeId, state };
           },
         );
       },

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -11,7 +11,7 @@ import { isProcessAlive } from "#core/util/process-alive.js";
  * simply fall back to local handlers when the published pid is dead.
  */
 export function readLiveDaemonControlAddress(stateDir?: string): DaemonControlAddress | null {
-  const dir = stateDir ?? join(resolveProjectDir(), ".kota");
+  const dir = stateDir ?? join(resolveScopeRoot(), ".kota");
   const address = readOptionalJsonFile<DaemonControlAddress>(join(dir, "daemon-control.json"));
   if (!address || typeof address.port !== "number" || typeof address.pid !== "number" || !isProcessAlive(address.pid)) {
     return null;

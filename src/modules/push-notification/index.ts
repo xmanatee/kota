@@ -50,7 +50,7 @@ const pushNotificationModule: KotaModule = {
       {
         id: "push-notification.tokens",
         description: "Register mobile-client Expo push tokens through the daemon-control route.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["channels", "retention"],
       },
       {
@@ -63,9 +63,9 @@ const pushNotificationModule: KotaModule = {
     dataClasses: [
       {
         id: "push-notification.tokens",
-        description: "Expo push tokens and device ids persisted under the project runtime directory.",
+        description: "Expo push tokens and device ids persisted under the scope runtime directory.",
         sensitivity: "personal",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "metadata-only",
       },
       {

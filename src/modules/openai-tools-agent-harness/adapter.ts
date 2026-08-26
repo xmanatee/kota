@@ -24,7 +24,7 @@ import {
 import {
   type executeOpenaiToolCalls,
   initializeMcpManager,
-  resolveProjectDir,
+  resolveScopeRoot,
   snapshotMcpToolDeclarationFingerprints,
   toolResultEntryToBlock,
 } from "./adapter-runtime.js";
@@ -95,13 +95,13 @@ export async function runOpenaiToolsLoop(
   const mcpManager = await initializeMcpManager(options);
   try {
     const system = mode.systemPrompt(options.systemPrompt);
-    const projectDir = resolveProjectDir(options);
+    const scopeRoot = resolveScopeRoot(options);
     const resolved = createModelClient({
       model: options.model,
       provider: options.modelProvider?.provider,
       baseUrl: options.modelProvider?.baseUrl,
       apiKey: options.modelProvider?.apiKey,
-      projectDir,
+      scopeRoot: scopeRoot,
     });
     const outputTokenLimit = resolveModelOutputTokenLimit(
       resolved.model,
@@ -110,7 +110,7 @@ export async function runOpenaiToolsLoop(
     const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
     const sessionRuntime = createOpenaiToolsSessionRuntime({
       options,
-      projectDir,
+      scopeRoot: scopeRoot,
       resolved,
       outputTokenLimit,
     });
@@ -259,7 +259,7 @@ export async function runOpenaiToolsLoop(
         toolResults = await mode.executeTools(toolBlocks, options, {
           mcpManager,
           mcpPromptToolDeclarationFingerprints,
-          projectDir,
+          scopeRoot: scopeRoot,
           abortSignal,
           messages,
         });

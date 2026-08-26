@@ -3,7 +3,7 @@
  * or `push-tokens.ts` under `src/core/daemon/`.
  *
  * The push-notification module owns the `POST /push-tokens` route, the
- * `<projectDir>/.kota/push-tokens.json` store, the Expo Push API delivery,
+ * `<scopeRoot>/.kota/push-tokens.json` store, the Expo Push API delivery,
  * and the `approval.requested` bus subscription via
  * `KotaModule.controlRoutes` and `onLoad` (see
  * `src/modules/push-notification/`). A regression that smuggles a core-

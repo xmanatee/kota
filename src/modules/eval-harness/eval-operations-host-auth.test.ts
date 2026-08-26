@@ -6,19 +6,19 @@ import "../codex-agent-harness/index.js";
 import { executorExtraEnvForRun } from "./eval-run-execution.js";
 
 describe("eval harness trusted-host auth environment", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-eval-host-auth-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-eval-host-auth-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("preserves the active Codex login locator without restoring operator HOME", () => {
     const env = executorExtraEnvForRun(
-      projectDir,
+      workspaceRoot,
       { kind: "host-subprocess" },
       {
         HOME: "/operator",
@@ -35,7 +35,7 @@ describe("eval harness trusted-host auth environment", () => {
 
   it("resolves the OS account login when the Runtime Probe strips HOME", () => {
     const env = executorExtraEnvForRun(
-      projectDir,
+      workspaceRoot,
       { kind: "host-subprocess" },
       {
         KOTA_PRESET: "codex",
@@ -50,7 +50,7 @@ describe("eval harness trusted-host auth environment", () => {
 
   it("does not send a host login locator into a container", () => {
     const env = executorExtraEnvForRun(
-      projectDir,
+      workspaceRoot,
       {
         kind: "container",
         executable: "docker",

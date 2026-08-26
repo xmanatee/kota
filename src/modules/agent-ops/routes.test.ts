@@ -25,7 +25,7 @@ function makeRequest(): IncomingMessage {
 function makeSummary(): ModuleSummary {
   return {
     name: "autonomy",
-    source: "project",
+    source: "bundled",
     dependencies: [],
     toolNames: [],
     workflowNames: [],
@@ -80,7 +80,7 @@ describe("agentControlRoutes", () => {
     expect(body.agents[0]).toMatchObject({
       name: "builder",
       source: "autonomy",
-      moduleSource: "project",
+      moduleSource: "bundled",
       toolPolicy: { posture: "inherits-session" },
     });
   });

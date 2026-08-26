@@ -19,7 +19,7 @@ export function buildStatusUiSurface(
   snapshot: StatusSnapshot,
   options: { explain?: boolean; scopeId?: string } = {},
 ): UiSurface {
-  const scopeId = options.scopeId ?? snapshot.scopedProject?.projectId ?? `dir:${snapshot.projectDir}`;
+  const scopeId = options.scopeId ?? snapshot.selectedScope?.scopeId ?? `dir:${snapshot.scopeRoot}`;
   const actions = [
     action({
       surfaceId: "status",
@@ -124,7 +124,7 @@ function inboxSummaryEntries(snapshot: OperatorInboxSnapshot): UiStatusEntry[] {
 
 export function buildInboxUiSurface(
   snapshot: OperatorInboxSnapshot,
-  scopeId = `dir:${snapshot.projectDir}`,
+  scopeId = `dir:${snapshot.scopeRoot}`,
 ): UiSurface {
   const refresh = action({
     surfaceId: "inbox",
@@ -169,7 +169,7 @@ export function buildInboxUiSurface(
     ],
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: items.length === 0
-      ? [{ kind: "empty", title: "Operator inbox is clear", detail: snapshot.projectDir, action: refresh }]
+      ? [{ kind: "empty", title: "Operator inbox is clear", detail: snapshot.scopeRoot, action: refresh }]
       : [
           { kind: "status-summary", entries: inboxSummaryEntries(snapshot) },
           { kind: "list", title: "Attention items", items },

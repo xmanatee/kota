@@ -8,8 +8,8 @@ import type {
   WorkflowRunDetail,
   WorkflowRunSummary,
 } from "./daemon-control-types.js";
-import type { ProjectRuntime } from "./project-runtime.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
+import type { ScopeRuntime } from "./scope-runtime.js";
 
 type RunHandle = Pick<
   DaemonControlHandle,
@@ -17,10 +17,10 @@ type RunHandle = Pick<
 >;
 
 export function buildDaemonRunHandle(
-  lookupRuntime: (projectId?: ProjectId) => ProjectRuntime,
+  lookupRuntime: (scopeId?: ScopeId) => ScopeRuntime,
 ): RunHandle {
   const metricCountsCache = new Map<
-    ProjectId,
+    ScopeId,
     { value: WorkflowMetricCounts; at: number }
   >();
   return {
@@ -30,11 +30,11 @@ export function buildDaemonRunHandle(
         limit?: number;
         tag?: string;
         causedByRunId?: string;
-        projectId?: ProjectId;
+        scopeId?: ScopeId;
       },
     ): WorkflowRunSummary[] => {
-      const { workflow, limit, tag, causedByRunId, projectId } = opts ?? {};
-      const runStore = lookupRuntime(projectId).runStore;
+      const { workflow, limit, tag, causedByRunId, scopeId } = opts ?? {};
+      const runStore = lookupRuntime(scopeId).runStore;
       return runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((run) => ({
         id: run.id,
         workflow: run.workflow,
@@ -51,8 +51,8 @@ export function buildDaemonRunHandle(
         ...(run.tags && run.tags.length > 0 && { tags: run.tags }),
       }));
     },
-    getWorkflowRun: (id: string, projectId?: ProjectId): WorkflowRunDetail | null => {
-      const runStore = lookupRuntime(projectId).runStore;
+    getWorkflowRun: (id: string, scopeId?: ScopeId): WorkflowRunDetail | null => {
+      const runStore = lookupRuntime(scopeId).runStore;
       const run = runStore.getRun(id);
       if (!run) return null;
       const triggerPayload = Object.keys(run.trigger.payload).length > 0
@@ -99,15 +99,15 @@ export function buildDaemonRunHandle(
         }),
       };
     },
-    getWorkflowMetricCounts: (projectId?: ProjectId): WorkflowMetricCounts => {
-      const runtime = lookupRuntime(projectId);
-      const cacheKey = runtime.project.projectId;
+    getWorkflowMetricCounts: (scopeId?: ScopeId): WorkflowMetricCounts => {
+      const runtime = lookupRuntime(scopeId);
+      const cacheKey = runtime.scope.scopeId;
       const now = Date.now();
       const cached = metricCountsCache.get(cacheKey);
       if (cached && now - cached.at < 30_000) {
         return {
           ...cached.value,
-          deadLetterCounts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+          deadLetterCounts: runtime.deadLetterQueue.counts(runtime.scope.scopeId),
         };
       }
       const durationBucketsSeconds = [30, 120, 300, 900, 1800, 3600] as const;
@@ -170,7 +170,7 @@ export function buildDaemonRunHandle(
         runCounts,
         costTotals,
         durationHistogram,
-        deadLetterCounts: runtime.deadLetterQueue.counts(runtime.project.projectId),
+        deadLetterCounts: runtime.deadLetterQueue.counts(runtime.scope.scopeId),
       };
       metricCountsCache.set(cacheKey, { value: result, at: now });
       return result;

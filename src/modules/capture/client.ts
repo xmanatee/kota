@@ -91,7 +91,7 @@ export type CaptureFilter = ScopeSelector & {
  *   registered contributors. Mirrors recall's `semantic_unavailable`
  *   shape so callers can branch on "the seam is unconfigured".
  * - `ok: false, reason: "contributor_failed"` → the chosen contributor
- *   threw (e.g. inbox writer cannot reach the project root). The seam
+ *   threw (e.g. inbox writer cannot reach the scope root). The seam
  *   never silently retries into a different store.
  */
 export type CaptureResult =

@@ -4,7 +4,7 @@ import {
   CONTROL_COVERAGE_NOW,
   collectControlCoverageAudit,
   expectNoObservableGateDiagnostics,
-  makeControlCoverageProjectDir,
+  makeControlCoverageScopeRoot,
   reviewAndApplyControlCoverage,
 } from "./runtime-health-audit-control-coverage-test-context.js";
 import {
@@ -16,22 +16,22 @@ import {
 } from "./runtime-health-audit-control-coverage-test-support.js";
 
 describe("runtime health audit control coverage gaps", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeControlCoverageProjectDir();
+    workspaceRoot = makeControlCoverageScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("requests one decision for recurring control coverage gaps", () => {
-    writeRunWithCoverage(projectDir, "control-gap-a", "2026-06-19T10:00:00.000Z");
-    writeRunWithCoverage(projectDir, "control-gap-b", "2026-06-19T11:00:00.000Z");
+    writeRunWithCoverage(workspaceRoot, "control-gap-a", "2026-06-19T10:00:00.000Z");
+    writeRunWithCoverage(workspaceRoot, "control-gap-b", "2026-06-19T11:00:00.000Z");
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -56,7 +56,7 @@ describe("runtime health audit control coverage gaps", () => {
       ]),
     );
 
-    const actions = reviewAndApplyControlCoverage(projectDir, audit);
+    const actions = reviewAndApplyControlCoverage(workspaceRoot, audit);
     expect(actions.applied).toEqual([
       expect.objectContaining({
         kind: "decision-requested",
@@ -68,18 +68,18 @@ describe("runtime health audit control coverage gaps", () => {
 
   it("does not route declared unsupported agent streams into repair tasks", () => {
     writeRunWithUnsupportedAgentStreamCoverageGaps(
-      projectDir,
+      workspaceRoot,
       "unsupported-stream-a",
       "2026-06-19T10:00:00.000Z",
     );
     writeRunWithUnsupportedAgentStreamCoverageGaps(
-      projectDir,
+      workspaceRoot,
       "unsupported-stream-b",
       "2026-06-19T11:00:00.000Z",
     );
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -88,30 +88,30 @@ describe("runtime health audit control coverage gaps", () => {
     expect(audit.patterns).toEqual([]);
     expectNoObservableGateDiagnostics(audit);
 
-    const actions = reviewAndApplyControlCoverage(projectDir, audit);
+    const actions = reviewAndApplyControlCoverage(workspaceRoot, audit);
     expect(actions.createdTaskIds).toEqual([]);
     for (const taskId of [
       "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
       "task-health-control-coverage-trajectory-diagnostics-unsupported-trajectory-diagnostics",
     ]) {
-      expect(existsSync(readyTaskPath(projectDir, taskId))).toBe(false);
+      expect(existsSync(readyTaskPath(workspaceRoot, taskId))).toBe(false);
     }
   });
 
   it("ignores stale skipped approval gate gaps from historical coverage artifacts", () => {
     writeRunWithSkippedApprovalGateGap(
-      projectDir,
+      workspaceRoot,
       "stale-skipped-approval-a",
       "2026-06-19T10:00:00.000Z",
     );
     writeRunWithSkippedApprovalGateGap(
-      projectDir,
+      workspaceRoot,
       "stale-skipped-approval-b",
       "2026-06-19T11:00:00.000Z",
     );
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -130,18 +130,18 @@ describe("runtime health audit control coverage gaps", () => {
 
   it("ignores stale skipped owner-wait gate gaps from historical coverage artifacts", () => {
     writeRunWithSkippedOwnerWaitGateGap(
-      projectDir,
+      workspaceRoot,
       "stale-skipped-owner-wait-a",
       "2026-06-19T10:00:00.000Z",
     );
     writeRunWithSkippedOwnerWaitGateGap(
-      projectDir,
+      workspaceRoot,
       "stale-skipped-owner-wait-b",
       "2026-06-19T11:00:00.000Z",
     );
 
     const audit = collectControlCoverageAudit({
-      projectDir,
+      workspaceRoot,
       options: { nowIso: CONTROL_COVERAGE_NOW, interruptedRunMinCount: 2 },
     });
 

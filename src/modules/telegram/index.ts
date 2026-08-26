@@ -45,7 +45,7 @@ const telegramModule: KotaModule = {
         id: "telegram.bot-credentials",
         description: "Telegram bot token and alert chat id secret references.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -98,15 +98,15 @@ const telegramModule: KotaModule = {
         items: { type: "integer" },
         uniqueItems: true,
       },
-      chatProjectBindings: {
+      chatScopeBindings: {
         type: "array",
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["chatId", "projectId"],
+          required: ["chatId", "scopeId"],
           properties: {
             chatId: { type: "integer" },
-            projectId: { type: "string", minLength: 1 },
+            scopeId: { type: "string", minLength: 1 },
           },
         },
       },
@@ -138,10 +138,10 @@ const telegramModule: KotaModule = {
 
   channels: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
-    const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
+    const chatScopeBindings = telegramConfig?.chatScopeBindings ?? [];
     return [
       makeTelegramStatusChannel(ctx),
-      makeTelegramInteractiveChannel(ctx, chatProjectBindings),
+      makeTelegramInteractiveChannel(ctx, chatScopeBindings),
     ];
   },
 

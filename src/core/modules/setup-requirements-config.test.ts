@@ -31,7 +31,7 @@ describe("module setup config requirements", () => {
       expect(result.status.state).toBe("ready");
       expect(result.status.configFields?.[0]?.present).toBe(true);
     }
-    const rawConfig = readFileSync(join(harness.projectDir, ".kota", "config.json"), "utf8");
+    const rawConfig = readFileSync(join(harness.scopeRoot, ".kota", "config.json"), "utf8");
     expect(rawConfig).toContain("https://demo.example.test");
   });
 
@@ -62,7 +62,7 @@ describe("module setup config requirements", () => {
       reason: "invalid_request",
       message: expect.stringContaining("secret reference"),
     });
-    expect(existsSync(join(harness.projectDir, ".kota", "config.json"))).toBe(false);
+    expect(existsSync(join(harness.scopeRoot, ".kota", "config.json"))).toBe(false);
 
     const accepted = await sut.submitForm("demo", "endpoint", {
       "client-secret-ref": "$DEMO_CLIENT_SECRET",
@@ -71,7 +71,7 @@ describe("module setup config requirements", () => {
       ok: true,
       status: { state: "ready" },
     });
-    const rawConfig = readFileSync(join(harness.projectDir, ".kota", "config.json"), "utf8");
+    const rawConfig = readFileSync(join(harness.scopeRoot, ".kota", "config.json"), "utf8");
     expect(rawConfig).toContain("$DEMO_CLIENT_SECRET");
     expect(rawConfig).not.toContain("raw-client-secret");
   });

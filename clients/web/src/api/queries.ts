@@ -2,44 +2,44 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "./client";
 
 /**
- * Query-key factories for the web client. Project-scoped keys take a
- * `projectId` first so the TanStack Query cache cannot leak rows from
- * one project into another. Switching the active project simply changes
- * the projectId and React Query treats it as a fresh query.
+ * Query-key factories for the web client. Scope-scoped keys take a
+ * `scopeId` first so the TanStack Query cache cannot leak rows from
+ * one scope into another. Switching the active scope simply changes
+ * the scopeId and React Query treats it as a fresh query.
  *
  * Truly global keys (`identity`, `health`, `slashCommands`, free-form
  * `historyDetail`) stay primitive — those endpoints describe the daemon
- * itself or content addressed by an opaque id, not project-scoped state.
+ * itself or content addressed by an opaque id, not scope-bound state.
  */
 export const queryKeys = {
   identity: ["identity"] as const,
   health: ["health"] as const,
-  daemonStatus: (projectId: string) => ["daemonStatus", projectId] as const,
-  workflowStatus: (projectId: string) => ["workflowStatus", projectId] as const,
-  workflowDefinitions: (projectId: string) =>
-    ["workflowDefinitions", projectId] as const,
+  daemonStatus: (scopeId: string) => ["daemonStatus", scopeId] as const,
+  workflowStatus: (scopeId: string) => ["workflowStatus", scopeId] as const,
+  workflowDefinitions: (scopeId: string) =>
+    ["workflowDefinitions", scopeId] as const,
   workflowRuns: (
-    projectId: string,
+    scopeId: string,
     params?: { limit?: number; offset?: number },
-  ) => ["workflowRuns", projectId, params] as const,
-  workflowRun: (id: string, projectId: string) =>
-    ["workflowRun", projectId, id] as const,
+  ) => ["workflowRuns", scopeId, params] as const,
+  workflowRun: (id: string, scopeId: string) =>
+    ["workflowRun", scopeId, id] as const,
   history: (params?: { search?: string; limit?: number }) =>
     ["history", params] as const,
   historyDetail: (id: string) => ["historyDetail", id] as const,
-  approvals: (projectId: string) => ["approvals", projectId] as const,
-  ownerQuestions: (projectId: string) => ["ownerQuestions", projectId] as const,
-  tasks: (projectId: string) => ["tasks", projectId] as const,
-  sessions: (projectId: string) => ["sessions", projectId] as const,
-  schedules: (projectId: string) => ["schedules", projectId] as const,
-  modules: (projectId: string) => ["modules", projectId] as const,
-  memory: (projectId: string) => ["memory", projectId] as const,
-  audit: (projectId: string) => ["audit", projectId] as const,
-  config: (projectId: string) => ["config", projectId] as const,
+  approvals: (scopeId: string) => ["approvals", scopeId] as const,
+  ownerQuestions: (scopeId: string) => ["ownerQuestions", scopeId] as const,
+  tasks: (scopeId: string) => ["tasks", scopeId] as const,
+  sessions: (scopeId: string) => ["sessions", scopeId] as const,
+  schedules: (scopeId: string) => ["schedules", scopeId] as const,
+  modules: (scopeId: string) => ["modules", scopeId] as const,
+  memory: (scopeId: string) => ["memory", scopeId] as const,
+  audit: (scopeId: string) => ["audit", scopeId] as const,
+  config: (scopeId: string) => ["config", scopeId] as const,
   slashCommands: ["slashCommands"] as const,
-  digest: (projectId: string) => ["digest", projectId] as const,
-  attention: (projectId: string) => ["attention", projectId] as const,
-  uiSurfaces: (projectId: string) => ["uiSurfaces", projectId] as const,
+  digest: (scopeId: string) => ["digest", scopeId] as const,
+  attention: (scopeId: string) => ["attention", scopeId] as const,
+  uiSurfaces: (scopeId: string) => ["uiSurfaces", scopeId] as const,
 };
 
 export const identityQuery = queryOptions({
@@ -54,50 +54,50 @@ export const healthQuery = queryOptions({
   refetchInterval: 30000,
 });
 
-export function daemonStatusQuery(projectId: string) {
+export function daemonStatusQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.daemonStatus(projectId),
-    queryFn: () => api.getDaemonStatus(projectId),
+    queryKey: queryKeys.daemonStatus(scopeId),
+    queryFn: () => api.getDaemonStatus(scopeId),
     refetchInterval: 60000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function workflowStatusQuery(projectId: string) {
+export function workflowStatusQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.workflowStatus(projectId),
-    queryFn: () => api.getWorkflowStatus(projectId),
+    queryKey: queryKeys.workflowStatus(scopeId),
+    queryFn: () => api.getWorkflowStatus(scopeId),
     refetchInterval: 30000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function workflowDefinitionsQuery(projectId: string) {
+export function workflowDefinitionsQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.workflowDefinitions(projectId),
-    queryFn: () => api.getWorkflowDefinitions(projectId),
+    queryKey: queryKeys.workflowDefinitions(scopeId),
+    queryFn: () => api.getWorkflowDefinitions(scopeId),
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
 export function workflowRunsQuery(
-  projectId: string,
+  scopeId: string,
   params?: { limit?: number; offset?: number },
 ) {
   return queryOptions({
-    queryKey: queryKeys.workflowRuns(projectId, params),
-    queryFn: () => api.listWorkflowRuns(projectId, params),
+    queryKey: queryKeys.workflowRuns(scopeId, params),
+    queryFn: () => api.listWorkflowRuns(scopeId, params),
     refetchInterval: 30000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function workflowRunQuery(id: string, projectId: string) {
+export function workflowRunQuery(id: string, scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.workflowRun(id, projectId),
-    queryFn: () => api.getWorkflowRun(id, projectId),
-    enabled: projectId !== "",
+    queryKey: queryKeys.workflowRun(id, scopeId),
+    queryFn: () => api.getWorkflowRun(id, scopeId),
+    enabled: scopeId !== "",
   });
 }
 
@@ -116,81 +116,81 @@ export function historyDetailQuery(id: string) {
   });
 }
 
-export function approvalsQuery(projectId: string) {
+export function approvalsQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.approvals(projectId),
-    queryFn: () => api.listApprovals(projectId),
+    queryKey: queryKeys.approvals(scopeId),
+    queryFn: () => api.listApprovals(scopeId),
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function ownerQuestionsQuery(projectId: string) {
+export function ownerQuestionsQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.ownerQuestions(projectId),
+    queryKey: queryKeys.ownerQuestions(scopeId),
     queryFn: api.listOwnerQuestions,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function tasksQuery(projectId: string) {
+export function tasksQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.tasks(projectId),
+    queryKey: queryKeys.tasks(scopeId),
     queryFn: api.getTasks,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function sessionsQuery(projectId: string) {
+export function sessionsQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.sessions(projectId),
-    queryFn: () => api.listSessions(projectId),
+    queryKey: queryKeys.sessions(scopeId),
+    queryFn: () => api.listSessions(scopeId),
     refetchInterval: 15000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function schedulesQuery(projectId: string) {
+export function schedulesQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.schedules(projectId),
+    queryKey: queryKeys.schedules(scopeId),
     queryFn: api.getSchedules,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function modulesQuery(projectId: string) {
+export function modulesQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.modules(projectId),
+    queryKey: queryKeys.modules(scopeId),
     queryFn: api.getModules,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function memoryQuery(projectId: string) {
+export function memoryQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.memory(projectId),
+    queryKey: queryKeys.memory(scopeId),
     queryFn: api.getMemory,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function auditQuery(projectId: string) {
+export function auditQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.audit(projectId),
+    queryKey: queryKeys.audit(scopeId),
     queryFn: api.getAudit,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function configQuery(projectId: string) {
+export function configQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.config(projectId),
+    queryKey: queryKeys.config(scopeId),
     queryFn: api.getConfig,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
@@ -200,28 +200,28 @@ export const slashCommandsQuery = queryOptions({
   refetchInterval: 60000,
 });
 
-export function digestQuery(projectId: string) {
+export function digestQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.digest(projectId),
+    queryKey: queryKeys.digest(scopeId),
     queryFn: api.getDigest,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function attentionQuery(projectId: string) {
+export function attentionQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.attention(projectId),
+    queryKey: queryKeys.attention(scopeId),
     queryFn: api.getAttention,
     refetchInterval: 300000,
-    enabled: projectId !== "",
+    enabled: scopeId !== "",
   });
 }
 
-export function uiSurfacesQuery(projectId: string) {
+export function uiSurfacesQuery(scopeId: string) {
   return queryOptions({
-    queryKey: queryKeys.uiSurfaces(projectId),
-    queryFn: () => api.getUiSurfaces(projectId),
-    enabled: projectId !== "",
+    queryKey: queryKeys.uiSurfaces(scopeId),
+    queryFn: () => api.getUiSurfaces(scopeId),
+    enabled: scopeId !== "",
   });
 }

@@ -18,14 +18,13 @@ import {
   parseHistorySearchResponse,
   parseKnowledgeSearchResponse,
   parseMemorySearchResponse,
-  parseProjectRegistryProjection,
+  parseScopeRegistryProjection,
   parseRecallResult,
   parseRetractResult,
-  parseScopeRegistryProjection,
   parseScopePolicyRouteResponse,
   parseSetupStatusResponse,
   parseTasksSearchResponse,
-  parseUnknownProjectError,
+  parseUnknownScopeError,
   parseUiSurfaceBundle,
   parseVoiceFailure,
   parseVoiceTranscribeResult,
@@ -46,37 +45,15 @@ export type ConformanceCase = {
 };
 
 export const CONFORMANCE_CASES: ConformanceCase[] = [
-  // project registry projection
   {
-    name: "projects: cross-project registry projection",
-    path: "projects",
-    parse: parseProjectRegistryProjection,
-    assertPositive: (decoded) => {
-      const p = decoded as {
-        defaultProjectId: string;
-        projects: Array<{ projectId: string; displayName: string }>;
-      };
-      if (p.projects.length !== 2) {
-        throw new Error("expected 2 projects in projection");
-      }
-      if (
-        !p.projects.some((entry) => entry.projectId === p.defaultProjectId)
-      ) {
-        throw new Error(
-          "default projectId must match one of the listed projects",
-        );
-      }
-    },
+    name: "scopes: identity carries registry projection",
+    path: "identity.scopeRegistry",
+    parse: parseScopeRegistryProjection,
   },
   {
-    name: "projects: identity carries projection",
-    path: "identity.projects",
-    parse: parseProjectRegistryProjection,
-  },
-  {
-    name: "projects: typed unknown_project rejection",
-    path: "unknownProjectError",
-    parse: parseUnknownProjectError,
+    name: "scopes: typed unknown_scope rejection",
+    path: "unknownScopeError",
+    parse: parseUnknownScopeError,
   },
   {
     name: "scopes: global root plus directory-backed children",

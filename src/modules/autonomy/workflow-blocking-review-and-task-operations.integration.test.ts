@@ -26,36 +26,36 @@ import {
 
 describe("autonomy workflow blocking review and task operations", () => {
   it("loads review and task operations through real workers", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-blocking-mutations-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-blocking-mutations-"));
     try {
       execFileSync("git", ["init", "-q", "-b", "main"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["config", "user.email", "kota@example.test"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["config", "user.name", "KOTA Test"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
-      writeFileSync(join(projectDir, "README.md"), "boundary fixture\n");
-      writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
+      writeFileSync(join(workspaceRoot, "README.md"), "boundary fixture\n");
+      writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n.worktrees/\n");
       execFileSync("git", ["add", ".gitignore", "README.md"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
       execFileSync("git", ["commit", "-q", "-m", "initial"], {
-        cwd: projectDir,
+        cwd: workspaceRoot,
         stdio: "ignore",
       });
 
-      const reviewRunDir = join(projectDir, ".kota", "runs", "review-boundary");
-      mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
+      const reviewRunDir = join(workspaceRoot, ".kota", "runs", "review-boundary");
+      mkdirSync(join(workspaceRoot, "data", "tasks", "doing"), { recursive: true });
       mkdirSync(reviewRunDir, { recursive: true });
       writeFileSync(
-        join(projectDir, "data", "tasks", "doing", "task-review-boundary.md"),
+        join(workspaceRoot, "data", "tasks", "doing", "task-review-boundary.md"),
         "---\ntitle: Review boundary\n---\n\n## Done When\n\n- Review stays responsive.\n",
       );
       let reviewTimerFired = false;
@@ -64,15 +64,15 @@ describe("autonomy workflow blocking review and task operations", () => {
       }, 10);
       const criticInspection = await runWorkflowBlockingOperation(
         criticReviewInspectionOperation,
-        { reviewDir: projectDir, taskMutationStatus: "" },
+        { reviewDir: workspaceRoot, taskMutationStatus: "" },
       );
       const semanticInspection = await runWorkflowBlockingOperation(
         improverSemanticInspectionOperation,
-        { projectDir, runDirPath: reviewRunDir },
+        { workspaceRoot, runDirPath: reviewRunDir },
       );
       const shadowTargets = await runWorkflowBlockingOperation(
         shadowSemanticReviewTargetOperation,
-        { kind: "workflow-mutations", projectDir },
+        { kind: "workflow-mutations", workspaceRoot },
       );
       clearTimeout(reviewTimer);
 
@@ -84,10 +84,10 @@ describe("autonomy workflow blocking review and task operations", () => {
         "done",
         "dropped",
       ]) {
-        mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+        mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
       }
       writeFileSync(
-        join(projectDir, "data", "tasks", "done", "task-review-boundary.md"),
+        join(workspaceRoot, "data", "tasks", "done", "task-review-boundary.md"),
         [
           "---",
           "id: task-review-boundary",
@@ -106,23 +106,23 @@ describe("autonomy workflow blocking review and task operations", () => {
         ].join("\n"),
       );
       rmSync(
-        join(projectDir, "data", "tasks", "doing", "task-review-boundary.md"),
+        join(workspaceRoot, "data", "tasks", "doing", "task-review-boundary.md"),
       );
       execFileSync(
         "git",
         ["add", "data/tasks/done/task-review-boundary.md"],
-        { cwd: projectDir, stdio: "ignore" },
+        { cwd: workspaceRoot, stdio: "ignore" },
       );
       const authorityInspection = await runWorkflowBlockingOperation(
         builderRepairCheckOperation,
         {
-          projectDir,
+          workspaceRoot,
           taskId: "task-review-boundary",
         },
       );
       const blockedPromotions = await runWorkflowBlockingOperation(
         promoteSatisfiedBlockedTasksOperation,
-        { projectDir },
+        { workspaceRoot },
       );
       const scopeInputs: ScopeImprovementInputs = {
         generatedAt: "2026-08-14T12:00:00.000Z",
@@ -131,7 +131,7 @@ describe("autonomy workflow blocking review and task operations", () => {
         scope: {
           scopeId: "root",
           displayName: "Boundary test",
-          directoryRoot: projectDir,
+          directoryRoot: workspaceRoot,
         },
         config: {
           enabled: true,
@@ -160,7 +160,7 @@ describe("autonomy workflow blocking review and task operations", () => {
       const scopeImprovement = await runWorkflowBlockingOperation(
         applyScopeImprovementRecommendationsOperation,
         {
-          projectDir,
+          workspaceRoot,
           runId: "boundary-test",
           inputs: scopeInputs,
           recommendations: [
@@ -209,7 +209,7 @@ describe("autonomy workflow blocking review and task operations", () => {
       expect(
         readFileSync(
           join(
-            projectDir,
+            workspaceRoot,
             "data",
             "tasks",
             "ready",
@@ -219,7 +219,7 @@ describe("autonomy workflow blocking review and task operations", () => {
         ),
       ).toContain("The worker creates and stages the task.");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });

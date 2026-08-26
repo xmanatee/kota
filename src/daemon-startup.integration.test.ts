@@ -6,7 +6,7 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
   mockedExecuteWithAgentSDK,
-  projectDir,
+  scopeRoot,
   wait,
 } from "./daemon-test-support.integration.js";
 
@@ -23,7 +23,7 @@ describe("Daemon startup and channels", () => {
 
   it("starts and stops cleanly", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({

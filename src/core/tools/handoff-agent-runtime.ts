@@ -21,7 +21,7 @@ import type { GuardrailsConfig } from "./guardrails.js";
 
 export type HandoffAgentRuntime = {
   cwd: string;
-  projectDir?: string;
+  scopeRoot?: string;
   harness: string;
   resolveAgentDef: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
@@ -33,7 +33,6 @@ export type HandoffAgentRuntime = {
   autonomyMode?: AutonomyMode;
   canUseTool?: AgentCanUseTool;
   scopeId?: string;
-  projectId?: string;
   scopePolicy?: ResolvedScopePolicy;
   scopePolicyAuthority?: ScopePolicyAuthority;
   getScopePolicySnapshot?: ScopePolicySnapshotAccessor;

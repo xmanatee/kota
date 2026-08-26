@@ -12,10 +12,10 @@ export type FanOutDetectionInspection = {
 };
 
 export function detectAndSeedFanOutInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   nowIso: string;
 }): FanOutDetectionInspection {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
   const now = new Date(input.nowIso);
   if (dirty) {
@@ -32,7 +32,7 @@ export function detectAndSeedFanOutInWorker(input: {
     };
   }
   const result = seedFanOutConsolidationTasks({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     nowMs: now.getTime(),
     nowIso: now.toISOString(),
   });
@@ -44,6 +44,6 @@ export function detectAndSeedFanOutInWorker(input: {
 }
 
 export const detectAndSeedFanOutOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; nowIso: string },
+  { workspaceRoot: string; nowIso: string },
   FanOutDetectionInspection
 >(import.meta.url, "detectAndSeedFanOutInWorker");

@@ -93,7 +93,7 @@ describe("buildSubAgentPrompt", () => {
   it("appends project and instruction context after working directory details", () => {
     const result = buildSubAgentPrompt(base, {
       cwd: "/opt/app",
-      projectContext: "## Conventions\n\nUse ESM imports.",
+      scopeContext: "## Conventions\n\nUse ESM imports.",
       instructionContext: "## Project Instructions\n\nRead AGENTS.md",
     });
 
@@ -106,7 +106,7 @@ describe("buildSubAgentPrompt", () => {
 
   it("does not include empty optional context", () => {
     expect(buildSubAgentPrompt(base, { cwd: "" })).toBe(base);
-    expect(buildSubAgentPrompt(base, { projectContext: "" })).toBe(base);
+    expect(buildSubAgentPrompt(base, { scopeContext: "" })).toBe(base);
     expect(buildSubAgentPrompt(base, { instructionContext: "" })).toBe(base);
   });
 });

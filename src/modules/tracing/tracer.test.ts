@@ -16,7 +16,7 @@ function makeTmpDir(): string {
 describe("WorkflowTracer", () => {
   let exporter: InMemorySpanExporter;
   let provider: NodeTracerProvider;
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     trace.disable();
@@ -26,7 +26,7 @@ describe("WorkflowTracer", () => {
       spanProcessors: [new SimpleSpanProcessor(exporter)],
     });
     provider.register();
-    projectDir = makeTmpDir();
+    scopeRoot = makeTmpDir();
   });
 
   afterEach(async () => {
@@ -35,7 +35,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("creates a root span for a workflow run", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "builder",
       runId: "run-1",
@@ -65,7 +65,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("creates correctly nested child spans for steps", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     const now = new Date();
 
     tracer.onWorkflowStarted({
@@ -136,7 +136,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("sets ERROR status on failed workflows", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "test-wf",
       runId: "run-fail",
@@ -158,7 +158,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("sets ERROR status on failed steps", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "test-wf",
       runId: "run-sf",
@@ -197,7 +197,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("tags workflow and step spans with autonomy_mode when payload carries it", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "builder",
       runId: "run-am",
@@ -245,7 +245,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("omits autonomy_mode attribute when the payload does not carry it", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "builder",
       runId: "run-no-am",
@@ -287,7 +287,7 @@ describe("WorkflowTracer", () => {
 
   it("includes model attribute from lookup for agent steps", () => {
     const modelLookup = new Map([["builder:build", "claude-sonnet-4-6"]]);
-    const tracer = new WorkflowTracer(projectDir, modelLookup);
+    const tracer = new WorkflowTracer(scopeRoot, modelLookup);
 
     tracer.onWorkflowStarted({
       workflow: "builder",
@@ -328,7 +328,7 @@ describe("WorkflowTracer", () => {
 
   it("reads turns from agent step result file", () => {
     const runDir = ".kota/runs/run-t";
-    const stepsDir = join(projectDir, runDir, "steps");
+    const stepsDir = join(scopeRoot, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
     writeFileSync(
       join(stepsDir, "build.json"),
@@ -340,7 +340,7 @@ describe("WorkflowTracer", () => {
       }),
     );
 
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "builder",
       runId: "run-t",
@@ -382,7 +382,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("handles missing step result file gracefully", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
     tracer.onWorkflowStarted({
       workflow: "builder",
       runId: "run-miss",
@@ -423,12 +423,12 @@ describe("WorkflowTracer", () => {
 
   it("reports enrichment errors for unparseable step result files", () => {
     const runDir = ".kota/runs/run-broken";
-    const absRunDir = join(projectDir, runDir, "steps");
+    const absRunDir = join(scopeRoot, runDir, "steps");
     mkdirSync(absRunDir, { recursive: true });
     writeFileSync(join(absRunDir, "build.json"), "{ not json");
 
     const errors: Array<{ msg: string; err: unknown }> = [];
-    const tracer = new WorkflowTracer(projectDir, new Map(), (msg, err) => {
+    const tracer = new WorkflowTracer(scopeRoot, new Map(), (msg, err) => {
       errors.push({ msg, err });
     });
     tracer.onWorkflowStarted({
@@ -469,7 +469,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("records daemon config reload spans with reload attributes", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
 
     tracer.onDaemonConfigReload({
       timestamp: "2026-01-01T00:00:00.000Z",
@@ -497,7 +497,7 @@ describe("WorkflowTracer", () => {
   });
 
   it("marks failed daemon config reload spans as errors with sanitized failure attributes", () => {
-    const tracer = new WorkflowTracer(projectDir, new Map());
+    const tracer = new WorkflowTracer(scopeRoot, new Map());
 
     tracer.onDaemonConfigReload({
       timestamp: "2026-01-01T00:00:00.000Z",

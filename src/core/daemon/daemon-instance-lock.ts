@@ -93,12 +93,12 @@ function tryReserveInstanceLock(
  * condition.
  */
 export async function acquireInstanceLock(
-  projectDir: string,
+  scopeRoot: string,
   stateRoot: DaemonStateRoot,
   owner: DaemonInstanceIdentity,
   log: (message: string) => void,
 ): Promise<void> {
-  const stranded = detectStrandedDaemonProcess(projectDir);
+  const stranded = detectStrandedDaemonProcess(scopeRoot);
   if (stranded.kind === "stranded") {
     throw new Error(
       `A stranded daemon process is already running (pid ${stranded.pid}) but has no control API. ` +

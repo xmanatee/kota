@@ -16,33 +16,33 @@ type SamplePayload = { value: number; tag: string };
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: WorkflowRunTrigger = TRIGGER,
 ): RunContext {
   const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
-      workspaceDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      rootDir: workspaceRoot,
+      workspaceDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
-      workspaceDir: projectDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      workspaceDir: workspaceRoot,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -69,24 +69,24 @@ function makeDefinition(steps: WorkflowDefinition["steps"]): WorkflowDefinition 
 }
 
 describe("typedCodeStep runtime validation", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-typed-code-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("validates successful output and exposes it through output()", async () => {
@@ -111,7 +111,7 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep, downstream]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir),
+      runContext: makeRunContext(workspaceRoot),
       bus,
       store,
       log,
@@ -134,7 +134,7 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir),
+      runContext: makeRunContext(workspaceRoot),
       bus,
       store,
       log,
@@ -188,16 +188,16 @@ describe("typedCodeStep runtime validation", () => {
 
     const definition = makeDefinition([sampleStep]);
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      runContext: makeRunContext(projectDir),
+      runContext: makeRunContext(workspaceRoot),
       bus,
       store,
       log,
     });
     await promise;
 
-    const runDirs = readdirSync(join(projectDir, ".kota", "runs"));
+    const runDirs = readdirSync(join(workspaceRoot, ".kota", "runs"));
     const metadata = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
     ) as { status: string; steps: Array<{ id: string; status: string; error?: string }> };
 
     expect(metadata.status).toBe("failed");

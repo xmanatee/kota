@@ -64,7 +64,7 @@ function appliedActions(
 
 export function planAutonomyHealthReviewFinalization(args: {
   currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
+  scopeRoot?: string;
   review: AutonomyHealthReview;
   repositoryActions: AutonomyHealthReviewActionResult;
 }): AutonomyHealthReviewActionResult {
@@ -85,9 +85,9 @@ export function planAutonomyHealthReviewFinalization(args: {
 }
 
 export function stageAutonomyHealthReviewActions(args: {
-  projectDir: string;
+  workspaceRoot: string;
   currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
+  scopeRoot?: string;
   review: AutonomyHealthReview;
 }): AutonomyHealthReviewActionResult {
   const observations = autonomyIssueObservationsFromReview(
@@ -103,8 +103,8 @@ export function stageAutonomyHealthReviewActions(args: {
     const proposalKey = normalizeGeneratedWorkProposalKey(
       `autonomy-issue:${observation.issueKey}`,
     );
-    const existingTask = findGeneratedWorkTask(args.projectDir, proposalKey);
-    return dropGeneratedWorkTask(args.projectDir, existingTask);
+    const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
+    return dropGeneratedWorkTask(args.workspaceRoot, existingTask);
   });
   const droppedTaskIds = [...new Set(
     clearedGeneratedWork.flatMap((action) =>
@@ -128,7 +128,7 @@ export function stageAutonomyHealthReviewActions(args: {
 
 export function finalizeAutonomyHealthReviewActions(args: {
   currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
+  scopeRoot?: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   review: AutonomyHealthReview;
   repositoryActions: AutonomyHealthReviewActionResult;

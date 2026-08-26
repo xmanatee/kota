@@ -54,8 +54,7 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
         const runnerContext = {
           sessionId: `browser-cli:${randomUUID()}`,
           scopeId,
-          projectId: scopeId,
-          projectDir: ctx.cwd,
+          scopeRoot: ctx.cwd,
           cwd: ctx.cwd,
         };
         registerSessionEnvironment(runnerContext);

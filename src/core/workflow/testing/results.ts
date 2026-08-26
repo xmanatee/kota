@@ -76,7 +76,7 @@ export function validateWorkflowStepOutput<T>(
   try {
     return step.type === "agent"
       ? step.validate(rawOutput, {
-          projectDir: context.projectDir,
+          workspaceRoot: context.workspaceRoot,
           stepOutputs: context.stepOutputs,
         })
       : step.validate(rawOutput);

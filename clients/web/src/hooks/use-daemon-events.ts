@@ -1,6 +1,6 @@
 import { queryKeys } from "@/api/queries";
 import { DaemonEventSource } from "@/api/sse";
-import { useProjectId } from "@/lib/project-context";
+import { useScopeId } from "@/lib/scope-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -29,14 +29,14 @@ const MAX_UI_SUBSCRIPTION_CACHE_SIZE = 32;
 
 export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
   const queryClient = useQueryClient();
-  const projectId = useProjectId();
+  const scopeId = useScopeId();
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [liveLogEntries, setLiveLogEntries] = useState<LiveUiLogEntries>({});
   const sourceRef = useRef<DaemonEventSource | null>(null);
   const uiSubscriptions = collectUiEventSubscriptions(bundle);
 
   useEffect(() => {
-    if (projectId === "") {
+    if (scopeId === "") {
       setStatus("disconnected");
       setLiveLogEntries({});
       return;
@@ -52,25 +52,25 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
 
     const invalidateUiSurfaces = () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.uiSurfaces(projectId),
+        queryKey: queryKeys.uiSurfaces(scopeId),
       });
     };
 
     const invalidateWorkflows = () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowStatus(projectId),
+        queryKey: queryKeys.workflowStatus(scopeId),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["workflowRuns", projectId],
+        queryKey: ["workflowRuns", scopeId],
       });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowDefinitions(projectId),
+        queryKey: queryKeys.workflowDefinitions(scopeId),
       });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.schedules(projectId),
+        queryKey: queryKeys.schedules(scopeId),
       });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.daemonStatus(projectId),
+        queryKey: queryKeys.daemonStatus(scopeId),
       });
     };
 
@@ -80,12 +80,12 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
     source.on("queue.changed", invalidateWorkflows);
     source.on("approval.changed", () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals(projectId),
+        queryKey: queryKeys.approvals(scopeId),
       });
     });
     const invalidateOwnerQuestions = () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.ownerQuestions(projectId),
+        queryKey: queryKeys.ownerQuestions(scopeId),
       });
     };
     source.on("owner.question.asked", invalidateOwnerQuestions);
@@ -95,17 +95,17 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
     source.on("owner.question.expired", invalidateOwnerQuestions);
     source.on("task.changed", () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.tasks(projectId),
+        queryKey: queryKeys.tasks(scopeId),
       });
     });
     source.on("session.registered", () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions(projectId),
+        queryKey: queryKeys.sessions(scopeId),
       });
     });
     source.on("session.unregistered", () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions(projectId),
+        queryKey: queryKeys.sessions(scopeId),
       });
     });
 
@@ -131,7 +131,7 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
       source.disconnect();
       sourceRef.current = null;
     };
-  }, [queryClient, projectId, uiSubscriptions]);
+  }, [queryClient, scopeId, uiSubscriptions]);
 
   return { status, liveLogEntries };
 }

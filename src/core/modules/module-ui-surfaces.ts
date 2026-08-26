@@ -27,7 +27,7 @@ export type UiSurfaceProjectionContext = {
  */
 export type UiSurfaceSource = {
   sourceId: string;
-  project(
+  scope(
     context: UiSurfaceProjectionContext,
   ): readonly UiSurface[] | Promise<readonly UiSurface[]>;
 };
@@ -87,13 +87,13 @@ async function resolveProjectionContext(
   let scopeId = selectedId;
 
   if (selectedId !== undefined) {
-    client = scopeProjectionClient(request.client, selector, selectedId);
+    client = scopeProjectionClient(request.client, selectedId);
   } else {
-    const projects = await request.client.projects.list();
-    if (projects.ok) {
-      scopeId = projects.activeProjectId ?? projects.defaultProjectId;
+    const scopes = await request.client.scopes.list();
+    if (scopes.ok) {
+      scopeId = scopes.activeScopeId ?? scopes.defaultScopeId;
       selector = { scopeId };
-      client = scopeProjectionClient(request.client, selector, scopeId);
+      client = scopeProjectionClient(request.client, scopeId);
     }
   }
 
@@ -115,17 +115,11 @@ async function resolveProjectionContext(
   };
 }
 
-function scopeProjectionClient(
-  client: KotaClient,
-  selector: NormalizedScopeSelector,
-  selectedId: string,
-): KotaClient {
-  return selector.scopeId !== undefined && client.forScope
-    ? client.forScope(selectedId)
-    : client.forProject(selectedId);
+function scopeProjectionClient(client: KotaClient, selectedId: string): KotaClient {
+  return client.forScope(selectedId);
 }
 
-/** Project every loaded module source once, then validate and order one bundle. */
+/** Resolve every loaded module source once, then validate and order one bundle. */
 export async function assembleUiSurfaceBundle(
   cwd: string,
   registrations: readonly RegisteredUiSurfaceSource[],
@@ -135,7 +129,7 @@ export async function assembleUiSurfaceBundle(
   const context = await resolveProjectionContext(cwd, request);
   const projections = await Promise.all(registrations.map(async ({ moduleName, source }) => {
     try {
-      return await source.project(context);
+      return await source.scope(context);
     } catch (error) {
       const cause = error instanceof Error ? error : new Error(String(error));
       throw new UiSurfaceSourceError(moduleName, source.sourceId, cause);

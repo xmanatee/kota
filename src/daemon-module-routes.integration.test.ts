@@ -27,8 +27,8 @@ import { resetEventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { handleListModules } from "#modules/module-manager/routes.js";
 import { taskRoutes } from "#modules/repo-tasks/routes.js";
-import { createSecretProjectStores } from "#modules/secrets/project-scope.js";
 import { secretsRoutes } from "#modules/secrets/routes.js";
+import { createSecretScopeStores } from "#modules/secrets/scope.js";
 
 function readControlAddress(stateDir: string): DaemonControlAddress {
   const raw = readFileSync(join(stateDir, "daemon-control.json"), "utf-8");
@@ -46,15 +46,15 @@ async function fetchWithToken(
 }
 
 describe("Daemon module HTTP routes integration", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-daemon-routes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
+    stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
     resetScheduler();
@@ -63,13 +63,13 @@ describe("Daemon module HTTP routes integration", () => {
   afterEach(() => {
     resetEventBus();
     resetScheduler();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("serves module-contributed /api/* routes from at least three modules", async () => {
     const moduleRoutes: RouteRegistration[] = [
       ...taskRoutes(),
-      ...secretsRoutes(createSecretProjectStores(projectDir)),
+      ...secretsRoutes(createSecretScopeStores(scopeRoot)),
       {
         method: "GET",
         path: "/api/modules",
@@ -77,7 +77,7 @@ describe("Daemon module HTTP routes integration", () => {
           handleListModules(res, [
             {
               name: "repo-tasks",
-              source: "project",
+              source: "bundled",
               version: "1.0.0",
               description: "tasks",
               dependencies: [],
@@ -93,7 +93,7 @@ describe("Daemon module HTTP routes integration", () => {
             },
             {
               name: "secrets",
-              source: "project",
+              source: "bundled",
               version: "1.0.0",
               description: "secrets",
               dependencies: [],
@@ -112,7 +112,7 @@ describe("Daemon module HTTP routes integration", () => {
     ];
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -153,12 +153,12 @@ describe("Daemon module HTTP routes integration", () => {
 
   it("rejects unauthenticated module-route requests", async () => {
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
       workflows: [],
-      routes: secretsRoutes(createSecretProjectStores(projectDir)),
+      routes: secretsRoutes(createSecretScopeStores(scopeRoot)),
       config: { defaultAgentHarness: "claude-agent-sdk" },
     });
 

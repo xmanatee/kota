@@ -9,7 +9,7 @@ export const WORKFLOW_AGENT_OUTPUT_DIRNAME = "agent-output";
 
 export function resolveAgentRunDir(input: {
   metadata: Pick<WorkflowRunMetadata, "runDir">;
-  projectDir: string;
+  scopeRoot: string;
   runtimeResources?: Pick<WorkflowRuntimeResources, "agentRunDir">;
 }): string {
   const configured = input.runtimeResources?.agentRunDir;
@@ -20,7 +20,7 @@ export function resolveAgentRunDir(input: {
     return configured;
   }
   return resolve(
-    input.projectDir,
+    input.scopeRoot,
     input.metadata.runDir,
     WORKFLOW_AGENT_OUTPUT_DIRNAME,
   );
@@ -29,12 +29,12 @@ export function resolveAgentRunDir(input: {
 export function resolveAgentRunDirFromContext(
   context: Pick<
     WorkflowStepContext,
-    "scopeDir" | "runtimeResources" | "workflow"
+    "scopeRoot" | "runtimeResources" | "workflow"
   >,
 ): string {
   return resolveAgentRunDir({
     metadata: context.workflow,
-    projectDir: context.scopeDir,
+    scopeRoot: context.scopeRoot,
     ...(context.runtimeResources === undefined
       ? {}
       : { runtimeResources: context.runtimeResources }),
@@ -45,9 +45,9 @@ export function agentRunDirWriteScopes(
   workspaceDir: string,
   agentRunDir: string,
 ): string[] {
-  const workspaceRoot = resolve(workspaceDir);
+  const scopeRoot = resolve(workspaceDir);
   const outputRoot = resolve(agentRunDir);
-  const child = relative(workspaceRoot, outputRoot);
+  const child = relative(scopeRoot, outputRoot);
   if (
     child.length === 0 ||
     child === ".." ||
@@ -61,7 +61,7 @@ export function agentRunDirWriteScopes(
 
 export function resolveAgentOutputWriteScopes(
   workspaceDir: string,
-  projectDir: string,
+  scopeRoot: string,
   metadata: Pick<WorkflowRunMetadata, "runDir">,
   runtimeResources: Pick<WorkflowRuntimeResources, "agentRunDir"> | undefined,
 ): string[] {
@@ -69,7 +69,7 @@ export function resolveAgentOutputWriteScopes(
     workspaceDir,
     resolveAgentRunDir({
       metadata,
-      projectDir,
+      scopeRoot,
       ...(runtimeResources === undefined ? {} : { runtimeResources }),
     }),
   );

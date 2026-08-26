@@ -233,7 +233,7 @@ export type AutonomyReportData = {
 };
 
 export type AutonomyReportInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   windowEndMs: number;
   windowDays?: number;

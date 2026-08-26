@@ -14,7 +14,7 @@ import {
 
 const NOW = new Date("2026-06-04T12:00:00.000Z");
 
-function makeProjectDir(label: string): string {
+function makeScopeRoot(label: string): string {
   const dir = mkdtempSync(join(tmpdir(), `kota-${label}-`));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -79,24 +79,24 @@ function spoofedPrunedRunEvidence(args: {
 }
 
 describe("progress-review pruned run evidence", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  function trackProjectDir(label: string): string {
-    const dir = makeProjectDir(label);
-    projectDirs.push(dir);
+  function trackScopeRoot(label: string): string {
+    const dir = makeScopeRoot(label);
+    scopeRoots.push(dir);
     return dir;
   }
 
   it("accepts validated policy-pruned evidence refs and rejects spoofed retained ids", () => {
-    const projectDir = trackProjectDir("progress-reviewer-pruned-evidence");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    const runsDir = join(projectDir, ".kota", "runs");
+    const workspaceRoot = trackScopeRoot("progress-reviewer-pruned-evidence");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     writeFileSync(
       join(runsDir, "pruned-runs.jsonl"),
@@ -124,13 +124,13 @@ describe("progress-review pruned run evidence", () => {
     );
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });

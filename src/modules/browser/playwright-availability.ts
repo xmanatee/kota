@@ -3,10 +3,10 @@ import { resolve } from "node:path";
 
 const requireFromHere = createRequire(import.meta.url);
 
-export function isPlaywrightAvailable(projectDir: string = process.cwd()): boolean {
+export function isPlaywrightAvailable(scopeRoot: string = process.cwd()): boolean {
   try {
-    const requireFromProject = createRequire(resolve(projectDir, "package.json"));
-    requireFromProject.resolve("playwright");
+    const requireFromScope = createRequire(resolve(scopeRoot, "package.json"));
+    requireFromScope.resolve("playwright");
     return true;
   } catch {
     // Fall back to the module install location below.

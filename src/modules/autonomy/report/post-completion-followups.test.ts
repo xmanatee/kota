@@ -10,13 +10,13 @@ import {
 } from "./post-completion-followups.test-helpers.js";
 
 describe("post-completion corrective follow-up report", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   let cleanupFixture: () => void;
 
   beforeEach(() => {
     const fixture = createPostCompletionFollowUpsFixture();
-    projectDir = fixture.projectDir;
+    workspaceRoot = fixture.workspaceRoot;
     runsDir = fixture.runsDir;
     cleanupFixture = fixture.cleanup;
   });
@@ -51,19 +51,19 @@ describe("post-completion corrective follow-up report", () => {
       "fedcba987654",
     );
 
-    writeTask(projectDir, "done", "task-completed-parent", {
+    writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
       area: "autonomy",
       updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
-    writeTask(projectDir, "done", "task-source-parent", {
+    writeTask(workspaceRoot, "done", "task-source-parent", {
       priority: "p2",
       area: "autonomy",
       updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the source change.\n",
     });
-    writeTask(projectDir, "ready", "task-progress-regression-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-progress-regression-follow-up", {
       priority: "p2",
       area: "autonomy",
       title: "Fix regression from progress review",
@@ -73,7 +73,7 @@ describe("post-completion corrective follow-up report", () => {
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n\n` +
         "The runtime regression needs a corrective follow-up.\n",
     });
-    writeTask(projectDir, "ready", "task-planned-sibling", {
+    writeTask(workspaceRoot, "ready", "task-planned-sibling", {
       priority: "p2",
       area: "autonomy",
       title: "Planned sibling for the parent initiative",
@@ -82,7 +82,7 @@ describe("post-completion corrective follow-up report", () => {
         "## Problem\n\nThis planned sibling references " +
         `task-completed-parent and ${parentRunId}, but it is normal decomposition.\n`,
     });
-    writeTask(projectDir, "ready", "task-local-overlap-diagnostic", {
+    writeTask(workspaceRoot, "ready", "task-local-overlap-diagnostic", {
       priority: "p2",
       area: "autonomy",
       title: "Record lifecycle diagnostic without linking overlap checks",
@@ -93,7 +93,7 @@ describe("post-completion corrective follow-up report", () => {
         "- `task-completed-parent` already covers review-scrutiny at completion time.\n\n" +
         "The nonduplicative gap is a new report metric.\n",
     });
-    writeTask(projectDir, "blocked", "task-operator-capture-follow-up", {
+    writeTask(workspaceRoot, "blocked", "task-operator-capture-follow-up", {
       priority: "p2",
       area: "client",
       title: "Capture missing evidence for completed parent",
@@ -103,7 +103,7 @@ describe("post-completion corrective follow-up report", () => {
         `${parentRunId} and git:commit:abc123def456.\n\n` +
         "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
     });
-    writeTask(projectDir, "ready", "task-workflow-failure-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-workflow-failure-follow-up", {
       priority: "p3",
       area: "autonomy",
       title: "Repair recurring workflow failure",
@@ -114,7 +114,7 @@ describe("post-completion corrective follow-up report", () => {
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -176,13 +176,13 @@ describe("post-completion corrective follow-up report", () => {
       "abc123def456",
     );
 
-    writeTask(projectDir, "done", "task-completed-parent", {
+    writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
       area: "autonomy",
       updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
-    writeTask(projectDir, "ready", "task-ci-failure-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-ci-failure-follow-up", {
       priority: "p2",
       area: "autonomy",
       title: "Repair failed CI after completed parent",
@@ -192,7 +192,7 @@ describe("post-completion corrective follow-up report", () => {
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n\n` +
         "The follow-up should be counted as integration-boundary breakage.\n",
     });
-    writeTask(projectDir, "ready", "task-generic-regression-follow-up", {
+    writeTask(workspaceRoot, "ready", "task-generic-regression-follow-up", {
       priority: "p2",
       area: "autonomy",
       title: "Repair generic runtime regression",
@@ -201,7 +201,7 @@ describe("post-completion corrective follow-up report", () => {
         "## Problem\n\nA runtime regression references the completed parent.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n`,
     });
-    writeTask(projectDir, "ready", "task-planned-test-expansion", {
+    writeTask(workspaceRoot, "ready", "task-planned-test-expansion", {
       priority: "p2",
       area: "autonomy",
       title: "Planned test expansion sibling",
@@ -210,7 +210,7 @@ describe("post-completion corrective follow-up report", () => {
         "## Problem\n\nThis planned sibling adds ordinary test coverage for " +
         `task-completed-parent after ${parentRunId}; it is not corrective fallout.\n`,
     });
-    writeTask(projectDir, "blocked", "task-blocked-ci-capture", {
+    writeTask(workspaceRoot, "blocked", "task-blocked-ci-capture", {
       priority: "p2",
       area: "client",
       title: "Capture CI failure evidence for completed parent",
@@ -222,7 +222,7 @@ describe("post-completion corrective follow-up report", () => {
     });
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

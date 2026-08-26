@@ -17,7 +17,7 @@ function writeText(path: string, value: string): void {
 }
 
 function seedRun(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   options: {
     status?: string;
@@ -28,7 +28,7 @@ function seedRun(
     steps?: readonly unknown[];
   },
 ): void {
-  const runDir = join(projectDir, ".kota/runs", runId);
+  const runDir = join(workspaceRoot, ".kota/runs", runId);
   const commands = options.commands ?? [];
   writeJson(join(runDir, "metadata.json"), {
     id: runId,
@@ -47,7 +47,7 @@ function seedRun(
       { id: "verify", type: "code", status: "success", output: { command: commands[0] } },
     ],
   });
-  writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+  writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
     runId,
     workflow: "builder",
     changedPaths: options.filesChanged ?? ["src/modules/eval-harness/candidate.ts"],
@@ -68,23 +68,23 @@ function seedRun(
 }
 
 describe("fixture candidate proposals", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "fixture-candidate-proposals-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "fixture-candidate-proposals-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("marks candidates duplicate when an existing task references the run evidence", () => {
-    seedRun(projectDir, "run-task-duplicate", {
+    seedRun(workspaceRoot, "run-task-duplicate", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
     writeText(
-      join(projectDir, "data/tasks/done/task-existing-eval-candidate.md"),
+      join(workspaceRoot, "data/tasks/done/task-existing-eval-candidate.md"),
       [
         "---",
         "id: task-existing-eval-candidate",
@@ -102,7 +102,7 @@ describe("fixture candidate proposals", () => {
       ].join("\n"),
     );
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-task-duplicate"],
       outputDir: "out",
     });
@@ -114,14 +114,14 @@ describe("fixture candidate proposals", () => {
   });
 
   it("redacts secret-like command values and rejects destructive traces", () => {
-    seedRun(projectDir, "run-secret", {
+    seedRun(workspaceRoot, "run-secret", {
       commands: [
         "API_TOKEN=secret-value pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
         "rm -rf .kota/tmp",
       ],
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-secret"],
       outputDir: "out",
     });
@@ -138,13 +138,13 @@ describe("fixture candidate proposals", () => {
   });
 
   it("marks operator-captured visual evidence as needs-owner-evidence", () => {
-    seedRun(projectDir, "run-operator-capture", {
+    seedRun(workspaceRoot, "run-operator-capture", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       artifacts: { "verification.json": { ok: true } },
       textArtifact: "Acceptance requires a screenshot of the actual conversation.",
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-operator-capture"],
       outputDir: "out",
     });
@@ -155,10 +155,10 @@ describe("fixture candidate proposals", () => {
   });
 
   it("detects trace-derived proposal patterns from autonomy run artifacts", () => {
-    seedRun(projectDir, "run-trajectory-a", { commands: ["pnpm test fixture-candidates"] });
-    seedRun(projectDir, "run-trajectory-b", { commands: ["pnpm test fixture-candidates"] });
+    seedRun(workspaceRoot, "run-trajectory-a", { commands: ["pnpm test fixture-candidates"] });
+    seedRun(workspaceRoot, "run-trajectory-b", { commands: ["pnpm test fixture-candidates"] });
     for (const runId of ["run-trajectory-a", "run-trajectory-b"]) {
-      writeJson(join(projectDir, ".kota/runs", runId, "steps/build.trajectory-diagnostics.json"), {
+      writeJson(join(workspaceRoot, ".kota/runs", runId, "steps/build.trajectory-diagnostics.json"), {
         version: 1,
         status: "supported",
         emitsAgentMessageStream: true,
@@ -172,7 +172,7 @@ describe("fixture candidate proposals", () => {
         }],
       });
     }
-    seedRun(projectDir, "run-review", {
+    seedRun(workspaceRoot, "run-review", {
       commands: ["pnpm test fixture-candidates"],
       artifacts: {
         "review-scrutiny.json": {
@@ -181,7 +181,7 @@ describe("fixture candidate proposals", () => {
         },
       },
     });
-    seedRun(projectDir, "run-repair", {
+    seedRun(workspaceRoot, "run-repair", {
       status: "failed",
       steps: [{
         id: "test",
@@ -191,7 +191,7 @@ describe("fixture candidate proposals", () => {
       }],
       textArtifact: "Validation failed after repair-loop exhaustion.",
     });
-    seedRun(projectDir, "run-validation", {
+    seedRun(workspaceRoot, "run-validation", {
       status: "failed",
       steps: [{
         id: "load",
@@ -201,7 +201,7 @@ describe("fixture candidate proposals", () => {
       }],
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: [
         "run-trajectory-a",
         "run-trajectory-b",
@@ -223,13 +223,13 @@ describe("fixture candidate proposals", () => {
   });
 
   it("creates a normalized backlog task for accepted proposed candidates", () => {
-    seedRun(projectDir, "run-accepted", {
+    seedRun(workspaceRoot, "run-accepted", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-accepted"],
       outputDir: "out",
       createTask: true,
@@ -239,7 +239,7 @@ describe("fixture candidate proposals", () => {
     const candidate = result.report.candidates[0];
     expect(candidate.disposition).toBe("accepted");
     expect(candidate.acceptedAction).toMatchObject({ kind: "task", state: "backlog" });
-    const task = readFileSync(join(projectDir, candidate.acceptedAction?.path ?? ""), "utf-8");
+    const task = readFileSync(join(workspaceRoot, candidate.acceptedAction?.path ?? ""), "utf-8");
     expect(task).toContain("status: backlog");
     expect(task).toContain(".kota/runs/run-accepted/metadata.json");
     expect(task).toContain(`<!-- fixture-candidate-fingerprint: ${candidate.proposalFingerprint} -->`);
@@ -247,13 +247,13 @@ describe("fixture candidate proposals", () => {
 
   it("keeps newline-bearing run ids inside generated task frontmatter values", () => {
     const runId = "run-injected\npriority: p0";
-    seedRun(projectDir, runId, {
+    seedRun(workspaceRoot, runId, {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: [runId],
       outputDir: "out",
       createTask: true,
@@ -262,7 +262,7 @@ describe("fixture candidate proposals", () => {
 
     const candidate = result.report.candidates[0];
     expect(candidate.disposition).toBe("accepted");
-    const task = readFileSync(join(projectDir, candidate.acceptedAction?.path ?? ""), "utf-8");
+    const task = readFileSync(join(workspaceRoot, candidate.acceptedAction?.path ?? ""), "utf-8");
     const parsed = parseFlatFrontMatter(task);
     expect(parsed.attrs.priority).toBe("p2");
     expect(parsed.attrs.summary).toBe(

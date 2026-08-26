@@ -2,7 +2,7 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { SecretScope } from "#core/config/secrets.js";
 import type { ScopeSetupVisibility } from "#core/daemon/scope-policy.js";
 
-export type ModuleSetupScope = "project" | "global";
+export type ModuleSetupScope = "scope" | "global";
 export type ModuleSetupSensitivity = "none" | "secret" | "oauth" | "browser-profile";
 export type ModuleSetupStatusState =
   | "ready"
@@ -204,8 +204,8 @@ export type ModuleSetupCompleteInput = {
 };
 
 export type ModuleSetupServiceOptions = {
-  projectDir: string;
-  /** Machine-owned config document that supplies this project's trust decision. */
+  scopeRoot: string;
+  /** Machine-owned config document that supplies this scope's trust decision. */
   authorityConfigPath?: string;
   getRequirements: () => readonly ModuleSetupRequirementContribution[];
   probeCapabilities: () => Promise<readonly ModuleSetupCapabilityStatus[]>;
@@ -225,5 +225,5 @@ export type ModuleSetupStatusInput = {
   capabilities: readonly ModuleSetupCapabilityStatus[];
   pendingAction: ModuleSetupPendingAction | undefined;
   now: Date;
-  projectDir: string;
+  scopeRoot: string;
 };

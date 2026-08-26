@@ -151,11 +151,11 @@ try {
     request === null ||
     typeof request !== "object" ||
     !["ensure", "read", "create", "remove"].includes(request.operation) ||
-    typeof request.projectRootPath !== "string"
+    typeof request.scopeRootPath !== "string"
   ) {
     refuse("daemon state filesystem request is invalid");
   }
-  validateIdentity(request.projectRootIdentity, "project root identity");
+  validateIdentity(request.scopeRootIdentity, "scope root identity");
   if (request.operation !== "ensure") {
     validateIdentity(request.directoryIdentity, "state directory identity");
     if (!OWNERSHIP_FILES.has(request.filename)) {
@@ -169,7 +169,7 @@ try {
     validateIdentity(request.expectedIdentity, "ownership file identity");
   }
 
-  const projectRootFd = anchorProjectRoot(request);
+  const scopeRootFd = anchorScopeRoot(request);
   try {
     if (request.operation === "ensure") {
       respond({ ok: true, directoryIdentity: ensureStateDirectory(request) });
@@ -198,7 +198,7 @@ try {
       }
     }
   } finally {
-    closeSync(projectRootFd);
+    closeSync(scopeRootFd);
   }
 } catch (error) {
   const reason =

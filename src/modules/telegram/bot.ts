@@ -1,6 +1,6 @@
 /** Telegram Bot adapter — HTTP polling plus one scoped session per chat. */
 
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { TelegramMessageRuntime } from "./bot-message-runtime.js";
 import {
@@ -102,31 +102,31 @@ export class TelegramBot extends TelegramMessageRuntime {
     return this.sessions.size;
   }
 
-  setDefaultProjectRuntime(runtime: ProjectRuntime): void {
-    this.options.defaultProjectRuntime = runtime;
+  setDefaultScopeRuntime(runtime: ScopeRuntime): void {
+    this.options.defaultScopeRuntime = runtime;
   }
 
   listScopeSessionIds(scopeId: string): string[] {
     return [...this.sessions.entries()]
-      .filter(([, session]) => session.identity.meta?.projectId === scopeId)
+      .filter(([, session]) => session.identity.meta?.scopeId === scopeId)
       .map(([sessionKey]) => `telegram:${sessionKey}`);
   }
 
   closeScopeSessions(scopeId: string): void {
     for (const [key, session] of this.sessions) {
-      if (session.identity.meta?.projectId !== scopeId) continue;
+      if (session.identity.meta?.scopeId !== scopeId) continue;
       session.agent.close();
       this.sessions.delete(key);
       this.busyChats.delete(key);
     }
   }
 
-  /** Send a message to active chat sessions, optionally scoped to one project. */
-  broadcastToChats(text: string, projectId?: string): void {
+  /** Send a message to active chat sessions, optionally scoped to one scope. */
+  broadcastToChats(text: string, scopeId?: string): void {
     for (const [key, session] of this.sessions) {
-      const value = session.identity.meta?.projectId;
-      const sessionProjectId = typeof value === "string" ? value : "";
-      if (projectId !== undefined && sessionProjectId !== projectId) continue;
+      const value = session.identity.meta?.scopeId;
+      const sessionScopeId = typeof value === "string" ? value : "";
+      if (scopeId !== undefined && sessionScopeId !== scopeId) continue;
       const chatId = Number.parseInt(key.split(":")[0]!, 10);
       if (Number.isFinite(chatId)) this.sendText(chatId, text);
     }

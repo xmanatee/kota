@@ -59,18 +59,18 @@ const ACCEPTED_DISPOSITION = {
 };
 
 describe("improver issue disposition workflow", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let projection: AutonomyIssueProjection;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-improver-issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(workspaceRoot, { recursive: true });
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
     writeFileSync(
-      join(projectDir, "package.json"),
+      join(workspaceRoot, "package.json"),
       JSON.stringify({ scripts: { "validate-tasks": "true" } }),
       "utf-8",
     );
@@ -78,7 +78,7 @@ describe("improver issue disposition workflow", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function openIssue() {
@@ -129,7 +129,6 @@ describe("improver issue disposition workflow", () => {
       event: autonomyIssueDecisionRequested.name,
       payload: {
         scopeId: "scope-fixture",
-        projectId: "scope-fixture",
         issueKey: issue.issueKey,
         rootCauseKey: issue.rootCauseKey,
         semanticRevision: issue.semanticRevision,
@@ -138,7 +137,7 @@ describe("improver issue disposition workflow", () => {
       },
     };
     const first = await new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger,
       stepMocks: { "review-issue": OBSERVED_DISPOSITION },
       contextOverrides: {
@@ -152,14 +151,14 @@ describe("improver issue disposition workflow", () => {
     expect(first.steps["write-disposition-artifact"].status).toBe("success");
     expect(projection.issues[0]?.disposition.kind).toBe("needs-decision");
     projection = publishImproverDisposition({
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       sourceRunId: "harness",
       currentProjection: projection,
     }).nextProjection;
     expect(projection.issues[0]?.disposition.kind).toBe("observed");
 
     const repeated = await new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger,
       stepMocks: { "review-issue": OBSERVED_DISPOSITION },
       contextOverrides: {
@@ -182,7 +181,6 @@ describe("improver issue disposition workflow", () => {
       event: autonomyIssueDecisionRequested.name,
       payload: {
         scopeId: "scope-fixture",
-        projectId: "scope-fixture",
         issueKey: issue.issueKey,
         rootCauseKey: issue.rootCauseKey,
         semanticRevision,
@@ -191,7 +189,7 @@ describe("improver issue disposition workflow", () => {
       },
     });
     const created = await new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger: triggerFor(1, "opened"),
       stepMocks: { "review-issue": TASK_DISPOSITION },
       contextOverrides: {
@@ -207,11 +205,11 @@ describe("improver issue disposition workflow", () => {
     const taskId = applied.materialized.taskId;
     expect(taskId).toEqual(expect.stringMatching(/^task-/));
     expect(
-      existsSync(join(projectDir, "data", "tasks", "ready", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`)),
     ).toBe(true);
     expect(projection.issues[0]?.links.taskIds).toEqual([]);
     projection = publishImproverDisposition({
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       sourceRunId: "harness",
       currentProjection: projection,
     }).nextProjection;
@@ -238,7 +236,7 @@ describe("improver issue disposition workflow", () => {
     projection = revisedResult.projection;
     const revised = revisedResult.transitions[0]!;
     const resolved = await new WorkflowTestHarness(improverWorkflow, {
-      projectDir,
+      workspaceRoot,
       trigger: triggerFor(revised.semanticRevision, "revised"),
       stepMocks: { "review-issue": ACCEPTED_DISPOSITION },
       contextOverrides: {
@@ -262,11 +260,11 @@ describe("improver issue disposition workflow", () => {
       ]),
     });
     expect(
-      existsSync(join(projectDir, "data", "tasks", "dropped", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "dropped", `${taskId}.md`)),
     ).toBe(true);
     expect(resolved.steps["validate-changes"].status).toBe("success");
     projection = publishImproverDisposition({
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       sourceRunId: "harness",
       currentProjection: projection,
     }).nextProjection;

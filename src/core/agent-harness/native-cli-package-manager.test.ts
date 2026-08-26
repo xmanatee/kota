@@ -22,22 +22,22 @@ describe("native CLI package manager runtime", () => {
   it("projects the exact pnpm runtime declared by the nearest project", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-pnpm-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const invocationRoot = join(root, "invocation");
     const corepackHome = join(root, "corepack");
     const packageRoot = join(corepackHome, "v1", "pnpm", "10.32.1");
     const executable = join(packageRoot, "bin", "pnpm.cjs");
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(join(packageRoot, "bin"), { recursive: true });
     mkdirSync(invocationRoot, { recursive: true });
     writeFileSync(
-      join(projectDir, "package.json"),
+      join(scopeRoot, "package.json"),
       JSON.stringify({ packageManager: "pnpm@10.32.1" }),
     );
     writeFileSync(executable, "");
 
     const runtime = prepareNativeCliPackageManagerRuntime(
-      projectDir,
+      scopeRoot,
       invocationRoot,
       { PATH: "/usr/bin" },
       { COREPACK_HOME: corepackHome },

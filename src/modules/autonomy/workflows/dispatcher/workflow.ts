@@ -38,8 +38,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       id: "assess-and-dispatch",
       type: "code",
       run: async ({
-        projectDir,
-        scopeDir,
+        workspaceRoot,
+        scopeRoot,
         stateDir,
         state,
         emit,
@@ -55,16 +55,16 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         );
         const scopeImprovementState = decodeScopeImprovementState(
           scopeState.value,
-          deriveDirectoryScopeId(scopeDir),
+          deriveDirectoryScopeId(scopeRoot),
         );
         const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
-          projectDir,
+          workspaceRoot,
           stateDir,
           runCommand,
         });
         const [inspection, progressBoundary] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
-            projectDir,
+            workspaceRoot,
             stateDir,
             nowIso: new Date().toISOString(),
             scopePolicySnapshot: scopePolicySnapshot ?? null,
@@ -72,8 +72,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             securityReviewGitEvidence,
           }),
           inspectProgressSemanticBoundary({
-            projectDir,
-            scopeDir,
+            workspaceRoot,
+            scopeRoot,
             stateDir,
             progressBoundaryState: progressState.value,
             runCommand,

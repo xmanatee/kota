@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import { handleRejectApproval } from "#modules/approval-queue/routes.js";
 import { handleAnswerOwnerQuestion } from "#modules/owner-questions/routes.js";
@@ -24,23 +24,23 @@ import {
 } from "./operator-authorization-boundary-fixture.integration.js";
 
 describe("operator authorization boundary", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   const runStates: Array<{ close(): void }> = [];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-operator-boundary-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-operator-boundary-"));
   });
 
   afterEach(() => {
     for (const runState of runStates.splice(0)) runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("keeps scheduled, webhook, and inbound-signal workflow payload text from resolving operator prompts", async () => {
     const bus = new EventBus();
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    const pbus = new ProjectScopedEventBus(bus, scopeId);
-    const { approvalQueue, ownerQuestionQueue } = makePromptQueues(projectDir, pbus);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
+    const pbus = new ScopedEventBus(bus, scopeId);
+    const { approvalQueue, ownerQuestionQueue } = makePromptQueues(scopeRoot, pbus);
     const approval = seedApproval(approvalQueue);
     const ownerQuestion = seedOwnerQuestion(ownerQuestionQueue);
     const text = approvalLikeText(approval.id, ownerQuestion.id);
@@ -53,7 +53,7 @@ describe("operator authorization boundary", () => {
 
     const { runtime, runState } = createTestWorkflowRuntime({
       bus,
-      projectDir,
+      scopeRoot,
       idleIntervalMs: 60_000,
       workflows: allWorkflows(delivered, text),
     });
@@ -79,7 +79,7 @@ describe("operator authorization boundary", () => {
     expectPromptsPending(approvalQueue, ownerQuestionQueue, approval.id, ownerQuestion.id);
     const routedPayloads: unknown[] = [];
     await dispatchInboundDelivery({
-      projectDir,
+      scopeRoot,
       pbus,
       scopeId,
       text,

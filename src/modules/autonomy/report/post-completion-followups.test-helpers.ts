@@ -8,26 +8,26 @@ export const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function createPostCompletionFollowUpsFixture(): {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   cleanup: () => void;
 } {
-  const projectDir = join(
+  const workspaceRoot = join(
     tmpdir(),
     `post-completion-followups-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  const runsDir = join(projectDir, ".kota", "runs");
+  const runsDir = join(workspaceRoot, ".kota", "runs");
   mkdirSync(runsDir, { recursive: true });
 
   return {
-    projectDir,
+    workspaceRoot,
     runsDir,
-    cleanup: () => rmSync(projectDir, { recursive: true, force: true }),
+    cleanup: () => rmSync(workspaceRoot, { recursive: true, force: true }),
   };
 }
 
 export function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: string,
   id: string,
   attrs: {
@@ -39,7 +39,7 @@ export function writeTask(
     body?: string;
   },
 ): void {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
   const title = attrs.title ?? id;

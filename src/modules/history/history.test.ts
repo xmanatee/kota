@@ -87,13 +87,13 @@ describe("ConversationHistory", () => {
   });
 
   it("filters by cwd", () => {
-    history.create("claude-sonnet-4-6", "/project-a");
-    history.create("claude-sonnet-4-6", "/project-b");
-    history.create("claude-sonnet-4-6", "/project-a");
+    history.create("claude-sonnet-4-6", "/scope-a");
+    history.create("claude-sonnet-4-6", "/scope-b");
+    history.create("claude-sonnet-4-6", "/scope-a");
 
-    const results = history.list({ cwd: "/project-a" });
+    const results = history.list({ cwd: "/scope-a" });
     expect(results).toHaveLength(2);
-    expect(results.every((r) => r.cwd === "/project-a")).toBe(true);
+    expect(results.every((r) => r.cwd === "/scope-a")).toBe(true);
   });
 
   it("filters by search term", () => {
@@ -109,10 +109,10 @@ describe("ConversationHistory", () => {
   });
 
   it("returns most recent conversation", () => {
-    history.create("claude-sonnet-4-6", "/project-a");
-    const id2 = history.create("claude-sonnet-4-6", "/project-a");
+    history.create("claude-sonnet-4-6", "/scope-a");
+    const id2 = history.create("claude-sonnet-4-6", "/scope-a");
 
-    const recent = history.getMostRecent("/project-a");
+    const recent = history.getMostRecent("/scope-a");
     expect(recent).not.toBeNull();
     expect(recent!.id).toBe(id2);
   });

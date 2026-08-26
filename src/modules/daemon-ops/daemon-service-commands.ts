@@ -3,9 +3,9 @@ import type { Command } from "commander";
 import { line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import {
-  DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
+  DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION,
   printDaemonError,
-  resolveDaemonCommandProjectDir,
+  resolveDaemonCommandScopeRoot,
   writeRawBlock,
 } from "./daemon-cli-options.js";
 import {
@@ -32,14 +32,14 @@ export function addDaemonServiceCommands(command: Command): void {
   command
     .command("install")
     .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
     .option("--dry-run", "Print the service unit without installing")
-    .action((opts: { dryRun?: boolean; projectDir?: string }, child: Command) => {
-      const projectDir = resolveDaemonCommandProjectDir(opts, child);
+    .action((opts: { dryRun?: boolean; scopeRoot?: string }, child: Command) => {
+      const scopeRoot = resolveDaemonCommandScopeRoot(opts, child);
       if (process.platform === "darwin") {
-        installLaunchdService(projectDir, opts.dryRun === true);
+        installLaunchdService(scopeRoot, opts.dryRun === true);
       } else if (process.platform === "linux") {
-        installSystemdService(projectDir, opts.dryRun === true);
+        installSystemdService(scopeRoot, opts.dryRun === true);
       } else {
         printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
         process.exitCode = 1;
@@ -69,9 +69,9 @@ export function addDaemonServiceCommands(command: Command): void {
     });
 }
 
-function installLaunchdService(projectDir: string, dryRun: boolean): void {
+function installLaunchdService(scopeRoot: string, dryRun: boolean): void {
   const plistPath = getLaunchdPlistPath();
-  const content = buildLaunchdPlist(projectDir);
+  const content = buildLaunchdPlist(scopeRoot);
   if (dryRun) {
     print(line(plain("# Would write: "), span(plistPath, "accent")));
     writeRawBlock(content);
@@ -95,9 +95,9 @@ function installLaunchdService(projectDir: string, dryRun: boolean): void {
   ));
 }
 
-function installSystemdService(projectDir: string, dryRun: boolean): void {
+function installSystemdService(scopeRoot: string, dryRun: boolean): void {
   const servicePath = getSystemdServicePath();
-  const content = buildSystemdUnit(projectDir);
+  const content = buildSystemdUnit(scopeRoot);
   if (dryRun) {
     print(line(plain("# Would write: "), span(servicePath, "accent")));
     writeRawBlock(content);

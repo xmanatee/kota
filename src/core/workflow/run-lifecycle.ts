@@ -69,8 +69,8 @@ export type RunLifecycleOptions = {
   ) => WorkflowPostReconcileInvariantResult;
   continueIntegration: IntegrationContinuation;
   now?: () => string;
-  createSandboxManager?: (projectRoot: string) => RunSandboxManager;
-  createIntegrationQueue?: (projectRoot: string) => IntegrationQueue;
+  createSandboxManager?: (repoRoot: string) => RunSandboxManager;
+  createIntegrationQueue?: (repoRoot: string) => IntegrationQueue;
   createResourceAllocator?: (store: RunStateDatabase) => RunResourceAllocator;
 };
 
@@ -171,8 +171,8 @@ function lines(value: string): string[] {
 
 export class RunLifecycle {
   private readonly now: () => string;
-  private readonly sandboxManager: (projectRoot: string) => RunSandboxManager;
-  private readonly integrationQueue: (projectRoot: string) => IntegrationQueue;
+  private readonly sandboxManager: (repoRoot: string) => RunSandboxManager;
+  private readonly integrationQueue: (repoRoot: string) => IntegrationQueue;
   private readonly resourceAllocator: RunResourceAllocator;
 
   constructor(private readonly options: RunLifecycleOptions) {
@@ -191,11 +191,11 @@ export class RunLifecycle {
   }
 
   async execute(run: StoredRun, signal: AbortSignal): Promise<RunExecutionOutcome> {
-    const projectRoot = this.options.store.getProjectRoot(run.projectId);
-    if (!projectRoot) {
-      return { kind: "terminal", state: "failed", error: `Unknown project "${run.projectId}"` };
+    const repoRoot = this.options.store.getScopeRoot(run.scopeId);
+    if (!repoRoot) {
+      return { kind: "terminal", state: "failed", error: `Unknown scope "${run.scopeId}"` };
     }
-    const manager = this.sandboxManager(projectRoot);
+    const manager = this.sandboxManager(repoRoot);
     let sandbox: RunSandbox | undefined;
     try {
       if (run.sandbox) {
@@ -204,7 +204,7 @@ export class RunLifecycle {
         } catch {
           const reconciled = manager.reconcile(run.id, run.repository);
           if (reconciled.status === "removed" || reconciled.status === "absent") {
-            const recovered = this.finishIntegratedWithoutSandbox(run, projectRoot);
+            const recovered = this.finishIntegratedWithoutSandbox(run, repoRoot);
             if (recovered) return recovered;
           }
           if (reconciled.status !== "active") throw new Error(`Run "${run.id}" sandbox is not recoverable`);
@@ -213,7 +213,7 @@ export class RunLifecycle {
       } else {
         const reconciled = manager.reconcile(run.id, run.repository);
         if (reconciled.status === "removed" || reconciled.status === "absent") {
-          const recovered = this.finishIntegratedWithoutSandbox(run, projectRoot);
+          const recovered = this.finishIntegratedWithoutSandbox(run, repoRoot);
           if (recovered) return recovered;
         }
         sandbox =
@@ -233,8 +233,8 @@ export class RunLifecycle {
         runId: run.id,
         attempt: run.attempt,
         daemonEpoch: this.options.daemonEpoch,
-        projectId: run.projectId,
-        projectRoot,
+        scopeId: run.scopeId,
+        scopeRoot: repoRoot,
         workflow: run.workflow,
         trigger: run.trigger,
         sandbox,
@@ -310,8 +310,8 @@ export class RunLifecycle {
     );
     if (journal.phase === "merged") return this.cleanupMerged(context, manager, sandbox);
     if (journal.phase === "publishing") {
-      const canonicalHead = git(context.project.root, ["rev-parse", "HEAD"]);
-      if (isCommitAncestor(context.project.root, journal.publishedHead, canonicalHead)) {
+      const canonicalHead = git(context.scope.root, ["rev-parse", "HEAD"]);
+      if (isCommitAncestor(context.scope.root, journal.publishedHead, canonicalHead)) {
         journal = { ...journal, phase: "merged" };
         this.persist(context, journal);
         return this.cleanupMerged(context, manager, sandbox);
@@ -342,13 +342,13 @@ export class RunLifecycle {
       journal = resolution.journal;
     }
 
-    const queue = this.integrationQueue(context.project.root);
+    const queue = this.integrationQueue(context.scope.root);
     while (true) {
       if (context.signal.aborted) {
         return { kind: "terminal", state: "cancelled" };
       }
       const outcome = await queue.integrate({
-        repositoryId: context.project.id,
+        repositoryId: context.scope.id,
         sandbox,
         epoch: context.run.daemonEpoch,
         signal: context.signal,
@@ -489,7 +489,7 @@ export class RunLifecycle {
     }
     const evidence = this.publishIntegrationEvidence(
       run,
-      context.project.root,
+      context.scope.root,
       journal,
     );
     if (evidence) return evidence;
@@ -514,12 +514,12 @@ export class RunLifecycle {
 
   private finishIntegratedWithoutSandbox(
     run: StoredRun,
-    projectRoot: string,
+    repoRoot: string,
   ): RunExecutionOutcome | null {
     let journal = readJournal(run.integration);
     if (journal?.phase === "publishing") {
-      const canonicalHead = git(projectRoot, ["rev-parse", "HEAD"]);
-      if (isCommitAncestor(projectRoot, journal.publishedHead, canonicalHead)) {
+      const canonicalHead = git(repoRoot, ["rev-parse", "HEAD"]);
+      if (isCommitAncestor(repoRoot, journal.publishedHead, canonicalHead)) {
         journal = { ...journal, phase: "merged" };
         this.options.store.updateIntegration(
           run.id,
@@ -540,7 +540,7 @@ export class RunLifecycle {
       }
     }
     if (journal?.phase !== "merged") return null;
-    const evidence = this.publishIntegrationEvidence(run, projectRoot, journal);
+    const evidence = this.publishIntegrationEvidence(run, repoRoot, journal);
     if (evidence) return evidence;
     this.options.store.clearSandbox(run.id, this.options.daemonEpoch);
     return { kind: "terminal", state: "succeeded" };
@@ -583,7 +583,7 @@ export class RunLifecycle {
 
   private publishIntegrationEvidence(
     run: StoredRun,
-    projectRoot: string,
+    repoRoot: string,
     journal: IntegrationJournal,
   ): Extract<RunExecutionOutcome, { kind: "suspended" }> | null {
     if (
@@ -599,7 +599,7 @@ export class RunLifecycle {
       version: 1,
       runId: run.id,
       workflow: run.workflow,
-      projectId: run.projectId,
+      scopeId: run.scopeId,
       targetBranch: journal.targetBranch,
       baseHead: journal.baseHead,
       integratedFromHead: journal.integratedFromHead,
@@ -610,28 +610,28 @@ export class RunLifecycle {
       completedAt: journal.completedAt,
     };
     try {
-      writeWriterIntegrationEvidence(projectRoot, evidence);
+      writeWriterIntegrationEvidence(repoRoot, evidence);
     } catch (error) {
       return this.attention("integration-evidence-write-failed", [
         errorMessage(error),
       ]);
     }
-    this.refreshWriterControlCoverage(projectRoot, evidence);
+    this.refreshWriterControlCoverage(repoRoot, evidence);
     return null;
   }
 
   private refreshWriterControlCoverage(
-    projectRoot: string,
+    repoRoot: string,
     evidence: WriterIntegrationEvidence,
   ): void {
-    const runDirPath = join(projectRoot, ".kota", "runs", evidence.runId);
+    const runDirPath = join(repoRoot, ".kota", "runs", evidence.runId);
     try {
       const metadata = readOptionalJsonFile<WorkflowRunMetadata>(
         join(runDirPath, "metadata.json"),
       );
       if (metadata === null) return;
       writeControlMonitorCoverageArtifactBestEffort({
-        projectDir: projectRoot,
+        scopeRoot: repoRoot,
         runDirPath,
         metadata,
         headSha: evidence.publishedHead,

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { RunCoordinator } from "./run-coordinator.js";
 import { enqueueMatchingWorkflows } from "./run-executor-utils.js";
 import { RunStateDatabase } from "./run-state-database.js";
@@ -12,20 +12,20 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
-const PROJECT_ID = "project-a";
+const SCOPE_ID = "scope-a";
 const PUBLISHER_RUN_ID = "publisher-run";
 const PUBLICATION_ID = `workflow:${PUBLISHER_RUN_ID}:completed`;
 
 function installDownstreamAdmission(
-  projectBus: ProjectScopedEventBus,
+  scopeBus: ScopedEventBus,
   store: RunStateDatabase,
   coordinator: RunCoordinator,
-  projectDir: string,
+  scopeRoot: string,
 ): void {
   const definition: WorkflowDefinition = {
     name: "downstream",
     enabled: true,
-    moduleRoot: projectDir,
+    moduleRoot: scopeRoot,
     repository: "none",
     tags: [],
     definitionPath: "src/core/workflow/run-publication-recovery.test.ts",
@@ -33,18 +33,18 @@ function installDownstreamAdmission(
     steps: [],
   };
   const queue = new WorkflowQueueManager({
-    store: new WorkflowRunStore(projectDir),
+    store: new WorkflowRunStore(scopeRoot),
     runState: store,
     coordinator,
-    projectId: PROJECT_ID,
-    projectDir,
-    getScopeId: () => PROJECT_ID,
+    scopeId: SCOPE_ID,
+    scopeRoot,
+    getScopeId: () => SCOPE_ID,
     getActiveBackoff: () => null,
     workflowUsesAgent: () => false,
     getDefinitions: () => [definition],
     log: () => undefined,
   });
-  projectBus.onAny((envelope) => {
+  scopeBus.onAny((envelope) => {
     enqueueMatchingWorkflows(envelope, [definition], (matched, trigger, run) =>
       queue.enqueue(matched, trigger, run),
     );
@@ -52,13 +52,13 @@ function installDownstreamAdmission(
 }
 
 function deliver(
-  projectBus: ProjectScopedEventBus,
+  scopeBus: ScopedEventBus,
   publication: PendingRunPublication,
 ): void {
   if (publication.event !== "workflow.completed") {
     throw new Error(`Unexpected publication event "${publication.event}"`);
   }
-  projectBus.deliverOutbox(publication.event, publication.payload, publication.id);
+  scopeBus.deliverOutbox(publication.event, publication.payload, publication.id);
 }
 
 function createCoordinator(
@@ -85,7 +85,7 @@ function persistPublication(
 ): void {
   store.admitRun({
     id: PUBLISHER_RUN_ID,
-    projectId: PROJECT_ID,
+    scopeId: SCOPE_ID,
     workflow: "publisher",
     repository: "none",
     trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -102,7 +102,7 @@ function persistPublication(
     {
       id: PUBLICATION_ID,
       runId: PUBLISHER_RUN_ID,
-      projectId: PROJECT_ID,
+      scopeId: SCOPE_ID,
       event: "workflow.completed",
       payload: {
         workflow: "publisher",
@@ -125,8 +125,8 @@ describe("durable run publication recovery", () => {
 
     try {
       store = new RunStateDatabase(join(root, "state"));
-      store.registerProject({
-        id: PROJECT_ID,
+      store.registerScope({
+        id: SCOPE_ID,
         rootPath: join(root, "project"),
         createdAt: "2026-08-25T10:00:00.000Z",
       });
@@ -165,22 +165,22 @@ describe("durable run publication recovery", () => {
   test("redelivery after synchronous admission and pre-ack crash admits downstream once", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-publication-recovery-"));
     const stateDir = join(root, "state");
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     let store: RunStateDatabase | undefined;
     let deliveries = 0;
 
     try {
       store = new RunStateDatabase(stateDir);
-      store.registerProject({
-        id: PROJECT_ID,
-        rootPath: projectDir,
+      store.registerScope({
+        id: SCOPE_ID,
+        rootPath: scopeRoot,
         createdAt: "2026-08-25T10:00:00.000Z",
       });
       const firstSession = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
       persistPublication(store, firstSession.epoch);
 
       const firstBus = new EventBus();
-      const firstTarget = new ProjectScopedEventBus(firstBus, PROJECT_ID);
+      const firstTarget = new ScopedEventBus(firstBus, SCOPE_ID);
       const firstCoordinator = createCoordinator(store, firstSession.epoch, (publication) => {
         deliveries += 1;
         deliver(firstTarget, publication);
@@ -189,7 +189,7 @@ describe("durable run publication recovery", () => {
         firstTarget,
         store,
         firstCoordinator,
-        projectDir,
+        scopeRoot,
       );
       firstBus.addEmitMiddleware((_envelope, next) => {
         next();
@@ -199,7 +199,7 @@ describe("durable run publication recovery", () => {
       await firstCoordinator.drainPublications();
 
       const firstAdmissions = store
-        .listRuns(PROJECT_ID)
+        .listRuns(SCOPE_ID)
         .filter((run) => run.workflow === "downstream");
       expect(firstAdmissions).toHaveLength(1);
       expect(firstAdmissions[0]?.trigger.eventId).toBe(PUBLICATION_ID);
@@ -212,7 +212,7 @@ describe("durable run publication recovery", () => {
       store = new RunStateDatabase(stateDir);
       const reopenedSession = store.beginDaemonSession("2026-08-25T10:00:04.000Z");
       const reopenedBus = new EventBus();
-      const reopenedTarget = new ProjectScopedEventBus(reopenedBus, PROJECT_ID);
+      const reopenedTarget = new ScopedEventBus(reopenedBus, SCOPE_ID);
       const reopenedCoordinator = createCoordinator(
         store,
         reopenedSession.epoch,
@@ -225,14 +225,14 @@ describe("durable run publication recovery", () => {
         reopenedTarget,
         store,
         reopenedCoordinator,
-        projectDir,
+        scopeRoot,
       );
 
       await reopenedCoordinator.drainPublications();
 
       expect(deliveries).toBe(2);
       expect(
-        store.listRuns(PROJECT_ID)
+        store.listRuns(SCOPE_ID)
           .filter((run) => run.workflow === "downstream")
           .map((run) => run.id),
       ).toEqual([admittedRunId]);

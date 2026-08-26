@@ -108,7 +108,7 @@ const browserSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "Playwright storage-state file used for auth-walled and JavaScript-gated sources.",
     required: false,
-    scope: "project",
+    scope: "scope",
     owner: "browser",
     sensitivity: "browser-profile",
     storageStateConfigPath: "modules.browser.storageStatePath",
@@ -173,7 +173,7 @@ const browserModule: KotaModule = {
         id: "browser.storage-state",
         description: "Optional Playwright storage-state profile used for authenticated browsing.",
         sensitivity: "browser-profile",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "omit-payload",
       },
     ],
@@ -197,7 +197,7 @@ const browserModule: KotaModule = {
     const profile = resolveProfile(ctx);
     configureBrowserProfile(profile, {
       scopeId: deriveDirectoryScopeId(ctx.cwd),
-      projectDir: ctx.cwd,
+      scopeRoot: ctx.cwd,
     });
     if (profile.networkProfile.name === "configured-provider") {
       ctx.log.info(

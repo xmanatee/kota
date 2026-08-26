@@ -2,9 +2,9 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { pendingApprovalMessageKey } from "./approval-callback.js";
 import { pendingApprovalMessages, pendingOwnerQuestionMessages } from "./channels.js";
-import { compactOwnerQuestionContext, eventProjectId, renderProjectLabelPrefix, sendApprovalMessage, sendOwnerQuestionMessage, sendTelegramMessage, sendTelegramProjectMessage } from "./notification-delivery.js";
-import { resolveTelegramProjectRouting, tryResolveTelegramClient } from "./project-routing.js";
+import { compactOwnerQuestionContext, eventScopeId, renderScopeLabelPrefix, sendApprovalMessage, sendOwnerQuestionMessage, sendTelegramMessage, sendTelegramScopeMessage } from "./notification-delivery.js";
 import { createTelegramReadinessSource, getCredentials, reportedTelegramPollConflicts, type TelegramConfig } from "./readiness.js";
+import { resolveTelegramScopeRouting, tryResolveTelegramClient } from "./scope-routing.js";
 
 let notificationUnsubs: (() => void)[] = [];
 
@@ -14,54 +14,54 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
       createTelegramReadinessSource(ctx),
     );
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
-    const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
+    const chatScopeBindings = telegramConfig?.chatScopeBindings ?? [];
 
     notificationUnsubs = [
       ctx.events.subscribe("workflow.failure.alert", (payload) => {
         const creds = getCredentials(ctx);
         if (!creds) return;
-        void sendTelegramProjectMessage(
+        void sendTelegramScopeMessage(
           creds.token,
           creds.chatId,
           payload.text as string,
-          eventProjectId(payload),
-          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          eventScopeId(payload),
+          resolveTelegramScopeRouting(ctx, chatScopeBindings)?.selection,
           ctx.log,
         );
       }),
       ctx.events.subscribe("workflow.attention.digest", (payload) => {
         const creds = getCredentials(ctx);
         if (!creds) return;
-        void sendTelegramProjectMessage(
+        void sendTelegramScopeMessage(
           creds.token,
           creds.chatId,
           payload.text as string,
-          eventProjectId(payload),
-          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          eventScopeId(payload),
+          resolveTelegramScopeRouting(ctx, chatScopeBindings)?.selection,
           ctx.log,
         );
       }),
       ctx.events.subscribe("workflow.daily.digest", (payload) => {
         const creds = getCredentials(ctx);
         if (!creds) return;
-        void sendTelegramProjectMessage(
+        void sendTelegramScopeMessage(
           creds.token,
           creds.chatId,
           payload.text as string,
-          eventProjectId(payload),
-          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          eventScopeId(payload),
+          resolveTelegramScopeRouting(ctx, chatScopeBindings)?.selection,
           ctx.log,
         );
       }),
       ctx.events.subscribe("workflow.approval.expired", (payload) => {
         const creds = getCredentials(ctx);
         if (!creds) return;
-        void sendTelegramProjectMessage(
+        void sendTelegramScopeMessage(
           creds.token,
           creds.chatId,
           payload.text as string,
-          eventProjectId(payload),
-          resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+          eventScopeId(payload),
+          resolveTelegramScopeRouting(ctx, chatScopeBindings)?.selection,
           ctx.log,
         );
       }),
@@ -74,20 +74,20 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
         const creds = getCredentials(ctx);
         if (!creds) return;
         const id = payload.id as string;
-        const projectId = payload.projectId as string;
+        const scopeId = payload.scopeId as string;
         void (async () => {
           const client = tryResolveTelegramClient(ctx);
           if (!client) return null;
-          const listed = await client.forProject(projectId).approvals.list({ status: "pending" });
+          const listed = await client.forScope(scopeId).approvals.list({ status: "pending" });
           const approval = listed.approvals.find((item) => item.id === id);
           if (!approval) return null;
           return sendApprovalMessage(
             creds.token,
             creds.chatId,
             approval,
-            await renderProjectLabelPrefix(
-              projectId,
-              resolveTelegramProjectRouting(ctx, chatProjectBindings)?.selection,
+            await renderScopeLabelPrefix(
+              scopeId,
+              resolveTelegramScopeRouting(ctx, chatScopeBindings)?.selection,
               ctx.log,
             ),
             ctx.log,
@@ -101,7 +101,7 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
                   approvalId: id,
                   chatId: creds.chatId,
                   messageId: delivery.messageId,
-                  projectId,
+                  scopeId,
                   reviewDigest: delivery.reviewDigest,
                 },
               );
@@ -116,14 +116,14 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
         const question = payload.question as string;
         const reason = payload.reason as string;
         const source = payload.source as string;
-        const projectId = payload.projectId as string;
+        const scopeId = payload.scopeId as string;
         const payloadProposedAnswers = Array.isArray(payload.proposedAnswers)
           ? payload.proposedAnswers.filter((answer): answer is string => typeof answer === "string")
           : [];
         void (async () => {
-          const projectRouting = resolveTelegramProjectRouting(ctx, chatProjectBindings);
-          const listed = projectRouting
-            ? await projectRouting.client.forProject(projectId).ownerQuestions.list()
+          const scopeRouting = resolveTelegramScopeRouting(ctx, chatScopeBindings);
+          const listed = scopeRouting
+            ? await scopeRouting.client.forScope(scopeId).ownerQuestions.list()
             : { questions: [] };
           const entry = listed.questions.find((question) => question.id === id);
           const proposedAnswers = payloadProposedAnswers.length > 0
@@ -140,14 +140,14 @@ export function loadTelegramModule(ctx: ModuleRuntimeContext): void {
             payload.answerBehavior ?? entry?.answerBehavior,
             payload.origin ?? entry?.origin,
             proposedAnswers,
-            await renderProjectLabelPrefix(projectId, projectRouting?.selection, ctx.log),
+            await renderScopeLabelPrefix(scopeId, scopeRouting?.selection, ctx.log),
             ctx.log,
           );
           if (messageId != null) {
             pendingOwnerQuestionMessages.set(id, {
               chatId: creds.chatId,
               messageId,
-              projectId,
+              scopeId,
               proposedAnswers,
             });
           }

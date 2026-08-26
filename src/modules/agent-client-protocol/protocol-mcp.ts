@@ -20,7 +20,7 @@ function rejectUnsupportedMcpServer(value: JsonValue, index: number): void {
     validateUnsupportedStdioMcpServer(value, index);
     throw unsupportedFeature(
       "mcpServers.stdio",
-      "ACP stdio MCP handoff is not supported by this adapter; configure MCP servers in project config",
+      "ACP stdio MCP handoff is not supported by this adapter; configure MCP servers in scope config",
     );
   }
   if (type === "http") {

@@ -94,53 +94,15 @@ final class ContractFixtureTests: XCTestCase {
     func testDecodesDashboardAvailableIdentity() throws {
         let data = try Self.sectionData("identity")
         let identity = try JSONDecoder().decode(ClientIdentity.self, from: data)
-        XCTAssertEqual(identity.projectName, "kota")
-        XCTAssertEqual(identity.projectDir, "/Users/operator/projects/kota")
+        XCTAssertEqual(identity.scopeName, "kota")
+        XCTAssertEqual(identity.scopeRoot, "/Users/operator/projects/kota")
         XCTAssertEqual(identity.daemonVersion, "0.1.0")
         XCTAssertEqual(identity.pid, 12345)
         XCTAssertEqual(identity.dashboard.isAvailable, true)
         XCTAssertEqual(identity.dashboard.path, "/")
-        XCTAssertEqual(identity.projects.defaultProjectId, "p-kota-fixture-default")
-        XCTAssertEqual(identity.projects.projects.count, 2)
-        XCTAssertEqual(identity.projects.projects[1].displayName, "side-project")
-    }
-
-    // MARK: - Project registry projection
-
-    func testDecodesProjectRegistryProjection() throws {
-        let data = try Self.sectionData("projects")
-        let projection = try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
-        XCTAssertEqual(projection.defaultProjectId, "p-kota-fixture-default")
-        XCTAssertEqual(projection.projects.count, 2)
-        XCTAssertEqual(projection.projects.first?.displayName, "kota")
-    }
-
-    func testProjectRegistryProjectionRejectsUnknownDefault() throws {
-        let json = """
-        {
-          "defaultProjectId": "p-missing",
-          "projects": [
-            { "projectId": "p-real", "projectDir": "/tmp", "displayName": "real" }
-          ]
-        }
-        """
-        let data = Data(json.utf8)
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
-        )
-    }
-
-    func testProjectRegistryProjectionRejectsEmptyProjects() throws {
-        let json = """
-        {
-          "defaultProjectId": "p-real",
-          "projects": []
-        }
-        """
-        let data = Data(json.utf8)
-        XCTAssertThrowsError(
-            try JSONDecoder().decode(ProjectRegistryProjection.self, from: data)
-        )
+        XCTAssertEqual(identity.scopeRegistry.defaultScopeId, "p-kota-fixture-default")
+        XCTAssertEqual(identity.scopeRegistry.scopes.count, 3)
+        XCTAssertEqual(identity.scopeRegistry.scopes[2].displayName, "side-scope")
     }
 
     // MARK: - Scope registry projection
@@ -212,24 +174,24 @@ final class ContractFixtureTests: XCTestCase {
         )
     }
 
-    func testDecodesUnknownProjectError() throws {
-        let data = try Self.sectionData("unknownProjectError")
-        let err = try JSONDecoder().decode(UnknownProjectError.self, from: data)
-        XCTAssertEqual(err.reason, "unknown_project")
-        XCTAssertEqual(err.projectId, "p-not-configured")
+    func testDecodesUnknownScopeError() throws {
+        let data = try Self.sectionData("unknownScopeError")
+        let err = try JSONDecoder().decode(UnknownScopeError.self, from: data)
+        XCTAssertEqual(err.reason, "unknown_scope")
+        XCTAssertEqual(err.scopeId, "p-not-configured")
     }
 
-    func testUnknownProjectErrorRejectsAlienReason() throws {
+    func testUnknownScopeErrorRejectsAlienReason() throws {
         let json = """
         {
-          "error": "Unknown project",
+          "error": "Unknown scope",
           "reason": "future_reason",
-          "projectId": "p-x"
+          "scopeId": "p-x"
         }
         """
         let data = Data(json.utf8)
         XCTAssertThrowsError(
-            try JSONDecoder().decode(UnknownProjectError.self, from: data)
+            try JSONDecoder().decode(UnknownScopeError.self, from: data)
         )
     }
 

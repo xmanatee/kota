@@ -4,7 +4,7 @@
 
 - `src/core/` is the small runtime kernel: protocols, lifecycle, daemon,
   workflow execution, eventing, sessions, and shared contracts.
-- `src/modules/` contains project-owned modules that contribute tools,
+- `src/modules/` contains scope-owned modules that contribute tools,
   workflows, agents, skills, channels, routes, commands, and services.
 
 Root `src/*.ts` files should stay rare and act only as public entrypoints or
@@ -25,7 +25,7 @@ the `src/` root. Unit tests and component fixtures belong beside their owning
 core area or module. Cross-cutting fixtures are exceptional: prefer an owned
 typed builder or semantic scenario over a root-level data catalog.
 
-Core code and core-only tests do not import project modules. Scenarios that
+Core code and core-only tests do not import scope-owned modules. Scenarios that
 assemble both layers belong at the integration boundary. Enforce these
 boundaries with package structure and the smallest structural check that cannot
 be expressed by TypeScript or module visibility; do not maintain filename

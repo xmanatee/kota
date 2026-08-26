@@ -43,7 +43,7 @@ describe("a2a push notification delivery", () => {
     expect(backend.subscriptions[0]?.selector).toEqual({
       taskId: "task-1",
       contextId: "proj-1",
-      projectId: "proj-1",
+      scopeId: "proj-1",
     });
 
     const current = await emitCurrentStatusUpdate(backend);
@@ -127,7 +127,7 @@ describe("a2a push notification delivery", () => {
     expect(restartedBackend.subscriptions[0]?.selector).toEqual({
       taskId: "task-1",
       contextId: "proj-1",
-      projectId: "proj-1",
+      scopeId: "proj-1",
     });
 
     const current = await emitCurrentStatusUpdate(restartedBackend);
@@ -181,7 +181,7 @@ describe("a2a push notification delivery", () => {
           role: "ROLE_USER",
           taskId: "task-1",
           parts: [{ text: "continue task", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-1" },
+          metadata: { scopeId: "proj-1" },
         },
       },
     });
@@ -229,7 +229,7 @@ describe("a2a push notification delivery", () => {
           role: "ROLE_USER",
           taskId: "task-1",
           parts: [{ text: "continue again", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-1" },
+          metadata: { scopeId: "proj-1" },
         },
       },
     });
@@ -276,7 +276,7 @@ async function emitCurrentStatusUpdate(backend: FakeBackend) {
   const current = await backend.getTask({
     taskId: "task-1",
     contextId: "proj-1",
-    projectId: "proj-1",
+    scopeId: "proj-1",
   });
   backend.emitSubscribed({
     statusUpdate: {

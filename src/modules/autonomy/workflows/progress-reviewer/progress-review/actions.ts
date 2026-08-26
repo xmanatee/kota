@@ -18,7 +18,7 @@ import type {
 export { readTaskStatus };
 
 export function applyProgressReviewActions(args: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   evidence: ProgressReviewEvidenceIdPacket;
   review: ProgressReviewAgentOutput;
@@ -35,7 +35,7 @@ export function applyProgressReviewActions(args: {
   }
   for (const resolution of args.review.resolutions ?? []) {
     applied.push(...resolveGeneratedWork({
-      projectDir: args.projectDir,
+      workspaceRoot: args.workspaceRoot,
       resolution,
     }));
   }

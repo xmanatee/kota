@@ -6,9 +6,9 @@ export const privateTunnelSetupRequirements: ModuleSetupRequirement[] = [
 		kind: "config",
 		title: "Default private MCP tunnel profile",
 		description:
-			"Project config that maps one private MCP target to an outbound tunnel profile.",
+			"Scope config that maps one private MCP target to an outbound tunnel profile.",
 		required: false,
-		scope: "project",
+		scope: "scope",
 		owner: "mcp-registry",
 		sensitivity: "none",
 		setup: {
@@ -98,7 +98,7 @@ export const privateTunnelSetupRequirements: ModuleSetupRequirement[] = [
 		description:
 			"Runtime API key used by the outbound tunnel client. The value is stored through the shared secret provider.",
 		required: false,
-		scope: "project",
+		scope: "scope",
 		owner: "mcp-registry",
 		sensitivity: "secret",
 		setup: {
@@ -107,7 +107,7 @@ export const privateTunnelSetupRequirements: ModuleSetupRequirement[] = [
 			label: "Open tunnel settings",
 			pendingTtlMs: 30 * 60 * 1000,
 		},
-		secretRefs: [{ name: "OPENAI_TUNNEL_API_KEY", scope: "project" }],
+		secretRefs: [{ name: "OPENAI_TUNNEL_API_KEY", scope: "scope" }],
 	},
 ];
 

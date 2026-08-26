@@ -9,7 +9,7 @@ import {
   type LocalClientHandlers,
 } from "./kota-client.js";
 import { buildLocalKotaClient } from "./local-kota-client.js";
-import { createScopeScopedKotaClient } from "./project-scoped-kota-client.js";
+import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 type ResourceDiscoveryFilter = Parameters<
   KotaClient["resourceDiscovery"]["discover"]
@@ -132,16 +132,13 @@ describe("resourceDiscovery KotaClient wiring", () => {
   it("injects scope metadata into scoped resourceDiscovery calls", async () => {
     const capture: ResourceDiscoveryCapture = {};
     const base = {
-      forProject: () => {
-        throw new Error("unexpected project scope");
-      },
       forScope: () => {
         throw new Error("unexpected nested scope");
       },
       resourceDiscovery: resourceDiscoveryHandler(capture),
     } as unknown as KotaClient;
 
-    const scoped = createScopeScopedKotaClient(base, "scope-rd");
+    const scoped = createScopedKotaClient(base, "scope-rd");
     const result = await scoped.resourceDiscovery.discover("rank scoped skills", {
       limit: 1,
     });

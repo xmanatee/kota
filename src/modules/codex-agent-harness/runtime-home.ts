@@ -9,9 +9,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 import {
-  PROTECTED_PROJECT_ENV_GLOBS,
-  PROTECTED_PROJECT_RUNTIME_FILES,
-} from "#core/tools/protected-project-paths.js";
+  PROTECTED_SCOPE_ENV_GLOBS,
+  PROTECTED_SCOPE_RUNTIME_FILES,
+} from "#core/tools/protected-scope-paths.js";
 
 const CODEX_PERMISSION_PROFILE = "kota-native";
 
@@ -57,8 +57,8 @@ function codexPermissionProfile(
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([path, permission]) => `${JSON.stringify(path)} = ${JSON.stringify(permission)}`);
   const workspaceDenials = [
-    ...PROTECTED_PROJECT_RUNTIME_FILES,
-    ...PROTECTED_PROJECT_ENV_GLOBS,
+    ...PROTECTED_SCOPE_RUNTIME_FILES,
+    ...PROTECTED_SCOPE_ENV_GLOBS,
   ].map((path) => `${JSON.stringify(path)} = "deny"`);
   return [
     `default_permissions = ${JSON.stringify(CODEX_PERMISSION_PROFILE)}`,

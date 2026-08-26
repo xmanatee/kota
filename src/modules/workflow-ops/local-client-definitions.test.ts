@@ -5,18 +5,18 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   buildLocalWorkflowHandler,
-  makeWorkflowOpsProjectDir,
+  makeWorkflowOpsScopeRoot,
 } from "./local-client-test-helpers.js";
 
 describe("workflow-ops localClient — local definitions", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeWorkflowOpsProjectDir();
+    workspaceRoot = makeWorkflowOpsScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("listDefinitions resolves through ctx.resolveAgentDef-friendly definitions source", async () => {
@@ -24,13 +24,13 @@ describe("workflow-ops localClient — local definitions", () => {
       name: "demo-watch",
       enabled: true,
       definitionPath: "ignored",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       repository: "read",
       defaultAutonomyMode: "autonomous",
       triggers: [{ watch: ["**/*.md"], debounceMs: 750, cooldownMs: 0 }],
       steps: [{ id: "review", type: "agent", agentName: "demo-agent" }],
     } as unknown as RegisteredWorkflowDefinitionInput;
-    writeFileSync(join(projectDir, "agent.md"), "Review the project.\n", "utf-8");
+    writeFileSync(join(workspaceRoot, "agent.md"), "Review the project.\n", "utf-8");
     const resolveAgentDef = vi.fn((name: string) =>
       name === "demo-agent"
         ? {
@@ -43,7 +43,7 @@ describe("workflow-ops localClient — local definitions", () => {
           }
         : undefined
     );
-    const handler = buildLocalWorkflowHandler(projectDir, {
+    const handler = buildLocalWorkflowHandler(workspaceRoot, {
       resolveAgentDef,
       resolveSkillsPrompt: vi.fn(),
       config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
@@ -64,7 +64,7 @@ describe("workflow-ops localClient — local definitions", () => {
   });
 
   it("triggerByName requires daemon-owned durable admission", async () => {
-    const handler = buildLocalWorkflowHandler(projectDir);
+    const handler = buildLocalWorkflowHandler(workspaceRoot);
     const result = await handler.triggerByName("builder", {
       event: "runtime.idle",
       schemaRef: { name: "runtime-idle", version: 1 },
@@ -74,7 +74,7 @@ describe("workflow-ops localClient — local definitions", () => {
       notBeforeMs: 100,
     });
     expect(result).toEqual({ ok: false, reason: "daemon_required" });
-    expect(existsSync(join(projectDir, ".kota", "kota.sqlite"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "kota.sqlite"))).toBe(false);
   });
 
   it("explain resolves compiled automation locally from contributed workflows", async () => {
@@ -82,7 +82,7 @@ describe("workflow-ops localClient — local definitions", () => {
       name: "client-channel-match",
       enabled: true,
       definitionPath: "ignored",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       repository: "none",
       triggers: [
         {
@@ -93,7 +93,7 @@ describe("workflow-ops localClient — local definitions", () => {
       ],
       steps: [{ id: "matched", type: "emit", event: "opportunity.matched" }],
     } as unknown as RegisteredWorkflowDefinitionInput;
-    const handler = buildLocalWorkflowHandler(projectDir, {
+    const handler = buildLocalWorkflowHandler(workspaceRoot, {
       config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
       resolveAgentDef: vi.fn(),
       getContributedWorkflows: () => [definition],
@@ -105,7 +105,6 @@ describe("workflow-ops localClient — local definitions", () => {
         event: "inbound.signal.received",
         payload: {
           scopeId: "scope-a",
-          projectId: "scope-a",
           channel: "telegram",
         },
       },
@@ -132,12 +131,12 @@ describe("workflow-ops localClient — local definitions", () => {
       name: "client-simulation-match",
       enabled: true,
       definitionPath: "ignored",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       repository: "none",
       triggers: [{ event: "simulation.event", cooldownMs: 0 }],
       steps: [{ id: "preview", type: "code", run: () => ({ ok: true }) }],
     } as unknown as RegisteredWorkflowDefinitionInput;
-    const handler = buildLocalWorkflowHandler(projectDir, {
+    const handler = buildLocalWorkflowHandler(workspaceRoot, {
       config: { defaultAgentHarness: "thin" } as ModuleContext["config"],
       resolveAgentDef: vi.fn(),
       getContributedWorkflows: () => [definition],
@@ -147,7 +146,7 @@ describe("workflow-ops localClient — local definitions", () => {
 
     const result = await handler.simulate({
       event: "simulation.event",
-      payload: { scopeId: "scope-a", projectId: "scope-a" },
+      payload: { scopeId: "scope-a" },
     });
 
     expect(result.summary).toMatchObject({ total: 1, "would-queue": 1 });

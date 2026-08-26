@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetSecretStores } from "#core/config/secrets.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -92,7 +92,7 @@ describe("buildResourceDiscoverySnapshotReader", () => {
       title: "Slack Socket Mode credentials",
       description: "Slack Socket Mode token references.",
       required: true,
-      scope: "project",
+      scope: "scope",
       owner: "slack-channel",
       sensitivity: "secret",
       setup: {
@@ -100,7 +100,7 @@ describe("buildResourceDiscoverySnapshotReader", () => {
         url: "https://api.slack.com/apps",
         label: "Open Slack app credentials",
       },
-      secretRefs: [{ name: secretName, scope: "project" }],
+      secretRefs: [{ name: secretName, scope: "scope" }],
     };
     const baseSummary = moduleSummary();
     const manifest = baseSummary.manifest;
@@ -188,22 +188,27 @@ describe("buildResourceDiscoverySnapshotReader", () => {
       },
     };
     const registry = initProviderRegistry();
-    registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
-      getProjectRegistryProjection: () => ({
-        defaultProjectId: "project-a",
-        projects: [{
-          projectId: "project-a",
-          projectDir: dir,
-          displayName: "Project A",
-        }],
+    registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "test", {
+      getScopeRegistryProjection: () => ({
+        rootScopeId: "global",
+        defaultScopeId: "scope-a",
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          {
+            scopeId: "scope-a",
+            parentScopeId: "global",
+            directoryRoot: dir,
+            displayName: "Scope A",
+          },
+        ],
       }),
-      getActiveProjectId: () => null,
-      resolveProjectRuntime: (projectId) => ({
+      getActiveScopeId: () => null,
+      resolveScopeRuntime: (scopeId) => ({
         ok: false,
         error: {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: projectId ?? "",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: scopeId ?? "",
         },
       }),
     });
@@ -217,7 +222,7 @@ describe("buildResourceDiscoverySnapshotReader", () => {
 
     const snapshot = await buildResourceDiscoverySnapshotReader(ctx)(
       "deployment checklist",
-      { scopeId: "project-a" },
+      { scopeId: "scope-a" },
     );
 
     expect(captured).toEqual({
@@ -225,7 +230,7 @@ describe("buildResourceDiscoverySnapshotReader", () => {
       filter: {
         topK: 20,
         sources: ["memory", "history", "tasks", "answer"],
-        scopeId: "project-a",
+        scopeId: "scope-a",
       },
     });
     expect(snapshot.recallHits).toEqual([recallHit]);

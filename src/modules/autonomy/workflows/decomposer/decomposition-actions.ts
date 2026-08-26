@@ -67,12 +67,12 @@ function subtaskBody(args: {
 }
 
 export function applyDecompositionPlan(args: {
-  projectDir: string;
+  workspaceRoot: string;
   taskId: string;
   failedRunId: string;
   plan: DecompositionPlan;
 }): AppliedDecomposition {
-  const original = showTask(args.projectDir, args.taskId);
+  const original = showTask(args.workspaceRoot, args.taskId);
   if (!original.found || original.state === "done" || original.state === "dropped") {
     throw new Error(`Active task ${args.taskId} is unavailable for decomposition`);
   }
@@ -85,7 +85,7 @@ export function applyDecompositionPlan(args: {
     throw new Error(`Task ${args.taskId} already records a decomposition`);
   }
   const droppedPath = join(
-    getRepoTaskStateDir(args.projectDir, "dropped"),
+    getRepoTaskStateDir(args.workspaceRoot, "dropped"),
     `${args.taskId}.md`,
   );
   if (existsSync(droppedPath)) {
@@ -109,12 +109,12 @@ export function applyDecompositionPlan(args: {
     throw new Error("Decomposer subtask titles produce duplicate task ids");
   }
   for (const id of subtaskIds) {
-    if (showTask(args.projectDir, id).found) {
+    if (showTask(args.workspaceRoot, id).found) {
       throw new Error(`Decomposer subtask already exists: ${id}`);
     }
   }
 
-  const readyDir = getRepoTaskStateDir(args.projectDir, "ready");
+  const readyDir = getRepoTaskStateDir(args.workspaceRoot, "ready");
   const now = new Date().toISOString();
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;
@@ -134,7 +134,7 @@ export function applyDecompositionPlan(args: {
       updated_at: now,
     };
     writeRepoTaskFile(
-      args.projectDir,
+      args.workspaceRoot,
       join(readyDir, `${id}.md`),
       serializeFlatFrontMatter(
         attrs,
@@ -151,14 +151,14 @@ export function applyDecompositionPlan(args: {
   }
 
   const update = updateTaskBody(
-    args.projectDir,
+    args.workspaceRoot,
     args.taskId,
     `${originalBody.trim()}\n\n## Decomposed\n\n${subtaskIds.map((id) => `- ${id}`).join("\n")}`,
   );
   if (!update.ok) {
     throw new Error(`Could not annotate ${args.taskId} before decomposition: ${update.reason}`);
   }
-  moveTaskById(args.projectDir, args.taskId, "dropped");
-  checkDecompositionApplied(args.projectDir, args.taskId);
+  moveTaskById(args.workspaceRoot, args.taskId, "dropped");
+  checkDecompositionApplied(args.workspaceRoot, args.taskId);
   return { taskId: args.taskId, subtaskIds };
 }

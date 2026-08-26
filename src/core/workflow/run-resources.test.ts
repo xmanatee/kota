@@ -24,8 +24,8 @@ function setupRun(id: string, store?: RunStateDatabase): {
   const state = store ?? new RunStateDatabase(join(root, "state"));
   if (store === undefined) {
     stores.push(state);
-    state.registerProject({
-      id: "project",
+    state.registerScope({
+      id: "scope",
       rootPath: join(root, "project"),
       createdAt: "2026-08-25T10:00:00.000Z",
     });
@@ -33,7 +33,7 @@ function setupRun(id: string, store?: RunStateDatabase): {
   const epoch = state.getEpoch() || state.beginDaemonSession("2026-08-25T10:00:00.000Z").epoch;
   state.admitRun({
     id,
-    projectId: "project",
+    scopeId: "scope",
     workflow: "workflow",
     repository: "none",
     trigger: { event: "test", schemaRef: null, payload: {} },

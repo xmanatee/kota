@@ -111,8 +111,8 @@ describe("prompt_template tool", () => {
 	it("uses runner context cwd for the default prompt store", async () => {
 		const defaultDir = mkdtempSync(join(tmpdir(), "prompt-default-"));
 		const selectedDir = mkdtempSync(join(tmpdir(), "prompt-selected-"));
-		for (const projectDir of [defaultDir, selectedDir]) {
-			mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		for (const scopeRoot of [defaultDir, selectedDir]) {
+			mkdirSync(join(scopeRoot, ".kota", "prompts"), { recursive: true });
 		}
 		writeFileSync(
 			join(defaultDir, ".kota", "prompts", "scope.md"),

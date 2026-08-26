@@ -1,5 +1,5 @@
 /**
- * Import guard: no file under `src/core/` may reference a project module via
+ * Import guard: no file under `src/core/` may reference a scope-owned module via
  * the `#modules/*` package-import subpath, with one narrow exception.
  *
  * The neutral-protocol audit drove `src/core/` to zero `#modules/*` imports

@@ -5,30 +5,30 @@ import {
 } from "./daemon-control.js";
 
 const TEST_TOKEN = "test-secret-token-abc123";
-const PROJECT_ID = "test-project-id";
+const SCOPE_ID = "test-scope-id";
 
 function makeHandle(
   overrides: Partial<DaemonControlHandle> = {},
 ): DaemonControlHandle {
   return {
     subscribeToEvents: vi.fn(() => () => {}),
-    getActiveProjectId: vi.fn(() => null),
+    getActiveScopeId: vi.fn(() => null),
     getScopeHostingState: vi.fn(() => "hosted"),
-    hasProject: vi.fn(() => true),
-    getProjectRegistryProjection: vi.fn(() => ({
-      defaultProjectId: PROJECT_ID,
-      projects: [
+    hasScope: vi.fn(() => true),
+    getScopeRegistryProjection: vi.fn(() => ({
+      defaultScopeId: SCOPE_ID,
+      scopes: [
         {
-          projectId: PROJECT_ID,
-          projectDir: "/tmp/test-project",
-          displayName: "test-project",
+          scopeId: SCOPE_ID,
+          scopeRoot: "/tmp/test-scope",
+          displayName: "test-scope",
         },
       ],
     })),
     getWorkflowLiveStatus: vi.fn(),
-    setActiveProjectId: vi.fn(() => ({
+    setActiveScopeId: vi.fn(() => ({
       ok: true,
-      activeProjectId: PROJECT_ID,
+      activeScopeId: SCOPE_ID,
     })),
     enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
     ...overrides,
@@ -66,10 +66,10 @@ describe("DaemonControlServer scope hosting admission", () => {
     await server.stop();
     server = new DaemonControlServer(
       makeHandle({
-        setActiveProjectId: vi.fn(() => ({
+        setActiveScopeId: vi.fn(() => ({
           ok: false,
           reason: "not_hosted",
-          projectId: PROJECT_ID,
+          scopeId: SCOPE_ID,
           state: "draining",
         }) as const),
       }),
@@ -77,39 +77,37 @@ describe("DaemonControlServer scope hosting admission", () => {
     );
     port = await server.start();
 
-    const response = await request(port, "/projects/active", {
+    const response = await request(port, "/scopes/active", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: PROJECT_ID }),
+      body: JSON.stringify({ scopeId: SCOPE_ID }),
     });
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      error: `Project scope ${PROJECT_ID} is draining`,
+      error: `Scope ${SCOPE_ID} is draining`,
       reason: "scope_not_hosted",
-      projectId: PROJECT_ID,
-      scopeId: PROJECT_ID,
+      scopeId: SCOPE_ID,
       state: "draining",
     });
   });
 
   it("rejects status reads for a registered scope that is no longer hosted", async () => {
-    const handle = makeHandle({ hasProject: vi.fn(() => false) });
+    const handle = makeHandle({ hasScope: vi.fn(() => false) });
     await server.stop();
     server = new DaemonControlServer(handle, TEST_TOKEN);
     port = await server.start();
 
     const response = await request(
       port,
-      `/workflow/status?scopeId=${PROJECT_ID}`,
+      `/workflow/status?scopeId=${SCOPE_ID}`,
     );
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       error: "Scope is not hosted",
       reason: "scope_not_hosted",
-      scopeId: PROJECT_ID,
-      projectId: PROJECT_ID,
+      scopeId: SCOPE_ID,
     });
     expect(handle.getWorkflowLiveStatus).not.toHaveBeenCalled();
   });
@@ -120,9 +118,9 @@ describe("DaemonControlServer scope hosting admission", () => {
       makeHandle({
         enqueuePendingRun: vi.fn(() => ({
           ok: false,
-          error: `Scope ${PROJECT_ID} is draining and cannot accept workflow runs`,
+          error: `Scope ${SCOPE_ID} is draining and cannot accept workflow runs`,
           reason: "scope_not_hosted",
-          scopeId: PROJECT_ID,
+          scopeId: SCOPE_ID,
           state: "draining",
         }) as const),
       }),
@@ -138,9 +136,9 @@ describe("DaemonControlServer scope hosting admission", () => {
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
-      error: `Scope ${PROJECT_ID} is draining and cannot accept workflow runs`,
+      error: `Scope ${SCOPE_ID} is draining and cannot accept workflow runs`,
       reason: "scope_not_hosted",
-      scopeId: PROJECT_ID,
+      scopeId: SCOPE_ID,
       state: "draining",
     });
   });

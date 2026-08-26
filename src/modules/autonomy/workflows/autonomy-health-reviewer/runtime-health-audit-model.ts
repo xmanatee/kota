@@ -103,9 +103,9 @@ export type PatternInput = {
 };
 
 export type RuntimeHealthAuditContext = {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
-  scopeDir: string;
+  scopeRoot: string;
   nowIso: string;
   nowMs: number;
   windowStartMs: number;

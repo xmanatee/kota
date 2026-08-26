@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ModuleSetupActionFile, ModuleSetupPendingAction } from "./types.js";
 
 export class ModuleSetupActionStore {
-  constructor(private readonly projectDir: string) {}
+  constructor(private readonly scopeRoot: string) {}
 
   read(): ModuleSetupActionFile {
     const path = this.path();
@@ -14,7 +14,7 @@ export class ModuleSetupActionStore {
 
   write(file: ModuleSetupActionFile): void {
     const path = this.path();
-    mkdirSync(join(this.projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(this.scopeRoot, ".kota"), { recursive: true });
     writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, "utf8");
   }
 
@@ -28,6 +28,6 @@ export class ModuleSetupActionStore {
   }
 
   private path(): string {
-    return join(this.projectDir, ".kota", "setup-actions.json");
+    return join(this.scopeRoot, ".kota", "setup-actions.json");
   }
 }

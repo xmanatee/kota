@@ -127,14 +127,14 @@ function newForeignModuleRequestId(): string {
 export async function createRawForeignModule(
   transport: KempTransport,
   label: string,
-  projectCwd: string,
+  scopeRoot: string,
   moduleConfig?: KempInit["config"],
 ): Promise<RawForeignModule> {
   const initId = newForeignModuleRequestId();
   const session = new ForeignModuleSession(transport, label);
   const manifestMsg = await session.request(
     initId,
-    { id: initId, type: "init", cwd: projectCwd, config: moduleConfig },
+    { id: initId, type: "init", cwd: scopeRoot, config: moduleConfig },
     MANIFEST_TIMEOUT_MS,
   );
   if (manifestMsg.type !== "manifest") {

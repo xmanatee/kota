@@ -34,7 +34,7 @@ async function moduleSummariesWithCurrentSetupAvailability(
 ) {
   const summaries = ctx.getModuleSummaries();
   const statuses = await listModuleSetupStatusesFromSummaries({
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     getModuleSummaries: () => summaries,
     probeCapabilities: probeSetupCapabilities,
   });

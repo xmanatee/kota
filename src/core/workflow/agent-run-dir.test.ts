@@ -9,21 +9,21 @@ describe("resolveAgentRunDir", () => {
   it("isolates ordinary workflow output from sibling runtime state", () => {
     expect(resolveAgentRunDir({
       metadata: { runDir: ".kota/runs/run-1" },
-      projectDir: "/workspace",
+      scopeRoot: "/workspace",
     })).toBe("/workspace/.kota/runs/run-1/agent-output");
   });
 
   it("preserves an invocation-scoped runtime output directory", () => {
     expect(resolveAgentRunDir({
       metadata: { runDir: ".kota/runs/run-1" },
-      projectDir: "/workspace",
+      scopeRoot: "/workspace",
       runtimeResources: {
         agentRunDir: "/workspace/.kota/builder-evidence/run-1",
       },
     })).toBe("/workspace/.kota/builder-evidence/run-1");
   });
 
-  it("projects only strict workspace descendants into post-step scope", () => {
+  it("scopes only strict workspace descendants into post-step scope", () => {
     expect(agentRunDirWriteScopes(
       "/workspace",
       "/workspace/.kota/runs/run-1/agent-output",

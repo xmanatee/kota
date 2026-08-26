@@ -7,20 +7,20 @@ import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import { WorkflowDefinitionError } from "#core/workflow/validation.js";
 import type { WorkflowTrialOptions, WorkflowTrialResult } from "../client.js";
 import type {
-  TrialProjectResolution,
+  TrialScopeResolution,
   WorkflowTrialRuntimeFactory,
 } from "./trial-internal-types.js";
 import { WorkflowTrialRequestError } from "./trial-internal-types.js";
 import { runWorkflowTrial } from "./trial-runner.js";
 
 export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntimeFactory {
-  return async (trialProjectDir: string, sourceProjectDir = trialProjectDir) => {
-    const runtimeConfig = loadConfig(sourceProjectDir);
+  return async (trialWorkspaceRoot: string, sourceScopeRoot = trialWorkspaceRoot) => {
+    const runtimeConfig = loadConfig(sourceScopeRoot);
     const eventBus = new EventBus();
     const runtimeLoader = await loadRuntimeModules({
       config: runtimeConfig,
-      cwd: trialProjectDir,
-      installedModuleSourceDir: sourceProjectDir,
+      cwd: trialWorkspaceRoot,
+      installedModuleSourceDir: sourceScopeRoot,
       eventBus,
     });
     try {
@@ -40,32 +40,32 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
   };
 }
 
-function resolveWorkflowTrialProject(
+function resolveWorkflowTrialScope(
   ctx: ModuleContext,
   options: WorkflowTrialOptions | undefined,
-): TrialProjectResolution {
-  const requestedProjectId = options?.projectId;
-  const defaultProjectId = deriveDirectoryScopeId(ctx.cwd);
-  if (requestedProjectId === undefined || requestedProjectId === defaultProjectId) {
+): TrialScopeResolution {
+  const requestedScopeId = options?.scopeId;
+  const defaultScopeId = deriveDirectoryScopeId(ctx.cwd);
+  if (requestedScopeId === undefined || requestedScopeId === defaultScopeId) {
     return {
       ok: true,
-      sourceProjectDir: ctx.cwd,
-      projectId: defaultProjectId,
+      sourceScopeRoot: ctx.cwd,
+      scopeId: defaultScopeId,
     };
   }
   const registry = loadRegistryFileFromDisk(join(ctx.cwd, ".kota"));
-  const project = registry?.projects.find((entry) => entry.projectId === requestedProjectId);
-  if (!project) {
+  const scope = registry?.scopes.find((entry) => entry.scopeId === requestedScopeId);
+  if (!scope) {
     return {
       ok: false,
-      projectId: requestedProjectId,
-      message: `Unknown project: ${requestedProjectId}`,
+      scopeId: requestedScopeId,
+      message: `Unknown scope: ${requestedScopeId}`,
     };
   }
   return {
     ok: true,
-    sourceProjectDir: project.projectDir,
-    projectId: project.projectId,
+    sourceScopeRoot: scope.scopeRoot,
+    scopeId: scope.scopeId,
   };
 }
 
@@ -75,14 +75,14 @@ export async function runLocalWorkflowTrial(
   options?: WorkflowTrialOptions,
 ): Promise<WorkflowTrialResult> {
   try {
-    const project = resolveWorkflowTrialProject(ctx, options);
-    if (!project.ok) {
-      return { ok: false, reason: "unknown_project", message: project.message };
+    const scope = resolveWorkflowTrialScope(ctx, options);
+    if (!scope.ok) {
+      return { ok: false, reason: "unknown_scope", message: scope.message };
     }
     const summary = await runWorkflowTrial({
-      sourceProjectDir: project.sourceProjectDir,
+      sourceScopeRoot: scope.sourceScopeRoot,
       workflowName: name,
-      options: { ...(options ?? {}), projectId: project.projectId },
+      options: { ...(options ?? {}), scopeId: scope.scopeId },
       runtimeFactory: createDefaultWorkflowTrialRuntimeFactory(),
     });
     return { ok: true, summary };

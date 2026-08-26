@@ -5,7 +5,7 @@ This directory owns the `git` capability pack — version control operations wit
 - The single `git` tool handles status, diff, log, show, add, commit, branch, and push.
 - Each operation parses a strict argument grammar before invoking Git. Read
   operations reject file-writing and execution-capable flags, and local paths
-  used by any operation must resolve inside the active project, including
+  used by any operation must resolve inside the active scope, including
   through symlinks.
 - Non-lease force-pushes to `main`/`master` are blocked by parsed destination,
   including command-line and configured refspecs, configured push remotes,
