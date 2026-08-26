@@ -15,6 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import { Daemon } from "./daemon.js";
 import {
@@ -108,10 +109,10 @@ describe("daemon instance lock", () => {
       token: "owner-token",
     });
     mockedIsProcessAlive.mockReturnValue(true);
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unreachable")));
+    const http = outboundHttpRequestPort(() => Promise.reject(new Error("unreachable")));
 
     await expect(
-      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}, http),
     ).rejects.toThrow(/process 12345 is alive.*control API.*unreachable/);
     expect(existsSync(controlPath)).toBe(true);
   });
@@ -122,10 +123,10 @@ describe("daemon instance lock", () => {
     const controlPath = join(stateDir, CONTROL_FILE);
     writeControlFile(stateRoot, { ...owner, port: 3921 });
     mockedIsProcessAlive.mockReturnValue(true);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
+    const http = outboundHttpRequestPort(() => new Response(null, { status: 503 }));
 
     await expect(
-      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}, http),
     ).rejects.toThrow(/process 12345 is alive.*returned HTTP 503/);
     expect(existsSync(controlPath)).toBe(true);
   });
@@ -137,14 +138,14 @@ describe("daemon instance lock", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({ pid: owner.pid, startedAt: owner.startedAt }),
     );
-    vi.stubGlobal("fetch", fetchMock);
+    const http = outboundHttpRequestPort((request) => fetchMock(request));
 
     await expect(
-      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}),
+      acquireInstanceLock(tmpDir, stateRoot, contender, () => {}, http),
     ).rejects.toThrow(/Another daemon instance is already running/);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:3921/identity",
       expect.objectContaining({
+        url: "http://127.0.0.1:3921/identity",
         headers: { Authorization: "Bearer owner-token" },
       }),
     );

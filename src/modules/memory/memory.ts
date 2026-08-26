@@ -107,14 +107,15 @@ export async function runMemory(
       const tag = input.tag as string | undefined;
       const since = input.since as string | undefined;
       const topK = typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
-      if (input.semantic === true && !store.supportsSemanticSearch()) {
+      const semanticSearch = store.semanticSearchCapability;
+      if (input.semantic === true && !semanticSearch) {
         return {
           content: "Error: semantic memory search requires an embedding-backed memory provider.",
           is_error: true,
         };
       }
       const results = input.semantic === true
-        ? await store.semanticSearch(query, topK, { tag, since })
+        ? await semanticSearch!.semanticSearch(query, topK, { tag, since })
         : store.search(query, { tag, since }).slice(0, topK);
       if (results.length === 0) return { content: "No matching memories found." };
       return {

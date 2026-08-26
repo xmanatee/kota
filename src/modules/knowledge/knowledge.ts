@@ -190,7 +190,8 @@ export async function runKnowledge(
 			const topKInput =
 				typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
 			const semantic = input.semantic === true;
-			if (semantic && !store.supportsSemanticSearch()) {
+			const semanticSearch = store.semanticSearchCapability;
+			if (semantic && !semanticSearch) {
 				return {
 					content:
 						"Error: semantic knowledge search requires an embedding-backed knowledge provider.",
@@ -198,7 +199,7 @@ export async function runKnowledge(
 				};
 			}
 			const results = semantic
-				? await store.semanticSearch(query, topKInput, filters)
+				? await semanticSearch!.semanticSearch(query, topKInput, filters)
 				: store.search(query, filters);
 			if (results.length === 0) {
 				return { content: "No matching entries found." };

@@ -2,18 +2,18 @@
  * GitHubTaskProvider — TaskProvider backed by GitHub Issues.
  *
  * Implements the TaskProvider interface using GitHub Issues as the authoritative
- * source. Issues are fetched at init() and cached in memory. Mutations (claim,
- * complete, add) update the cache synchronously and fire GitHub API calls
- * asynchronously.
+ * source. Issues are fetched at init() and cached in memory. Mutations update
+ * the cache only after GitHub acknowledges the durable write.
  *
  * - list()   → open issues matching the configured label filter
  * - claim    → update(id, {status:"in_progress"}) → adds in-progress label
  * - complete → update(id, {status:"done"}) → closes issue + adds done label
- * - add()    → creates a GitHub issue; cache entry uses a temp negative ID until created
+ * - add()    → awaits GitHub issue creation, then caches the acknowledged issue number
  */
 
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
-import type { TaskProvider } from "#core/modules/provider-types.js";
+import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import type { OutboundHttpMethod } from "#core/outbound-http/index.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ type GitHubIssue = {
 };
 
 export type FetchFn = (
-  method: string,
+  method: OutboundHttpMethod,
   path: string,
   body?: unknown,
 ) => Promise<{ ok: boolean; status: number; data: unknown }>;
@@ -106,9 +106,8 @@ function decodeGitHubIssueNumber(data: unknown): number | null {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export class GitHubTaskProvider implements TaskProvider {
+export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
   private cache: Task[] = [];
-  private localCounter = -1;
 
   constructor(
     private readonly repo: string,
@@ -156,7 +155,7 @@ export class GitHubTaskProvider implements TaskProvider {
     return this.cache.length;
   }
 
-  add(
+  async add(
     taskText: string,
     opts?: {
       parent_id?: number;
@@ -164,19 +163,10 @@ export class GitHubTaskProvider implements TaskProvider {
       blocked_by?: number[];
       notes?: string;
     },
-  ): Task {
-    const tempId = this.localCounter--;
-    const newTask: Task = {
-      id: tempId,
-      task: taskText,
-      status: "pending",
-      created: new Date().toISOString(),
-    };
-    if (opts?.priority) newTask.priority = opts.priority;
-    if (opts?.notes) newTask.notes = opts.notes;
-    if (opts?.blocked_by?.length) newTask.blocked_by = opts.blocked_by;
-
-    this.cache.push(newTask);
+  ): Promise<Task> {
+    if (opts?.parent_id !== undefined || opts?.blocked_by !== undefined) {
+      throw new Error("GitHub task provider does not support parent or dependency mutations");
+    }
 
     const labels: string[] = [];
     if (this.config.labelFilter) labels.push(this.config.labelFilter);
@@ -189,22 +179,28 @@ export class GitHubTaskProvider implements TaskProvider {
     if (labels.length > 0) issueBody.labels = labels;
     if (opts?.notes) issueBody.body = opts.notes;
 
-    this.fetch("POST", `/repos/${this.repo}/issues`, issueBody)
-      .then((res) => {
-        if (!res.ok) return;
-        const issueNumber = decodeGitHubIssueNumber(res.data);
-        if (issueNumber === null) return;
-        const entry = this.cache.find((t) => t.id === tempId);
-        if (entry) entry.id = issueNumber;
-      })
-      .catch(() => {
-        // Best-effort; task remains with temp ID in local cache.
-      });
+    const response = await this.fetch("POST", `/repos/${this.repo}/issues`, issueBody);
+    if (!response.ok) {
+      throw new Error(`GitHub task provider: issue creation failed (HTTP ${response.status})`);
+    }
+    const issueNumber = decodeGitHubIssueNumber(response.data);
+    if (issueNumber === null) {
+      throw new Error("GitHub task provider: issue creation response omitted the issue number");
+    }
 
+    const newTask: Task = {
+      id: issueNumber,
+      task: taskText,
+      status: "pending",
+      created: new Date().toISOString(),
+    };
+    if (opts?.priority) newTask.priority = opts.priority;
+    if (opts?.notes) newTask.notes = opts.notes;
+    this.cache.push(newTask);
     return newTask;
   }
 
-  update(
+  async update(
     id: number,
     changes: {
       status?: TaskStatus;
@@ -212,72 +208,56 @@ export class GitHubTaskProvider implements TaskProvider {
       blocked_by?: number[];
       notes?: string;
     },
-  ): Task {
+  ): Promise<Task> {
     const task = this.cache.find((t) => t.id === id);
     if (!task) throw new Error(`Task #${id} not found`);
+    if (
+      changes.priority !== undefined ||
+      changes.blocked_by !== undefined ||
+      changes.notes !== undefined
+    ) {
+      throw new Error("GitHub task provider only supports status updates");
+    }
 
     if (changes.status && changes.status !== task.status) {
       const prev = task.status;
-      task.status = changes.status;
-
       if (changes.status === "done") {
-        task.completed = new Date().toISOString();
-        if (id > 0) {
-          const doneLabel = this.config.doneLabel ?? "kota-done";
-          this.fetch("PATCH", `/repos/${this.repo}/issues/${id}`, {
-            state: "closed",
-          }).catch(() => {});
-          this.fetch(
-            "POST",
-            `/repos/${this.repo}/issues/${id}/labels`,
-            { labels: [doneLabel] },
-          ).catch(() => {});
-        }
+        const doneLabel = this.config.doneLabel ?? "kota-done";
+        await this.requireSuccess(
+          this.fetch("PATCH", `/repos/${this.repo}/issues/${id}`, { state: "closed" }),
+          "close issue",
+        );
+        await this.requireSuccess(
+          this.fetch("POST", `/repos/${this.repo}/issues/${id}/labels`, {
+            labels: [doneLabel],
+          }),
+          "add completion label",
+        );
       } else if (changes.status === "in_progress") {
-        if (id > 0) {
-          const inProgressLabel = this.config.inProgressLabel ?? "in-progress";
-          this.fetch(
-            "POST",
-            `/repos/${this.repo}/issues/${id}/labels`,
-            { labels: [inProgressLabel] },
-          ).catch(() => {});
-        }
+        const inProgressLabel = this.config.inProgressLabel ?? "in-progress";
+        await this.requireSuccess(
+          this.fetch("POST", `/repos/${this.repo}/issues/${id}/labels`, {
+            labels: [inProgressLabel],
+          }),
+          "add in-progress label",
+        );
       } else if (changes.status === "pending" && prev === "in_progress") {
-        if (id > 0) {
-          const inProgressLabel = this.config.inProgressLabel ?? "in-progress";
+        const inProgressLabel = this.config.inProgressLabel ?? "in-progress";
+        await this.requireSuccess(
           this.fetch(
             "DELETE",
             `/repos/${this.repo}/issues/${id}/labels/${encodeURIComponent(inProgressLabel)}`,
-          ).catch(() => {});
-        }
+          ),
+          "remove in-progress label",
+        );
+      } else if (changes.status === "pending") {
+        throw new Error("GitHub task provider cannot reopen a completed issue as pending");
       }
-    }
-
-    if (changes.priority !== undefined) task.priority = changes.priority;
-    if (changes.notes !== undefined) task.notes = changes.notes;
-    if (changes.blocked_by !== undefined) {
-      task.blocked_by =
-        changes.blocked_by.length > 0 ? changes.blocked_by : undefined;
+      task.status = changes.status;
+      if (changes.status === "done") task.completed = new Date().toISOString();
     }
 
     return task;
-  }
-
-  clear(): void {
-    // No-op: do not delete GitHub issues when clearing local state.
-  }
-
-  archiveCompleted(): number {
-    const done = this.cache.filter((t) => t.status === "done");
-    this.cache = this.cache.filter((t) => t.status !== "done");
-    for (const task of done) {
-      if (task.id > 0) {
-        this.fetch("PATCH", `/repos/${this.repo}/issues/${task.id}`, {
-          state: "closed",
-        }).catch(() => {});
-      }
-    }
-    return done.length;
   }
 
   getActiveSummary(): string | null {
@@ -335,5 +315,15 @@ export class GitHubTaskProvider implements TaskProvider {
       if (reversed[name]) return reversed[name];
     }
     return undefined;
+  }
+
+  private async requireSuccess(
+    request: Promise<{ ok: boolean; status: number }>,
+    operation: string,
+  ): Promise<void> {
+    const response = await request;
+    if (!response.ok) {
+      throw new Error(`GitHub task provider: failed to ${operation} (HTTP ${response.status})`);
+    }
   }
 }

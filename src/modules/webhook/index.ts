@@ -23,6 +23,7 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WORKFLOW_DEFINITIONS_PROVIDER_TYPE } from "#core/workflow/workflow-definitions-provider.js";
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
@@ -62,7 +63,10 @@ type WebhookConfig = {
   retryDelayMs?: number;
 };
 
-const webhookModule: KotaModule = {
+export function createWebhookModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "webhook",
   version: "1.0.0",
   description:
@@ -76,7 +80,11 @@ const webhookModule: KotaModule = {
 
     const urls = config.urls;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
-    const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
+    const retryOptions = {
+      retries: config.retries,
+      baseDelayMs: config.retryDelayMs,
+      http,
+    };
     const unsubs: (() => void)[] = [];
 
     const forward = (event: string, payload: Record<string, unknown>) => {
@@ -139,7 +147,8 @@ const webhookModule: KotaModule = {
   },
 
   daemonClient: (link) => ({ webhook: buildWebhookDaemonHandler(link) }),
-};
+  };
+}
 
 /**
  * Daemon-side `WebhookClient` backed by the typed `DaemonTransport`. Calls
@@ -173,4 +182,4 @@ function buildWebhookDaemonHandler(link: DaemonTransport): WebhookClient {
   };
 }
 
-export default webhookModule;
+export default createWebhookModule();

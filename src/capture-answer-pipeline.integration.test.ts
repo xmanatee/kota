@@ -16,7 +16,7 @@
  * (memory, knowledge, tasks, inbox); the recall side is built from the
  * four real recall contributors against the same backing stores plus a
  * minimal in-process history provider stub. Both providers run with
- * `supportsSemanticSearch() === false` so the test stays offline and
+ * omit the optional semantic capability so the test stays offline and
  * exercises every contributor's keyword-fallback path. The answer
  * provider's `AnswerRecallSeam` calls the recall route over the same
  * in-process HTTP host, so a drift between recall's response shape and
@@ -56,7 +56,6 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
-  ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
@@ -156,14 +155,6 @@ function createEmptyHistoryProvider(): HistoryProvider {
     findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
     remove: (_id: string): boolean => false,
     cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> =>
-      unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
   };
 }
 

@@ -3,7 +3,7 @@
 // …) so the mobile UI can render the same vocabulary the CLI and web
 // client use.
 
-import type { DaemonHttp } from './http';
+import { daemonResponse, type DaemonHttp } from './http';
 import { bytesToBase64, base64ToBytes } from '../voice/base64';
 
 export type VoiceTranscribeResult =
@@ -40,12 +40,8 @@ export async function voiceTranscribe(
   if (input.filename !== undefined) body.filename = input.filename;
   if (input.languageHint !== undefined) body.languageHint = input.languageHint;
 
-  const res = await fetch(`${http.baseUrl}/voice/transcribe`, {
+  const res = await daemonResponse(http, '/voice/transcribe', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${http.token}`,
-    },
     body: JSON.stringify(body),
   });
   const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
@@ -72,12 +68,8 @@ export async function voiceSynthesize(
     format?: string;
   },
 ): Promise<VoiceSynthesizeResult> {
-  const res = await fetch(`${http.baseUrl}/voice/synthesize`, {
+  const res = await daemonResponse(http, '/voice/synthesize', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${http.token}`,
-    },
     body: JSON.stringify(input),
   });
   const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;

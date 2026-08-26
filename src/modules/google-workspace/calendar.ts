@@ -1,4 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
@@ -6,6 +7,7 @@ import { apiError, googleFetch } from "./auth.js";
 export function makeCalendarListEvents(
   getToken: () => Promise<string>,
   calendarId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): ToolDef {
   return {
     effect: networkReadEffect(),
@@ -55,6 +57,8 @@ export function makeCalendarListEvents(
         token,
         "GET",
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events?${params}`,
+        undefined,
+        http,
       );
       if (!res.ok) return apiError("list events", res.status, res.data);
 
@@ -94,6 +98,7 @@ export function makeCalendarListEvents(
 export function makeCalendarCreateEvent(
   getToken: () => Promise<string>,
   calendarId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): ToolDef {
   return {
     effect: networkDestructiveEffect(),
@@ -149,6 +154,7 @@ export function makeCalendarCreateEvent(
         "POST",
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal)}/events`,
         body,
+        http,
       );
       if (!res.ok) return apiError("create event", res.status, res.data);
 

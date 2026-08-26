@@ -10,7 +10,12 @@ import {
   type ScopeRegistryProjection,
   type ScopePolicyRouteResponse,
 } from './daemon-contract.generated';
-import { daemonRequest, withScope, type DaemonHttp } from './http';
+import {
+  daemonRequest,
+  daemonResponse,
+  withScope,
+  type DaemonHttp,
+} from './http';
 
 export interface HealthResponse {
   status: 'ok' | 'degraded';
@@ -91,7 +96,9 @@ export type { ClientIdentity } from './daemon-contract.generated';
 // `/health` is intentionally public (no bearer token) — it's the daemon
 // reachability probe.
 export function getHealth(http: DaemonHttp): Promise<HealthResponse> {
-  return fetch(`${http.baseUrl}/health`).then((r) => r.json());
+  return daemonResponse(http, '/health', {}, false).then((response) =>
+    response.json() as Promise<HealthResponse>
+  );
 }
 
 export async function getIdentity(http: DaemonHttp): Promise<ClientIdentity> {

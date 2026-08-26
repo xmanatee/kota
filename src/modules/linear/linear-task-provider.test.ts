@@ -8,12 +8,10 @@
  *   - list() returns cached tasks mapped from issues
  *   - priority mapping from Linear priority field (0–4)
  *   - update() in_progress → transitions issue state on Linear
- *   - update() done → transitions issue to done state and adds comment
+ *   - update() done → transitions issue to done state
  *   - add() creates a Linear issue and updates cache with real ID
- *   - archiveCompleted() removes done tasks from cache
  *   - getActiveSummary() returns correct summary
  *   - not-found task throws
- *   - clear() is a no-op
  *   - onLoad integration: provider registered when enabled
  *   - onLoad integration: provider not registered when disabled
  */
@@ -55,6 +53,9 @@ const DEFAULT_TEAM_RESPONSE = {
               { id: "state-inprogress", name: "In Progress", type: "started" },
               { id: "state-done", name: "Done", type: "completed" },
             ],
+          },
+          labels: {
+            nodes: [{ id: "label-kota-task", name: "kota-task" }],
           },
         },
       ],
@@ -217,12 +218,12 @@ describe("LinearTaskProvider", () => {
             },
           },
         })
-        .mockResolvedValue({ data: {} });
+        .mockResolvedValue({ data: { issueUpdate: { success: true } } });
 
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(1, { status: "done" });
+      await provider.update(1, { status: "done" });
       expect(provider.active()).toHaveLength(1);
       expect(provider.active()[0].id).toBe(2);
     });
@@ -254,10 +255,8 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(1, { status: "in_progress" });
+      const task = await provider.update(1, { status: "in_progress" });
       expect(task.status).toBe("in_progress");
-
-      await new Promise((r) => setTimeout(r, 0));
 
       const mutationCall = fetch.mock.calls.find(
         (c) =>
@@ -268,10 +267,28 @@ describe("LinearTaskProvider", () => {
       );
       expect(mutationCall).toBeDefined();
     });
+
+    it("keeps the cached status unchanged when Linear does not acknowledge the mutation", async () => {
+      const fetch = vi.fn()
+        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
+        .mockResolvedValueOnce({
+          data: {
+            issues: { nodes: [makeIssue("lin-10", "A task", 0, ["kota-task"])] },
+          },
+        })
+        .mockResolvedValueOnce({ data: { issueUpdate: { success: false } } });
+      const provider = makeProvider(fetch);
+      await provider.init();
+
+      await expect(provider.update(1, { status: "in_progress" })).rejects.toThrow(
+        "not acknowledged",
+      );
+      expect(provider.get(1)?.status).toBe("pending");
+    });
   });
 
   describe("update() — complete (done)", () => {
-    it("transitions issue to Done state and adds comment when completed", async () => {
+    it("transitions issue to Done state when completed", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
         .mockResolvedValueOnce({
@@ -279,16 +296,14 @@ describe("LinearTaskProvider", () => {
             issues: { nodes: [makeIssue("lin-20", "Finish me", 0, ["kota-task"])] },
           },
         })
-        .mockResolvedValue({ data: {} });
+        .mockResolvedValue({ data: { issueUpdate: { success: true } } });
 
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(1, { status: "done" });
+      const task = await provider.update(1, { status: "done" });
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
-
-      await new Promise((r) => setTimeout(r, 0));
 
       const stateCall = fetch.mock.calls.find(
         (c) =>
@@ -299,13 +314,7 @@ describe("LinearTaskProvider", () => {
       );
       expect(stateCall).toBeDefined();
 
-      const commentCall = fetch.mock.calls.find(
-        (c) =>
-          typeof c[0] === "string" &&
-          c[0].includes("commentCreate") &&
-          c[1]?.issueId === "lin-20",
-      );
-      expect(commentCall).toBeDefined();
+      expect(fetch.mock.calls.some((call) => String(call[0]).includes("commentCreate"))).toBe(false);
     });
   });
 
@@ -323,10 +332,8 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.add("New task");
-      expect(task.id).toBeLessThan(0); // temp ID
-
-      await new Promise((r) => setTimeout(r, 0));
+      const task = await provider.add("New task");
+      expect(task.id).toBe(1);
 
       const createCall = fetch.mock.calls.find(
         (c) =>
@@ -335,37 +342,9 @@ describe("LinearTaskProvider", () => {
           c[1]?.title === "New task",
       );
       expect(createCall).toBeDefined();
+      expect(createCall?.[1]?.labelIds).toEqual(["label-kota-task"]);
 
-      // Cache should now have the real ID
       expect(provider.get(1)?.task).toBe("New task");
-    });
-  });
-
-  describe("archiveCompleted()", () => {
-    it("removes done tasks from cache", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({
-          data: {
-            issues: {
-              nodes: [
-                makeIssue("lin-1", "Task A", 0, ["kota-task"]),
-                makeIssue("lin-2", "Task B", 0, ["kota-task"]),
-              ],
-            },
-          },
-        })
-        .mockResolvedValue({ data: {} });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.update(1, { status: "done" });
-      const removed = provider.archiveCompleted();
-
-      expect(removed).toBe(1);
-      expect(provider.count()).toBe(1);
-      expect(provider.get(1)).toBeUndefined();
     });
   });
 
@@ -395,12 +374,12 @@ describe("LinearTaskProvider", () => {
             },
           },
         })
-        .mockResolvedValue({ data: {} });
+        .mockResolvedValue({ data: { issueUpdate: { success: true } } });
 
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(1, { status: "in_progress" });
+      await provider.update(1, { status: "in_progress" });
 
       const summary = provider.getActiveSummary();
       expect(summary).toContain("1 in progress");
@@ -417,36 +396,22 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(() => provider.update(999, { status: "done" })).toThrow("Task #999 not found");
+      await expect(provider.update(999, { status: "done" })).rejects.toThrow(
+        "Task #999 not found",
+      );
     });
   });
 
-  describe("clear()", () => {
-    it("is a no-op and does not remove issues from cache", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({
-          data: {
-            issues: { nodes: [makeIssue("lin-1", "Task", 0, ["kota-task"])] },
-          },
-        });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.clear();
-
-      expect(provider.count()).toBe(1);
-      expect(fetch).toHaveBeenCalledTimes(2); // no extra calls
-    });
-  });
 });
 
 describe("LinearTaskProvider — onLoad integration in linear module", () => {
   it("provider is registered when taskProvider.enabled is true", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ json: async () => DEFAULT_TEAM_RESPONSE })
-      .mockResolvedValueOnce({ json: async () => ({ data: { issues: { nodes: [] } } }) });
+      .mockResolvedValueOnce(new Response(JSON.stringify(DEFAULT_TEAM_RESPONSE), { status: 200 }))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ data: { issues: { nodes: [] } } }),
+        { status: 200 },
+      ));
     vi.stubGlobal("fetch", fetchMock);
 
     const { default: linearModule } = await import("./index.js");

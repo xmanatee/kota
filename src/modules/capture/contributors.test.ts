@@ -36,15 +36,6 @@ function fakeMemoryProvider(): MemoryProvider & { saved: string[] } {
     delete() {
       return false;
     },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
-    },
   };
 }
 
@@ -75,15 +66,6 @@ function fakeKnowledgeProvider(): KnowledgeProvider & {
     },
     count() {
       return 0;
-    },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
     },
   };
 }

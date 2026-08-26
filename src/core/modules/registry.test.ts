@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   installTool,
   listTools,
@@ -12,6 +13,9 @@ import {
   type ToolManifest,
   updateTool,
 } from "./registry.js";
+
+let requestMock = vi.fn();
+const http = outboundHttpRequestPort((request) => requestMock(request));
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-registry-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -300,7 +304,7 @@ describe("installTool error paths", () => {
       },
     }, tmpDir);
 
-    await expect(installTool("kota-weather", tmpDir)).rejects.toThrow(
+    await expect(installTool("kota-weather", tmpDir, http)).rejects.toThrow(
       /already installed/,
     );
   });
@@ -318,7 +322,7 @@ describe("installTool error paths", () => {
       },
     }, tmpDir);
 
-    await expect(installTool("kota-weather", tmpDir)).rejects.toThrow(
+    await expect(installTool("kota-weather", tmpDir, http)).rejects.toThrow(
       /kota tools remove weather/,
     );
   });
@@ -337,76 +341,76 @@ describe("installTool URL error paths", () => {
   });
 
   it("rejects when fetch returns non-OK status", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("Not Found", { status: 404, statusText: "Not Found" }),
     );
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /Download failed: 404/,
     );
   });
 
   it("rejects when fetch throws a network error", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+    (requestMock = vi.fn()).mockRejectedValue(
       new Error("getaddrinfo ENOTFOUND example.com"),
     );
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /Download failed for/,
     );
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /ENOTFOUND/,
     );
   });
 
   it("rejects HTML responses", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("<html><body>Please export your credentials</body></html>", {
         status: 200,
         headers: { "Content-Type": "text/html; charset=utf-8" },
       }),
     );
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /HTML instead of JavaScript/,
     );
   });
 
   it("rejects content without valid JS exports", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("const x = 42; // just a random script, no exports", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /no exports found/,
     );
   });
 
   it("accepts content with ESM export default", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("export default { name: 'test' };", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    const result = await installTool("https://example.com/tool.mjs", tmpDir);
+    const result = await installTool("https://example.com/tool.mjs", tmpDir, http);
     expect(result.name).toBe("tool");
     expect(result.source).toBe("url");
   });
 
   it("accepts content with CJS module.exports", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("module.exports = { name: 'test' };", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    const result = await installTool("https://example.com/cjs-tool.js", tmpDir);
+    const result = await installTool("https://example.com/cjs-tool.js", tmpDir, http);
     expect(result.source).toBe("url");
   });
 
@@ -416,33 +420,33 @@ describe("installTool URL error paths", () => {
     mkdirSync(moduleDir, { recursive: true });
     writeFileSync(join(moduleDir, "index.mjs"), "existing");
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("export default {};", { status: 200 }),
     );
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow(
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow(
       /already exists in modules/,
     );
   });
 
   it("does not write file on validation failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("no valid js here", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    await expect(installTool("https://example.com/bad.mjs", tmpDir)).rejects.toThrow();
+    await expect(installTool("https://example.com/bad.mjs", tmpDir, http)).rejects.toThrow();
 
     // Module directory should not have been created with a file
     expect(existsSync(join(tmpDir, ".kota", "modules", "bad", "index.mjs"))).toBe(false);
   });
 
   it("does not update manifest on install failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
+    (requestMock = vi.fn()).mockRejectedValue(new Error("network down"));
 
-    await expect(installTool("https://example.com/tool.mjs", tmpDir)).rejects.toThrow();
+    await expect(installTool("https://example.com/tool.mjs", tmpDir, http)).rejects.toThrow();
 
     const manifest = loadManifest(tmpDir);
     expect(Object.keys(manifest.tools)).toHaveLength(0);
@@ -462,7 +466,7 @@ describe("updateTool error paths", () => {
   });
 
   it("throws for nonexistent tool", async () => {
-    await expect(updateTool("nonexistent", tmpDir)).rejects.toThrow(
+    await expect(updateTool("nonexistent", tmpDir, http)).rejects.toThrow(
       /not installed/,
     );
   });
@@ -486,9 +490,9 @@ describe("updateTool error paths", () => {
     }, tmpDir);
 
     // Make the reinstall fail
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network timeout"));
+    (requestMock = vi.fn()).mockRejectedValue(new Error("network timeout"));
 
-    await expect(updateTool("weather", tmpDir)).rejects.toThrow(/network timeout/);
+    await expect(updateTool("weather", tmpDir, http)).rejects.toThrow(/network timeout/);
 
     // The manifest entry should be restored
     const manifest = loadManifest(tmpDir);
@@ -513,9 +517,9 @@ describe("updateTool error paths", () => {
       },
     }, tmpDir);
 
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("DNS failure"));
+    (requestMock = vi.fn()).mockRejectedValue(new Error("DNS failure"));
 
-    await expect(updateTool("myutil", tmpDir)).rejects.toThrow();
+    await expect(updateTool("myutil", tmpDir, http)).rejects.toThrow();
 
     // Module directory should still exist on disk
     expect(existsSync(moduleDir)).toBe(true);
@@ -542,14 +546,14 @@ describe("updateTool error paths", () => {
     // Remove existing module dir so installUrl doesn't complain about duplicate
     rmSync(moduleDir, { recursive: true, force: true });
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("export default { v: 2 };", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    const result = await updateTool("mytool", tmpDir);
+    const result = await updateTool("mytool", tmpDir, http);
     expect(result.name).toBe("mytool");
 
     // Manifest should be updated with new entry
@@ -657,14 +661,14 @@ describe("updateTool backup lifecycle", () => {
       },
     }, tmpDir);
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    (requestMock = vi.fn()).mockResolvedValue(
       new Response("export default { v: 2 };", {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
       }),
     );
 
-    await updateTool("tool", tmpDir);
+    await updateTool("tool", tmpDir, http);
 
     // Backup directory must not persist
     expect(existsSync(join(tmpDir, ".kota", "modules", "tool.kota-update-bak"))).toBe(false);
@@ -697,7 +701,7 @@ describe("updateTool backup lifecycle", () => {
     mkdirSync(backupPath, { recursive: true });
     writeFileSync(join(backupPath, "blocker"), "x");
 
-    await expect(updateTool("multi", tmpDir)).rejects.toThrow();
+    await expect(updateTool("multi", tmpDir, http)).rejects.toThrow();
 
     // Manifest should be restored with the tool entry
     const manifest = loadManifest(tmpDir);
@@ -722,9 +726,9 @@ describe("updateTool backup lifecycle", () => {
       },
     }, tmpDir);
 
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection reset"));
+    (requestMock = vi.fn()).mockRejectedValue(new Error("connection reset"));
 
-    await expect(updateTool("fail", tmpDir)).rejects.toThrow(/connection reset/);
+    await expect(updateTool("fail", tmpDir, http)).rejects.toThrow(/connection reset/);
 
     // Backup dir should be cleaned up (restored to original path)
     expect(existsSync(join(tmpDir, ".kota", "modules", "fail.kota-update-bak"))).toBe(false);

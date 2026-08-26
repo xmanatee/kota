@@ -1,11 +1,17 @@
 import type { KotaModule } from "#core/modules/module-types.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  OutboundHttpError,
+  type OutboundHttpTransport,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 
 export type RetryOptions = {
   retries?: number;
   baseDelayMs?: number;
   headers?: Record<string, string>;
   logUrl?: string;
-  fetchImpl?: typeof fetch;
+  http?: Pick<OutboundHttpTransport, "request">;
 };
 
 export async function postWithRetry(
@@ -16,17 +22,22 @@ export async function postWithRetry(
 ): Promise<void> {
   const maxRetries = options.retries ?? 3;
   const baseDelayMs = options.baseDelayMs ?? 1000;
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const http = options.http ?? outboundHttp;
   const logUrl = options.logUrl ?? url;
 
   let lastError = "";
+  let attempts = 0;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
       const delay = baseDelayMs * 2 ** (attempt - 1);
       await new Promise<void>((resolve) => setTimeout(resolve, delay));
     }
+    attempts += 1;
     try {
-      const res = await fetchImpl(url, {
+      const { response: res } = await http.request({
+        profile: OUTBOUND_HTTP_PROFILES.explicitCallback([url]),
+        operation: "notification.webhook.post",
+        url,
         method: "POST",
         headers: { "Content-Type": "application/json", ...options.headers },
         body,
@@ -36,9 +47,10 @@ export async function postWithRetry(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       lastError = redactUrlInFailureMessage(message, url, logUrl);
+      if (err instanceof OutboundHttpError && !err.failure.retry.eligible) break;
     }
   }
-  log.warn(`POST to ${logUrl} failed after ${maxRetries + 1} attempt(s): ${lastError}`);
+  log.warn(`POST to ${logUrl} failed after ${attempts} attempt(s): ${lastError}`);
 }
 
 function redactUrlInFailureMessage(message: string, rawUrl: string, logUrl: string): string {

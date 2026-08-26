@@ -39,39 +39,12 @@ import { McpTaskStore } from "./mcp-task-store.js";
 import { MCP_SKILLS_EXTENSION_ID, SKILL_INDEX_RESOURCE_URI } from "./resources.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("#core/modules/provider-registry.js", () => {
-	const renderingToken = "rendering";
-	const providers = new Map<string, unknown>();
-	const active = new Map<string, string>();
-	const keyFor = (token: string, name: string) => `${token}:${name}`;
-	const registry = {
-		register: vi.fn((token: string, name: string, provider: unknown) => {
-			providers.set(keyFor(token, name), provider);
-			if (!active.has(token)) active.set(token, name);
-		}),
-		get: vi.fn((token: string) => {
-			const activeName = active.get(token);
-			return activeName ? (providers.get(keyFor(token, activeName)) ?? null) : null;
-		}),
-		setActiveById: vi.fn((id: string, name: string) => {
-			if (!providers.has(keyFor(id, name))) return false;
-			active.set(id, name);
-			return true;
-		}),
-		introspect: vi.fn((id: string) => ({
-			active: active.get(id) ?? null,
-			names: [...providers.keys()]
-				.filter((key) => key.startsWith(`${id}:`))
-				.map((key) => key.slice(id.length + 1)),
-		})),
-	};
+vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#core/modules/provider-registry.js")>();
 	return {
-		RENDERING_PROVIDER_TOKEN: renderingToken,
-		getProviderRegistry: vi.fn(() => registry),
-		initProviderRegistry: vi.fn(() => registry),
-		getRenderingProvider: vi.fn(() => registry.get(renderingToken)),
-		getMemoryProvider: vi.fn(() => ({ list: () => [] })),
-		getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
+		...actual,
+		getMemoryProvider: vi.fn(actual.getMemoryProvider),
+		getKnowledgeProvider: vi.fn(actual.getKnowledgeProvider),
 	};
 });
 
@@ -97,9 +70,6 @@ function mockDefaultProviders(): void {
 		search: vi.fn(() => []),
 		update: vi.fn(),
 		delete: vi.fn(),
-		supportsSemanticSearch: vi.fn(() => false),
-		semanticSearch: vi.fn(async () => []),
-		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 	});
 	vi.mocked(getKnowledgeProvider).mockReturnValue({
 		list: () => [],
@@ -109,9 +79,6 @@ function mockDefaultProviders(): void {
 		delete: vi.fn(),
 		search: vi.fn(() => []),
 		count: vi.fn(() => 0),
-		supportsSemanticSearch: vi.fn(() => false),
-		semanticSearch: vi.fn(async () => []),
-		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 	});
 }
 
@@ -4927,9 +4894,6 @@ describe("resource subscriptions", () => {
 			search: vi.fn(() => []),
 			update: vi.fn(() => false),
 			delete: vi.fn(() => false),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		};
 		vi.mocked(getMemoryProvider).mockReturnValue(defaultMemoryProvider);
 
@@ -6126,9 +6090,6 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(() => searchEntries),
 			update: vi.fn(),
 			delete: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 	}
 
@@ -6144,9 +6105,6 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(() => searchEntries),
 			count: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 	}
 

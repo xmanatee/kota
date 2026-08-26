@@ -6,6 +6,10 @@ import { expect, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
+import {
+  type OutboundHttpAddressResolver,
+  OutboundHttpTransport,
+} from "#core/outbound-http/index.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import { makeTask } from "./daemon-session-client.js";
 import {
@@ -194,6 +198,19 @@ export function makeContext(storage: ModuleStorage): ModuleContext {
     createSession: vi.fn(),
     client: {} as never,
   };
+}
+
+export function makePushNotificationHttp(
+  fetchImpl: typeof fetch,
+  resolveAddresses: OutboundHttpAddressResolver = async () => [{
+    address: "93.184.216.34",
+    family: 4,
+  }],
+): OutboundHttpTransport {
+  return new OutboundHttpTransport({
+    resolveAddresses,
+    dispatcher: (url, init) => fetchImpl(url.toString(), init),
+  });
 }
 
 export async function startRouteServer(

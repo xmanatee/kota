@@ -1,4 +1,5 @@
 import type { ToolDef } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { apiError, googleFetch } from "./auth.js";
@@ -6,6 +7,7 @@ import { apiError, googleFetch } from "./auth.js";
 export function makeGmailListMessages(
   getToken: () => Promise<string>,
   userId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): ToolDef {
   return {
     effect: networkReadEffect(),
@@ -37,6 +39,8 @@ export function makeGmailListMessages(
         token,
         "GET",
         `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages?${params}`,
+        undefined,
+        http,
       );
       if (!listRes.ok) return apiError("list messages", listRes.status, listRes.data);
 
@@ -50,6 +54,8 @@ export function makeGmailListMessages(
             token,
             "GET",
             `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
+            undefined,
+            http,
           );
           if (!r.ok) return null;
           return r.data as {
@@ -82,6 +88,7 @@ export function makeGmailListMessages(
 export function makeGmailGetMessage(
   getToken: () => Promise<string>,
   userId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): ToolDef {
   return {
     effect: networkReadEffect(),
@@ -103,6 +110,8 @@ export function makeGmailGetMessage(
         token,
         "GET",
         `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/${input.id as string}?format=full`,
+        undefined,
+        http,
       );
       if (!res.ok) return apiError("get message", res.status, res.data);
 
@@ -142,7 +151,11 @@ export function makeGmailGetMessage(
   };
 }
 
-export function makeGmailSend(getToken: () => Promise<string>, userId: string): ToolDef {
+export function makeGmailSend(
+  getToken: () => Promise<string>,
+  userId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
+): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     group: "productivity",
@@ -179,6 +192,7 @@ export function makeGmailSend(getToken: () => Promise<string>, userId: string): 
         "POST",
         `https://gmail.googleapis.com/gmail/v1/users/${userId}/messages/send`,
         { raw },
+        http,
       );
       if (!res.ok) return apiError("send message", res.status, res.data);
 

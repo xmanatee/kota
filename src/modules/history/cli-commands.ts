@@ -274,13 +274,13 @@ export function registerHistoryCommands(program: Command) {
     .command("reindex")
     .description(
       "Rebuild the semantic search index for all conversations. " +
-        "No-op when no embedding provider is configured.",
+        "Reports when no embedding provider is configured.",
     )
     .action(async () => {
       await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const result = await client.history.reindex();
-      if (result.skipped) {
+      if (!result.ok) {
         print(line(plain(
           "Semantic search not configured — nothing to reindex. " +
             "Set `providers.history` to an embedding-capable provider to enable.",

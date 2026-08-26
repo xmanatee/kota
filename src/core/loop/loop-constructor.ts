@@ -201,6 +201,7 @@ export function initAgentSession(
   // keep the intent on state so the async init can consume it.
   state.resumeConversationId = options.resumeConversation;
   state.historyEnabled = !options.noHistory && (!state.sessionPath || !!options.resumeConversation);
+  state.historyProvider = options.historyProvider;
   state.historySource = options.historySource ?? "user";
 
   state.verifyTracker = new VerifyTracker(detectVerifyCommands(scopeRoot));

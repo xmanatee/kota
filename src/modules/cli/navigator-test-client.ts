@@ -109,14 +109,14 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       capture: stub({ ok: false, reason: "invalid_slug" }),
       gc: stub({ removed: [] }),
       search: stub({ ok: true, tasks: [] }),
-      reindex: stub({ indexed: 0, failed: 0 }),
+      reindex: stub({ ok: true, indexed: 0, failed: 0 }),
     },
     memory: {
       list: stub({ entries: [] }),
       add: stub({ id: "m1" }),
       delete: stub({ ok: true }),
       search: stub({ ok: true, entries: [] }),
-      reindex: stub({ indexed: 0, failed: 0 }),
+      reindex: stub({ ok: true, indexed: 0, failed: 0 }),
     },
     ownerDecisions: {
       list: stub({ decisions: [] }),
@@ -135,7 +135,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       show: stub({ found: false }),
       delete: stub({ ok: true }),
       search: stub({ ok: true, conversations: [] }),
-      reindex: stub({ indexed: 0, failed: 0 }),
+      reindex: stub({ ok: true, indexed: 0, failed: 0 }),
     },
     inboundSignals: {
       listRoutes: stub({ routes: [], validation: { ok: true, routes: [] } }),
@@ -147,7 +147,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
       search: stub({ ok: true, entries: [] }),
       add: stub({ id: "k1" }),
       delete: stub({ ok: true }),
-      reindex: stub({ indexed: 0, failed: 0 }),
+      reindex: stub({ ok: true, indexed: 0, failed: 0 }),
     },
     sessions: {
       list: stub({ sessions: [] as InteractiveSession[] }),

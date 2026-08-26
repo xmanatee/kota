@@ -10,7 +10,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import {
+  registerAgentHarness,
+  resolveAgentHarness,
+} from "#core/agent-harness/registry.js";
 import type {
   AgentCanUseToolContext,
   AgentHarness,
@@ -319,6 +322,7 @@ describe("runAgentRepairLoop", () => {
       vi.fn(),
       {
         scopeRoot,
+        resolveAgentHarness,
         createCanUseTool: () => async (toolName, input) => {
           if (toolName === "Bash" && input.command === "custom-blocked") {
             return { behavior: "deny", message: "custom guard denied" };
@@ -392,6 +396,7 @@ describe("runAgentRepairLoop", () => {
       vi.fn(),
       {
         scopeRoot,
+        resolveAgentHarness,
         runtimeResources: context.runtimeResources,
         authorityConfigPath,
         scopeId: "scope-1",
@@ -449,7 +454,7 @@ describe("runAgentRepairLoop", () => {
         makeMetadata(),
         new AbortController(),
         vi.fn(),
-        { scopeRoot },
+        { scopeRoot, resolveAgentHarness },
       ),
     ).rejects.toMatchObject({
       name: RepairLoopError.name,
@@ -509,7 +514,7 @@ describe("runAgentRepairLoop", () => {
         makeMetadata(),
         new AbortController(),
         vi.fn(),
-        { scopeRoot },
+        { scopeRoot, resolveAgentHarness },
       ),
     ).rejects.toThrow(
       'Repair loop for step "agent" made no progress after 3 consecutive attempts',
@@ -571,6 +576,7 @@ describe("runAgentRepairLoop", () => {
         vi.fn(),
         {
           scopeRoot,
+          resolveAgentHarness,
           resolveAgentDef: () => agentDef,
         },
       ),

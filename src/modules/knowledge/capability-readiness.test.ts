@@ -11,9 +11,14 @@ function stubProvider(supportsSemantic: boolean): KnowledgeProvider {
     search: () => [],
     list: () => [],
     count: () => 0,
-    supportsSemanticSearch: () => supportsSemantic,
-    semanticSearch: async () => [],
-    reindex: async () => ({ indexed: 0, failed: 0 }),
+    ...(supportsSemantic
+      ? {
+        semanticSearchCapability: {
+          semanticSearch: async () => [],
+          reindex: async () => ({ indexed: 0, failed: 0 }),
+        },
+      }
+      : {}),
   };
 }
 

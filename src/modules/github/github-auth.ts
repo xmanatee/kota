@@ -1,5 +1,11 @@
 import { execSync } from "node:child_process";
 import { resolveSecretReference, type SecretResolver } from "#core/config/secret-reference.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpMethod,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 
@@ -47,11 +53,15 @@ export function resolveRepo(configured?: string): string | null {
 
 export async function githubFetch(
   token: string,
-  method: string,
+  method: OutboundHttpMethod,
   path: string,
   body?: unknown,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<GitHubResponse> {
-  const res = await fetch(`https://api.github.com${path}`, {
+  const { response: res } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://api.github.com"]),
+    operation: `github.${method.toLowerCase()}`,
+    url: `https://api.github.com${path}`,
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -65,6 +75,8 @@ export async function githubFetch(
   const data = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, data };
 }
+
+export type GitHubFetch = typeof githubFetch;
 
 export function apiError(action: string, status: number, data: unknown): ToolResult {
   const msg = (data as { message?: string })?.message ?? JSON.stringify(data);

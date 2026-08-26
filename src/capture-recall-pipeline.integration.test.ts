@@ -14,7 +14,7 @@
  * (memory, knowledge, tasks, inbox); the recall side is built from the
  * four real recall contributors against the same backing stores plus a
  * minimal in-process history provider stub (history is never fed by
- * capture). Both providers run with `supportsSemanticSearch() === false`
+ * capture). Both providers omit the optional semantic capability
  * so the test stays fully offline and exercises every contributor's
  * keyword-fallback path. The classifier is a deterministic in-process
  * stub.
@@ -53,7 +53,6 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
-  ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
@@ -137,7 +136,7 @@ function buildClassifier(): {
 
 /**
  * Minimal in-process `HistoryProvider`. The recall pipeline only calls
- * `supportsSemanticSearch()` and `list({ search, limit })` on the history
+ * `list({ search, limit })` on the history
  * provider; the rest of the interface throws so an unintended call
  * surfaces loudly rather than masquerading as empty.
  */
@@ -164,13 +163,6 @@ function createEmptyHistoryProvider(): HistoryProvider {
     findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
     remove: (_id: string): boolean => false,
     cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> => unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
   };
 }
 

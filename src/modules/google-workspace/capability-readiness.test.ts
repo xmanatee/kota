@@ -1,14 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   createGoogleWorkspaceReadinessSource,
   GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID,
 } from "./capability-readiness.js";
 
 describe("Google Workspace capability readiness", () => {
-  const originalFetch = globalThis.fetch;
-
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -32,7 +30,7 @@ describe("Google Workspace capability readiness", () => {
   });
 
   it("reports OAuth ready when token refresh succeeds", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    const request = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ access_token: "access-token", expires_in: 3600 }),
     });
@@ -43,6 +41,7 @@ describe("Google Workspace capability readiness", () => {
         refreshToken: "$GOOGLE_REFRESH_TOKEN",
       }),
       getSecret: (key) => `resolved-${key}`,
+      http: outboundHttpRequestPort(request),
     });
 
     await expect(source.probe()).resolves.toEqual([{
@@ -51,11 +50,11 @@ describe("Google Workspace capability readiness", () => {
       status: "ready",
       message: "Google Workspace OAuth token refresh succeeded.",
     }]);
-    expect(globalThis.fetch).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledOnce();
   });
 
   it("reports OAuth refresh failure as reauthorization required", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    const request = vi.fn().mockResolvedValue({
       ok: false,
       status: 400,
     });
@@ -66,6 +65,7 @@ describe("Google Workspace capability readiness", () => {
         refreshToken: "$GOOGLE_REFRESH_TOKEN",
       }),
       getSecret: (key) => `resolved-${key}`,
+      http: outboundHttpRequestPort(request),
     });
 
     await expect(source.probe()).resolves.toEqual([{

@@ -4,14 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import repoTasksModule from "./index.js";
 
 describe("repo-tasks localClient", () => {
 	let repoRoot: string;
 
 	beforeEach(() => {
-		resetProviderRegistry();
 		repoRoot = join(
 			tmpdir(),
 			`kota-repo-tasks-local-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -25,13 +23,13 @@ describe("repo-tasks localClient", () => {
 
 	afterEach(() => {
 		rmSync(repoRoot, { recursive: true, force: true });
-		resetProviderRegistry();
 	});
 
 	it("uses the default disk store in commands-only mode before onLoad registers providers", async () => {
 		const contributed = repoTasksModule.localClient!({
 			cwd: repoRoot,
-		} as ModuleContext);
+			getProvider: () => null,
+		} as unknown as ModuleContext);
 
 		const created = await contributed.tasks!.create({
 			title: "Commands-only fallback task",
@@ -50,7 +48,8 @@ describe("repo-tasks localClient", () => {
 	it("returns a client error for traversal-shaped move ids", async () => {
 		const contributed = repoTasksModule.localClient!({
 			cwd: repoRoot,
-		} as ModuleContext);
+			getProvider: () => null,
+		} as unknown as ModuleContext);
 
 		await expect(contributed.tasks!.move("../AGENTS", "doing")).resolves.toEqual({
 			ok: false,

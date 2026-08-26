@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetEventBus } from "#core/events/event-bus.js";
+import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   HISTORY_SCOPE_PROVIDER_TOKEN,
@@ -289,15 +290,6 @@ function makeFileHistoryProvider(scopeRoot: string): HistoryProvider {
     },
     cleanup() {
       return 0;
-    },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
     },
   };
 }
@@ -755,9 +747,13 @@ describe("Daemon chat scope-scoped history", () => {
     registry.register(HISTORY_SCOPE_PROVIDER_TOKEN, "test-history", {
       forScope: (scope) => historyForScope(scope.scopeRoot),
     });
+    const eventBus = new EventBus();
+    const moduleLoader = new ModuleLoader({}, false, { providerRegistry: registry });
+    moduleLoader.setBus(eventBus);
 
     const config = { defaultAgentHarness: "claude-agent-sdk", reflection: false };
     const daemon = new Daemon({
+      runtimeModuleHost: { eventBus, moduleLoader },
       scopes: [{ scopeRoot: defaultScopeRoot }, { scopeRoot: selectedScopeRoot }],
       stateDir,
       idleIntervalMs: 60_000,

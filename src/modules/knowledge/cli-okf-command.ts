@@ -76,8 +76,8 @@ export function registerKnowledgeOkfCommand(
 						: plain(""),
 					plain("."),
 				));
-				if (reindex.skipped) {
-					print(line(plain("Semantic reindex skipped: provider is not embedding-backed.")));
+					if (!reindex.ok) {
+						print(line(plain("Semantic reindex unavailable: provider is not embedding-backed.")));
 				} else {
 					print(line(
 						plain("Semantic reindex: "),

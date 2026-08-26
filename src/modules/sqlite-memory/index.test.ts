@@ -91,22 +91,6 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 		expect(ctx.registerProvider).toHaveBeenCalledWith("memory", expect.any(Object));
 	});
 
-	it("registered provider implements MemoryProvider interface", () => {
-		const dir = join(testDir, `run-${Date.now()}`);
-		mkdirSync(dir, { recursive: true });
-		const ctx = makeStubCtx(dir);
-
-		sqliteMemoryModule.onLoad!(ctx);
-
-		const provider = (ctx.registerProvider as ReturnType<typeof vi.fn>).mock.calls[0][1];
-		expect(typeof provider.save).toBe("function");
-		expect(typeof provider.search).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.update).toBe("function");
-		expect(typeof provider.delete).toBe("function");
-		expect(typeof provider.supportsSemanticSearch).toBe("function");
-	});
-
 	it("save and list round-trip", () => {
 		const dir = join(testDir, `run-${Date.now()}`);
 		mkdirSync(dir, { recursive: true });

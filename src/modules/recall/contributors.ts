@@ -65,8 +65,8 @@ async function recallKnowledge(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.search(query).slice(0, topK);
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "knowledge",
@@ -87,8 +87,8 @@ async function recallMemory(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.search(query).slice(0, topK);
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "memory",
@@ -109,8 +109,8 @@ async function recallHistory(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.list({ search: query, limit: topK });
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "history",
@@ -129,7 +129,9 @@ async function recallTasks(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const hits = await provider.searchTasks(query, { topK });
+  const hits = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.searchTasks(query, { topK })
+    : await provider.searchTasks(query, { topK });
   return hits.map<RawRecallEntry>((hit) => ({
     source: "tasks",
     id: hit.id,

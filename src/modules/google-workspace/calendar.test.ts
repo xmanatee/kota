@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { makeCalendarCreateEvent, makeCalendarListEvents } from "./calendar.js";
 
-const originalFetch = globalThis.fetch;
+let requestMock = vi.fn();
+const http = outboundHttpRequestPort((request) =>
+  requestMock(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+);
 
 function mockGetToken(token = "test-token") {
   return vi.fn().mockResolvedValue(token);
@@ -9,7 +18,7 @@ function mockGetToken(token = "test-token") {
 
 function stubFetch(response: { ok?: boolean; status?: number; data?: unknown }) {
   const { ok = true, status = 200, data = {} } = response;
-  globalThis.fetch = vi.fn().mockResolvedValue({
+  requestMock = vi.fn().mockResolvedValue({
     ok,
     status,
     json: () => Promise.resolve(data),
@@ -17,12 +26,12 @@ function stubFetch(response: { ok?: boolean; status?: number; data?: unknown }) 
 }
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  requestMock = vi.fn();
   vi.restoreAllMocks();
 });
 
 describe("calendar_list_events: schema", () => {
-  const def = makeCalendarListEvents(mockGetToken(), "primary");
+  const def = makeCalendarListEvents(mockGetToken(), "primary", http);
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("calendar_list_events");
@@ -38,7 +47,7 @@ describe("calendar_list_events: schema", () => {
 
 describe("calendar_list_events: runner", () => {
   it("returns 'No upcoming events' on empty list", async () => {
-    const def = makeCalendarListEvents(mockGetToken(), "primary");
+    const def = makeCalendarListEvents(mockGetToken(), "primary", http);
     stubFetch({ data: { items: [] } });
 
     const result = await def.runner({});
@@ -46,7 +55,7 @@ describe("calendar_list_events: runner", () => {
   });
 
   it("formats events with summary, time, location, and attendees", async () => {
-    const def = makeCalendarListEvents(mockGetToken(), "primary");
+    const def = makeCalendarListEvents(mockGetToken(), "primary", http);
     stubFetch({
       data: {
         items: [
@@ -70,25 +79,25 @@ describe("calendar_list_events: runner", () => {
   });
 
   it("caps maxResults at 50", async () => {
-    const def = makeCalendarListEvents(mockGetToken(), "primary");
+    const def = makeCalendarListEvents(mockGetToken(), "primary", http);
     stubFetch({ data: { items: [] } });
 
     await def.runner({ maxResults: 200 });
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("maxResults=50");
   });
 
   it("uses input calendarId over default", async () => {
-    const def = makeCalendarListEvents(mockGetToken(), "primary");
+    const def = makeCalendarListEvents(mockGetToken(), "primary", http);
     stubFetch({ data: { items: [] } });
 
     await def.runner({ calendarId: "custom-cal" });
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("custom-cal");
   });
 
   it("returns error on API failure", async () => {
-    const def = makeCalendarListEvents(mockGetToken(), "primary");
+    const def = makeCalendarListEvents(mockGetToken(), "primary", http);
     stubFetch({ ok: false, status: 403, data: { error: { message: "Forbidden" } } });
 
     const result = await def.runner({});
@@ -98,7 +107,7 @@ describe("calendar_list_events: runner", () => {
 });
 
 describe("calendar_create_event: schema", () => {
-  const def = makeCalendarCreateEvent(mockGetToken(), "primary");
+  const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
 
   it("has correct tool name and is marked destructive", () => {
     expect(def.tool.name).toBe("calendar_create_event");
@@ -113,7 +122,7 @@ describe("calendar_create_event: schema", () => {
 
 describe("calendar_create_event: runner", () => {
   it("creates event and returns link", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary");
+    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
     stubFetch({
       data: {
         id: "ev-new",
@@ -134,7 +143,7 @@ describe("calendar_create_event: runner", () => {
   });
 
   it("sends attendees in body when provided", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary");
+    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
     stubFetch({ data: { id: "ev2", summary: "Meeting" } });
 
     await def.runner({
@@ -144,13 +153,13 @@ describe("calendar_create_event: runner", () => {
       attendees: ["a@test.com", "b@test.com"],
     });
 
-    const [, opts] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, opts] = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse(opts.body as string);
     expect(body.attendees).toEqual([{ email: "a@test.com" }, { email: "b@test.com" }]);
   });
 
   it("returns error on API failure", async () => {
-    const def = makeCalendarCreateEvent(mockGetToken(), "primary");
+    const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
     stubFetch({ ok: false, status: 400, data: { error: { message: "Bad Request" } } });
 
     const result = await def.runner({

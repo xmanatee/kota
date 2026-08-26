@@ -22,7 +22,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
 	KnowledgeEntry,
-	ReindexResult,
 	SearchFilters,
 } from "#core/modules/provider-types.js";
 import type { WorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
@@ -250,21 +249,6 @@ export class KnowledgeStore {
 		return entries.filter((e) => e.type.toLowerCase() === t).length;
 	}
 
-	supportsSemanticSearch(): boolean {
-		return false;
-	}
-
-	async semanticSearch(
-		_query: string,
-		_topK: number,
-		_filters?: SearchFilters,
-	): Promise<KnowledgeEntry[]> {
-		throw new Error("Semantic knowledge search requires an embedding-backed knowledge provider.");
-	}
-
-	async reindex(): Promise<ReindexResult> {
-		return { indexed: 0, failed: 0, skipped: true };
-	}
 }
 
 let store: KnowledgeStore | undefined;

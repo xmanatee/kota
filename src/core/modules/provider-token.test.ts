@@ -28,9 +28,6 @@ const goodMemory: MemoryProvider = {
 	list: () => [],
 	update: () => true,
 	delete: () => true,
-	supportsSemanticSearch: () => false,
-	semanticSearch: async () => [],
-	reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 };
 
 describe("ProviderToken typing", () => {

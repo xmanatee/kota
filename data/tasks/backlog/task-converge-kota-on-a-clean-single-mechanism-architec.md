@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T13:12:01.000Z
+updated_at: 2026-08-26T15:27:00.000Z
 ---
 
 ## Problem
@@ -67,7 +67,7 @@ executor are dropped with dispositions.
 - [x] Stage 8 — narrow client ports and client-side owners.
 - [x] Stage 9 — make runtime lifecycle host-owned.
 - [x] Stage 10 — replace shadow runtimes with production drivers.
-- [ ] Stage 11 — correct transport, capability, and mutation ports.
+- [x] Stage 11 — correct transport, capability, and mutation ports.
 - [ ] Stage 12 — normalize persistence and typed projections.
 - [ ] Stage 13 — decompose remaining mixed owners by responsibility.
 - [ ] Stage 14 — consolidate tests and fixtures by behavior owner.
@@ -334,6 +334,35 @@ with 45 passing tests and one intentional environment skip, and all 44 changed
 test files with 307 tests passed. Repository inspection found no active shadow
 workflow/module runtime, loopback protocol patch, fetch bridge, or private
 loopback flag.
+
+## Stage 11 Result
+
+Outbound server traffic now crosses one policy-aware request/streaming port.
+GitHub, Linear, Jira, Google Workspace, Slack, Telegram, notification, skill,
+registry, model, embedding, transcription, voice, tracing, daemon-lock, MCP,
+and foreign-module adapters use that port; client runtimes retain one local
+HTTP owner per platform. Biome rejects direct production `fetch` use outside
+the declared dispatch and client owners. The temporary parser test and its
+85-entry exception baseline were deleted.
+
+Provider bases now describe only universally available behavior. Semantic
+search is an optional structural capability on memory, knowledge, history,
+and repo-task providers; keyword implementations no longer carry support
+booleans or throwing/no-op placeholders. Task reading, mutation, and bulk
+maintenance are separate capabilities. GitHub, Linear, and Jira mutations are
+asynchronous, update local state only after provider acknowledgement, and
+reject fields or maintenance operations they cannot durably perform. Shared
+checks remain limited to genuinely shared behavior; TypeScript owns structural
+conformance, while adapter tests exercise each declared capability through its
+observable acknowledgement and failure results.
+
+The duplicate A2A callback HTTP runtime, raw-fetch baseline test, universal
+provider conformance suite, placeholder provider methods, and global-fetch
+fixtures on the principal adapters were removed. Production multi-scope chat
+history now receives the selected history capability explicitly instead of
+falling back to the default registry. Root, web, and mobile type checks and
+lint passed; the 65-file changed-owner run passed 1,031 behavior tests after the
+two host-ownership regressions it exposed were corrected.
 
 ## Finding Ownership
 

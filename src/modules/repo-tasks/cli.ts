@@ -314,13 +314,13 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 
 	taskCmd
 		.command("reindex")
-		.description(
-			"Rebuild the semantic search index for all repo tasks. " +
-				"No-op when no embedding provider is configured.",
+			.description(
+				"Rebuild the semantic search index for all repo tasks. " +
+					"Reports when no embedding provider is configured.",
 		)
 		.action(async () => {
 			const result = await ctx.client.tasks.reindex();
-			if (result.skipped) {
+				if (!result.ok) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.repo-tasks` to an embedding-capable provider to enable.",

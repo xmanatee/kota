@@ -13,7 +13,7 @@
 
 import type {
   KnowledgeEntry,
-  ReindexResult,
+  ReindexOperationResult,
 } from "#core/modules/provider-types.js";
 import type {
   WorkMemoryFreshness,
@@ -100,7 +100,7 @@ export type KnowledgeDeleteResult =
   | { ok: false; reason: "not_found" };
 
 /** Result of `knowledge.reindex`. Mirrors the provider's `ReindexResult`. */
-export type KnowledgeReindexResult = ReindexResult;
+export type KnowledgeReindexResult = ReindexOperationResult;
 
 /**
  * Knowledge-store operations (the structured markdown+frontmatter store).

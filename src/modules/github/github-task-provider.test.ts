@@ -8,7 +8,6 @@
  *   - update() done → closes issue and adds done label on GitHub
  *   - update() pending (from in_progress) → removes in-progress label
  *   - add() creates a GitHub issue and updates cache with real ID
- *   - archiveCompleted() closes done issues and removes from cache
  *   - getActiveSummary() returns correct summary
  *   - priority resolved from label mapping
  *   - not-found task throws
@@ -151,7 +150,7 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(1, { status: "done" });
+      await provider.update(1, { status: "done" });
 
       expect(provider.active()).toHaveLength(1);
       expect(provider.active()[0].id).toBe(2);
@@ -179,12 +178,10 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(10, { status: "in_progress" });
+      const task = await provider.update(10, { status: "in_progress" });
 
       expect(task.status).toBe("in_progress");
 
-      // Let the async call fire
-      await new Promise((r) => setTimeout(r, 0));
 
       const labelCall = fetch.mock.calls.find(
         (c) =>
@@ -194,6 +191,19 @@ describe("GitHubTaskProvider", () => {
       );
       expect(labelCall).toBeDefined();
       expect(labelCall![2]).toEqual({ labels: ["in-progress"] });
+    });
+
+    it("keeps the cached status unchanged when GitHub rejects the mutation", async () => {
+      const fetch = vi.fn()
+        .mockResolvedValueOnce({ ok: true, status: 200, data: [makeIssue(10, "A task")] })
+        .mockResolvedValueOnce({ ok: false, status: 503, data: { message: "unavailable" } });
+      const provider = makeProvider(fetch);
+      await provider.init();
+
+      await expect(provider.update(10, { status: "in_progress" })).rejects.toThrow(
+        "HTTP 503",
+      );
+      expect(provider.get(10)?.status).toBe("pending");
     });
 
     it("removes in-progress label when moving back to pending", async () => {
@@ -208,9 +218,7 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(11, { status: "pending" });
-
-      await new Promise((r) => setTimeout(r, 0));
+      await provider.update(11, { status: "pending" });
 
       const deleteCall = fetch.mock.calls.find(
         (c) =>
@@ -232,12 +240,10 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(20, { status: "done" });
+      const task = await provider.update(20, { status: "done" });
 
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
-
-      await new Promise((r) => setTimeout(r, 0));
 
       const patchCall = fetch.mock.calls.find(
         (c) =>
@@ -272,11 +278,8 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.add("New task");
-      expect(task.id).toBeLessThan(0); // temp ID
-
-      // Let async issue creation complete
-      await new Promise((r) => setTimeout(r, 0));
+      const task = await provider.add("New task");
+      expect(task.id).toBe(42);
 
       const postCall = fetch.mock.calls.find(
         (c) =>
@@ -287,7 +290,6 @@ describe("GitHubTaskProvider", () => {
       expect(postCall).toBeDefined();
       expect(postCall![2]).toMatchObject({ title: "New task", labels: ["kota-task"] });
 
-      // Cache should now have the real ID
       const updated = provider.get(42);
       expect(updated).toBeDefined();
       expect(updated!.task).toBe("New task");
@@ -303,46 +305,12 @@ describe("GitHubTaskProvider", () => {
 
       provider.add("Priority task", { priority: "high" });
 
-      await new Promise((r) => setTimeout(r, 0));
-
       const postCall = fetch.mock.calls.find(
         (c) => c[0] === "POST" && typeof c[1] === "string" && c[1].endsWith("/issues"),
       );
       expect(postCall![2]).toMatchObject({
         labels: expect.arrayContaining(["priority:high"]),
       });
-    });
-  });
-
-  describe("archiveCompleted()", () => {
-    it("removes done tasks from cache and closes them on GitHub", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          status: 200,
-          data: [makeIssue(1, "Open"), makeIssue(2, "To archive")],
-        })
-        .mockResolvedValue({ ok: true, status: 200, data: {} });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.update(2, { status: "done" });
-      const removed = provider.archiveCompleted();
-
-      expect(removed).toBe(1);
-      expect(provider.count()).toBe(1);
-      expect(provider.get(2)).toBeUndefined();
-
-      await new Promise((r) => setTimeout(r, 0));
-
-      const closeCall = fetch.mock.calls.find(
-        (c) =>
-          c[0] === "PATCH" &&
-          typeof c[1] === "string" &&
-          c[1].includes("/issues/2"),
-      );
-      expect(closeCall).toBeDefined();
     });
   });
 
@@ -379,7 +347,7 @@ describe("GitHubTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(() => provider.update(999, { status: "done" })).toThrow(
+      await expect(provider.update(999, { status: "done" })).rejects.toThrow(
         "Task #999 not found",
       );
     });
@@ -406,32 +374,13 @@ describe("GitHubTaskProvider", () => {
     });
   });
 
-  describe("clear()", () => {
-    it("is a no-op (does not clear GitHub issues)", async () => {
-      const fetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        data: [makeIssue(1, "Task")],
-      });
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.clear();
-
-      // Cache still intact, no extra GitHub API calls
-      expect(provider.count()).toBe(1);
-      expect(fetch).toHaveBeenCalledTimes(1);
-    });
-  });
 });
 
 describe("GitHubTaskProvider — onLoad integration in github module", () => {
   it("provider is registered when taskProvider.enabled is true", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => [],
-    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), { status: 200 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const { default: githubModule } = await import("./index.js");

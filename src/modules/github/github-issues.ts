@@ -1,9 +1,9 @@
 import type { ToolDef } from "#core/modules/module-types.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { apiError, githubFetch } from "./github-auth.js";
+import { apiError, type GitHubFetch, githubFetch } from "./github-auth.js";
 
-function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
+function makeListIssues(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkReadEffect(),
     tool: {
@@ -35,7 +35,7 @@ function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
       params.set("per_page", "30");
       if (input.labels) params.set("labels", input.labels as string);
 
-      const res = await githubFetch(token, "GET", `/repos/${repo}/issues?${params}`);
+      const res = await fetch(token, "GET", `/repos/${repo}/issues?${params}`);
       if (!res.ok) return apiError("list issues", res.status, res.data);
 
       const issues = res.data as Array<{
@@ -58,7 +58,7 @@ function makeListIssues(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeComment(token: string, defaultRepo: string | null): ToolDef {
+function makeComment(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -83,7 +83,7 @@ function makeComment(token: string, defaultRepo: string | null): ToolDef {
       const repo = (input.repo as string | undefined) ?? defaultRepo;
       if (!repo) return { content: "No repository configured.", is_error: true };
 
-      const res = await githubFetch(
+      const res = await fetch(
         token,
         "POST",
         `/repos/${repo}/issues/${input.number as number}/comments`,
@@ -97,7 +97,7 @@ function makeComment(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
+function makeCreateIssue(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -137,7 +137,7 @@ function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
       if (Array.isArray(input.labels) && input.labels.length > 0) body.labels = input.labels;
       if (Array.isArray(input.assignees) && input.assignees.length > 0) body.assignees = input.assignees;
 
-      const res = await githubFetch(token, "POST", `/repos/${repo}/issues`, body);
+      const res = await fetch(token, "POST", `/repos/${repo}/issues`, body);
       if (!res.ok) return apiError("create issue", res.status, res.data);
 
       const issue = res.data as { number: number; html_url: string; title: string };
@@ -146,7 +146,7 @@ function makeCreateIssue(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
+function makeUpdateIssue(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -182,7 +182,7 @@ function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
       if (input.title) body.title = input.title;
       if (input.body !== undefined) body.body = input.body;
 
-      const res = await githubFetch(token, "PATCH", `/repos/${repo}/issues/${input.number as number}`, body);
+      const res = await fetch(token, "PATCH", `/repos/${repo}/issues/${input.number as number}`, body);
       if (!res.ok) return apiError("update issue", res.status, res.data);
 
       const issue = res.data as { number: number; state: string; title: string; html_url: string };
@@ -191,7 +191,7 @@ function makeUpdateIssue(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
+function makeAddLabel(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -216,7 +216,7 @@ function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
       const repo = (input.repo as string | undefined) ?? defaultRepo;
       if (!repo) return { content: "No repository configured.", is_error: true };
 
-      const res = await githubFetch(
+      const res = await fetch(
         token,
         "POST",
         `/repos/${repo}/issues/${input.number as number}/labels`,
@@ -231,7 +231,7 @@ function makeAddLabel(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
+function makeRemoveLabel(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -257,7 +257,7 @@ function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
       if (!repo) return { content: "No repository configured.", is_error: true };
 
       const label = encodeURIComponent(input.label as string);
-      const res = await githubFetch(
+      const res = await fetch(
         token,
         "DELETE",
         `/repos/${repo}/issues/${input.number as number}/labels/${label}`,
@@ -269,13 +269,17 @@ function makeRemoveLabel(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-export function makeIssueTools(token: string, defaultRepo: string | null): ToolDef[] {
+export function makeIssueTools(
+  token: string,
+  defaultRepo: string | null,
+  fetch: GitHubFetch = githubFetch,
+): ToolDef[] {
   return [
-    makeListIssues(token, defaultRepo),
-    makeComment(token, defaultRepo),
-    makeCreateIssue(token, defaultRepo),
-    makeUpdateIssue(token, defaultRepo),
-    makeAddLabel(token, defaultRepo),
-    makeRemoveLabel(token, defaultRepo),
+    makeListIssues(token, defaultRepo, fetch),
+    makeComment(token, defaultRepo, fetch),
+    makeCreateIssue(token, defaultRepo, fetch),
+    makeUpdateIssue(token, defaultRepo, fetch),
+    makeAddLabel(token, defaultRepo, fetch),
+    makeRemoveLabel(token, defaultRepo, fetch),
   ];
 }

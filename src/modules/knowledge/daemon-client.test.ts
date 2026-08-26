@@ -46,8 +46,8 @@
  * 10. `KnowledgeDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
- * 11. `KnowledgeReindexResult` decodes correctly through `requestStrict<T>`
- *     (the provider's `ReindexResult` shape passes through unchanged).
+ * 11. `KnowledgeReindexResult` decodes the explicit success/unavailable
+ *     operation result through `requestStrict<T>`.
  * 12. Removing the knowledge module's daemonClient contribution makes the
  *     assembled client fail loudly with a clear "knowledge" missing-handler
  *     error.
@@ -418,7 +418,7 @@ describe("knowledge module daemonClient(link)", () => {
   });
 
   it("routes reindex() through POST /api/knowledge/reindex via requestStrict<T> with no body", async () => {
-    const expected: KnowledgeReindexResult = { indexed: 5, failed: 0 };
+    const expected: KnowledgeReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = knowledgeModule.daemonClient!(transport);
     const result = await contributed.knowledge!.reindex();
@@ -434,7 +434,7 @@ describe("knowledge module daemonClient(link)", () => {
   });
 
   it("threads an explicit scope id through reindex()", async () => {
-    const expected: KnowledgeReindexResult = { indexed: 5, failed: 0 };
+    const expected: KnowledgeReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = knowledgeModule.daemonClient!(transport);
     await contributed.knowledge!.reindex({ scopeId: "scope-b" });

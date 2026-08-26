@@ -324,7 +324,4 @@ describe("SemanticTasksStore", () => {
 		expect(provider.calls).toBe(before);
 	});
 
-	it("supportsSemanticSearch returns true", () => {
-		expect(store.supportsSemanticSearch()).toBe(true);
-	});
 });

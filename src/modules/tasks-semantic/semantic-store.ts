@@ -17,6 +17,7 @@ import type {
 	RepoTaskSearchHit,
 	RepoTasksProvider,
 	RepoTasksSearchOptions,
+	RepoTasksSemanticSearchCapability,
 } from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import {
@@ -67,7 +68,8 @@ function buildAdapter(
 	};
 }
 
-export class SemanticTasksStore implements RepoTasksProvider {
+export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticSearchCapability {
+	readonly semanticSearchCapability: RepoTasksSemanticSearchCapability = this;
 	private scopeRoot: string;
 	private sidecarDir: string;
 	private manager: SemanticIndexManager<RepoTaskFullRecord>;
@@ -89,10 +91,6 @@ export class SemanticTasksStore implements RepoTasksProvider {
 			provider: options.provider,
 			onError,
 		});
-	}
-
-	supportsSemanticSearch(): boolean {
-		return true;
 	}
 
 	async searchTasks(

@@ -10,7 +10,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrajectoryDiagnosticsMetadata } from "#core/agent-harness/index.js";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import {
+  registerAgentHarness,
+  resolveAgentHarness,
+} from "#core/agent-harness/registry.js";
 import type { AgentHarness } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
@@ -230,6 +233,7 @@ describe("runAgentRepairLoop workspaceDir", () => {
         {
           scopeRoot: workspaceRoot,
           workspaceRoot: workspaceDir,
+          resolveAgentHarness,
           resolveAgentDef: () => agentDef,
         },
       ),

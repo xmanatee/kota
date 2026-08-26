@@ -193,7 +193,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       add: async () => ({ id: "stub" }),
       delete: async () => ({ ok: true as const }),
       search: async () => ({ ok: true as const, entries: [] }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      reindex: async () => ({ ok: true, indexed: 0, failed: 0 }),
     },
     knowledge: {
       list: async () => ({ entries: [] }),
@@ -201,7 +201,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       search: async () => ({ ok: true as const, entries: [] }),
       add: async () => ({ id: "stub" }),
       delete: async () => ({ ok: true as const }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      reindex: async () => ({ ok: true, indexed: 0, failed: 0 }),
     },
     history: {
       list: async () => ({ conversations: [] }),
@@ -209,7 +209,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
       show: async () => ({ found: false as const }),
       delete: async () => ({ ok: true as const }),
       search: async () => ({ ok: true as const, conversations: [] }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      reindex: async () => ({ ok: true, indexed: 0, failed: 0 }),
     },
     inboundSignals: {
       listRoutes: async () => ({

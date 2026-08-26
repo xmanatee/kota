@@ -1,3 +1,9 @@
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpMethod,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export type GoogleWorkspaceSecretResolver = (key: string) => string | null;
@@ -26,8 +32,12 @@ export async function refreshGoogleAccessToken(
   clientId: string,
   clientSecret: string,
   refreshToken: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<GoogleAccessTokenRefresh> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {
+  const { response: res } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://oauth2.googleapis.com"]),
+    operation: "google-workspace.refresh-token",
+    url: "https://oauth2.googleapis.com/token",
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -53,13 +63,19 @@ export async function getAccessToken(
   clientId: string,
   clientSecret: string,
   refreshToken: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<string> {
   const now = Date.now();
   if (tokenCache && tokenCache.expiresAt > now + 60_000) {
     return tokenCache.accessToken;
   }
 
-  const refreshed = await refreshGoogleAccessToken(clientId, clientSecret, refreshToken);
+  const refreshed = await refreshGoogleAccessToken(
+    clientId,
+    clientSecret,
+    refreshToken,
+    http,
+  );
   tokenCache = {
     accessToken: refreshed.accessToken,
     expiresAt: now + refreshed.expiresIn * 1000,
@@ -69,11 +85,27 @@ export async function getAccessToken(
 
 export async function googleFetch(
   token: string,
-  method: string,
+  method: OutboundHttpMethod,
   url: string,
   body?: unknown,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<{ ok: boolean; status: number; data: unknown }> {
-  const res = await fetch(url, {
+  const res = await googleRawFetch(token, method, url, body, http);
+  const data = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, data };
+}
+
+export async function googleRawFetch(
+  token: string,
+  method: OutboundHttpMethod,
+  url: string,
+  body?: unknown,
+  http: OutboundHttpRequestPort = outboundHttp,
+): Promise<Response> {
+  const { response } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.configuredProvider([url]),
+    operation: `google-workspace.${method.toLowerCase()}`,
+    url,
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -81,8 +113,7 @@ export async function googleFetch(
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => null);
-  return { ok: res.ok, status: res.status, data };
+  return response;
 }
 
 export function apiError(action: string, status: number, data: unknown): ToolResult {

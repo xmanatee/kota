@@ -1,7 +1,7 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
-    "includes": ["src/**/*.ts"]
+    "includes": ["src/**/*.ts", "clients/mobile/src/daemon/**/*.ts"]
   },
   "linter": {
     "enabled": true,
@@ -25,7 +25,15 @@
         "noNonNullAssertion": "off",
         "useImportType": "warn",
         "noParameterAssign": "off",
-        "useDefaultParameterLast": "off"
+        "useDefaultParameterLast": "off",
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": {
+              "fetch": "Route production HTTP through the shared outbound HTTP transport."
+            }
+          }
+        }
       },
       "complexity": {
         "noForEach": "off",
@@ -52,6 +60,9 @@
         "src/**/*.test.ts",
         "src/**/*.integration.ts",
         "src/**/*.integration.test.ts",
+        "src/**/*test-helpers.ts",
+        "src/**/*test-support.ts",
+        "src/**/*test-support.integration.ts",
         "src/**/testing/**",
         "src/**/test-utils/**",
         "src/**/__tests__/**",
@@ -62,6 +73,30 @@
           "suspicious": {
             "noExplicitAny": "off",
             "noImplicitAnyLet": "off"
+          },
+          "style": {
+            "noRestrictedGlobals": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["clients/mobile/src/daemon/**/*.ts"],
+      "linter": {
+        "rules": {
+          "recommended": false
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/core/outbound-http/dispatcher.ts",
+        "clients/mobile/src/daemon/http.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": "off"
           }
         }
       }

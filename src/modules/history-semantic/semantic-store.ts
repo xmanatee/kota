@@ -16,6 +16,7 @@ import type {
 	ConversationRecord,
 	HistoryProvider,
 	HistorySemanticOptions,
+	HistorySemanticSearchCapability,
 	ReindexResult,
 } from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
@@ -84,7 +85,8 @@ function buildAdapter(
 	};
 }
 
-export class SemanticHistoryStore implements HistoryProvider {
+export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSearchCapability {
+	readonly semanticSearchCapability: HistorySemanticSearchCapability = this;
 	private base: ConversationHistory;
 	private manager: SemanticIndexManager<ConversationRecord>;
 
@@ -153,10 +155,6 @@ export class SemanticHistoryStore implements HistoryProvider {
 	/** Wait for all pending background embeddings to settle. */
 	async flush(): Promise<void> {
 		await this.manager.flush();
-	}
-
-	supportsSemanticSearch(): boolean {
-		return true;
 	}
 
 	async semanticSearch(

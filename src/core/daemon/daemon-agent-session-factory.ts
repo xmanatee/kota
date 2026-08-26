@@ -4,6 +4,7 @@ import type {
   CreateSessionOptions,
   ModuleSession,
 } from "#core/modules/module-types.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonConfig } from "./daemon-config.js";
 import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
@@ -15,6 +16,7 @@ type DaemonAgentSessionOptions = CreateSessionOptions & {
 export function createDaemonAgentSessionFactories(
   config: DaemonConfig,
   scopeRuntimes: ScopeRuntimeRegistry,
+  resolveHistoryProvider?: (scopeId: string) => HistoryProvider,
 ): {
   makeAgentSession: (
     transport: Transport,
@@ -45,6 +47,7 @@ export function createDaemonAgentSessionFactories(
       scopeRoot: runtime.scope.scopeRoot,
       scopeRuntime: runtime,
       moduleLoader: config.runtimeModuleHost?.moduleLoader,
+      historyProvider: resolveHistoryProvider?.(scopeId),
     });
   };
 

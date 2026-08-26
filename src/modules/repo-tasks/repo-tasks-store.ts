@@ -9,7 +9,6 @@
  */
 
 import type {
-	ReindexResult,
 	RepoTaskSearchHit,
 	RepoTaskState,
 	RepoTasksProvider,
@@ -32,10 +31,6 @@ const DEFAULT_TOP_K = 20;
  */
 export class RepoTasksDefaultStore implements RepoTasksProvider {
 	constructor(private repoRoot: string) {}
-
-	supportsSemanticSearch(): boolean {
-		return false;
-	}
 
 	async searchTasks(
 		query: string,
@@ -71,9 +66,6 @@ export class RepoTasksDefaultStore implements RepoTasksProvider {
 		return scored.slice(0, topK);
 	}
 
-	async reindex(): Promise<ReindexResult> {
-		return { indexed: 0, failed: 0, skipped: true };
-	}
 }
 
 function normalizeStates(

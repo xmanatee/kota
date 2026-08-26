@@ -2,7 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import {
+  registerAgentHarness,
+  resolveAgentHarness,
+} from "#core/agent-harness/registry.js";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { runAgentRepairLoop } from "./repair-loop.js";
@@ -143,7 +146,7 @@ describe("repair-loop usage", () => {
       metadata,
       new AbortController(),
       vi.fn(),
-      { scopeRoot },
+      { scopeRoot, resolveAgentHarness },
     )).rejects.toMatchObject({
       name: AgentStepRuntimeError.name,
       kind: "rate_limit",
@@ -291,7 +294,7 @@ describe("repair-loop usage", () => {
       metadata,
       new AbortController(),
       vi.fn(),
-      { scopeRoot },
+      { scopeRoot, resolveAgentHarness },
     );
 
     expect(receivedSessionIds).toEqual([undefined]);

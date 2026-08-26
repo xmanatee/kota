@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import tracingModule from "./index.js";
 import {
   OtlpHttpSecurityLogExporter,
@@ -271,10 +272,10 @@ describe("OtlpHttpSecurityLogExporter", () => {
     const exporter = new OtlpHttpSecurityLogExporter(
       "http://otel.example/v1/logs",
       "kota-test",
-      async (_url, init) => {
-        bodies.push(init.body);
-        return { ok: true, status: 200, text: async () => "" };
-      },
+      outboundHttpRequestPort(async (request) => {
+        bodies.push(String(request.body));
+        return new Response("", { status: 200 });
+      }),
     );
 
     await exporter.export([

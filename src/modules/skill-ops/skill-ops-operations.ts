@@ -28,6 +28,11 @@ import {
   readImportedSkillRecords,
 } from "#core/modules/imported-skills.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
   ImportedSkillWrite,
@@ -187,27 +192,39 @@ function selectorList(candidates: readonly SkillCandidate[]): string {
     .join(", ");
 }
 
-async function fetchText(source: string): Promise<string> {
-  const res = await fetch(source);
+async function fetchText(source: string, http: OutboundHttpRequestPort): Promise<string> {
+  const { response: res } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+    operation: "skill-ops.import-text",
+    url: source,
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.text();
 }
 
-async function fetchJson<T>(source: string): Promise<T> {
-  const res = await fetch(source);
+async function fetchJson<T>(source: string, http: OutboundHttpRequestPort): Promise<T> {
+  const { response: res } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+    operation: "skill-ops.import-json",
+    url: source,
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return res.json() as Promise<T>;
 }
 
-async function fetchBytes(source: string): Promise<Buffer> {
-  const res = await fetch(source);
+async function fetchBytes(source: string, http: OutboundHttpRequestPort): Promise<Buffer> {
+  const { response: res } = await http.request({
+    profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+    operation: "skill-ops.import-resource",
+    url: source,
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function fetchSkillContent(source: string): Promise<string> {
+async function fetchSkillContent(source: string, http: OutboundHttpRequestPort): Promise<string> {
   if (source.startsWith("http://") || source.startsWith("https://")) {
-    return fetchText(source);
+    return fetchText(source, http);
   }
   if (!existsSync(source)) throw new Error(`File not found: ${source}`);
   return readFileSync(source, "utf8");
@@ -504,10 +521,14 @@ function collectGitHubSkillResources(args: {
   return { resources, skippedResources };
 }
 
-async function resolveGitHubRef(source: Exclude<GitHubSource, { kind: "blob" }>): Promise<string> {
+async function resolveGitHubRef(
+  source: Exclude<GitHubSource, { kind: "blob" }>,
+  http: OutboundHttpRequestPort,
+): Promise<string> {
   if (source.ref) return source.ref;
   const repo = await fetchJson<GitHubRepoResponse>(
     `https://api.github.com/repos/${source.owner}/${source.repo}`,
+    http,
   );
   if (!repo.default_branch) {
     throw new Error(`GitHub repository ${source.owner}/${source.repo} has no default_branch`);
@@ -518,9 +539,10 @@ async function resolveGitHubRef(source: Exclude<GitHubSource, { kind: "blob" }>)
 async function readGitHubSource(
   source: GitHubSource,
   options?: SkillImportOptions,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<SkillCandidate[] | SkillImportFailure> {
   if (source.kind === "blob") {
-    const content = await fetchText(rawGitHubUrl(source));
+    const content = await fetchText(rawGitHubUrl(source), http);
     const fallbackName = isPosixSkillMarkdownPath(source.path)
       ? inferPosixSkillDirectoryName(source.path)
       : undefined;
@@ -536,9 +558,10 @@ async function readGitHubSource(
     ];
   }
 
-  const ref = await resolveGitHubRef(source);
+  const ref = await resolveGitHubRef(source, http);
   const tree = await fetchJson<GitHubTreeResponse>(
     `https://api.github.com/repos/${source.owner}/${source.repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+    http,
   );
   const prefix = source.path.replace(/^\/+|\/+$/g, "");
   const skillPaths = (tree.tree ?? [])
@@ -558,7 +581,7 @@ async function readGitHubSource(
   const pathsToFetch = fallbackMatches.length > 0 ? fallbackMatches : skillPaths;
   const candidates: SkillCandidate[] = [];
   for (const skillPath of pathsToFetch) {
-    const content = await fetchText(rawGitHubTreeUrl(source, ref, skillPath));
+    const content = await fetchText(rawGitHubTreeUrl(source, ref, skillPath), http);
     const fallbackName = posix.basename(posix.dirname(skillPath));
     const selectionName = readFrontmatterName(content) ?? fallbackName;
     const { resources, skippedResources } = collectGitHubSkillResources({
@@ -584,19 +607,20 @@ async function readGitHubSource(
 async function resolveSourceCandidates(
   source: string,
   options?: SkillImportOptions,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<SkillCandidate[] | SkillImportFailure> {
   if (existsSync(source)) return readLocalSource(source);
   const githubSource = parseGitHubSource(source);
   if (githubSource) {
     try {
-      return await readGitHubSource(githubSource, options);
+      return await readGitHubSource(githubSource, options, http);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return failure("fetch_failed", message);
     }
   }
   try {
-    const content = await fetchSkillContent(source);
+    const content = await fetchSkillContent(source, http);
     return [
       makeCandidate({
         content,
@@ -746,8 +770,9 @@ export async function importSkill(
   ctx: ModuleContext,
   source: string,
   options?: SkillImportOptions,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<SkillImportResult> {
-  const candidates = await resolveSourceCandidates(source, options);
+  const candidates = await resolveSourceCandidates(source, options, http);
   if (!Array.isArray(candidates)) return candidates;
   const selected = selectCandidates(source, candidates, options);
   if (!Array.isArray(selected)) return selected;
@@ -773,7 +798,7 @@ export async function importSkill(
         if (resource.kind === "local") {
           copyFileSync(resource.sourcePath, dest);
         } else {
-          writeFileSync(dest, await fetchBytes(resource.url));
+          writeFileSync(dest, await fetchBytes(resource.url, http));
         }
       }
       writeFileSync(

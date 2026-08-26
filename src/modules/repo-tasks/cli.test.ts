@@ -97,7 +97,7 @@ function stubCtx(
         },
         async reindex(): Promise<RepoTaskReindexResult> {
           if (overrides?.reindex) return overrides.reindex();
-          return defaultStore.reindex();
+          return { ok: false, reason: "semantic_unavailable" };
         },
       },
     },
@@ -616,7 +616,7 @@ describe("kota task reindex", () => {
     rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("reports skipped when no embedding provider is configured", async () => {
+  it("reports semantic reindex as unavailable when no capability is configured", async () => {
     const program = makeProgram(repoRoot);
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "reindex"]);
@@ -626,7 +626,7 @@ describe("kota task reindex", () => {
 
   it("prints success counts when reindex completes", async () => {
     const program = makeProgram(repoRoot, {
-      reindex: async () => ({ indexed: 3, failed: 0 }),
+      reindex: async () => ({ ok: true, indexed: 3, failed: 0 }),
     });
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "reindex"]);
@@ -637,7 +637,7 @@ describe("kota task reindex", () => {
 
   it("exits non-zero when reindex reports failures", async () => {
     const program = makeProgram(repoRoot, {
-      reindex: async () => ({ indexed: 1, failed: 2 }),
+      reindex: async () => ({ ok: true, indexed: 1, failed: 2 }),
     });
     const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
       throw new Error(`process.exit:${code}`);

@@ -169,11 +169,12 @@ const repoTasksModule: KotaModule = {
 					return { ok: true, tasks: await fallback.searchTasks(query, opts) };
 				}
 				const provider = resolved.store;
-				if (!provider.supportsSemanticSearch()) {
+				const semanticSearch = provider.semanticSearchCapability;
+				if (!semanticSearch) {
 					return { ok: false, reason: "semantic_unavailable" };
 				}
 				try {
-					const tasks = await provider.searchTasks(query, opts);
+					const tasks = await semanticSearch.searchTasks(query, opts);
 					return { ok: true, tasks };
 				} catch {
 					return { ok: false, reason: "semantic_unavailable" };
@@ -181,7 +182,9 @@ const repoTasksModule: KotaModule = {
 			},
 			async reindex(scopeSelector) {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
-				return resolved.store.reindex();
+				const semanticSearch = resolved.store.semanticSearchCapability;
+				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+				return { ok: true, ...await semanticSearch.reindex() };
 			},
 		};
 		return { tasks: handler };

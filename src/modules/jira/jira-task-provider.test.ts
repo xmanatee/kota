@@ -11,10 +11,8 @@
  *   - update() in_progress → transitions issue and assigns user
  *   - update() done → transitions issue to done state
  *   - add() creates a Jira issue and updates cache with real key
- *   - archiveCompleted() removes done tasks from cache
  *   - getActiveSummary() returns correct summary
  *   - not-found task throws
- *   - clear() is a no-op
  *   - onLoad integration: provider registered when enabled
  *   - onLoad integration: provider not registered when disabled
  */
@@ -190,7 +188,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(1, { status: "done" });
+      await provider.update(1, { status: "done" });
       expect(provider.active()).toHaveLength(1);
       expect(provider.active()[0].id).toBe(2);
     });
@@ -219,10 +217,8 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(1, { status: "in_progress" });
+      const task = await provider.update(1, { status: "in_progress" });
       expect(task.status).toBe("in_progress");
-
-      await new Promise((r) => setTimeout(r, 0));
 
       const transitionCall = fetch.mock.calls.find(
         (c) =>
@@ -242,6 +238,21 @@ describe("JiraTaskProvider", () => {
       expect((assignCall![1]?.body as { accountId: string })?.accountId).toBe("user-abc-123");
     });
 
+    it("keeps the cached status unchanged when Jira rejects the transition", async () => {
+      const fetch = vi.fn()
+        .mockResolvedValueOnce(MYSELF_RESPONSE)
+        .mockResolvedValueOnce({ issues: [makeIssue("ENG-10", "A task")] })
+        .mockResolvedValueOnce(TRANSITIONS_RESPONSE)
+        .mockRejectedValueOnce(new Error("Jira transition failed"));
+      const provider = makeProvider(fetch);
+      await provider.init();
+
+      await expect(provider.update(1, { status: "in_progress" })).rejects.toThrow(
+        "Jira transition failed",
+      );
+      expect(provider.get(1)?.status).toBe("pending");
+    });
+
     it("skips assignee call when claimOnStart is false", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(MYSELF_RESPONSE)
@@ -252,8 +263,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch, { claimOnStart: false });
       await provider.init();
 
-      provider.update(1, { status: "in_progress" });
-      await new Promise((r) => setTimeout(r, 0));
+      await provider.update(1, { status: "in_progress" });
 
       const assignCall = fetch.mock.calls.find(
         (c) => typeof c[0] === "string" && c[0].includes("/assignee"),
@@ -273,11 +283,9 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.update(1, { status: "done" });
+      const task = await provider.update(1, { status: "done" });
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
-
-      await new Promise((r) => setTimeout(r, 0));
 
       const transitionCall = fetch.mock.calls.find(
         (c) =>
@@ -300,10 +308,8 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = provider.add("New task");
-      expect(task.id).toBeLessThan(0); // temp ID
-
-      await new Promise((r) => setTimeout(r, 0));
+      const task = await provider.add("New task");
+      expect(task.id).toBe(1);
 
       const createCall = fetch.mock.calls.find(
         (c) =>
@@ -313,29 +319,7 @@ describe("JiraTaskProvider", () => {
       );
       expect(createCall).toBeDefined();
 
-      // Cache should now have the real ID
       expect(provider.get(1)?.task).toBe("New task");
-    });
-  });
-
-  describe("archiveCompleted()", () => {
-    it("removes done tasks from cache", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(MYSELF_RESPONSE)
-        .mockResolvedValueOnce({
-          issues: [makeIssue("ENG-1", "Task A"), makeIssue("ENG-2", "Task B")],
-        })
-        .mockResolvedValue(TRANSITIONS_RESPONSE);
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.update(1, { status: "done" });
-      const removed = provider.archiveCompleted();
-
-      expect(removed).toBe(1);
-      expect(provider.count()).toBe(1);
-      expect(provider.get(1)).toBeUndefined();
     });
   });
 
@@ -366,7 +350,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      provider.update(1, { status: "in_progress" });
+      await provider.update(1, { status: "in_progress" });
 
       const summary = provider.getActiveSummary();
       expect(summary).toContain("1 in progress");
@@ -383,25 +367,12 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(() => provider.update(999, { status: "done" })).toThrow("Task #999 not found");
+      await expect(provider.update(999, { status: "done" })).rejects.toThrow(
+        "Task #999 not found",
+      );
     });
   });
 
-  describe("clear()", () => {
-    it("is a no-op and does not remove issues from cache", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(MYSELF_RESPONSE)
-        .mockResolvedValueOnce({ issues: [makeIssue("ENG-1", "Task")] })
-        .mockResolvedValueOnce(TRANSITIONS_RESPONSE);
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      provider.clear();
-
-      expect(provider.count()).toBe(1);
-    });
-  });
 });
 
 describe("JiraTaskProvider — onLoad integration in jira module", () => {

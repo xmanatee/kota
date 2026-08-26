@@ -14,6 +14,11 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type { InstallResult, ParsedSource } from "./registry.js";
 
@@ -69,7 +74,11 @@ export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise
   };
 }
 
-export async function installUrl(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
+export async function installUrl(
+  parsed: ParsedSource,
+  kotaDir: string,
+  http: OutboundHttpRequestPort = outboundHttp,
+): Promise<InstallResult> {
   const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
   mkdirSync(moduleDir, { recursive: true });
 
@@ -80,7 +89,11 @@ export async function installUrl(parsed: ParsedSource, kotaDir: string): Promise
 
   let response: Response;
   try {
-    response = await fetch(parsed.identifier);
+    ({ response } = await http.request({
+      profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+      operation: "module-registry.install-url",
+      url: parsed.identifier,
+    }));
   } catch (err) {
     throw new Error(`Download failed for "${parsed.identifier}": ${(err as Error).message}`);
   }

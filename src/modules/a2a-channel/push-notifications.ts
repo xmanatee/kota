@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleLogger } from "#core/modules/module-types.js";
+import type { OutboundHttpTransport } from "#core/outbound-http/index.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import {
   A2AProtocolError,
@@ -10,7 +11,6 @@ import {
   type TaskSelector,
 } from "./protocol.js";
 import { deliverPushNotificationCallback } from "./push-notification-callback-delivery.js";
-import type { CallbackAddressResolver } from "./push-notification-callback-hosts.js";
 import {
   type PushDeliveryPayload,
   pushDeliveryPayload,
@@ -57,9 +57,8 @@ export class A2APushNotificationManager {
   constructor(
     private readonly storage: ModuleStorage,
     private readonly log: ModuleLogger,
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly http?: Pick<OutboundHttpTransport, "request">,
     private readonly now: () => string = () => new Date().toISOString(),
-    private readonly callbackAddressResolver?: CallbackAddressResolver,
   ) {}
 
   create(input: PushNotificationConfigInput, task: A2ATask): A2ATaskPushNotificationConfig {
@@ -198,8 +197,7 @@ export class A2APushNotificationManager {
   ): Promise<void> {
     await deliverPushNotificationCallback(config, update, {
       log: this.log,
-      fetchImpl: this.fetchImpl,
-      callbackAddressResolver: this.callbackAddressResolver,
+      http: this.http,
     });
   }
 

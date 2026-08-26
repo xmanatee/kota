@@ -1,6 +1,6 @@
 // Interactive session shapes (creation, autonomy mode, chat stream).
 
-import { daemonRequest, withScope, type DaemonHttp } from './http';
+import { daemonRequest, daemonResponse, withScope, type DaemonHttp } from './http';
 
 export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
 
@@ -89,11 +89,13 @@ export async function deleteSession(
   id: string,
   scopeId?: string,
 ): Promise<void> {
-  const url = `${http.baseUrl}${withScope(`/sessions/${encodeURIComponent(id)}`, scopeId)}`;
-  const res = await fetch(url, {
+  const res = await daemonResponse(
+    http,
+    withScope(`/sessions/${encodeURIComponent(id)}`, scopeId),
+    {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${http.token}` },
-  });
+    },
+  );
   if (!res.ok && res.status !== 404) {
     throw new Error(`${res.status} ${res.statusText}`);
   }

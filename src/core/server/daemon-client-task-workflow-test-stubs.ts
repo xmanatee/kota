@@ -13,7 +13,7 @@ export function buildTaskAndWorkflowTestStubs(): Pick<
       capture: async () => ({ ok: true as const, id: "stub", path: "stub" }),
       gc: async () => ({ removed: [] }),
       search: async () => ({ ok: true as const, tasks: [] }),
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      reindex: async () => ({ ok: true, indexed: 0, failed: 0 }),
     },
     workflow: {
       listRuns: async () => ({ runs: [] }),

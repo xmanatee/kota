@@ -138,12 +138,13 @@ export async function handleSearchKnowledge(
   try {
     const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const entries = semantic
-      ? await provider.semanticSearch(query, limit, filters)
+      ? await semanticSearch!.semanticSearch(query, limit, filters)
       : provider.search(query, filters).slice(0, limit);
     jsonResponse(res, 200, { ok: true, entries });
   } catch (err) {
@@ -159,8 +160,13 @@ export async function handleReindexKnowledge(
   try {
     const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

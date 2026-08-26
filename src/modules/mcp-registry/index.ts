@@ -1,6 +1,7 @@
 import { Command, InvalidArgumentError } from "commander";
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import type { McpRegistryModuleConfig } from "./private-tunnel.js";
 import { buildPrivateTunnelCommand } from "./private-tunnel-cli.js";
 import {
@@ -41,7 +42,7 @@ type ImportCommandOptions = {
 export function buildMcpRegistryCommand(
 	deps: McpRegistryCommandDeps = {},
 ): Command {
-	const fetchRegistry = deps.fetchRegistry ?? globalThis.fetch.bind(globalThis);
+	const fetchRegistry = deps.fetchRegistry ?? defaultFetchRegistry;
 	const getConfig = deps.getConfig ?? (() => undefined);
 	const getSecret = deps.getSecret ?? (() => null);
 	const stdout = deps.stdout ?? process.stdout;
@@ -96,6 +97,15 @@ export function buildMcpRegistryCommand(
 	cmd.addCommand(buildPrivateTunnelCommand({ getConfig, getSecret, stdout, stderr }));
 
 	return cmd;
+}
+
+async function defaultFetchRegistry(url: string): Promise<Response> {
+	const { response } = await outboundHttp.request({
+		profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
+		operation: "mcp-registry.fetch-version",
+		url,
+	});
+	return response;
 }
 
 type FetchRegistryServerArgs = {

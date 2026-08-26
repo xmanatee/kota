@@ -3,10 +3,18 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import webhookModule from "./index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { createWebhookModule } from "./index.js";
 
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+const webhookModule = createWebhookModule(outboundHttpRequestPort((request) =>
+  mockFetch(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+));
 
 function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();

@@ -34,7 +34,11 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
 
     let download: Awaited<ReturnType<typeof downloadTelegramFile>>;
     try {
-      download = await downloadTelegramFile(this.token, media.file_id);
+      download = await downloadTelegramFile(
+        this.token,
+        media.file_id,
+        this.options.http,
+      );
     } catch (err) {
       if (interactiveAllowed) {
         this.sendText(chatId, `Couldn't download your voice message: ${(err as Error).message}`);

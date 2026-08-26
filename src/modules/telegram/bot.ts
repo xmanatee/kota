@@ -49,7 +49,12 @@ export class TelegramBot extends TelegramMessageRuntime {
       let me: TelegramUser | null = null;
       while (this.running && me === null) {
         try {
-          me = await callTelegramApi<TelegramUser>(this.token, "getMe");
+          me = await callTelegramApi<TelegramUser>(
+            this.token,
+            "getMe",
+            undefined,
+            { http: this.options.http },
+          );
         } catch (error) {
           if (!this.running) break;
           if (!isRetryableTelegramApiFailure(error)) throw error;
@@ -139,7 +144,7 @@ export class TelegramBot extends TelegramMessageRuntime {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
       allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
-    }, { signal: controller.signal }).finally(() => {
+    }, { signal: controller.signal, http: this.options.http }).finally(() => {
       if (this.pollController === controller) this.pollController = null;
     });
 

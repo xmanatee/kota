@@ -3,10 +3,18 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import slackModule from "./index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { createSlackModule } from "./index.js";
 
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+const slackModule = createSlackModule(outboundHttpRequestPort((request) =>
+  mockFetch(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+));
 
 const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 

@@ -26,16 +26,30 @@ export async function daemonRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`${http.baseUrl}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${http.token}`,
-      ...options.headers,
-    },
-  });
+  const res = await daemonResponse(http, path, options);
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+/**
+ * Low-level daemon response boundary for operations with typed non-2xx
+ * outcomes. Namespace clients still own decoding those domain outcomes, but
+ * they do not construct authentication or transport requests themselves.
+ */
+export function daemonResponse(
+  http: DaemonHttp,
+  path: string,
+  options: RequestInit = {},
+  authenticated = true,
+): Promise<Response> {
+  return fetch(`${http.baseUrl}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authenticated ? { Authorization: `Bearer ${http.token}` } : {}),
+      ...options.headers,
+    },
+  });
 }

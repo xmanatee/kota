@@ -20,8 +20,9 @@ import { resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import telegramModule from "./index.js";
+import { createTelegramModule } from "./index.js";
 
 const agentSendMock = vi.fn(async () => undefined);
 
@@ -72,7 +73,6 @@ function fixedTime(): number {
 describe("Telegram personal-assistant daemon integration", () => {
   let scopeRoot: string;
   let stateDir: string;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     scopeRoot = join(
@@ -89,7 +89,6 @@ describe("Telegram personal-assistant daemon integration", () => {
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     resetEventBus();
     resetScheduler();
     rmSync(scopeRoot, { recursive: true, force: true });
@@ -153,7 +152,9 @@ describe("Telegram personal-assistant daemon integration", () => {
         json: () => Promise.resolve({ ok: true, result: true }),
       } as unknown as Response;
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const telegramModule = createTelegramModule(
+      outboundHttpRequestPort((request) => fetchMock(String(request.url))),
+    );
 
     // Resolve the interactive channel from the real telegram module through a
     // stub context, with the live bus so bot scheduler broadcasts can flow.

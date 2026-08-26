@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
 
 function moduleSummary(name: string, skills: ModuleSummary["skills"]): ModuleSummary {
@@ -31,21 +32,16 @@ function stubCtx(cwd: string, summaries: ModuleSummary[] = []): ModuleContext {
   } as unknown as ModuleContext;
 }
 
-function mockFetch(responses: Record<string, string>): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      const url = typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+function mockFetch(responses: Record<string, string>) {
+  return outboundHttpRequestPort(
+    async (request) => {
+      const url = String(request.url);
       const body = responses[url];
       if (body === undefined) {
         return new Response("missing", { status: 404, statusText: "Not Found" });
       }
       return new Response(body, { status: 200, statusText: "OK" });
-    }),
+    },
   );
 }
 
@@ -230,11 +226,16 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
 
   it("keeps single-file URL imports on the frontmatter-driven path", async () => {
     const ctx = stubCtx(scopeRoot);
-    mockFetch({
+    const http = mockFetch({
       "https://example.test/my-skill.md": "---\nname: url-skill\n---\nURL body\n",
     });
 
-    const result = await importSkill(ctx, "https://example.test/my-skill.md");
+    const result = await importSkill(
+      ctx,
+      "https://example.test/my-skill.md",
+      undefined,
+      http,
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.skills).toHaveLength(1);

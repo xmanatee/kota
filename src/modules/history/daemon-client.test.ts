@@ -47,8 +47,8 @@
  *  9. `HistoryDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
- * 10. `HistoryReindexResult` decodes correctly through `requestStrict<T>`
- *     (the provider's `ReindexResult` shape passes through unchanged).
+ * 10. `HistoryReindexResult` decodes the explicit success/unavailable
+ *     operation result through `requestStrict<T>`.
  * 11. Removing the history module's daemonClient contribution makes the
  *     assembled client fail loudly with a clear "history" missing-handler
  *     error.
@@ -500,7 +500,7 @@ describe("history module daemonClient(link)", () => {
   });
 
   it("routes reindex() through POST /history/reindex via requestStrict<T> with no body", async () => {
-    const expected: HistoryReindexResult = { indexed: 5, failed: 0 };
+    const expected: HistoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = historyModule.daemonClient!(transport);
     const result = await contributed.history!.reindex();
@@ -516,7 +516,7 @@ describe("history module daemonClient(link)", () => {
   });
 
   it("threads an explicit scope id through reindex()", async () => {
-    const expected: HistoryReindexResult = { indexed: 5, failed: 0 };
+    const expected: HistoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = historyModule.daemonClient!(transport);
     await contributed.history!.reindex({ scopeId: "scope-b" });

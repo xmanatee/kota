@@ -1,6 +1,7 @@
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
 import { createTelegramCallbackHandler, type PendingApprovalMessage } from "./callback-poll.js";
 import { callTelegramApi } from "./client.js";
@@ -49,6 +50,7 @@ export function makeTelegramStatusChannel(
 export function makeTelegramInteractiveChannel(
   ctx: ModuleContext,
   chatScopeBindings: TelegramChatScopeBinding[],
+  http: OutboundHttpRequestPort = outboundHttp,
 ): ChannelDef {
   return {
     name: "telegram-interactive",
@@ -96,6 +98,7 @@ export function makeTelegramInteractiveChannel(
         defaultScopeRuntime: channelCtx.getDefaultScopeRuntime(),
         getScopeRuntime: channelCtx.getScopeRuntime,
         allowedChatIds,
+        http,
         scopeSelection: scopeRouting?.selection,
         inboundSignals: telegramConfig?.inboundSignals
           ? {
@@ -130,7 +133,7 @@ export function makeTelegramInteractiveChannel(
               chat_id: chatId,
               text: buildStatusText(channelCtx.getWorkflowStatus()),
               parse_mode: "Markdown",
-            });
+            }, { http });
             return true;
           }
           const defaultScope: TelegramStatusScope = {

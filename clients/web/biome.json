@@ -12,13 +12,35 @@
         "noArrayIndexKey": "off"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "noNonNullAssertion": "off",
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": ["fetch"]
+          }
+        }
       },
       "a11y": {
         "useKeyWithClickEvents": "off"
       }
     }
   },
+  "overrides": [
+    {
+      "include": [
+        "src/api/client-runtime.ts",
+        "src/**/*.test.ts",
+        "src/**/*.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": "off"
+          }
+        }
+      }
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

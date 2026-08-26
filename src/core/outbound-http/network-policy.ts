@@ -62,6 +62,7 @@ export async function validateOutboundHttpTarget(
       if (!profile.allowedUrls.includes(normalized.toString())) {
         throw new OutboundHttpTargetPolicyError("callback request target does not match an explicitly selected callback URL");
       }
+      await resolvePublicOutboundAddresses(url.hostname, resolveAddresses, "explicit-callback");
       return;
     }
   }
@@ -81,7 +82,9 @@ export async function resolveOutboundHttpConnectionAddress(
   await validateOutboundHttpTarget(url, profile, resolveAddresses);
 
   const addresses =
-    profile.name === "public-untrusted" || profile.name === "oauth-metadata-endpoint"
+    profile.name === "public-untrusted" ||
+      profile.name === "oauth-metadata-endpoint" ||
+      profile.name === "explicit-callback"
       ? await resolvePublicOutboundAddresses(url.hostname, resolveAddresses, profile.name)
       : await resolveConnectionAddresses(url.hostname, resolveAddresses);
 
@@ -134,6 +137,17 @@ export async function resolvePublicOutboundAddresses(
   const blocked = addresses.find((address) => isNonPublicAddress(normalizeHostname(address.address)));
   if (blocked) throw blockedPublicTarget(normalized, policyLabel, blocked.address);
   return addresses;
+}
+
+/**
+ * Performs the synchronous part of the public-network policy for input
+ * validation. DNS is deliberately enforced later by the transport so callers
+ * cannot mistake this check for authorization to connect.
+ */
+export function isObviouslyNonPublicOutboundHost(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+  if (normalized === "localhost" || normalized.endsWith(".localhost")) return true;
+  return isNonPublicAddress(normalized);
 }
 
 async function resolveConnectionAddresses(

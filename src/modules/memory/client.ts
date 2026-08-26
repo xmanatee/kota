@@ -11,7 +11,7 @@
  * `#modules/memory/client.js`.
  */
 
-import type { ReindexResult } from "#core/modules/provider-types.js";
+import type { ReindexOperationResult } from "#core/modules/provider-types.js";
 import type {
   WorkMemoryFreshness,
   WorkMemoryProvenance,
@@ -72,7 +72,7 @@ export type MemorySearchResult =
   | { ok: false; reason: "semantic_unavailable" };
 
 /** Result of `memory.reindex`. Mirrors the provider's `ReindexResult`. */
-export type MemoryReindexResult = ReindexResult;
+export type MemoryReindexResult = ReindexOperationResult;
 
 /**
  * Memory-store operations.

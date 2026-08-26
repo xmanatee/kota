@@ -11,6 +11,7 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   type InboundSignalReceivedPayload,
   type InboundSignalRoutedPayload,
@@ -22,13 +23,13 @@ import {
   type TranscriptionProvider,
 } from "#modules/transcription/index.js";
 import {
-  callTelegramApi,
+  callTelegramApi as callProductionTelegramApi,
+  TelegramTransport as ProductionTelegramTransport,
   splitMessage,
   TelegramBot,
   type TelegramBotOptions,
-  TelegramTransport,
 } from "./bot.js";
-import { ERROR_BACKOFF_MS } from "./client.js";
+import { ERROR_BACKOFF_MS, type TelegramApiBody } from "./client.js";
 import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
 import type { TelegramScopeSelection } from "./scope-selection.js";
@@ -84,6 +85,7 @@ function botOptions(
       scopeId === defaultScopeRuntime.scope.scopeId
         ? defaultScopeRuntime
         : makeScopeRuntime(scopeId),
+    http: telegramHttp,
     ...overrides,
   };
 }
@@ -170,21 +172,39 @@ describe("splitMessage", () => {
   });
 });
 
-// --- Shared fetch mock helper ---
+// --- Shared Telegram request-port fixture ---
 
-const originalFetch = globalThis.fetch;
+let activeTelegramRequest = vi.fn();
+const telegramHttp = outboundHttpRequestPort(async (request) =>
+  activeTelegramRequest(String(request.url), {
+    method: request.method ?? "GET",
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  }) as Promise<Response>
+);
 
 function installFetchMock(defaultResponse?: unknown) {
   const mock = vi.fn();
   if (defaultResponse !== undefined) {
     mock.mockResolvedValue({ json: () => Promise.resolve(defaultResponse) });
   }
-  globalThis.fetch = mock as unknown as typeof fetch;
+  activeTelegramRequest = mock;
   return mock;
 }
 
-function restoreFetch() {
-  globalThis.fetch = originalFetch;
+function callTelegramApi<T>(
+  token: string,
+  method: string,
+  body?: TelegramApiBody,
+): Promise<T> {
+  return callProductionTelegramApi<T>(token, method, body, { http: telegramHttp });
+}
+
+class TelegramTransport extends ProductionTelegramTransport {
+  constructor(chatId: number, token: string) {
+    super(chatId, token, telegramHttp);
+  }
 }
 
 // --- TelegramTransport ---
@@ -195,8 +215,6 @@ describe("TelegramTransport", () => {
   beforeEach(() => {
     fetchMock = installFetchMock({ ok: true, result: true });
   });
-
-  afterEach(restoreFetch);
 
   it("buffers text events", () => {
     const transport = new TelegramTransport(123, "token");
@@ -358,8 +376,6 @@ describe("callTelegramApi", () => {
     agentSessionOptions.length = 0;
   });
 
-  afterEach(restoreFetch);
-
   it("calls correct URL with token and method", async () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
@@ -467,7 +483,6 @@ describe("TelegramBot", () => {
     } else {
       delete process.env.KOTA_PRESET;
     }
-    restoreFetch();
     resetTelegramPollingOwnersForTests();
   });
 
@@ -1502,7 +1517,6 @@ describe("TelegramBot voice messages", () => {
   });
 
   afterEach(() => {
-    restoreFetch();
     resetTelegramPollingOwnersForTests();
     resetProviderRegistry();
   });
@@ -1685,10 +1699,6 @@ describe("TelegramBot scheduler integration", () => {
 
   beforeEach(() => {
     fetchMock = installFetchMock({ ok: true, result: true });
-  });
-
-  afterEach(() => {
-    restoreFetch();
   });
 
   it("Scheduler fires due reminders to callback", () => {

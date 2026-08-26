@@ -5,6 +5,7 @@ import {
 	getMemoryProvider,
 	getProviderRegistry,
 	getTaskProvider,
+	getTaskProviderRegistration,
 	HISTORY_PROVIDER_TOKEN,
 	type HistoryProvider,
 	initProviderRegistry,
@@ -141,11 +142,6 @@ describe("provider singleton", () => {
 	});
 });
 
-// Interface conformance between provider interfaces and their concrete
-// module-owned stores lives at
-// `src/provider-registry-conformance.integration.test.ts`, which can
-// legitimately import from `#modules/*`.
-
 // --- Convenience getter tests ---
 
 describe("convenience getters", () => {
@@ -187,9 +183,6 @@ describe("convenience getters", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
-			supportsSemanticSearch: () => true,
-			semanticSearch: async () => [],
-			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register(MEMORY_PROVIDER_TOKEN, "custom", custom);
 		reg.setActive(MEMORY_PROVIDER_TOKEN, "custom");
@@ -209,9 +202,6 @@ describe("convenience getters", () => {
 			search: () => [],
 			list: () => [],
 			count: () => 42,
-			supportsSemanticSearch: () => true,
-			semanticSearch: async () => [],
-			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "custom", custom);
 		reg.setActive(KNOWLEDGE_PROVIDER_TOKEN, "custom");
@@ -224,25 +214,20 @@ describe("convenience getters", () => {
 	it("getTaskProvider returns TaskStore when no registry", () => {
 		resetProviderRegistry();
 		const provider = getTaskProvider();
-		expect(typeof provider.add).toBe("function");
-		expect(typeof provider.list).toBe("function");
+		expect(provider).toBe(getTaskProviderRegistration().provider);
 	});
 
 	it("getTaskProvider returns custom provider when registered", () => {
 		const reg = initProviderRegistry();
 		const custom: TaskProvider = {
-			add: () => ({ id: 99, task: "custom", status: "pending", created: "" }),
-			update: () => ({ id: 99, task: "custom", status: "done", created: "" }),
 			list: () => [],
 			active: () => [],
 			get: () => undefined,
-			clear: () => {},
-			archiveCompleted: () => 0,
 			getActiveSummary: () => null,
 			isEmpty: () => true,
 			count: () => 0,
 		};
-		reg.register(TASK_PROVIDER_TOKEN, "custom", custom);
+		reg.register(TASK_PROVIDER_TOKEN, "custom", { provider: custom });
 		reg.setActive(TASK_PROVIDER_TOKEN, "custom");
 
 		const provider = getTaskProvider();
@@ -253,7 +238,7 @@ describe("convenience getters", () => {
 	it("getTaskProvider returns default when registry exists but has no task provider", () => {
 		initProviderRegistry();
 		const provider = getTaskProvider();
-		expect(typeof provider.add).toBe("function");
+		expect(provider).toBe(getTaskProviderRegistration().provider);
 	});
 
 	it("getHistoryProvider throws when no provider registered", () => {
@@ -281,9 +266,6 @@ describe("convenience getters", () => {
 			findByPrefix: () => null,
 			remove: () => false,
 			cleanup: () => 0,
-			supportsSemanticSearch: () => false,
-			semanticSearch: async () => [],
-			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register(HISTORY_PROVIDER_TOKEN, "custom", custom);
 		reg.setActive(HISTORY_PROVIDER_TOKEN, "custom");
@@ -310,11 +292,12 @@ describe("registerDefaultProviders", () => {
 		expect(reg.getActiveName(TASK_PROVIDER_TOKEN)).toBe("default");
 	});
 
-	it("default providers are functional", () => {
+	it("default task registration declares mutation and maintenance capabilities", () => {
 		initProviderRegistry();
 		registerDefaultProviders();
-		const task = getTaskProvider();
-		expect(typeof task.add).toBe("function");
+		const task = getTaskProviderRegistration();
+		expect(task.mutations).toBeDefined();
+		expect(task.maintenance).toBeDefined();
 	});
 
 	it("does nothing when registry not initialized", () => {
@@ -333,9 +316,6 @@ describe("registerDefaultProviders", () => {
 			list: () => [],
 			update: () => true,
 			delete: () => true,
-			supportsSemanticSearch: () => true,
-			semanticSearch: async () => [],
-			reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 		};
 		reg.register(MEMORY_PROVIDER_TOKEN, "my-module", custom);
 		reg.setActive(MEMORY_PROVIDER_TOKEN, "my-module");
@@ -351,9 +331,6 @@ function makeMemoryProvider(): MemoryProvider {
 		list: () => [],
 		update: () => true,
 		delete: () => true,
-		supportsSemanticSearch: () => false,
-		semanticSearch: async () => [],
-		reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 	};
 }
 
@@ -366,8 +343,5 @@ function makeKnowledgeProvider(): KnowledgeProvider {
 		search: () => [],
 		list: () => [],
 		count: () => 0,
-		supportsSemanticSearch: () => false,
-		semanticSearch: async () => [],
-		reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
 	};
 }

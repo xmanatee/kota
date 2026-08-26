@@ -1,9 +1,13 @@
 import type { ToolDef } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { apiError, googleFetch } from "./auth.js";
+import { apiError, googleFetch, googleRawFetch } from "./auth.js";
 
-export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {
+export function makeDriveListFiles(
+  getToken: () => Promise<string>,
+  http: OutboundHttpRequestPort = outboundHttp,
+): ToolDef {
   return {
     effect: networkReadEffect(),
     group: "productivity",
@@ -42,6 +46,8 @@ export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {
         token,
         "GET",
         `https://www.googleapis.com/drive/v3/files?${params}`,
+        undefined,
+        http,
       );
       if (!res.ok) return apiError("list files", res.status, res.data);
 
@@ -68,7 +74,10 @@ export function makeDriveListFiles(getToken: () => Promise<string>): ToolDef {
   };
 }
 
-export function makeDriveReadFile(getToken: () => Promise<string>): ToolDef {
+export function makeDriveReadFile(
+  getToken: () => Promise<string>,
+  http: OutboundHttpRequestPort = outboundHttp,
+): ToolDef {
   return {
     effect: networkReadEffect(),
     group: "productivity",
@@ -98,6 +107,8 @@ export function makeDriveReadFile(getToken: () => Promise<string>): ToolDef {
         token,
         "GET",
         `https://www.googleapis.com/drive/v3/files/${fileId}?fields=name,mimeType`,
+        undefined,
+        http,
       );
       if (!metaRes.ok) return apiError("get file metadata", metaRes.status, metaRes.data);
 
@@ -112,9 +123,7 @@ export function makeDriveReadFile(getToken: () => Promise<string>): ToolDef {
         url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
       }
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await googleRawFetch(token, "GET", url, undefined, http);
       if (!res.ok) {
         const body = await res.text();
         return { content: `Google Drive error (${res.status}): ${body}`, is_error: true };

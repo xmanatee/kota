@@ -27,13 +27,16 @@ async function handleTasksSearchControl(
     const scope = resolveRouteScope(scopeStores, req, res);
     if (!scope.ok) return;
     const provider = scope.store ?? getRepoTasksProvider();
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const opts: { topK: number; states?: ContractRepoTaskState[] } = { topK: limit };
     if (states.length > 0) opts.states = states;
-    const tasks = await provider.searchTasks(query, opts);
+    const tasks = semantic
+      ? await semanticSearch!.searchTasks(query, opts)
+      : await provider.searchTasks(query, opts);
     jsonResponse(res, 200, { ok: true, tasks });
   } catch (err) {
     if (semantic) {
@@ -53,8 +56,13 @@ async function handleTasksReindexControl(
     const scope = resolveRouteScope(scopeStores, req, res);
     if (!scope.ok) return;
     const provider = scope.store ?? getRepoTasksProvider();
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

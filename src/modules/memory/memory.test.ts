@@ -2,6 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MemoryProvider } from "#core/modules/provider-types.js";
 
 vi.mock("#core/modules/provider-registry.js", () => ({
   getMemoryProvider: vi.fn(),
@@ -84,10 +85,20 @@ describe("runMemory", () => {
     it("uses semanticSearch when semantic search is requested and supported", async () => {
       const dir = mkdtempSync(join(tmpdir(), "kota-memtool-semantic-"));
       const store = new MemoryStore(dir);
-      mocked.mockReturnValue(store);
+      const semanticSearch = vi.fn(async () => store.list());
+      const provider: MemoryProvider = {
+        save: store.save.bind(store),
+        search: store.search.bind(store),
+        list: store.list.bind(store),
+        update: store.update.bind(store),
+        delete: store.delete.bind(store),
+        semanticSearchCapability: {
+          semanticSearch,
+          reindex: async () => ({ indexed: 1, failed: 0 }),
+        },
+      };
+      mocked.mockReturnValue(provider);
       await runMemory({ action: "save", content: "Project uses React and TypeScript" });
-      vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
-      const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
 
       const result = await runMemory({
         action: "search",

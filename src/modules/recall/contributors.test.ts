@@ -77,9 +77,10 @@ describe("createKnowledgeContributor", () => {
       },
       list: () => [],
       count: () => 0,
-      supportsSemanticSearch: () => true,
-      semanticSearch: async () => [knowledgeEntry("k1"), knowledgeEntry("k2")],
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      semanticSearchCapability: {
+        semanticSearch: async () => [knowledgeEntry("k1"), knowledgeEntry("k2")],
+        reindex: async () => ({ indexed: 0, failed: 0 }),
+      },
     };
     const contributor = createKnowledgeContributor(provider);
     const hits = await contributor.recall("q", { topK: 5 });
@@ -97,11 +98,6 @@ describe("createKnowledgeContributor", () => {
       search: () => [knowledgeEntry("k-keyword")],
       list: () => [],
       count: () => 0,
-      supportsSemanticSearch: () => false,
-      semanticSearch: async () => {
-        throw new Error("should not call semantic path");
-      },
-      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
     };
     const contributor = createKnowledgeContributor(provider);
     const hits = await contributor.recall("q", { topK: 5 });
@@ -124,11 +120,6 @@ describe("createKnowledgeContributor", () => {
       search: () => [entry],
       list: () => [],
       count: () => 0,
-      supportsSemanticSearch: () => false,
-      semanticSearch: async () => {
-        throw new Error("should not call semantic path");
-      },
-      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
     };
     const [hit] = await createKnowledgeContributor(provider).recall("q", {
       topK: 5,
@@ -150,9 +141,10 @@ describe("createMemoryContributor", () => {
       list: () => [],
       update: () => false,
       delete: () => false,
-      supportsSemanticSearch: () => true,
-      semanticSearch: async () => [memoryEntry("m1"), memoryEntry("m2"), memoryEntry("m3")],
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      semanticSearchCapability: {
+        semanticSearch: async () => [memoryEntry("m1"), memoryEntry("m2"), memoryEntry("m3")],
+        reindex: async () => ({ indexed: 0, failed: 0 }),
+      },
     };
     const hits = await createMemoryContributor(provider).recall("q", { topK: 3 });
     expect(hits.map((h) => h.id)).toEqual(["m1", "m2", "m3"]);
@@ -166,11 +158,6 @@ describe("createMemoryContributor", () => {
       list: () => [],
       update: () => false,
       delete: () => false,
-      supportsSemanticSearch: () => false,
-      semanticSearch: async () => {
-        throw new Error("nope");
-      },
-      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
     };
     const hits = await createMemoryContributor(provider).recall("q", { topK: 2 });
     expect(hits.map((h) => h.id)).toEqual(["a", "b"]);
@@ -195,11 +182,6 @@ describe("createMemoryContributor", () => {
       list: () => [],
       update: () => false,
       delete: () => false,
-      supportsSemanticSearch: () => false,
-      semanticSearch: async () => {
-        throw new Error("nope");
-      },
-      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
     };
     const [hit] = await createMemoryContributor(provider).recall("q", {
       topK: 2,
@@ -223,9 +205,10 @@ describe("createHistoryContributor", () => {
       findByPrefix: () => null,
       remove: () => false,
       cleanup: () => 0,
-      supportsSemanticSearch: () => true,
-      semanticSearch: async () => [conversationRecord("h1"), conversationRecord("h2")],
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      semanticSearchCapability: {
+        semanticSearch: async () => [conversationRecord("h1"), conversationRecord("h2")],
+        reindex: async () => ({ indexed: 0, failed: 0 }),
+      },
     };
     const hits = await createHistoryContributor(provider).recall("q", { topK: 5 });
     expect(hits.map((h) => h.id)).toEqual(["h1", "h2"]);
@@ -246,11 +229,6 @@ describe("createHistoryContributor", () => {
       findByPrefix: () => null,
       remove: () => false,
       cleanup: () => 0,
-      supportsSemanticSearch: () => false,
-      semanticSearch: async () => {
-        throw new Error("nope");
-      },
-      reindex: async () => ({ indexed: 0, failed: 0, skipped: true }),
     };
     const hits = await createHistoryContributor(provider).recall("q", { topK: 7 });
     expect(hits.map((h) => h.id)).toEqual(["h-keyword"]);
@@ -261,11 +239,15 @@ describe("createHistoryContributor", () => {
 describe("createTasksContributor", () => {
   it("preserves repo-task hit metadata and surface scores", async () => {
     const provider: RepoTasksProvider = {
-      supportsSemanticSearch: () => true,
       async searchTasks() {
         return [repoTaskHit("t1", 0.92), repoTaskHit("t2", 0.41)];
       },
-      reindex: async () => ({ indexed: 0, failed: 0 }),
+      semanticSearchCapability: {
+        async searchTasks() {
+          return [repoTaskHit("t1", 0.92), repoTaskHit("t2", 0.41)];
+        },
+        reindex: async () => ({ indexed: 0, failed: 0 }),
+      },
     };
     const hits = await createTasksContributor(provider).recall("q", { topK: 5 });
     expect(hits).toHaveLength(2);

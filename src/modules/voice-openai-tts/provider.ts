@@ -7,6 +7,12 @@
  * audio stream.
  */
 
+import {
+  OUTBOUND_HTTP_PROFILES,
+  OutboundHttpError,
+  type OutboundHttpTransport,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type {
   SpeechAudioFormat,
   SpeechAudioResult,
@@ -31,8 +37,8 @@ export type OpenAiTtsProviderOptions = {
   maxRetries: number;
   /** Base delay between retries in milliseconds; doubles on each attempt. */
   retryBaseDelayMs?: number;
-  /** Fetch implementation — exposed for tests. Defaults to global fetch. */
-  fetchImpl?: typeof fetch;
+  /** Policy-aware HTTP request port; exposed for tests. */
+  http?: Pick<OutboundHttpTransport, "request">;
   /** Sleep implementation — exposed for tests. Defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
 };
@@ -87,7 +93,7 @@ export class OpenAiTtsProvider implements SpeechSynthesisProvider {
   readonly #timeoutMs: number;
   readonly #maxRetries: number;
   readonly #retryBaseDelayMs: number;
-  readonly #fetch: typeof fetch;
+  readonly #http: Pick<OutboundHttpTransport, "request">;
   readonly #sleep: (ms: number) => Promise<void>;
 
   constructor(options: OpenAiTtsProviderOptions) {
@@ -99,7 +105,7 @@ export class OpenAiTtsProvider implements SpeechSynthesisProvider {
     this.#timeoutMs = options.timeoutMs;
     this.#maxRetries = options.maxRetries;
     this.#retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
-    this.#fetch = options.fetchImpl ?? fetch;
+    this.#http = options.http ?? outboundHttp;
     this.#sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -124,18 +130,18 @@ export class OpenAiTtsProvider implements SpeechSynthesisProvider {
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= this.#maxRetries; attempt += 1) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
-
       try {
-        const response = await this.#fetch(url, {
+        const { response } = await this.#http.request({
+          profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.#baseUrl]),
+          operation: "voice.openai.synthesize",
+          url,
           method: "POST",
           headers: {
             Authorization: `Bearer ${this.#apiKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
-          signal: controller.signal,
+          limits: { timeoutMs: this.#timeoutMs, responseBytes: 50_000_000 },
         });
 
         if (response.ok) {
@@ -158,10 +164,8 @@ export class OpenAiTtsProvider implements SpeechSynthesisProvider {
       } catch (err) {
         if (err instanceof OpenAiTtsError) throw err;
         const wrapped = wrapNetworkError(err);
-        if (attempt === this.#maxRetries) throw wrapped;
+        if (!isRetryableTransportError(err) || attempt === this.#maxRetries) throw wrapped;
         lastError = wrapped;
-      } finally {
-        clearTimeout(timer);
       }
 
       await this.#sleep(this.#retryBaseDelayMs * 2 ** attempt);
@@ -180,9 +184,16 @@ async function safeReadText(response: Response): Promise<string> {
 }
 
 function wrapNetworkError(err: unknown): OpenAiTtsError {
-  if (err instanceof Error && err.name === "AbortError") {
+  if (
+    (err instanceof OutboundHttpError && err.failure.code === "timeout") ||
+    (err instanceof Error && err.name === "AbortError")
+  ) {
     return new OpenAiTtsError("OpenAI TTS request timed out");
   }
   const message = err instanceof Error ? err.message : String(err);
   return new OpenAiTtsError(`OpenAI TTS request failed: ${message}`);
+}
+
+function isRetryableTransportError(err: unknown): boolean {
+  return err instanceof OutboundHttpError ? err.failure.retry.eligible : true;
 }

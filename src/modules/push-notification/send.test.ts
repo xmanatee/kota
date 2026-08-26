@@ -15,13 +15,21 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
 
 describe("push-notification send paths", () => {
   let scopeRoot: string;
-  let originalFetch: typeof globalThis.fetch;
-  let fetchMock: ReturnType<typeof vi.fn>;
+  let fetchMock: Mock<(url: string, init: RequestInit) => Promise<Response>>;
+  const http = outboundHttpRequestPort((request) =>
+    fetchMock(String(request.url), {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      signal: request.signal,
+    })
+  );
 
   beforeEach(() => {
     scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-send-"));
@@ -44,13 +52,10 @@ describe("push-notification send paths", () => {
       }),
     );
 
-    originalFetch = globalThis.fetch;
     fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     rmSync(scopeRoot, { recursive: true, force: true });
   });
 
@@ -65,6 +70,7 @@ describe("push-notification send paths", () => {
           source: "session",
         },
         vi.fn(),
+        http,
       );
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -105,6 +111,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { approvalId: "x", tool: "shell", risk: "safe", source: "" },
         vi.fn(),
+        http,
       );
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string) as Array<{ title: string }>;
@@ -120,6 +127,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { approvalId: "x", tool: "y", risk: "z", source: "s" },
         vi.fn(),
+        http,
       );
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -133,6 +141,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { approvalId: "x", tool: "y", risk: "z", source: "s" },
         log,
+        http,
       );
       expect(log).toHaveBeenCalledTimes(1);
       expect(log.mock.calls[0][0]).toMatch(/Expo Push API error: 500/);
@@ -146,6 +155,7 @@ describe("push-notification send paths", () => {
           scopeRoot,
           { approvalId: "x", tool: "y", risk: "z", source: "s" },
           log,
+          http,
         ),
       ).resolves.toBeUndefined();
       expect(log.mock.calls[0][0]).toMatch(/Failed to send push notifications: ECONNRESET/);
@@ -162,6 +172,7 @@ describe("push-notification send paths", () => {
           surfaceId: "daily-digest",
         },
         vi.fn(),
+        http,
       );
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -197,6 +208,7 @@ describe("push-notification send paths", () => {
           surfaceId: "inbox",
         },
         vi.fn(),
+        http,
       );
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -218,6 +230,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { title: "KOTA daily digest", body: longLine, surfaceId: "daily-digest" },
         vi.fn(),
+        http,
       );
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string) as Array<{ body: string }>;
@@ -234,6 +247,7 @@ describe("push-notification send paths", () => {
           surfaceId: "daily-digest",
         },
         vi.fn(),
+        http,
       );
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string) as Array<{ body: string }>;
@@ -249,6 +263,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { title: "KOTA daily digest", body: "anything", surfaceId: "daily-digest" },
         vi.fn(),
+        http,
       );
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -262,6 +277,7 @@ describe("push-notification send paths", () => {
         scopeRoot,
         { title: "KOTA daily digest", body: "x", surfaceId: "daily-digest" },
         log,
+        http,
       );
       expect(log).toHaveBeenCalledTimes(1);
       expect(log.mock.calls[0][0]).toMatch(/Expo Push API error: 500/);

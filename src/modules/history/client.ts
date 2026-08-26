@@ -15,7 +15,7 @@ import type {
   ConversationData,
   ConversationMessage,
   ConversationRecord,
-  ReindexResult,
+  ReindexOperationResult,
 } from "#core/modules/provider-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
@@ -119,7 +119,7 @@ export type HistoryDeleteResult =
   | { ok: false; reason: "not_found" };
 
 /** Result of `history.reindex`. Mirrors the provider's `ReindexResult`. */
-export type HistoryReindexResult = ReindexResult;
+export type HistoryReindexResult = ReindexOperationResult;
 
 /** Filter for `history.search`. */
 export type HistorySearchFilter = HistoryScopeSelection & {

@@ -6,6 +6,7 @@ import {
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { OpenAIModelClient } from "#modules/model-clients/openai/client.js";
 import {
   bytes,
@@ -175,10 +176,10 @@ describe("provider payload observability leak guard", () => {
     const otlpExporter = new OtlpHttpSecurityLogExporter(
       "http://otel.example/v1/logs",
       "kota-test",
-      async (_url, init) => {
-        otlpBodies.push(init.body);
-        return { ok: true, status: 200, text: async () => "" };
-      },
+      outboundHttpRequestPort(async (request) => {
+        otlpBodies.push(String(request.body));
+        return new Response("", { status: 200 });
+      }),
     );
     await otlpExporter.export(securityExporter.records);
 
@@ -216,11 +217,10 @@ describe("provider payload observability leak guard", () => {
     const failingOtlpExporter = new OtlpHttpSecurityLogExporter(
       "http://otel.example/v1/logs",
       "kota-test",
-      async () => ({
-        ok: false,
-        status: 500,
-        text: async () => `collector echo ${exchange.requestBody} ${exchange.responseBody}`,
-      }),
+      outboundHttpRequestPort(async () => new Response(
+        `collector echo ${exchange.requestBody} ${exchange.responseBody}`,
+        { status: 500 },
+      )),
     );
     const failingEmitter = new SecurityLogEmitter(
       scopeRoot,

@@ -133,10 +133,11 @@ const historyModule: KotaModule = {
 				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);
 				const limit = filter?.limit ?? 20;
 				if (filter?.semantic) {
-					if (!provider.supportsSemanticSearch()) {
+					const semanticSearch = provider.semanticSearchCapability;
+					if (!semanticSearch) {
 						return { ok: false, reason: "semantic_unavailable" };
 					}
-					const conversations = await provider.semanticSearch(query, limit, {
+					const conversations = await semanticSearch.semanticSearch(query, limit, {
 						cwd: filter.cwd,
 						source: filter.source,
 					});
@@ -152,7 +153,9 @@ const historyModule: KotaModule = {
 			},
 			async reindex(scopeSelector) {
 				const provider = resolveHistoryProvider(scopeStores, scopeSelector?.scopeId);
-				return provider.reindex();
+				const semanticSearch = provider.semanticSearchCapability;
+				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+				return { ok: true, ...await semanticSearch.reindex() };
 			},
 		};
 		return { history: handler };

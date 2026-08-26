@@ -1,4 +1,5 @@
 import type { KotaModule } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { makeTelegramInteractiveChannel, makeTelegramStatusChannel } from "./channels.js";
@@ -7,7 +8,10 @@ import { type TelegramConfig, telegramSetupRequirements } from "./readiness.js";
 
 export { TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID } from "./readiness.js";
 
-const telegramModule: KotaModule = {
+export function createTelegramModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
@@ -141,7 +145,7 @@ const telegramModule: KotaModule = {
     const chatScopeBindings = telegramConfig?.chatScopeBindings ?? [];
     return [
       makeTelegramStatusChannel(ctx),
-      makeTelegramInteractiveChannel(ctx, chatScopeBindings),
+      makeTelegramInteractiveChannel(ctx, chatScopeBindings, http),
     ];
   },
 
@@ -151,6 +155,7 @@ const telegramModule: KotaModule = {
   },
   // Direct module consumers are migrated to loader-owned activation in Stage 10.
   onUnload: unloadTelegramModule,
-};
+  };
+}
 
-export default telegramModule;
+export default createTelegramModule();

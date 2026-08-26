@@ -342,11 +342,11 @@ describe("history module daemon-control routes", () => {
   });
 
   describe("POST /history/reindex", () => {
-    it("returns the provider's ReindexResult — base provider reports skipped", async () => {
+    it("reports semantic reindex as unavailable for the base provider", async () => {
       const res = await fetchWith(port, "/history/reindex", { method: "POST" });
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { indexed: number; failed: number; skipped?: boolean };
-      expect(body).toEqual({ indexed: 0, failed: 0, skipped: true });
+      const body = await res.json();
+      expect(body).toEqual({ ok: false, reason: "semantic_unavailable" });
     });
 
     it("requires the daemon bearer token", async () => {

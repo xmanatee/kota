@@ -59,8 +59,6 @@ describe("kota knowledge okf", () => {
 			].join("\n"),
 			"utf-8",
 		);
-		const reindex = vi.spyOn(store, "reindex");
-
 		const output = await captureStdout(() =>
 			makeKnowledgeProgram().parseAsync([
 				"node",
@@ -73,7 +71,6 @@ describe("kota knowledge okf", () => {
 		);
 
 		expect(output).toContain("Imported 1 OKF concepts");
-		expect(reindex).toHaveBeenCalledOnce();
 		const entries = store.list();
 		expect(entries).toHaveLength(1);
 		expect(entries[0]!.title).toBe("Incident Playbook");
@@ -111,7 +108,7 @@ describe("kota knowledge okf", () => {
 						return { id };
 					},
 					async reindex() {
-						return store.reindex();
+						return { ok: false as const, reason: "semantic_unavailable" as const };
 					},
 				},
 			},

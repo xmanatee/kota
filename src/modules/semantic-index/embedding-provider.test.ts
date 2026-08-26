@@ -1,11 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
 	createEmbeddingProvider,
 	HttpEmbeddingProvider,
 	readEmbeddingProviderConfig,
 } from "./embedding-provider.js";
 
-const originalFetch = globalThis.fetch;
+function requestPort(
+	fetchMock: Mock<(url: string, init: RequestInit) => Promise<Response>>,
+) {
+	return outboundHttpRequestPort((request) =>
+		fetchMock(String(request.url), {
+			method: request.method,
+			headers: request.headers,
+			body: request.body,
+			signal: request.signal,
+		})
+	);
+}
 
 describe("HttpEmbeddingProvider", () => {
 	beforeEach(() => {
@@ -14,7 +26,6 @@ describe("HttpEmbeddingProvider", () => {
 	});
 
 	afterEach(() => {
-		globalThis.fetch = originalFetch;
 		delete process.env.OPENAI_API_KEY;
 		delete process.env.VOYAGE_API_KEY;
 	});
@@ -33,12 +44,11 @@ describe("HttpEmbeddingProvider", () => {
 				{ status: 200, headers: { "Content-Type": "application/json" } },
 			),
 		);
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
 		const provider = new HttpEmbeddingProvider({
 			provider: "openai",
 			model: "text-embedding-3-small",
-		});
+		}, requestPort(fetchMock));
 		const result = await provider.embed(["hello"]);
 		expect(result).toEqual([[0.1, 0.2]]);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -58,12 +68,10 @@ describe("HttpEmbeddingProvider", () => {
 				{ status: 200, headers: { "Content-Type": "application/json" } },
 			),
 		);
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
-
 		const provider = new HttpEmbeddingProvider({
 			provider: "voyage",
 			model: "voyage-3",
-		});
+		}, requestPort(fetchMock));
 		await provider.embed(["hi"]);
 		const [url, init] = fetchMock.mock.calls[0];
 		expect(url).toBe("https://api.voyageai.com/v1/embeddings");
@@ -76,14 +84,12 @@ describe("HttpEmbeddingProvider", () => {
 		const fetchMock = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ data: [{ index: 0, embedding: [1] }] }), { status: 200 }),
 		);
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
-
 		const provider = new HttpEmbeddingProvider({
 			provider: "openai",
 			model: "m",
 			baseUrl: "http://localhost:11434/v1/",
 			apiKey: "override-key",
-		});
+		}, requestPort(fetchMock));
 		await provider.embed(["x"]);
 		expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:11434/v1/embeddings");
 		expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({
@@ -103,27 +109,34 @@ describe("HttpEmbeddingProvider", () => {
 				{ status: 200 },
 			),
 		);
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-		const provider = new HttpEmbeddingProvider({ provider: "openai", model: "m" });
+		const provider = new HttpEmbeddingProvider(
+			{ provider: "openai", model: "m" },
+			requestPort(fetchMock),
+		);
 		const result = await provider.embed(["a", "b"]);
 		expect(result).toEqual([[1], [2]]);
 	});
 
 	it("throws on HTTP error", async () => {
-		globalThis.fetch = vi.fn().mockResolvedValue(
+		const fetchMock = vi.fn().mockResolvedValue(
 			new Response("boom", { status: 500, statusText: "Server Error" }),
-		) as unknown as typeof fetch;
+		);
 
-		const provider = new HttpEmbeddingProvider({ provider: "openai", model: "m" });
+		const provider = new HttpEmbeddingProvider(
+			{ provider: "openai", model: "m" },
+			requestPort(fetchMock),
+		);
 		await expect(provider.embed(["x"])).rejects.toThrow(/500/);
 	});
 
 	it("returns [] for empty input without hitting the API", async () => {
 		const fetchMock = vi.fn();
-		globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-		const provider = new HttpEmbeddingProvider({ provider: "openai", model: "m" });
+		const provider = new HttpEmbeddingProvider(
+			{ provider: "openai", model: "m" },
+			requestPort(fetchMock),
+		);
 		expect(await provider.embed([])).toEqual([]);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});

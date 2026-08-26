@@ -4,6 +4,11 @@ import type { BusEvents } from "#core/events/event-bus-types.js";
 import { redactionProfileForTarget } from "#core/evidence/policy.js";
 import type { ModuleEventProxy } from "#core/modules/module-types.js";
 import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpTransport,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
+import {
   measureTelemetryPayloadBytes,
   type ToolTelemetryCallRecord,
 } from "#core/tools/tool-telemetry.js";
@@ -63,16 +68,6 @@ type OtlpAttribute = {
   key: string;
   value: OtlpAnyValue;
 };
-
-type OtlpFetchResponse = Pick<Response, "ok" | "status" | "text">;
-type OtlpFetch = (
-  url: string,
-  init: {
-    method: "POST";
-    headers: { "content-type": "application/json" };
-    body: string;
-  },
-) => Promise<OtlpFetchResponse>;
 
 function textMetadata(prefix: string, value: string): SecurityLogAttributes {
   const bytes = measureTelemetryPayloadBytes(value);
@@ -239,12 +234,15 @@ export class OtlpHttpSecurityLogExporter implements SecurityLogExporter {
   constructor(
     private readonly url: string,
     private readonly serviceName: string = DEFAULT_SERVICE_NAME,
-    private readonly fetchImpl: OtlpFetch = fetch,
+    private readonly http: Pick<OutboundHttpTransport, "request"> = outboundHttp,
   ) {}
 
   async export(records: readonly SecurityLogRecord[]): Promise<void> {
     if (records.length === 0) return;
-    const response = await this.fetchImpl(this.url, {
+    const { response } = await this.http.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.url]),
+      operation: "tracing.security-logs.export",
+      url: this.url,
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(toOtlpPayload(this.serviceName, records)),

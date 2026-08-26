@@ -189,12 +189,13 @@ export async function handleSearchMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const results = semantic
-      ? await provider.semanticSearch(query, limit, { tag, since })
+      ? await semanticSearch!.semanticSearch(query, limit, { tag, since })
       : provider.search(query, { tag, since }).slice(0, limit);
     jsonResponse(res, 200, {
       ok: true,
@@ -220,8 +221,13 @@ export async function handleReindexMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

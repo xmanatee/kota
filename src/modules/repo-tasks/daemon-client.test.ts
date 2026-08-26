@@ -381,20 +381,20 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     );
 
     const { transport: reindexTransport, calls: reindexCalls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { indexed: 1, failed: 0 }),
+      fetchRaw: () => jsonResponse(200, { ok: true, indexed: 1, failed: 0 }),
     });
     const reindexClient = repoTasksModule.daemonClient!(reindexTransport);
     await reindexClient.tasks!.reindex({ scopeId: "scope-a" });
     expect(reindexCalls[0]!.path).toBe("/tasks/reindex?scopeId=scope-a");
   });
 
-  it("reindex POSTs /tasks/reindex and returns the body verbatim", async () => {
+  it("reindex POSTs /tasks/reindex and returns the explicit operation result", async () => {
     const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { indexed: 7, failed: 1 }),
+      fetchRaw: () => jsonResponse(200, { ok: true, indexed: 7, failed: 1 }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     const result = await contributed.tasks!.reindex();
-    expect(result).toEqual({ indexed: 7, failed: 1 });
+    expect(result).toEqual({ ok: true, indexed: 7, failed: 1 });
     expect(calls[0]!.path).toBe("/tasks/reindex");
     expect(calls[0]!.init?.method).toBe("POST");
   });

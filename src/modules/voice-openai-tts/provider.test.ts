@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { OpenAiTtsError, OpenAiTtsProvider, type OpenAiTtsProviderOptions } from "./provider.js";
 
 function makeProvider(
@@ -14,7 +15,12 @@ function makeProvider(
     timeoutMs: 5000,
     maxRetries: 0,
     retryBaseDelayMs: 1,
-    fetchImpl,
+    http: outboundHttpRequestPort((request) => fetchImpl(String(request.url), {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      signal: request.signal,
+    })),
     sleep: async () => {},
     ...overrides,
   });

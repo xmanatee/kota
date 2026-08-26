@@ -11,7 +11,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Memory, ReindexResult } from "#core/modules/provider-types.js";
+import type { Memory } from "#core/modules/provider-types.js";
 import {
 	parseWorkMemoryMetadata,
 	type WorkMemoryMetadata,
@@ -172,21 +172,6 @@ export class MemoryStore {
     return dirname(this.filePath);
   }
 
-  supportsSemanticSearch(): boolean {
-    return false;
-  }
-
-  async semanticSearch(
-    _query: string,
-    _topK: number,
-    _options?: { tag?: string; since?: string },
-  ): Promise<Memory[]> {
-    throw new Error("Semantic memory search requires an embedding-backed memory provider.");
-  }
-
-  async reindex(): Promise<ReindexResult> {
-    return { indexed: 0, failed: 0, skipped: true };
-  }
 }
 
 // Singleton for the memory tool, CLI, and routes to share.

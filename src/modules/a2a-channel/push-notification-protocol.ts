@@ -1,3 +1,4 @@
+import { isObviouslyNonPublicOutboundHost } from "#core/outbound-http/index.js";
 import {
   invalidParams,
   isJsonObject,
@@ -5,7 +6,6 @@ import {
   objectField,
   routingScopeMismatch,
 } from "./protocol.js";
-import { isPrivateCallbackHost } from "./push-notification-callback-hosts.js";
 
 export type A2APushNotificationAuthentication = JsonObject & {
   scheme: string;
@@ -172,7 +172,7 @@ function assertAllowedCallbackUrl(rawUrl: string): URL {
   if (parsed.username || parsed.password) {
     throw invalidParams("url must not contain embedded credentials");
   }
-  if (isPrivateCallbackHost(parsed.hostname)) {
+  if (isObviouslyNonPublicOutboundHost(parsed.hostname)) {
     throw invalidParams("url must use a non-local callback host");
   }
   return parsed;

@@ -1,5 +1,6 @@
 export { createDefaultOutboundHttpDispatcher } from "#core/outbound-http/dispatcher.js";
 export {
+  isObviouslyNonPublicOutboundHost,
   resolveOutboundAddresses,
   resolveOutboundHttpConnectionAddress,
   resolvePublicOutboundAddresses,
@@ -40,5 +41,11 @@ export {
 } from "#core/outbound-http/types.js";
 
 export const outboundHttp = new OutboundHttpTransport();
+
+export type OutboundHttpRequestPort = Pick<OutboundHttpTransport, "request">;
+export type OutboundHttpStreamingPort = Pick<
+  OutboundHttpTransport,
+  "request" | "requestStream"
+>;
 
 import { OutboundHttpTransport } from "#core/outbound-http/transport.js";

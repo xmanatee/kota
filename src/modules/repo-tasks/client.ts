@@ -11,7 +11,7 @@
  */
 
 import type {
-  ReindexResult,
+  ReindexOperationResult,
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
@@ -139,7 +139,7 @@ export type RepoTaskSearchResult =
   | { ok: false; reason: "semantic_unavailable" };
 
 /** Result of `tasks.reindex`. Mirrors the provider's `ReindexResult`. */
-export type RepoTaskReindexResult = ReindexResult;
+export type RepoTaskReindexResult = ReindexOperationResult;
 
 /**
  * Repo-task queue operations (the `data/tasks/*` filesystem queue).

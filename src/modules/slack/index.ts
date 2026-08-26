@@ -15,6 +15,7 @@
 
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { postWithRetry } from "#modules/notification/index.js";
 
@@ -202,7 +203,10 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
   }
 }
 
-const slackModule: KotaModule = {
+export function createSlackModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "slack",
   version: "1.0.0",
   description: "Slack Incoming Webhook notification channel for KOTA workflow events",
@@ -262,7 +266,11 @@ const slackModule: KotaModule = {
 
     const { webhookUrl } = config;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
-    const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
+    const retryOptions = {
+      retries: config.retries,
+      baseDelayMs: config.retryDelayMs,
+      http,
+    };
     const unsubs: (() => void)[] = [];
 
     const subscribe = (event: keyof BusEvents) => {
@@ -285,6 +293,7 @@ const slackModule: KotaModule = {
 
     return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
-};
+  };
+}
 
-export default slackModule;
+export default createSlackModule();

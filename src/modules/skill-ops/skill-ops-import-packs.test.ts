@@ -5,24 +5,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
 
 function stubCtx(cwd: string): ModuleContext {
   return { cwd, config: {}, getModuleSummaries: () => [] } as unknown as ModuleContext;
 }
 
-function mockFetch(responses: Record<string, string>): void {
-  vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-    const url = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : input.url;
+function mockFetch(responses: Record<string, string>) {
+  return outboundHttpRequestPort(async (request) => {
+    const url = String(request.url);
     const body = responses[url];
     return body === undefined
       ? new Response("missing", { status: 404, statusText: "Not Found" })
       : new Response(body, { status: 200, statusText: "OK" });
-  }));
+  });
 }
 
 describe("skill pack imports", () => {
@@ -104,7 +101,7 @@ describe("skill pack imports", () => {
 
   it("imports a selected skill from an owner/repo GitHub shorthand pack", async () => {
     const ctx = stubCtx(scopeRoot);
-    mockFetch({
+    const http = mockFetch({
       "https://api.github.com/repos/vercel/ai": JSON.stringify({ default_branch: "main" }),
       "https://api.github.com/repos/vercel/ai/git/trees/main?recursive=1": JSON.stringify({
         tree: [
@@ -121,7 +118,7 @@ describe("skill pack imports", () => {
       "https://raw.githubusercontent.com/vercel/ai/main/typescript/scripts/check.ts": "console.log('ts');\n",
     });
 
-    const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" });
+    const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" }, http);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.skills).toHaveLength(1);
@@ -151,7 +148,7 @@ describe("skill pack imports", () => {
 
   it("imports from a full GitHub tree URL scoped to a skill directory", async () => {
     const ctx = stubCtx(scopeRoot);
-    mockFetch({
+    const http = mockFetch({
       "https://api.github.com/repos/crewaiinc/skills/git/trees/main?recursive=1": JSON.stringify({
         tree: [
           { path: "python/SKILL.md", type: "blob" },
@@ -166,6 +163,8 @@ describe("skill pack imports", () => {
     const result = await importSkill(
       ctx,
       "https://github.com/crewaiinc/skills/tree/main/python",
+      undefined,
+      http,
     );
     expect(result.ok).toBe(true);
     if (result.ok) {

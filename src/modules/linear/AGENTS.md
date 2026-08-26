@@ -29,6 +29,10 @@ by Linear's GraphQL API that lets KOTA's builder pull tasks directly from a Line
 
 ## Boundaries
 
-- Does not own CLI commands or agent tools — this module only contributes a `TaskProvider`.
-- Two-way sync (pushing local tasks to Linear) is out of scope.
+- The module contributes Linear tools plus a task-provider registration when
+  enabled. The provider declares read and async mutation capabilities, but not
+  bulk maintenance.
+- Cache state changes only after Linear acknowledges the mutation. Creation
+  resolves configured label names to Linear label ids; unsupported task fields
+  fail explicitly.
 - Issue state names in config must match exactly the workflow state names in Linear.

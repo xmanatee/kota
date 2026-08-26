@@ -38,7 +38,11 @@ export class TelegramSessionRuntime {
     }
 
     this.busyChats.add(target.sessionKey);
-    const transport = new TelegramTransport(target.chatId, this.token);
+    const transport = new TelegramTransport(
+      target.chatId,
+      this.token,
+      this.options.http,
+    );
     try {
       const session = this.getOrCreateSession(target, firstName);
       session.proxy.target = transport;
@@ -195,7 +199,12 @@ export class TelegramSessionRuntime {
   }
 
   protected sendText(chatId: number, text: string): void {
-    callTelegramApi(this.token, "sendMessage", { chat_id: chatId, text }).catch((err) => {
+    callTelegramApi(
+      this.token,
+      "sendMessage",
+      { chat_id: chatId, text },
+      { http: this.options.http },
+    ).catch((err) => {
       printTerminalDiagnostic(
         `[kota-telegram] Failed to send to ${chatId}:`,
         "error",

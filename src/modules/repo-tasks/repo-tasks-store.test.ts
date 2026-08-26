@@ -59,15 +59,6 @@ describe("RepoTasksDefaultStore (keyword fallback)", () => {
 		rmSync(repoRoot, { recursive: true, force: true });
 	});
 
-	it("supportsSemanticSearch returns false", () => {
-		expect(store.supportsSemanticSearch()).toBe(false);
-	});
-
-	it("reindex returns skipped: true without doing work", async () => {
-		const result = await store.reindex();
-		expect(result).toEqual({ indexed: 0, failed: 0, skipped: true });
-	});
-
 	it("ranks tasks whose title matches the query above tasks that only match in body", async () => {
 		writeTask(
 			repoRoot,

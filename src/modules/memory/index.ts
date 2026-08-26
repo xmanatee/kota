@@ -81,10 +81,11 @@ const memoryModule: KotaModule = {
         const provider = resolveMemoryProvider(scopeStores, filter?.scopeId);
         const limit = filter?.limit ?? 20;
         if (filter?.semantic) {
-          if (!provider.supportsSemanticSearch()) {
+          const semanticSearch = provider.semanticSearchCapability;
+          if (!semanticSearch) {
             return { ok: false, reason: "semantic_unavailable" };
           }
-          const results = await provider.semanticSearch(query, limit, {
+          const results = await semanticSearch.semanticSearch(query, limit, {
             tag: filter.tag,
             since: filter.since,
           });
@@ -117,7 +118,9 @@ const memoryModule: KotaModule = {
       },
       async reindex(scopeSelector) {
         const provider = resolveMemoryProvider(scopeStores, scopeSelector?.scopeId);
-        return provider.reindex();
+        const semanticSearch = provider.semanticSearchCapability;
+        if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+        return { ok: true, ...await semanticSearch.reindex() };
       },
     };
     return { memory: handler };

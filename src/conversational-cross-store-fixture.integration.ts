@@ -38,7 +38,6 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
-  ReindexResult,
 } from "#core/modules/provider-types.js";
 import { registerTool } from "#core/tools/index.js";
 import {
@@ -144,14 +143,6 @@ export function createEmptyHistoryProvider(): HistoryProvider {
     findByPrefix: (): ConversationRecord | null => null,
     remove: (): boolean => false,
     cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> =>
-      unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
   };
 }
 

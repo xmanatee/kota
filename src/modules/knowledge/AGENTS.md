@@ -29,3 +29,6 @@ This directory owns the `knowledge` management tool — a structured, file-based
 - Modules that consume the knowledge store at runtime (currently
   `knowledge-semantic`) must list `knowledge` in their KotaModule
   `dependencies` so the loader orders onLoad correctly.
+- The base provider is keyword-only. Embedding-backed implementations declare
+  `semanticSearchCapability`; callers inspect that structural capability and
+  report explicit unavailability when it is absent.

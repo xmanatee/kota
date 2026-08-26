@@ -10,6 +10,7 @@ import {
 	KNOWLEDGE_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import type { KnowledgeProvider } from "#core/modules/provider-types.js";
 import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
 import type {
 	KnowledgeAddOptions,
@@ -49,13 +50,14 @@ function stubCtx(): ModuleContext {
 						scope: filter?.scope,
 					};
 					if (filter?.semantic) {
-						if (!provider.supportsSemanticSearch()) {
+						const capability = provider.semanticSearchCapability;
+						if (!capability) {
 							return {
 								ok: false as const,
 								reason: "semantic_unavailable" as const,
 							};
 						}
-						const entries = await provider.semanticSearch(query, limit, filters);
+						const entries = await capability.semanticSearch(query, limit, filters);
 						return { ok: true as const, entries };
 					}
 					const entries = provider.search(query, filters).slice(0, limit);
@@ -82,7 +84,10 @@ function stubCtx(): ModuleContext {
 				},
 				async reindex() {
 					const provider = getKnowledgeProvider();
-					return provider.reindex();
+					const capability = provider.semanticSearchCapability;
+					return capability
+						? { ok: true as const, ...await capability.reindex() }
+						: { ok: false as const, reason: "semantic_unavailable" as const };
 				},
 			},
 		},
@@ -405,8 +410,23 @@ describe("kota knowledge search", () => {
 
 	it("routes --semantic searches through the active provider semanticSearch", async () => {
 		store.create({ title: "Semantic Note", content: "hello semantic knowledge" });
-		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
-		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
+		const semanticSearch = vi.fn(async () => store.list());
+		const provider: KnowledgeProvider = {
+			create: store.create.bind(store),
+			read: store.read.bind(store),
+			update: store.update.bind(store),
+			delete: store.delete.bind(store),
+			search: store.search.bind(store),
+			list: store.list.bind(store),
+			count: store.count.bind(store),
+			semanticSearchCapability: {
+				semanticSearch,
+				reindex: async () => ({ indexed: 1, failed: 0 }),
+			},
+		};
+		const registry = initProviderRegistry();
+		registry.register(KNOWLEDGE_PROVIDER_TOKEN, "semantic", provider);
+		registry.setActive(KNOWLEDGE_PROVIDER_TOKEN, "semantic");
 		const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 		try {
 			await makeKnowledgeProgram().parseAsync([

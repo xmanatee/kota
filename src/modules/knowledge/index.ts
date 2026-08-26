@@ -84,10 +84,11 @@ const knowledgeModule: KotaModule = {
 					scope: filter?.scope,
 				};
 				if (filter?.semantic) {
-					if (!provider.supportsSemanticSearch()) {
+					const semanticSearch = provider.semanticSearchCapability;
+					if (!semanticSearch) {
 						return { ok: false, reason: "semantic_unavailable" };
 					}
-					const entries = await provider.semanticSearch(query, limit, filters);
+					const entries = await semanticSearch.semanticSearch(query, limit, filters);
 					return { ok: true, entries };
 				}
 				const entries = provider.search(query, filters).slice(0, limit);
@@ -119,7 +120,9 @@ const knowledgeModule: KotaModule = {
 			},
 			async reindex(scopeSelector) {
 				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
-				return provider.reindex();
+				const semanticSearch = provider.semanticSearchCapability;
+				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+				return { ok: true, ...await semanticSearch.reindex() };
 			},
 		};
 		return { knowledge: handler };

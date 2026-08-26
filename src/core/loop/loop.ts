@@ -14,6 +14,7 @@ import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   cloneGuardrailsConfig,
@@ -74,6 +75,8 @@ export type LoopOptions = {
   scopeRuntime?: ScopeRuntime;
   /** Host-owned module runtime borrowed by daemon/server sessions. */
   moduleLoader?: ModuleLoader;
+  /** Scope-selected history capability supplied by a multi-scope host. */
+  historyProvider?: HistoryProvider;
   /** Optional existing operator surface bridge for remote MCP input_required retries. */
   mcpInputResolver?: McpInputResolver;
   mcpAuthorizationResolver?: McpAuthorizationResolver;
@@ -130,6 +133,7 @@ export class AgentSession implements AgentLoopState {
   resumeConversationId: string | undefined;
   historyEnabled!: boolean;
   historySource!: "user" | "action";
+  historyProvider: HistoryProvider | undefined;
   sessionId!: string;
   sessionLabel: string | undefined;
   sessionStartTime = 0;

@@ -4,6 +4,7 @@ import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { OutboundHttpRequestPort } from "#core/outbound-http/index.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
@@ -37,6 +38,7 @@ export type TelegramBotOptions = {
     events: Pick<ModuleContext["events"], "emit">;
   };
   pollOwner?: TelegramPollingOwner;
+  http?: OutboundHttpRequestPort;
 };
 
 export type TelegramScopeTarget = {

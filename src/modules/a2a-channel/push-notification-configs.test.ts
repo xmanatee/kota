@@ -4,6 +4,7 @@ import {
   errorReason,
   FakeBackend,
   makeContext,
+  makePushNotificationHttp,
   makeStorage,
   type PushNotificationTestState,
   postRpc,
@@ -26,7 +27,7 @@ describe("a2a push notification configs", () => {
     const backend = new FakeBackend();
     const first = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(first.server);
 
@@ -87,7 +88,7 @@ describe("a2a push notification configs", () => {
 
     const second = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(second.server);
     const persisted = await postRpc(second.baseUrl, {
@@ -128,7 +129,7 @@ describe("a2a push notification configs", () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 
@@ -173,7 +174,7 @@ describe("a2a push notification configs", () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 

@@ -220,14 +220,14 @@ export function registerKnowledgeCommands(
 
 	kCmd
 		.command("reindex")
-		.description(
-			"Rebuild the semantic search index for all knowledge entries. " +
-				"No-op when no embedding provider is configured.",
+			.description(
+				"Rebuild the semantic search index for all knowledge entries. " +
+					"Reports when no embedding provider is configured.",
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const result = await ctx.client.knowledge.reindex();
-			if (result.skipped) {
+				if (!result.ok) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.knowledge` to an embedding-capable provider to enable.",

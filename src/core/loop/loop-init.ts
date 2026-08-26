@@ -16,6 +16,7 @@ import {
   getHistoryProvider,
   getRenderingProvider,
 } from "#core/modules/provider-registry.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { loadSavedTools } from "#core/tools/custom-tool.js";
 import { getDelegateConfig, setDelegateConfig } from "#core/tools/delegate-config.js";
@@ -75,6 +76,7 @@ export interface AgentLoopState {
   sessionPath: string | undefined;
   historyEnabled: boolean;
   historySource: "user" | "action";
+  historyProvider?: HistoryProvider;
   conversationId: string | null;
   /** Pending resume target captured from LoopOptions; consumed during module init. */
   resumeConversationId: string | undefined;
@@ -228,7 +230,8 @@ function restoreConversationIfRequested(state: AgentLoopState): void {
   if (!state.resumeConversationId) return;
   const targetId = state.resumeConversationId;
   state.resumeConversationId = undefined;
-  const history = getHistoryProvider(state.moduleLoader.getProviderRegistry());
+  const history = state.historyProvider
+    ?? getHistoryProvider(state.moduleLoader.getProviderRegistry());
   const data = history.load(targetId);
   if (data) {
     state.conversationId = targetId;
@@ -256,7 +259,8 @@ export function saveToHistoryImpl(state: AgentLoopState): void {
   if (!state.conversationId && snapshot.messages.length === 0) return;
   let history: ReturnType<typeof getHistoryProvider>;
   try {
-    history = getHistoryProvider(state.moduleLoader.getProviderRegistry());
+    history = state.historyProvider
+      ?? getHistoryProvider(state.moduleLoader.getProviderRegistry());
   } catch {
     // History module not loaded (e.g. a deployment excludes it, or the
     // session closes before init completes). Saving is a best-effort side

@@ -28,6 +28,9 @@ This directory owns conversation history — the persistent record of past sessi
   which layers on top of this module's store. Modules that consume the history
   store at runtime (currently `history-semantic`) must list `history` in their
   KotaModule `dependencies` so the loader orders onLoad correctly.
+- The base provider is keyword-only. Embedding-backed implementations declare
+  `semanticSearchCapability`; callers never infer support from implementation
+  identity or require placeholder semantic methods.
 - CLI-launched sessions use configured autonomy explicitly. Missing session-autonomy config is a boundary error, not a hidden fallback.
 - Core must not import from `#modules/history/*`; depend on the neutral provider
   protocol and let this module register its implementation.

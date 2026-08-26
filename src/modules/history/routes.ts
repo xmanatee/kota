@@ -173,12 +173,13 @@ export async function handleSearchHistory(
   try {
     const provider = resolveScopedProvider(res, url, scopeStores);
     if (!provider) return;
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const conversations = semantic
-      ? await provider.semanticSearch(query, limit, { cwd, source })
+      ? await semanticSearch!.semanticSearch(query, limit, { cwd, source })
       : provider.list({ search: query, limit, cwd, source });
     jsonResponse(res, 200, { ok: true, conversations });
   } catch (err) {
@@ -323,8 +324,13 @@ async function handleReindexHistoryControl(
   try {
     const provider = resolveScopedProvider(res, url, scopeStores);
     if (!provider) return;
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

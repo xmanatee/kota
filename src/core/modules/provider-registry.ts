@@ -13,6 +13,7 @@ import type {
 	RenderingProvider,
 	RepoTasksProvider,
 	TaskProvider,
+	TaskProviderRegistration,
 } from "./provider-types.js";
 
 export type HistoryScope = {
@@ -55,8 +56,8 @@ export const HISTORY_PROVIDER_TOKEN: ProviderToken<HistoryProvider> =
 	defineProviderToken<HistoryProvider>("history");
 export const HISTORY_SCOPE_PROVIDER_TOKEN: ProviderToken<HistoryScopeProvider> =
 	defineProviderToken<HistoryScopeProvider>("history-scope");
-export const TASK_PROVIDER_TOKEN: ProviderToken<TaskProvider> =
-	defineProviderToken<TaskProvider>("task");
+export const TASK_PROVIDER_TOKEN: ProviderToken<TaskProviderRegistration> =
+	defineProviderToken<TaskProviderRegistration>("task");
 export const REPO_TASKS_PROVIDER_TOKEN: ProviderToken<RepoTasksProvider> =
 	defineProviderToken<RepoTasksProvider>("repo-tasks");
 export const RENDERING_PROVIDER_TOKEN: ProviderToken<RenderingProvider> =
@@ -206,7 +207,18 @@ export function resetProviderRegistry(): void {
 /** Register the in-process default stores for core-owned service types. */
 export function registerDefaultProviders(target: ProviderRegistry | null = registry): void {
 	if (!target) return;
-	target.register(TASK_PROVIDER_TOKEN, "default", getTaskStore());
+	const store = getTaskStore();
+	target.register(TASK_PROVIDER_TOKEN, "default", {
+		provider: store,
+		mutations: {
+			add: async (task, options) => store.add(task, options),
+			update: async (id, changes) => store.update(id, changes),
+		},
+		maintenance: {
+			clear: async () => store.clear(),
+			archiveCompleted: async () => store.archiveCompleted(),
+		},
+	});
 }
 
 /**
@@ -241,11 +253,27 @@ export function getKnowledgeProvider(target: ProviderRegistry | null = registry)
 
 /** Get the active task provider, or the default TaskStore when no registry provider is active. */
 export function getTaskProvider(target: ProviderRegistry | null = registry): TaskProvider {
-	if (target) {
-		const provider = target.get(TASK_PROVIDER_TOKEN);
-		if (provider) return provider;
-	}
-	return getTaskStore();
+	return getTaskProviderRegistration(target).provider;
+}
+
+/** Resolve the active task reader and only the mutation capabilities it declares. */
+export function getTaskProviderRegistration(
+	target: ProviderRegistry | null = registry,
+): TaskProviderRegistration {
+	const registered = target?.get(TASK_PROVIDER_TOKEN);
+	if (registered) return registered;
+	const store = getTaskStore();
+	return {
+		provider: store,
+		mutations: {
+			add: async (task, options) => store.add(task, options),
+			update: async (id, changes) => store.update(id, changes),
+		},
+		maintenance: {
+			clear: async () => store.clear(),
+			archiveCompleted: async () => store.archiveCompleted(),
+		},
+	};
 }
 
 /**

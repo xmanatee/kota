@@ -11,6 +11,7 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import {
   getNpmVersion,
   installGithub,
@@ -93,6 +94,7 @@ export function saveManifest(manifest: ToolManifest, cwd?: string): void {
 export async function installTool(
   source: string,
   cwd?: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<InstallResult> {
   const parsed = parseSource(source);
   const manifest = loadManifest(cwd);
@@ -112,7 +114,7 @@ export async function installTool(
       result = await installNpm(parsed, dir);
       break;
     case "url":
-      result = await installUrl(parsed, dir);
+      result = await installUrl(parsed, dir, http);
       break;
     case "github":
       result = await installGithub(parsed, dir);
@@ -181,7 +183,11 @@ export function listTools(cwd?: string): ToolInfo[] {
 
 // --- Update ---
 
-export async function updateTool(name: string, cwd?: string): Promise<InstallResult> {
+export async function updateTool(
+  name: string,
+  cwd?: string,
+  http: OutboundHttpRequestPort = outboundHttp,
+): Promise<InstallResult> {
   const manifest = loadManifest(cwd);
   const tool = manifest.tools[name];
   if (!tool) throw new Error(`Tool "${name}" is not installed`);
@@ -209,7 +215,7 @@ export async function updateTool(name: string, cwd?: string): Promise<InstallRes
       }
     }
 
-    const result = await installTool(`${sourcePrefix}${tool.uri}`, cwd);
+    const result = await installTool(`${sourcePrefix}${tool.uri}`, cwd, http);
 
     // Install succeeded — remove backups
     for (const { backup } of backups) {

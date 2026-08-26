@@ -248,7 +248,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   }
 
   const { makeAgentSession, createModuleSession } =
-    createDaemonAgentSessionFactories(config, scopeRuntimes);
+    createDaemonAgentSessionFactories(config, scopeRuntimes, resolveChatHistoryProvider);
   config.runtimeModuleHost?.moduleLoader.setSessionFactory(createModuleSession);
 
   const controlServer = new DaemonControlServer(handle, token, {

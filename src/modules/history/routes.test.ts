@@ -9,6 +9,7 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
+  HistorySemanticSearchCapability,
 } from "#core/modules/provider-types.js";
 import { handleGetHistory, handleSearchHistory } from "./routes.js";
 import { HistoryScopeStores } from "./scope.js";
@@ -62,7 +63,12 @@ function longMessages(count: number): ConversationMessage[] {
   }));
 }
 
-function makeProvider(records: ConversationRecord[]): HistoryProvider {
+function makeProvider(
+  records: ConversationRecord[],
+  semanticSearch: null | HistorySemanticSearchCapability["semanticSearch"] = vi.fn(
+    async (_q: string, k: number) => records.slice(0, k),
+  ),
+): HistoryProvider {
   return {
     create: vi.fn(() => "new-id"),
     save: vi.fn(),
@@ -72,9 +78,14 @@ function makeProvider(records: ConversationRecord[]): HistoryProvider {
     findByPrefix: vi.fn(() => null),
     remove: vi.fn(() => true),
     cleanup: vi.fn(() => 0),
-    supportsSemanticSearch: vi.fn(() => true),
-    semanticSearch: vi.fn(async (_q: string, k: number) => records.slice(0, k)),
-    reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+    ...(semanticSearch
+      ? {
+        semanticSearchCapability: {
+          semanticSearch,
+          reindex: vi.fn(async () => ({ indexed: 0, failed: 0 })),
+        },
+      }
+      : {}),
   };
 }
 
@@ -235,7 +246,7 @@ describe("history-routes", () => {
         res,
       );
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).toHaveBeenCalledWith("hello", 5, {
+      expect(provider.semanticSearchCapability?.semanticSearch).toHaveBeenCalledWith("hello", 5, {
         cwd: undefined,
         source: undefined,
       });
@@ -252,7 +263,7 @@ describe("history-routes", () => {
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?semantic=true"), res);
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).toHaveBeenCalledWith("", 20, {
+      expect(provider.semanticSearchCapability?.semanticSearch).toHaveBeenCalledWith("", 20, {
         cwd: undefined,
         source: undefined,
       });
@@ -277,28 +288,27 @@ describe("history-routes", () => {
         cwd: "/repo",
         source: "user",
       });
-      expect(provider.semanticSearch).not.toHaveBeenCalled();
+      expect(provider.semanticSearchCapability?.semanticSearch).not.toHaveBeenCalled();
       const body = result.body as { ok: true; conversations: ConversationRecord[] };
       expect(body.ok).toBe(true);
       expect(body.conversations[0].title).toBe("Keyword match");
     });
 
     it("returns ok:false reason:semantic_unavailable when provider lacks semantic support", async () => {
-      const provider = makeProvider([]);
-      provider.supportsSemanticSearch = vi.fn(() => false);
+      const provider = makeProvider([], null);
       vi.mocked(getHistoryProvider).mockReturnValue(provider);
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?q=anything&semantic=true"), res);
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).not.toHaveBeenCalled();
+      expect(provider.semanticSearchCapability).toBeUndefined();
       expect(result.body).toEqual({ ok: false, reason: "semantic_unavailable" });
     });
 
     it("returns 500 with the provider's error message when semantic search throws", async () => {
-      const provider = makeProvider([]);
-      provider.semanticSearch = vi.fn(async () => {
+      const semanticSearch = vi.fn(async () => {
         throw new Error("embed index missing");
       });
+      const provider = makeProvider([], semanticSearch);
       vi.mocked(getHistoryProvider).mockReturnValue(provider);
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?q=x&semantic=true"), res);

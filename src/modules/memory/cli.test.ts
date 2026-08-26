@@ -10,6 +10,7 @@ import {
 	MEMORY_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import type { MemoryProvider } from "#core/modules/provider-types.js";
 import { registerMemoryCommands } from "./cli.js";
 import { getMemoryStore, resetMemoryStore } from "./store.js";
 
@@ -52,10 +53,11 @@ function stubCtx(): ModuleContext {
 					const provider = getMemoryProvider();
 					const limit = filter?.limit ?? 20;
 					if (filter?.semantic) {
-						if (!provider.supportsSemanticSearch()) {
+						const capability = provider.semanticSearchCapability;
+						if (!capability) {
 							return { ok: false as const, reason: "semantic_unavailable" as const };
 						}
-						const results = await provider.semanticSearch(query, limit, {
+						const results = await capability.semanticSearch(query, limit, {
 							tag: filter.tag,
 							since: filter.since,
 						});
@@ -82,7 +84,10 @@ function stubCtx(): ModuleContext {
 				},
 				async reindex() {
 					const provider = getMemoryProvider();
-					return provider.reindex();
+					const capability = provider.semanticSearchCapability;
+					return capability
+						? { ok: true as const, ...await capability.reindex() }
+						: { ok: false as const, reason: "semantic_unavailable" as const };
 				},
 			},
 		},
@@ -199,8 +204,21 @@ describe("kota memory search", () => {
 	it("routes --semantic searches through the active provider semanticSearch", async () => {
 		const store = getMemoryStore(storeDir);
 		store.save("hello semantic memory");
-		vi.spyOn(store, "supportsSemanticSearch").mockReturnValue(true);
-		const semanticSearch = vi.spyOn(store, "semanticSearch").mockResolvedValue(store.list());
+		const semanticSearch = vi.fn(async () => store.list());
+		const provider: MemoryProvider = {
+			save: store.save.bind(store),
+			search: store.search.bind(store),
+			list: store.list.bind(store),
+			update: store.update.bind(store),
+			delete: store.delete.bind(store),
+			semanticSearchCapability: {
+				semanticSearch,
+				reindex: async () => ({ indexed: 1, failed: 0 }),
+			},
+		};
+		const registry = initProviderRegistry();
+		registry.register(MEMORY_PROVIDER_TOKEN, "semantic", provider);
+		registry.setActive(MEMORY_PROVIDER_TOKEN, "semantic");
 		const stdout = captureStdout();
 		try {
 			await makeMemoryProgram().parseAsync([

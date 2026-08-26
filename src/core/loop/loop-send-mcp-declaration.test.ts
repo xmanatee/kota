@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import type { AgentLoopState } from "./loop-init.js";
@@ -110,7 +111,9 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     modelOutputTokenLimits: undefined,
     channelIdentity: undefined,
     autonomyMode: "autonomous",
-    moduleLoader: {} as never,
+    moduleLoader: {
+      getProviderRegistry: () => new ProviderRegistry(),
+    } as never,
     ownsModuleRuntime: true,
     closed: false,
     activeAbortControllers: new Set(),

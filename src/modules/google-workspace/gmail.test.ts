@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { makeGmailGetMessage, makeGmailListMessages, makeGmailSend } from "./gmail.js";
 
-const originalFetch = globalThis.fetch;
+let requestMock = vi.fn();
+const http = outboundHttpRequestPort((request) =>
+  requestMock(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+);
 
 function mockGetToken(token = "test-token") {
   return vi.fn().mockResolvedValue(token);
@@ -9,7 +18,7 @@ function mockGetToken(token = "test-token") {
 
 function stubFetchSequence(responses: Array<{ ok: boolean; status: number; data: unknown }>) {
   const queue = [...responses];
-  globalThis.fetch = vi.fn().mockImplementation(() => {
+  requestMock = vi.fn().mockImplementation(() => {
     const next = queue.shift() ?? { ok: false, status: 500, data: null };
     return Promise.resolve({
       ok: next.ok,
@@ -25,12 +34,12 @@ function stubFetch(response: { ok?: boolean; status?: number; data?: unknown }) 
 }
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  requestMock = vi.fn();
   vi.restoreAllMocks();
 });
 
 describe("gmail_list_messages: schema", () => {
-  const def = makeGmailListMessages(mockGetToken(), "me");
+  const def = makeGmailListMessages(mockGetToken(), "me", http);
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("gmail_list_messages");
@@ -46,7 +55,7 @@ describe("gmail_list_messages: schema", () => {
 
 describe("gmail_list_messages: runner", () => {
   it("returns 'No messages found' on empty list", async () => {
-    const def = makeGmailListMessages(mockGetToken(), "me");
+    const def = makeGmailListMessages(mockGetToken(), "me", http);
     stubFetch({ data: { messages: [], resultSizeEstimate: 0 } });
 
     const result = await def.runner({});
@@ -54,7 +63,7 @@ describe("gmail_list_messages: runner", () => {
   });
 
   it("fetches metadata for each message", async () => {
-    const def = makeGmailListMessages(mockGetToken(), "me");
+    const def = makeGmailListMessages(mockGetToken(), "me", http);
     stubFetchSequence([
       { ok: true, status: 200, data: { messages: [{ id: "msg1" }] } },
       {
@@ -83,7 +92,7 @@ describe("gmail_list_messages: runner", () => {
   });
 
   it("returns api error on failed list", async () => {
-    const def = makeGmailListMessages(mockGetToken(), "me");
+    const def = makeGmailListMessages(mockGetToken(), "me", http);
     stubFetch({ ok: false, status: 403, data: { error: { message: "Forbidden" } } });
 
     const result = await def.runner({});
@@ -92,17 +101,17 @@ describe("gmail_list_messages: runner", () => {
   });
 
   it("caps maxResults at 50", async () => {
-    const def = makeGmailListMessages(mockGetToken(), "me");
+    const def = makeGmailListMessages(mockGetToken(), "me", http);
     stubFetch({ data: { messages: [] } });
 
     await def.runner({ maxResults: 200 });
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("maxResults=50");
   });
 });
 
 describe("gmail_get_message: schema", () => {
-  const def = makeGmailGetMessage(mockGetToken(), "me");
+  const def = makeGmailGetMessage(mockGetToken(), "me", http);
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("gmail_get_message");
@@ -117,7 +126,7 @@ describe("gmail_get_message: schema", () => {
 
 describe("gmail_get_message: runner", () => {
   it("returns formatted message with decoded body", async () => {
-    const def = makeGmailGetMessage(mockGetToken(), "me");
+    const def = makeGmailGetMessage(mockGetToken(), "me", http);
     const encodedBody = Buffer.from("Hello world").toString("base64url");
     stubFetch({
       data: {
@@ -142,7 +151,7 @@ describe("gmail_get_message: runner", () => {
   });
 
   it("falls back to snippet when no body data", async () => {
-    const def = makeGmailGetMessage(mockGetToken(), "me");
+    const def = makeGmailGetMessage(mockGetToken(), "me", http);
     stubFetch({
       data: {
         id: "msg1",
@@ -156,7 +165,7 @@ describe("gmail_get_message: runner", () => {
   });
 
   it("returns error on API failure", async () => {
-    const def = makeGmailGetMessage(mockGetToken(), "me");
+    const def = makeGmailGetMessage(mockGetToken(), "me", http);
     stubFetch({ ok: false, status: 404, data: { error: { message: "Not Found" } } });
 
     const result = await def.runner({ id: "missing" });
@@ -166,7 +175,7 @@ describe("gmail_get_message: runner", () => {
 });
 
 describe("gmail_send: schema", () => {
-  const def = makeGmailSend(mockGetToken(), "me");
+  const def = makeGmailSend(mockGetToken(), "me", http);
 
   it("has correct tool name and is marked destructive", () => {
     expect(def.tool.name).toBe("gmail_send");
@@ -181,7 +190,7 @@ describe("gmail_send: schema", () => {
 
 describe("gmail_send: runner", () => {
   it("sends RFC 2822 formatted message", async () => {
-    const def = makeGmailSend(mockGetToken(), "me");
+    const def = makeGmailSend(mockGetToken(), "me", http);
     stubFetch({ data: { id: "sent1", threadId: "t1" } });
 
     const result = await def.runner({
@@ -193,7 +202,7 @@ describe("gmail_send: runner", () => {
     expect(result.content).toContain("sent1");
     expect(result.content).toContain("t1");
 
-    const [, opts] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, opts] = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0];
     const sent = JSON.parse(opts.body as string);
     const decoded = Buffer.from(sent.raw, "base64url").toString("utf-8");
     expect(decoded).toContain("To: alice@test.com");
@@ -202,7 +211,7 @@ describe("gmail_send: runner", () => {
   });
 
   it("includes Cc header when provided", async () => {
-    const def = makeGmailSend(mockGetToken(), "me");
+    const def = makeGmailSend(mockGetToken(), "me", http);
     stubFetch({ data: { id: "s2", threadId: "t2" } });
 
     await def.runner({
@@ -212,13 +221,13 @@ describe("gmail_send: runner", () => {
       cc: "bob@test.com",
     });
 
-    const [, opts] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, opts] = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0];
     const decoded = Buffer.from(JSON.parse(opts.body as string).raw, "base64url").toString("utf-8");
     expect(decoded).toContain("Cc: bob@test.com");
   });
 
   it("returns error on API failure", async () => {
-    const def = makeGmailSend(mockGetToken(), "me");
+    const def = makeGmailSend(mockGetToken(), "me", http);
     stubFetch({ ok: false, status: 500, data: { error: { message: "Server Error" } } });
 
     const result = await def.runner({ to: "x", subject: "y", body: "z" });

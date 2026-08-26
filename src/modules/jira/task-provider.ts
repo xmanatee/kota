@@ -4,17 +4,17 @@
  * Implements the TaskProvider interface using Jira's REST API v3 as the
  * authoritative source. Issues are fetched at init() and cached in memory.
  * Transitions are looked up by name at init() and cached.
- * Mutations (claim, complete, add) update the cache synchronously and fire
- * Jira API calls asynchronously.
+ * Mutations update the cache only after Jira acknowledges the durable write.
  *
  * - list()   → issues from configured project matching JQL filter
  * - claim    → update(id, {status:"in_progress"}) → transitions issue + assigns to user
  * - complete → update(id, {status:"done"}) → transitions issue to done state
- * - add()    → creates a Jira issue; cache entry uses a temp negative ID until created
+ * - add()    → awaits Jira issue creation, then caches the acknowledged issue key
  */
 
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
-import type { TaskProvider } from "#core/modules/provider-types.js";
+import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import type { OutboundHttpMethod } from "#core/outbound-http/index.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ type JiraTransition = { id: string; name: string };
 
 export type JiraFetchFn = (
   path: string,
-  options?: { method?: string; body?: unknown },
+  options?: { method?: OutboundHttpMethod; body?: unknown },
 ) => Promise<unknown>;
 
 // Jira priority name → KOTA priority
@@ -65,13 +65,12 @@ const JIRA_PRIORITY_MAP: Record<string, TaskPriority | undefined> = {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export class JiraTaskProvider implements TaskProvider {
+export class JiraTaskProvider implements TaskProvider, TaskMutationProvider {
   private cache: Task[] = [];
   private jiraKeys = new Map<number, string>(); // numeric ID → Jira issue key
   private transitionIds = new Map<string, string>(); // transition name → transition ID
   private accountId = "";
   private counter = 1;
-  private localCounter = -1;
 
   constructor(
     private readonly config: JiraTaskProviderConfig,
@@ -128,7 +127,7 @@ export class JiraTaskProvider implements TaskProvider {
     return this.cache.length;
   }
 
-  add(
+  async add(
     taskText: string,
     opts?: {
       parent_id?: number;
@@ -136,23 +135,18 @@ export class JiraTaskProvider implements TaskProvider {
       blocked_by?: number[];
       notes?: string;
     },
-  ): Task {
-    const tempId = this.localCounter--;
-    const newTask: Task = {
-      id: tempId,
-      task: taskText,
-      status: "pending",
-      created: new Date().toISOString(),
-    };
-    if (opts?.priority) newTask.priority = opts.priority;
-    if (opts?.notes) newTask.notes = opts.notes;
-    if (opts?.blocked_by?.length) newTask.blocked_by = opts.blocked_by;
-
-    this.cache.push(newTask);
+  ): Promise<Task> {
+    if (
+      opts?.parent_id !== undefined ||
+      opts?.blocked_by !== undefined ||
+      opts?.priority !== undefined
+    ) {
+      throw new Error("Jira task provider does not support parent, dependency, or priority creation fields");
+    }
 
     const body: Record<string, unknown> = {
       fields: {
-        scope: { key: this.config.projectKey },
+        project: { key: this.config.projectKey },
         summary: taskText,
         issuetype: { name: "Task" },
       },
@@ -165,26 +159,28 @@ export class JiraTaskProvider implements TaskProvider {
       };
     }
 
-    this.fetch("/rest/api/3/issue", { method: "POST", body })
-      .then((res) => {
-        const created = res as { id?: string; key?: string };
-        if (created.key) {
-          const entry = this.cache.find((t) => t.id === tempId);
-          if (entry) {
-            const newId = this.counter++;
-            this.jiraKeys.set(newId, created.key);
-            entry.id = newId;
-          }
-        }
-      })
-      .catch(() => {
-        // Best-effort; task remains with temp ID in local cache.
-      });
+    const created = await this.fetch("/rest/api/3/issue", {
+      method: "POST",
+      body,
+    }) as { id?: string; key?: string };
+    if (typeof created.key !== "string") {
+      throw new Error("Jira task provider: issue creation response omitted the issue key");
+    }
 
+    const newId = this.counter++;
+    this.jiraKeys.set(newId, created.key);
+    const newTask: Task = {
+      id: newId,
+      task: taskText,
+      status: "pending",
+      created: new Date().toISOString(),
+    };
+    if (opts?.notes) newTask.notes = opts.notes;
+    this.cache.push(newTask);
     return newTask;
   }
 
-  update(
+  async update(
     id: number,
     changes: {
       status?: TaskStatus;
@@ -192,52 +188,42 @@ export class JiraTaskProvider implements TaskProvider {
       blocked_by?: number[];
       notes?: string;
     },
-  ): Task {
+  ): Promise<Task> {
     const task = this.cache.find((t) => t.id === id);
     if (!task) throw new Error(`Task #${id} not found`);
-
-    if (changes.status && changes.status !== task.status) {
-      task.status = changes.status;
-      const issueKey = this.jiraKeys.get(id);
-
-      if (issueKey) {
-        if (changes.status === "in_progress") {
-          const transitionName = this.config.inProgressTransition ?? "In Progress";
-          this.applyTransition(issueKey, transitionName)
-            .then(() => {
-              if (this.config.claimOnStart !== false && this.accountId) {
-                return this.fetch(`/rest/api/3/issue/${issueKey}/assignee`, {
-                  method: "PUT",
-                  body: { accountId: this.accountId },
-                });
-              }
-            })
-            .catch(() => {});
-        } else if (changes.status === "done") {
-          task.completed = new Date().toISOString();
-          const transitionName = this.config.doneTransition ?? "Done";
-          this.applyTransition(issueKey, transitionName).catch(() => {});
-        }
-      }
+    if (
+      changes.priority !== undefined ||
+      changes.blocked_by !== undefined ||
+      changes.notes !== undefined
+    ) {
+      throw new Error("Jira task provider only supports status updates");
     }
 
-    if (changes.priority !== undefined) task.priority = changes.priority;
-    if (changes.notes !== undefined) task.notes = changes.notes;
-    if (changes.blocked_by !== undefined) {
-      task.blocked_by = changes.blocked_by.length > 0 ? changes.blocked_by : undefined;
+    if (changes.status && changes.status !== task.status) {
+      const issueKey = this.jiraKeys.get(id);
+      if (!issueKey) throw new Error(`Jira task provider: no remote issue for task #${id}`);
+      if (changes.status === "pending") {
+        throw new Error("Jira task provider does not support returning tasks to pending");
+      }
+      const transitionName = changes.status === "in_progress"
+        ? this.config.inProgressTransition ?? "In Progress"
+        : this.config.doneTransition ?? "Done";
+      await this.applyTransition(issueKey, transitionName);
+      if (
+        changes.status === "in_progress" &&
+        this.config.claimOnStart !== false &&
+        this.accountId
+      ) {
+        await this.fetch(`/rest/api/3/issue/${issueKey}/assignee`, {
+          method: "PUT",
+          body: { accountId: this.accountId },
+        });
+      }
+      task.status = changes.status;
+      if (changes.status === "done") task.completed = new Date().toISOString();
     }
 
     return task;
-  }
-
-  clear(): void {
-    // No-op: do not delete Jira issues when clearing local state.
-  }
-
-  archiveCompleted(): number {
-    const done = this.cache.filter((t) => t.status === "done");
-    this.cache = this.cache.filter((t) => t.status !== "done");
-    return done.length;
   }
 
   getActiveSummary(): string | null {
@@ -319,7 +305,9 @@ export class JiraTaskProvider implements TaskProvider {
       await this.cacheTransitionsForIssue(issueKey);
       transitionId = this.transitionIds.get(transitionName);
     }
-    if (!transitionId) return;
+    if (!transitionId) {
+      throw new Error(`Jira task provider: transition "${transitionName}" was not found`);
+    }
     await this.fetch(`/rest/api/3/issue/${issueKey}/transitions`, {
       method: "POST",
       body: { transition: { id: transitionId } },
