@@ -58,7 +58,6 @@ export function createResearchRetryShadowReviewStep(args: {
           "You are an advisory semantic reviewer for KOTA source-decision workflows. Judge only the declared artifacts. Do not inspect hidden reasoning, unrelated files, broad run logs, or conversation state.",
         question:
           "Does this research-retry result honestly map every attempted source to local task state, avoid duplicate follow-up work, and preserve inaccessible-source blockers without speculation?",
-        maxTurns: 6,
       },
       targetResolver: (ctx) => resolveResearchRetryShadowTarget(ctx, args),
     },

@@ -103,6 +103,11 @@ export function daemonWriteEffect(opts?: { idempotent?: boolean }): ToolEffect {
   };
 }
 
+/** Destructively mutates persisted KOTA daemon state. */
+export function daemonDestructiveEffect(): ToolEffect {
+  return { kind: "destructive", scope: "daemon-state", idempotent: false, openWorld: false };
+}
+
 /** Injects a credential into a session-local subprocess environment. */
 export function credentialInjectionEffect(): ToolEffect {
   return {
@@ -154,56 +159,6 @@ export function operatorSurfaceEffect(opts?: { destructive?: boolean }): ToolEff
     scope: "operator-surface",
     idempotent: false,
     openWorld: false,
-  };
-}
-
-// ─── External-format adapter helper ───────────────────────────────────
-//
-// `legacyEffect` is the translation seam for *external* tool formats whose
-// public schema is the two-axis (risk, kind) classification — namely the
-// SimpleTool / OpenAIFunctionTool / Vercel AI SDK adapters in
-// `tool-adapters.ts`, plus tests that exercise effect-derivation paths.
-//
-// Production module code must not call `legacyEffect()` — declare the
-// concrete effect directly (e.g. `readOnlyLocalEffect()`,
-// `networkDestructiveEffect()`, etc.). The
-// `effect-no-legacy-callers.test.ts` guard enforces this mechanically: a
-// new caller in `src/modules/` or in a non-adapter file under `src/core/`
-// fails the test.
-
-/** Legacy coarse risk tier, retained only for external-format adapters. */
-export type LegacyRisk = "safe" | "moderate" | "dangerous";
-/** Legacy coarse capability kind, retained only for external-format adapters. */
-export type LegacyKind = "discovery" | "action";
-
-/**
- * Translate the two-axis (risk, kind) classification used by external tool
- * formats into a structured effect. Reserved for the
- * `tool-adapters.ts` boundary; new production callers must use the
- * concrete effect builders above.
- */
-export function legacyEffect(input: {
-  risk: LegacyRisk;
-  kind: LegacyKind;
-  openWorld?: boolean;
-}): ToolEffect {
-  const { risk, kind, openWorld } = input;
-  const open = openWorld ?? false;
-  if (risk === "dangerous") {
-    return { kind: "destructive", scope: "external-network", idempotent: false, openWorld: true };
-  }
-  if (risk === "safe" && kind === "discovery") {
-    return { kind: "read", scope: open ? "external-network" : "local-fs", idempotent: true, openWorld: open };
-  }
-  if (risk === "safe" && kind === "action") {
-    return { kind: "write", scope: "daemon-state", idempotent: false, openWorld: open };
-  }
-  // moderate
-  return {
-    kind: "write",
-    scope: open ? "external-network" : "local-fs",
-    idempotent: false,
-    openWorld: open,
   };
 }
 

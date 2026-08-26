@@ -24,6 +24,7 @@ export type AutonomyHealthReviewPublicationRequest = {
 export type AutonomyHealthReviewPublicationResult = {
   published: boolean;
   decisionRequests: AutonomyIssueDecisionRequest[];
+  taskMutations: Array<{ id: string; state: "dropped" }>;
   attentionDigest: ReturnType<typeof buildAutonomyHealthAttentionDigest> | null;
 };
 
@@ -76,7 +77,7 @@ function decodeArtifact(value: unknown): AutonomyHealthReviewArtifact {
     !Array.isArray(artifact.review.groups) ||
     !artifact.actions ||
     !Array.isArray(artifact.actions.applied) ||
-    !Array.isArray(artifact.actions.taskMutationPaths)
+    !Array.isArray(artifact.actions.taskMutations)
   ) {
     throw new Error("autonomy health review publication artifact is invalid");
   }
@@ -116,6 +117,7 @@ function publicationResult(
 ): AutonomyHealthReviewPublicationResult {
   return {
     published: true,
+    taskMutations: actions.taskMutations,
     decisionRequests: actions.applied.flatMap((action) =>
       action.kind === "decision-requested"
         ? [{
@@ -142,14 +144,19 @@ export function planAutonomyHealthReviewPublication(
 ): AutonomyHealthReviewPublicationResult {
   const artifact = readPublicationArtifact(args);
   if (artifact === null) {
-    return { published: false, decisionRequests: [], attentionDigest: null };
+    return {
+      published: false,
+      decisionRequests: [],
+      taskMutations: [],
+      attentionDigest: null,
+    };
   }
   return publicationResult(
     artifact,
     planAutonomyHealthReviewFinalization({
       currentProjection: args.currentProjection,
       review: artifact.review,
-      repositoryActions: artifact.actions,
+      plannedActions: artifact.actions,
     }),
   );
 }
@@ -179,7 +186,7 @@ export function publishAutonomyHealthReview(args: {
       join(args.scopeDir, ".kota", "owner-questions"),
     ),
     review: artifact.review,
-    repositoryActions: artifact.actions,
+    plannedActions: artifact.actions,
   });
   return { result: args.plan, nextProjection: finalized.projection };
 }

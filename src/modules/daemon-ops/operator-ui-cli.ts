@@ -17,6 +17,9 @@ function parseParameters(raw: string | undefined): UiJsonValue | undefined {
 function printActionResult(result: UiActionExecutionResult): void {
   if (result.ok) {
     print(statusBanner("success", "UI action executed", result.message));
+    if (result.payload?.kind === "external-url") {
+      print(line(span(`${result.payload.label}: ${result.payload.url}`, "info")));
+    }
     return;
   }
   print(statusBanner("error", `UI action failed: ${result.reason}`, result.message));

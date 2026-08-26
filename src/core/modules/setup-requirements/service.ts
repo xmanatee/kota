@@ -10,12 +10,13 @@ import { revokedActionFile } from "./service-revoke.js";
 import { moduleSetupStatusFor } from "./status.js";
 import {
   defaultModuleSetupPendingTtlMs,
-  projectModuleSetupPendingActionForClient,
+  projectModuleSetupActionForAuthorizedStart,
   secretRefsFor,
   summarizeStatuses,
 } from "./status-utils.js";
 import type {
   ModuleSetupCompleteInput,
+  ModuleSetupExecutablePendingAction,
   ModuleSetupFailureResult,
   ModuleSetupFormValues,
   ModuleSetupMutationResult,
@@ -81,6 +82,12 @@ export class ModuleSetupService {
     if (found.requirement.setup.mode !== "form") {
       return invalidRequest("Requirement does not accept form setup");
     }
+    const fieldsById = new Map(
+      found.requirement.setup.fields.map((field) => [field.id, field] as const),
+    );
+    for (const id of Object.keys(values)) {
+      if (!fieldsById.has(id)) return invalidRequest(`Unknown setup field "${id}"`);
+    }
     for (const field of found.requirement.setup.fields) {
       const value = values[field.id];
       if (value === undefined) {
@@ -89,6 +96,12 @@ export class ModuleSetupService {
       }
       if (typeof value !== field.type) {
         return invalidRequest(`Field "${field.id}" must be ${field.type}`);
+      }
+      if (
+        field.options !== undefined &&
+        (typeof value !== "string" || !field.options.some((option) => option.value === value))
+      ) {
+        return invalidRequest(`Field "${field.id}" must use a declared option`);
       }
       if (field.valueKind === "secret-reference" && (
         typeof value !== "string" ||
@@ -142,7 +155,7 @@ export class ModuleSetupService {
       const now = this.#now();
       const ttl = found.requirement.setup.pendingTtlMs ??
         defaultModuleSetupPendingTtlMs(found.requirement.scope);
-      const action = projectModuleSetupPendingActionForClient({
+      const action: ModuleSetupExecutablePendingAction = {
         actionId: `${found.moduleName}.${found.requirement.id}.${now.getTime()}`,
         moduleName: found.moduleName,
         requirementId: found.requirement.id,
@@ -151,7 +164,7 @@ export class ModuleSetupService {
         status: "pending",
         createdAt: now.toISOString(),
         expiresAt: new Date(now.getTime() + ttl).toISOString(),
-      }, "internal-storage");
+      };
       const file = this.#actions.read();
       this.#actions.write({
         actions: [
@@ -166,7 +179,7 @@ export class ModuleSetupService {
       });
       return {
         ok: true,
-        action: projectModuleSetupPendingActionForClient(action),
+        action: projectModuleSetupActionForAuthorizedStart(action),
         status: await this.#freshStatus(found),
       };
     } catch (err) {

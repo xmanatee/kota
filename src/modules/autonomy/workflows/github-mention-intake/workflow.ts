@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
@@ -69,7 +69,7 @@ const writeCommitMessage = typedCodeStep<{ written: boolean; path: string }>({
         `github-mention-intake: create ${task.taskId}`,
         "",
         `Captured trusted GitHub implementation mention from ${assessment.fields.repo}#${assessment.fields.issueNumber}.`,
-        `Task path: ${relative(ctx.projectDir, task.path)}`,
+        `Task path: ${task.path}`,
         "",
       ].join("\n"),
       "utf-8",
@@ -129,10 +129,7 @@ const prepareComment = typedCodeStep<PreparedIntakeComment>({
     }
     const task = createTask.outputRequired(ctx);
     const body = boundedBody(
-      taskReferenceResponse(assessment.fields, {
-        ...task,
-        path: relative(ctx.projectDir, task.path),
-      }),
+      taskReferenceResponse(assessment.fields, task),
     );
     assertOutboundGitHubCommentBodyIsSafe(body);
     return {

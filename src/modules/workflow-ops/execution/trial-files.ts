@@ -7,6 +7,7 @@ import {
 	readdirSync,
 	readFileSync,
 	realpathSync,
+	rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -19,27 +20,30 @@ export function safeTrialSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "attempt";
 }
 
+const DECLARATIVE_KOTA_PATHS = new Set([
+  "config.json",
+  "mcp.json",
+  "modules",
+  "prompts",
+  "skills",
+  "tools",
+]);
+
+function isDeclarativeKotaPath(parts: readonly string[]): boolean {
+  return parts[0] !== ".kota"
+    || parts.length === 1
+    || DECLARATIVE_KOTA_PATHS.has(parts[1] ?? "");
+}
+
 function shouldCopyPath(sourceProjectDir: string, path: string): boolean {
   const rel = relative(sourceProjectDir, path);
   if (!rel) return true;
   const parts = rel.split("/");
   if (parts.includes(".git") || parts.includes("node_modules")) return false;
   if (parts[0] === "dist") return false;
-  if (parts[0] === ".kota") {
-    const second = parts[1];
-    if (second === "runs" || second === "eval-runs") {
-      return false;
-    }
-    const leaf = parts[parts.length - 1];
-    if (
-      leaf === "daemon-control.json"
-      || leaf === "daemon-state.json"
-      || leaf === "daemon.log"
-      || leaf === "workflow-state.json"
-      || leaf === "audit.jsonl"
-    ) {
-      return false;
-    }
+  if (!isDeclarativeKotaPath(parts)) return false;
+  if (lstatSync(path).isSymbolicLink()) {
+    throw new Error(`Workflow trial copy refuses symbolic link: ${rel}`);
   }
   return true;
 }
@@ -47,12 +51,17 @@ function shouldCopyPath(sourceProjectDir: string, path: string): boolean {
 export function copyProjectForTrial(sourceProjectDir: string, attemptId: string): string {
   const root = join(tmpdir(), `kota-workflow-trial-${safeTrialSegment(attemptId)}-${Date.now()}`);
   const trialProjectDir = join(root, basename(sourceProjectDir));
-  cpSync(sourceProjectDir, trialProjectDir, {
-    recursive: true,
-    filter: (src) => shouldCopyPath(sourceProjectDir, src),
-  });
-  ensureDir(join(trialProjectDir, ".kota"));
-  return trialProjectDir;
+  try {
+    cpSync(sourceProjectDir, trialProjectDir, {
+      recursive: true,
+      filter: (src) => shouldCopyPath(sourceProjectDir, src),
+    });
+    ensureDir(join(trialProjectDir, ".kota"));
+    return trialProjectDir;
+  } catch (error) {
+    rmSync(root, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function gitOutput(cwd: string, args: readonly string[]): string {
@@ -103,7 +112,10 @@ export function assertIsolatedTrialProjectRoot(
 function shouldSnapshotPath(rel: string): boolean {
   if (!rel) return true;
   const parts = rel.split("/");
-  return !parts.includes(".git") && !parts.includes("node_modules") && parts[0] !== "dist";
+  return !parts.includes(".git")
+    && !parts.includes("node_modules")
+    && parts[0] !== "dist"
+    && isDeclarativeKotaPath(parts);
 }
 
 export function snapshotTrialFiles(root: string): FileSnapshot {
@@ -115,7 +127,9 @@ export function snapshotTrialFiles(root: string): FileSnapshot {
       const rel = relative(root, path);
       if (!shouldSnapshotPath(rel)) continue;
       const stat = lstatSync(path);
-      if (stat.isSymbolicLink()) continue;
+      if (stat.isSymbolicLink()) {
+        throw new Error(`Workflow trial snapshot refuses symbolic link: ${rel}`);
+      }
       if (stat.isDirectory()) {
         visit(path);
         continue;

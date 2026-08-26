@@ -15,7 +15,7 @@ import {
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
 } from "./health-review.js";
 
 const NOW = "2026-06-17T12:30:00.000Z";
@@ -71,7 +71,7 @@ describe("autonomy health repair task deduplication", () => {
 
   function applyReview(review: ReturnType<typeof buildAutonomyHealthReviewFromSignals>) {
     const currentProjection = readAutonomyIssueProjection(projectDir);
-    const repositoryActions = stageAutonomyHealthReviewActions({
+    const plannedActions = planAutonomyHealthReviewActions({
       projectDir,
       currentProjection,
       scopeDir: projectDir,
@@ -84,7 +84,7 @@ describe("autonomy health repair task deduplication", () => {
         join(projectDir, ".kota", "owner-questions"),
       ),
       review,
-      repositoryActions,
+      plannedActions,
     });
     materializeAutonomyIssueProjection(projectDir, finalized.projection);
     return finalized;

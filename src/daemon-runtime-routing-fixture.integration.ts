@@ -103,6 +103,7 @@ export async function startRuntimeRoutingScenario(args: {
     ]),
   );
   const issueProjectionWorkflowNames = new Set([
+    "runtime-health-auditor",
     "autonomy-health-reviewer",
     "autonomy-health-review-publication",
     "autonomy-issue-projection-materialization",
@@ -155,7 +156,7 @@ export async function startRuntimeRoutingScenario(args: {
         const runs = runtime.runState.listRuns(runtime.project.projectId);
         return runs.some(
           (run) =>
-            run.workflow === "autonomy-health-reviewer" &&
+            run.workflow === "runtime-health-auditor" &&
             run.trigger.event === "autonomy.runtime-health.audit.scheduled",
         ) && runs.every((run) =>
           run.state !== "queued" &&

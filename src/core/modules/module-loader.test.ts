@@ -15,9 +15,9 @@ import {
 } from "#core/loop/dynamic-state.js";
 import { NullTransport } from "#core/loop/transport.js";
 import {
-  legacyEffect,
   networkWriteEffect,
   operatorSurfaceEffect,
+  readOnlyLocalEffect,
 } from "#core/tools/effect.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
@@ -49,7 +49,7 @@ function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
   };
 }
 
-function makeTool(name: string, opts?: { risk?: "safe" | "moderate" | "dangerous"; kind?: "discovery" | "action" }) {
+function makeTool(name: string) {
   return {
     tool: {
       name,
@@ -57,10 +57,7 @@ function makeTool(name: string, opts?: { risk?: "safe" | "moderate" | "dangerous
       input_schema: { type: "object" as const, properties: {} },
     },
     runner: async () => ({ content: `result from ${name}` }),
-    effect: legacyEffect({
-      risk: opts?.risk ?? "safe",
-      kind: opts?.kind ?? "discovery",
-    }),
+    effect: readOnlyLocalEffect(),
   };
 }
 
@@ -363,7 +360,6 @@ describe("ModuleLoader", () => {
           actionId: "manifest-mod.api-credential.1",
           moduleName: "manifest-mod",
           requirementId: "api-credential",
-          url: "https://example.invalid/settings",
           label: "Open settings",
           status: "pending",
           createdAt: "2026-06-13T00:00:00.000Z",
@@ -1742,7 +1738,7 @@ describe("ctx.callTool — direct tool invocation", () => {
           input_schema: { type: "object" as const, properties: {} },
         },
         runner: async () => { throw new Error("boom"); },
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 
@@ -1772,7 +1768,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ctx.callTool("recursive_tool", {}),
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         }];
       },
     });
@@ -1815,7 +1811,7 @@ describe("ctx.callTool — direct tool invocation", () => {
           input_schema: { type: "object" as const, properties: { msg: { type: "string" } } },
         },
         runner: async (input: Record<string, unknown>) => ({ content: `echo: ${input.msg}` }),
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 
@@ -1843,7 +1839,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             input_schema: { type: "object" as const, properties: {} },
           },
           runner: async () => ({ content: "leaf result" }),
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         },
         {
           tool: {
@@ -1855,7 +1851,7 @@ describe("ctx.callTool — direct tool invocation", () => {
             const inner = await ctx.callTool("tool_b", {});
             return { content: `chained: ${inner.content}` };
           },
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         },
       ],
     });

@@ -310,7 +310,6 @@ export async function continueRunIntegration(
       harness: runtime.harness,
       model: runtime.tiers.capable,
       effort: runtime.effort,
-      maxTurns: 12,
       autonomyMode: "autonomous",
       ownerQuestionAccess: "disabled",
     },

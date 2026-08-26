@@ -73,27 +73,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(makeApproval(risk: "anything-else").riskColor, "yellow")
     }
 
-    func testTaskQueueResponseDecodes() throws {
-        let json = """
-        {
-            "counts": {"inbox": 1, "ready": 2, "backlog": 3, "doing": 4, "blocked": 5},
-            "tasks": {
-                "doing": [{"id": "t1", "title": "Task 1", "priority": "p1", "area": "core", "summary": "s"}],
-                "ready": []
-            }
-        }
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(TaskQueueResponse.self, from: json)
-        XCTAssertEqual(resp.counts.inbox, 1)
-        XCTAssertEqual(resp.counts.ready, 2)
-        XCTAssertEqual(resp.counts.backlog, 3)
-        XCTAssertEqual(resp.counts.doing, 4)
-        XCTAssertEqual(resp.counts.blocked, 5)
-        XCTAssertEqual(resp.tasks.doing.count, 1)
-        XCTAssertEqual(resp.tasks.doing[0].id, "t1")
-        XCTAssertEqual(resp.tasks.ready.count, 0)
-    }
-
     func testRunHistoryResponseDecodes() throws {
         let json = """
         {
@@ -129,40 +108,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(makeRun(status: "completed-with-warnings").statusColor, "yellow")
         XCTAssertEqual(makeRun(status: "unknown").statusIcon, "circle")
         XCTAssertEqual(makeRun(status: "unknown").statusColor, "secondary")
-    }
-
-    func testRunDetailCurrentStep() throws {
-        let json = """
-        {
-            "id": "r1",
-            "workflow": "builder",
-            "status": "running",
-            "startedAt": "t",
-            "steps": [
-                {"id": "s1", "type": "agent", "status": "success", "durationMs": 1000, "error": null, "costUsd": 0.1},
-                {"id": "s2", "type": "agent", "status": "running", "durationMs": 500, "error": null, "costUsd": null}
-            ]
-        }
-        """.data(using: .utf8)!
-        let detail = try decoder.decode(RunDetail.self, from: json)
-        XCTAssertEqual(detail.currentStep?.id, "s2")
-    }
-
-    func testRunDetailCurrentStepFallsBackToLast() throws {
-        let json = """
-        {
-            "id": "r1",
-            "workflow": "builder",
-            "status": "success",
-            "startedAt": "t",
-            "steps": [
-                {"id": "s1", "type": "agent", "status": "success", "durationMs": 1000, "error": null, "costUsd": 0.1},
-                {"id": "s2", "type": "agent", "status": "success", "durationMs": 500, "error": null, "costUsd": null}
-            ]
-        }
-        """.data(using: .utf8)!
-        let detail = try decoder.decode(RunDetail.self, from: json)
-        XCTAssertEqual(detail.currentStep?.id, "s2")
     }
 
     func testOwnerQuestionsResponseDecodes() throws {
@@ -201,55 +146,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertNil(resp.questions[1].proposedAnswers)
     }
 
-    func testSessionsResponseDecodes() throws {
-        let json = """
-        {"sessions": [
-            {"id": "s1", "createdAt": "t", "lastActive": 1700000000.5, "autonomyMode": "supervised"},
-            {"id": "s2", "createdAt": "t", "lastActive": 0, "autonomyMode": "autonomous", "source": "daemon"}
-        ]}
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(SessionsResponse.self, from: json)
-        XCTAssertEqual(resp.sessions.count, 2)
-        XCTAssertEqual(resp.sessions[0].id, "s1")
-        XCTAssertEqual(resp.sessions[0].autonomyMode, .supervised)
-        XCTAssertNil(resp.sessions[0].source)
-        XCTAssertEqual(resp.sessions[1].autonomyMode, .autonomous)
-        XCTAssertEqual(resp.sessions[1].source, "daemon")
-    }
-
-    func testAttentionResponseDecodes() throws {
-        let json = """
-        {
-          "data": {
-            "items": [
-              {"label": "Empty ready queue", "detail": "Builder has nothing to pull."},
-              {"label": "Stalled work", "detail": "2 tasks stuck in doing"}
-            ]
-          },
-          "text": "Attention digest (2 items):\\n• *Empty ready queue*: Builder has nothing to pull.\\n• *Stalled work*: 2 tasks stuck in doing"
-        }
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(AttentionResponse.self, from: json)
-        XCTAssertEqual(resp.data.items.count, 2)
-        XCTAssertEqual(resp.data.items[0].label, "Empty ready queue")
-        XCTAssertEqual(resp.data.items[0].detail, "Builder has nothing to pull.")
-        XCTAssertEqual(resp.data.items[1].label, "Stalled work")
-        XCTAssertTrue(resp.text.contains("Attention digest (2 items):"))
-        XCTAssertTrue(resp.text.contains("• *Stalled work*: 2 tasks stuck in doing"))
-    }
-
-    func testAttentionResponseDecodesEmptyState() throws {
-        let json = """
-        {
-          "data": {"items": []},
-          "text": "No attention items right now."
-        }
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(AttentionResponse.self, from: json)
-        XCTAssertTrue(resp.data.items.isEmpty)
-        XCTAssertEqual(resp.text, "No attention items right now.")
-    }
-
     func testDaemonHealthProperties() {
         XCTAssertEqual(DaemonHealth.unknown.systemImageName, "circle")
         XCTAssertEqual(DaemonHealth.unknown.label, "KOTA")
@@ -266,122 +162,6 @@ final class ModelsTests: XCTestCase {
         XCTAssertFalse(DaemonHealth.idle.isDispatchPaused)
         XCTAssertEqual(DaemonHealth.error("boom").systemImageName, "exclamationmark.circle.fill")
         XCTAssertEqual(DaemonHealth.error("boom").label, "Error: boom")
-    }
-
-    func testTriggerRequestEncodesNameOnly() throws {
-        let data = try TriggerRequest(name: "builder", payload: nil).wireBody()
-        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(obj?["name"] as? String, "builder")
-        XCTAssertNil(obj?["payload"])
-        XCTAssertNil(obj?["workflow"], "wire body must use the daemon's `name` key, not `workflow`")
-    }
-
-    func testTriggerRequestEncodesPayloadObject() throws {
-        let payload = #"{"force": true, "limit": 5}"#.data(using: .utf8)!
-        let data = try TriggerRequest(name: "builder", payload: payload).wireBody()
-        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(obj?["name"] as? String, "builder")
-        let payloadObj = obj?["payload"] as? [String: Any]
-        XCTAssertEqual(payloadObj?["force"] as? Bool, true)
-        XCTAssertEqual(payloadObj?["limit"] as? Int, 5)
-    }
-
-    func testTriggerRequestRejectsNonObjectPayload() throws {
-        let payload = #"[1, 2, 3]"#.data(using: .utf8)!
-        XCTAssertThrowsError(try TriggerRequest(name: "builder", payload: payload).wireBody()) { err in
-            XCTAssertEqual(err as? TriggerRequestError, .payloadNotObject)
-        }
-    }
-
-    func testCreateSessionResponseDecodes() throws {
-        let json = """
-        {"session_id": "sess-123", "autonomy_mode": "passive"}
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(CreateSessionResponse.self, from: json)
-        XCTAssertEqual(resp.session_id, "sess-123")
-        XCTAssertEqual(resp.autonomy_mode, .passive)
-    }
-
-    func testCreateSessionRequestEncodesModeWhenProvided() throws {
-        let req = CreateSessionRequest(autonomy_mode: .autonomous)
-        let data = try JSONEncoder().encode(req)
-        let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(obj?["autonomy_mode"] as? String, "autonomous")
-    }
-
-    func testSetAutonomyModeRequestAndResponseCodables() throws {
-        let reqData = try JSONEncoder().encode(SetAutonomyModeRequest(autonomy_mode: .supervised))
-        let reqObj = try JSONSerialization.jsonObject(with: reqData) as? [String: Any]
-        XCTAssertEqual(reqObj?["autonomy_mode"] as? String, "supervised")
-
-        let json = """
-        {"session_id": "s1", "autonomy_mode": "autonomous", "source": "daemon", "serveOwned": false}
-        """.data(using: .utf8)!
-        let resp = try decoder.decode(SetAutonomyModeResponse.self, from: json)
-        XCTAssertEqual(resp.session_id, "s1")
-        XCTAssertEqual(resp.autonomy_mode, .autonomous)
-        XCTAssertEqual(resp.source, "daemon")
-        XCTAssertEqual(resp.serveOwned, false)
-    }
-
-    // MARK: - Knowledge
-
-    func testKnowledgeSearchResponseDecodesEntries() throws {
-        let json = #"""
-        {"ok": true, "entries": [
-          {"id": "k-1", "type": "note", "status": "active", "title": "Knowledge fan-out"},
-          {"id": "k-2", "type": "decision", "status": "archived", "title": "Operator parity"}
-        ]}
-        """#.data(using: .utf8)!
-        let response = try decoder.decode(KnowledgeSearchResponse.self, from: json)
-        guard case .success(let entries) = response else {
-            XCTFail("expected success branch")
-            return
-        }
-        XCTAssertEqual(entries.count, 2)
-        XCTAssertEqual(entries[0].id, "k-1")
-        XCTAssertEqual(entries[0].type, "note")
-        XCTAssertEqual(entries[0].status, "active")
-        XCTAssertEqual(entries[0].title, "Knowledge fan-out")
-    }
-
-    func testKnowledgeSearchResponseDecodesSemanticUnavailable() throws {
-        let json = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
-        let response = try decoder.decode(KnowledgeSearchResponse.self, from: json)
-        XCTAssertEqual(response, .semanticUnavailable)
-    }
-
-    func testKnowledgeSearchResponseRejectsUnknownReason() {
-        let json = #"{"ok": false, "reason": "something_else"}"#.data(using: .utf8)!
-        XCTAssertThrowsError(try decoder.decode(KnowledgeSearchResponse.self, from: json))
-    }
-
-    func testRenderKnowledgeSearchPlainMatchesSharedLineShape() {
-        let entries = [
-            KnowledgeEntry(id: "k-1", type: "note", status: "active", title: "Knowledge fan-out"),
-            KnowledgeEntry(id: "k-12", type: "decision", status: "archived", title: "Operator parity"),
-        ]
-        let rendered = renderKnowledgeSearchPlain(entries)
-        // Mirrors `renderKnowledgeSearchPlain` from src/modules/knowledge/render.ts:
-        // padEnd to widest id/type/status, two spaces between columns, title last.
-        let expected = """
-            k-1   note      active    Knowledge fan-out
-            k-12  decision  archived  Operator parity
-            """
-        XCTAssertEqual(rendered, expected)
-    }
-
-    func testRenderKnowledgeSearchPlainHonorsMinimumWidths() {
-        let entries = [
-            KnowledgeEntry(id: "a", type: "x", status: "ok", title: "Short"),
-        ]
-        let rendered = renderKnowledgeSearchPlain(entries)
-        // id min width 2, type min width 4, status min width 6 — matches TS.
-        XCTAssertEqual(rendered, "a   x     ok      Short")
-    }
-
-    func testRenderKnowledgeSearchPlainEmptyReturnsEmpty() {
-        XCTAssertEqual(renderKnowledgeSearchPlain([]), "")
     }
 
     // MARK: - Helpers

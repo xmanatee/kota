@@ -1,5 +1,6 @@
 export const ID_PATTERN = /^[a-z][a-z0-9.-]*$/;
 export const SECRET_REFERENCE_PATTERN = /^\$[A-Z][A-Z0-9_]*$/;
+export const SETUP_OPTION_VALUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/+_-]{0,127}$/;
 export const SETUP_KINDS = [
   "config",
   "secret",

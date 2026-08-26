@@ -11,7 +11,7 @@ import {
 } from "#modules/autonomy/health-signal.js";
 import {
   buildAutonomyHealthReview,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
 } from "./health-review.js";
 
 const NOW = "2026-06-17T12:30:00.000Z";
@@ -149,7 +149,7 @@ describe("autonomy health review terminal task handling", () => {
     const expectedTaskId =
       "task-health-dead-letter-execution-workflow-runtime-progress-reviewer";
 
-    const actions = stageAutonomyHealthReviewActions({
+    const actions = planAutonomyHealthReviewActions({
       projectDir,
       currentProjection: emptyAutonomyIssueProjection(),
       scopeDir: projectDir,

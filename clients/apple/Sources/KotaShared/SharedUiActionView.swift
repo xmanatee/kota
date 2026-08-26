@@ -20,8 +20,7 @@ struct SharedUiActionView: View {
         action: UiAction,
         fields: [UiFormField]? = nil,
         initialParameters: [String: UiJsonValue] = [:],
-        expanded: Bool = false,
-        initiallyConfirming: Bool = false
+        expanded: Bool = false
     ) {
         self.action = action
         self.fields = fields ?? action.parameters?.fields ?? []
@@ -37,9 +36,6 @@ struct SharedUiActionView: View {
             fields: fields ?? action.parameters?.fields ?? [],
             initialParameters: initialParameters
         ))
-        _pendingConfirmation = State(
-            initialValue: initiallyConfirming ? initialParameters : nil
-        )
     }
 
     var body: some View {
@@ -114,6 +110,13 @@ struct SharedUiActionView: View {
                     .foregroundStyle(result.ok ? Color.green : Color.red)
                     .textSelection(.enabled)
                     .accessibilityIdentifier(result.ok ? "ui-action-success" : "ui-action-error")
+                if case let .externalURL(_, label)? = result.payload {
+                    Button(label) {
+                        _ = appState.openUiActionPayload(result.payload)
+                    }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("ui-action-external-url")
+                }
             }
         }
     }

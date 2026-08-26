@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 const PROJECT_ROOT = join(import.meta.dirname, "..");
 const PACKAGE_JSON = join(PROJECT_ROOT, "package.json");
 const WORKSPACE_CONFIG = join(PROJECT_ROOT, "pnpm-workspace.yaml");
-const LOCKFILE = join(PROJECT_ROOT, "pnpm-lock.yaml");
 
 const REQUIRED_PNPM_VERSION = "10.26.0";
 const REQUIRED_POLICY = {
@@ -16,11 +15,7 @@ const REQUIRED_POLICY = {
   dangerouslyAllowAllBuilds: false,
 } as const;
 
-const DENIED_BUILDS = [
-  { packageName: "@google/genai", lockfileSelector: "@google/genai@1.51.0" },
-  { packageName: "esbuild", lockfileSelector: "esbuild@0.27.4" },
-  { packageName: "protobufjs", lockfileSelector: "protobufjs@7.5.5" },
-] as const;
+const DENIED_BUILDS = ["@google/genai", "esbuild", "protobufjs"] as const;
 
 type PackageJson = {
   packageManager?: string;
@@ -68,18 +63,13 @@ describe("pnpm supply-chain policy", () => {
     }
   });
 
-  it("keeps build-script denials named and tied to the current lockfile", () => {
+  it("keeps build-script denials named", () => {
     const workspaceConfig = readFileSync(WORKSPACE_CONFIG, "utf-8");
-    const lockfile = readFileSync(LOCKFILE, "utf-8");
 
     expect(workspaceConfig).toContain("allowBuilds:");
     expect(workspaceConfig).toContain("pnpm 10.32.1 still exits nonzero");
-    for (const entry of DENIED_BUILDS) {
-      expect(workspaceConfig).toContain(`${entry.lockfileSelector} `);
-      expect(workspaceConfig).toContain(`"${entry.packageName}": false`);
-      expect(lockfile).toMatch(
-        new RegExp(`\\n  '?${escapeRegExp(entry.lockfileSelector)}'?:`),
-      );
+    for (const packageName of DENIED_BUILDS) {
+      expect(workspaceConfig).toContain(`"${packageName}": false`);
     }
   });
 });

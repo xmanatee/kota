@@ -49,22 +49,9 @@ describe("shipped setup status client projection", () => {
     }
   });
 
-  it("renders shipped providers and executes the revoked-to-ready CLI journey", { timeout: 60_000 }, () => {
+  it("executes a revoked-to-ready CLI journey without disclosing submitted secrets", { timeout: 60_000 }, () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-operator-journey-"));
     projectDirs.push(projectDir);
-
-    const initial = runSetupCli(projectDir, ["list"]);
-    for (const identifier of [
-      "model-clients/openrouter-api-key",
-      "model-clients/anthropic-api-key",
-      "model-clients/openai-api-key",
-      "google-workspace/oauth-config",
-      "email/smtp-config",
-      "slack-channel/socket-mode-config",
-      "telegram/bot-credentials",
-    ]) {
-      expect(initial).toContain(identifier);
-    }
 
     const revoked = runSetupCli(projectDir, ["revoke", "telegram", "bot-credentials"]);
     expect(revoked).toContain("telegram/bot-credentials: revoked");

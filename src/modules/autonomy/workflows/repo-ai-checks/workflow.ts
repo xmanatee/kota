@@ -144,7 +144,6 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
           effort: AUTONOMY_AGENT_DEFAULTS.effort,
           autonomyMode: "autonomous",
           timeoutMs: CHECK_AGENT_TIMEOUT_MS,
-          maxTurns: 8,
           outputFormat: "json",
           outputSchema: {
             type: "object",

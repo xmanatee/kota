@@ -17,6 +17,7 @@ export async function triggerWorkflowFromStep(
   waitFor: "queued" | "completed",
   signal?: AbortSignal,
   triggerId?: string,
+  event = "workflow.triggered",
 ): Promise<TriggerWorkflowFromStepResult> {
   const definition = state.definitions.find((item) => item.name === workflowName);
   if (!definition) {
@@ -30,7 +31,7 @@ export async function triggerWorkflowFromStep(
   const requestedRunId = formatChildRunId(parentRunId, triggerId, workflowName);
   const now = Date.now();
   const runTrigger: WorkflowRunTrigger = {
-    event: "workflow.triggered",
+    event,
     schemaRef: null,
     payload: {
       ...payload,

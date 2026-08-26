@@ -4,7 +4,6 @@ import {
   registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import {
-  legacyEffect,
   networkDestructiveEffect,
   readOnlyLocalEffect,
 } from "./effect.js";
@@ -24,7 +23,7 @@ describe("resolved tool effect guardrails", () => {
       async () => ({ content: "ok" }),
       "test-module",
       {
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
         resolveEffect: () => readOnlyLocalEffect(),
       },
     );

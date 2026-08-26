@@ -101,6 +101,7 @@ describe("shared integration continuation policy", () => {
 
     const options = captured();
     expect(options.agentWriteScope).toEqual(paths);
+    expect(options.maxTurns).toBeUndefined();
     expect(options.env?.GIT_OPTIONAL_LOCKS).toBe("0");
     expect(options.prompt).toContain('"src/shared.ts"');
     expect(options.prompt).toContain('"docs/merge notes.md"');

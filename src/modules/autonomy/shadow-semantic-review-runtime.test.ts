@@ -214,7 +214,6 @@ describe("shadow semantic review runtime", () => {
         ...baseShadowReviewDeclaration().reviewer,
         model: "shadow-model",
         effort: "high",
-        maxTurns: 5,
       },
     });
     const runAgentHarness = vi.fn(async (
@@ -244,7 +243,6 @@ describe("shadow semantic review runtime", () => {
       harness: harness.name,
       model: "shadow-model",
       effort: "high",
-      maxTurns: 5,
       autonomyMode: "autonomous",
       ownerQuestionAccess: "disabled",
     });
@@ -252,10 +250,11 @@ describe("shadow semantic review runtime", () => {
     expect(runAgentHarness.mock.calls[0]?.[1]).toMatchObject({
       model: contract.model,
       effort: contract.effort,
-      maxTurns: contract.maxTurns,
       autonomyMode: contract.autonomyMode,
       persistSession: false,
       enableFileCheckpointing: false,
     });
+    expect(contract.maxTurns).toBeUndefined();
+    expect(runAgentHarness.mock.calls[0]?.[1].maxTurns).toBeUndefined();
   });
 });

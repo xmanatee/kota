@@ -12,6 +12,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
   getRepoTaskQueueSnapshot,
   listFullRepoTasks,
@@ -117,7 +118,14 @@ describe("issue-driven autonomy lifecycle integration", () => {
       });
       bus.on("workflow.attention.digest", (payload) => attention.push(payload.text));
 
-      const workflowDefinitions = await loadAutonomyWorkflowDefinitions();
+      const workflowDefinitions = [
+        ...await loadAutonomyWorkflowDefinitions(),
+        {
+          ...repoTaskMutationWorkflow,
+          definitionPath: "src/modules/repo-tasks/repo-task-mutation-workflow.ts",
+          moduleRoot: projectDir,
+        },
+      ];
       const createRuntime = (workflowNames: string[]) => createTestWorkflowRuntime({
         config: {
           defaultAgentHarness: "claude-agent-sdk",
@@ -265,6 +273,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         "autonomy-health-reviewer",
         "autonomy-health-review-publication",
         "autonomy-issue-projection-materialization",
+        "repo-task-mutation",
       ]);
       clearRuntime.runtime.start();
       try {
@@ -298,6 +307,10 @@ describe("issue-driven autonomy lifecycle integration", () => {
         await waitForLifecycle(
           () => attention.some((text) => text.includes("action resolved")),
           "the committed resolution attention",
+        );
+        await waitForLifecycle(
+          () => listFullRepoTasks(projectDir)[0]?.state === "dropped",
+          "the shared task mutation writer",
         );
         expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
           status: "resolved",

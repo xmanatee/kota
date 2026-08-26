@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getProjectSecretStore } from "#core/config/secrets.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { registerTool } from "#core/tools/index.js";
 import {
   createRuntimeModuleLoader,
@@ -174,7 +174,7 @@ describe("ModuleContext.listTools", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: "ok" }),
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 

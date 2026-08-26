@@ -20,7 +20,7 @@ import {
   buildAutonomyHealthAttentionDigest,
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
 
@@ -55,7 +55,7 @@ function review(signals: ReturnType<typeof signal>[], generatedAt = NOW) {
 
 function applyReview(projectDir: string, built: AutonomyHealthReview) {
   const currentProjection = readAutonomyIssueProjection(projectDir);
-  const repositoryActions = stageAutonomyHealthReviewActions({
+  const plannedActions = planAutonomyHealthReviewActions({
     projectDir,
     currentProjection,
     scopeDir: projectDir,
@@ -68,7 +68,7 @@ function applyReview(projectDir: string, built: AutonomyHealthReview) {
       join(projectDir, ".kota", "owner-questions"),
     ),
     review: built,
-    repositoryActions,
+    plannedActions,
   });
   materializeAutonomyIssueProjection(projectDir, finalized.projection);
   return finalized;
@@ -107,7 +107,7 @@ describe("autonomy health issue projection", () => {
         transition: "opened",
       }),
     ]);
-    expect(actions.touchedTaskQueue).toBe(false);
+    expect(actions.taskMutations).toEqual([]);
     expect(existsSync(join(projectDir, "data", "tasks"))).toBe(false);
     expect(
       readAutonomyIssueProjection(projectDir).issues[0]?.evidenceRefs.map(
@@ -241,14 +241,14 @@ describe("autonomy health issue projection", () => {
       ),
     );
 
-    expect(cleared.droppedTaskIds).toEqual([task.taskId]);
-    expect(cleared.touchedTaskQueue).toBe(true);
-    expect(cleared.taskMutationPaths).toEqual([
-      `data/tasks/dropped/${task.taskId}.md`,
-      `data/tasks/ready/${task.taskId}.md`,
+    expect(cleared.taskMutations).toEqual([
+      { id: task.taskId, state: "dropped" },
     ]);
     expect(existsSync(
       join(projectDir, "data", "tasks", "dropped", `${task.taskId}.md`),
+    )).toBe(false);
+    expect(existsSync(
+      join(projectDir, "data", "tasks", "ready", `${task.taskId}.md`),
     )).toBe(true);
     expect(readAutonomyIssueProjection(projectDir).issues[0]?.status).toBe(
       "resolved",
@@ -267,7 +267,7 @@ describe("autonomy health issue projection", () => {
         }],
       }),
     ]);
-    const actions = stageAutonomyHealthReviewActions({
+    const actions = planAutonomyHealthReviewActions({
       projectDir,
       currentProjection: emptyAutonomyIssueProjection(),
       scopeDir: projectDir,

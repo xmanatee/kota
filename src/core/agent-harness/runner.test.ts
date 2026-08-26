@@ -128,6 +128,35 @@ describe("runAgentHarness", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("rejects a declared turn bound before hooks or adapter run", async () => {
+    const preRun = vi.fn();
+    registerHarnessHook({
+      kind: "preRun",
+      owner: "observer",
+      name: "before",
+      handler: preRun,
+    });
+    const { harness, run } = harnessStub("native-cli", ["preRun", "postRun"]);
+    const unsupportedHarness: AgentHarness = {
+      ...harness,
+      unsupportedRunOptions: [{
+        runOption: "maxTurns",
+        option: "maxTurns",
+        reason: "the native agent loop owns its turn lifecycle",
+      }],
+    };
+
+    await expect(
+      runAgentHarness(unsupportedHarness, {
+        prompt: "x",
+        effort: "xhigh",
+        maxTurns: 4,
+      }),
+    ).rejects.toThrow(/native-cli.*maxTurns.*native agent loop/);
+    expect(preRun).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("rejects a declared passive-mode incompatibility before hooks or adapter run", async () => {
     const preRun = vi.fn();
     registerHarnessHook({

@@ -2,7 +2,7 @@ import Foundation
 
 extension DaemonClient {
     func fetchUiSurfaceBundle(scopeId: String? = nil) async throws -> UiSurfaceBundle {
-        try await get(Self.withScope("/ui/surfaces", scopeId: scopeId))
+        try await get(Self.withQueryParameter("/ui/surfaces", name: "scopeId", value: scopeId))
     }
 
     func executeUiAction(
@@ -29,6 +29,7 @@ extension DaemonClient {
     /// live updates while connected.
     func watchUiSurfaceEvents(
         eventTypes: Set<String>,
+        afterEventId: String? = nil,
         onEvent: @escaping @MainActor (UiSurfaceLiveEvent) async -> Void
     ) async throws {
         guard !eventTypes.isEmpty else { return }
@@ -36,44 +37,68 @@ extension DaemonClient {
         var request = URLRequest(url: routeURL("/events", connection: connection))
         request.setValue("Bearer \(connection.token)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        if let afterEventId, !afterEventId.isEmpty {
+            request.setValue(afterEventId, forHTTPHeaderField: "Last-Event-ID")
+        }
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw DaemonClientError.httpError(status: http.statusCode, body: nil)
         }
 
-        var currentType = ""
+        var currentId: String?
+        var currentType: String?
+        var dataLines: [String] = []
         for try await line in bytes.lines {
             if Task.isCancelled { return }
-            if line.hasPrefix("event: ") {
-                currentType = String(line.dropFirst(7))
-                continue
+            if line.isEmpty {
+                if let currentType, eventTypes.contains(currentType), !dataLines.isEmpty {
+                    await onEvent(Self.liveEvent(
+                        id: currentId,
+                        type: currentType,
+                        rawJSON: dataLines.joined(separator: "\n")
+                    ))
+                }
+                currentId = nil
+                currentType = nil
+                dataLines = []
+            } else if line.hasPrefix("id:") {
+                currentId = Self.sseFieldValue(line, prefixLength: 3)
+            } else if line.hasPrefix("event:") {
+                currentType = Self.sseFieldValue(line, prefixLength: 6)
+            } else if line.hasPrefix("data:") {
+                dataLines.append(Self.sseFieldValue(line, prefixLength: 5))
             }
-            guard line.hasPrefix("data: "), eventTypes.contains(currentType) else {
-                if line.isEmpty { currentType = "" }
-                continue
-            }
-            let raw = String(line.dropFirst(6))
-            await onEvent(Self.liveEvent(type: currentType, rawJSON: raw))
+        }
+        if let currentType, eventTypes.contains(currentType), !dataLines.isEmpty {
+            await onEvent(Self.liveEvent(
+                id: currentId,
+                type: currentType,
+                rawJSON: dataLines.joined(separator: "\n")
+            ))
         }
     }
 
-    private static func withScope(_ path: String, scopeId: String?) -> String {
-        guard let scopeId, !scopeId.isEmpty,
-              let encoded = scopeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-        else { return path }
-        let separator = path.contains("?") ? "&" : "?"
-        return "\(path)\(separator)scopeId=\(encoded)"
+    private static func sseFieldValue(_ line: String, prefixLength: Int) -> String {
+        String(line.dropFirst(prefixLength)).drop(while: { $0 == " " }).description
     }
 
-    private static func liveEvent(type: String, rawJSON: String) -> UiSurfaceLiveEvent {
+    private static func liveEvent(id: String?, type: String, rawJSON: String) -> UiSurfaceLiveEvent {
         let object = rawJSON.data(using: .utf8).flatMap {
             try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
         }
         let timestamp = object?["timestamp"] as? String ?? ISO8601DateFormatter().string(from: Date())
         let level = UiLogLevel(rawValue: object?["level"] as? String ?? "") ?? .info
         let message = (object?["message"] as? String) ?? eventSummary(object)
-        return UiSurfaceLiveEvent(type: type, timestamp: timestamp, level: level, message: message)
+        let scopeId = (object?["scopeId"] as? String) ?? (object?["projectId"] as? String)
+        return UiSurfaceLiveEvent(
+            id: id,
+            type: type,
+            scopeId: scopeId,
+            timestamp: timestamp,
+            level: level,
+            message: message
+        )
     }
 
     private static func eventSummary(_ object: [String: Any]?) -> String {

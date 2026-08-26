@@ -5,7 +5,6 @@ import { Daemon } from "#core/daemon/daemon.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type { LogFormat } from "#core/util/log-format.js";
-import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   addDaemonStartOptions,
   DAEMON_CHILD_ENV,
@@ -20,6 +19,7 @@ import {
 } from "./daemon-cli-options.js";
 import { runDaemonSupervisor } from "./daemon-supervisor.js";
 import { DaemonDashboard } from "./dashboard.js";
+import { DaemonTaskQueueProjection } from "./task-queue-projection.js";
 
 async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Promise<void> {
   const opts = resolveDaemonStartOptions(rawOpts, command);
@@ -79,10 +79,17 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   }
   const daemonRun = daemon.start();
   await daemon.whenReady();
-  const dashboard = new DaemonDashboard(() => ({
-    ...daemon.getDashboardSnapshot(),
-    taskQueue: getRepoTaskQueueSnapshot(projectDir),
-  }));
+  const taskQueue = new DaemonTaskQueueProjection(projectDir);
+  const dashboard = new DaemonDashboard(
+    () => {
+      const snapshot = taskQueue.getSnapshot();
+      return {
+        ...daemon.getDashboardSnapshot(),
+        ...(snapshot !== undefined ? { taskQueue: snapshot } : {}),
+      };
+    },
+    { refreshProjection: (signal) => taskQueue.refresh(signal) },
+  );
   dashboard.start();
   try {
     await daemonRun;

@@ -133,8 +133,17 @@ describe("daemon-ops local UI client", () => {
       const baseContext = stubContext(projectDir);
       const baseStart = vi.fn(async () => ({
         ok: true as const,
-        actionId: "setup-action-1",
-        launchUrl: "https://example.test/setup",
+        action: {
+          actionId: "setup-action-1",
+          moduleName: "google-workspace",
+          requirementId: "oauth-credentials",
+          url: "https://example.test/setup",
+          label: "Open setup",
+          status: "pending" as const,
+          createdAt: "2026-08-26T00:00:00.000Z",
+          expiresAt: "2026-08-26T00:10:00.000Z",
+        },
+        status: {} as never,
       }));
       const baseClient = {
         ...baseContext.client,
@@ -172,7 +181,15 @@ describe("daemon-ops local UI client", () => {
       } as never, {});
 
       expect(statusCode).toBe(200);
-      expect(JSON.parse(body)).toEqual({ ok: true, message: "Setup action started." });
+      expect(JSON.parse(body)).toEqual({
+        ok: true,
+        message: "Setup action started.",
+        payload: {
+          kind: "external-url",
+          url: "https://example.test/setup",
+          label: "Open setup",
+        },
+      });
       expect(baseStart).toHaveBeenCalledWith(
         "google-workspace",
         "oauth-credentials",

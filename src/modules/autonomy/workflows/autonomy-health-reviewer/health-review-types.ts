@@ -64,14 +64,10 @@ export type AutonomyHealthAppliedAction =
     };
 
 export type AutonomyHealthReviewActionResult = {
-  createdTaskIds: string[];
-  droppedTaskIds: string[];
-  ownerQuestionIds: string[];
+  taskMutations: Array<{ id: string; state: "dropped" }>;
   dismissedOwnerQuestionIds: string[];
-  taskMutationPaths: string[];
   issueTransitions: AutonomyIssueTransition[];
   applied: AutonomyHealthAppliedAction[];
-  touchedTaskQueue: boolean;
 };
 
 export type AutonomyHealthReviewArtifact = {

@@ -10,13 +10,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
+import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
   RUNTIME_HEALTH_AUDIT_ARTIFACT,
   type RuntimeHealthAudit,
-} from "./runtime-health-audit.js";
-import autonomyHealthReviewerWorkflow, {
+} from "../runtime-health-auditor/runtime-health-audit.js";
+import runtimeHealthAuditorWorkflow, {
   runtimeHealthAuditStepOutput,
-} from "./workflow.js";
+} from "../runtime-health-auditor/workflow.js";
+import autonomyHealthReviewerWorkflow from "./workflow.js";
 
 function emptyInspected(): RuntimeHealthAudit["inspected"] {
   return {
@@ -48,7 +50,7 @@ describe("autonomy-health-reviewer workflow", () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("reviews health signals and audits persisted runtime evidence on a cadence", () => {
+  it("keeps health inspection read-only and delegates task writes", () => {
     const critical = autonomyHealthReviewerWorkflow.triggers.find(
       (trigger) =>
         trigger.event === autonomyHealthSignal.name &&
@@ -59,10 +61,13 @@ describe("autonomy-health-reviewer workflow", () => {
         trigger.event === autonomyHealthSignal.name &&
         trigger.batch !== undefined,
     );
-    const runtimeAudit = autonomyHealthReviewerWorkflow.triggers.find(
+    const runtimeAudit = runtimeHealthAuditorWorkflow.triggers.find(
       (trigger) => trigger.event === "autonomy.runtime-health.audit.scheduled",
     );
 
+    expect(autonomyHealthReviewerWorkflow.repository).toBe("read");
+    expect(runtimeHealthAuditorWorkflow.repository).toBe("none");
+    expect(repoTaskMutationWorkflow.repository).toBe("write");
     expect(critical?.batch).toBeUndefined();
     expect(batched?.filter).toEqual({ severity: ["warning", "error"] });
     expect(batched?.batch).toMatchObject({
@@ -120,7 +125,7 @@ describe("autonomy-health-reviewer workflow", () => {
   });
 
   it("writes the full runtime audit artifact before review uses compact output", async () => {
-    const harness = new WorkflowTestHarness(autonomyHealthReviewerWorkflow, {
+    const harness = new WorkflowTestHarness(runtimeHealthAuditorWorkflow, {
       projectDir,
       trigger: {
         event: "autonomy.runtime-health.audit.scheduled",
@@ -143,6 +148,9 @@ describe("autonomy-health-reviewer workflow", () => {
       readFileSync(output.artifactPath, "utf-8"),
     ) as RuntimeHealthAudit;
     expect(artifact.signals).toEqual(output.signals);
-    expect(result.steps["write-runtime-audit-artifact"].status).toBe("success");
+    expect(result.steps["verify-runtime-audit-artifact"].status).toBe("success");
+    expect(result.steps["publish-runtime-health-signals"].output).toEqual({
+      published: output.signals.length,
+    });
   });
 });

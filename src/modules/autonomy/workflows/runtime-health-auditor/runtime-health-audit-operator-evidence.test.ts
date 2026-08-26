@@ -95,7 +95,7 @@ describe("runtime health audit operator evidence", () => {
     ]);
 
     const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
-    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.taskMutations).toEqual([]);
 
     recordDaemonStopAttempt({
       projectDir,
@@ -108,7 +108,7 @@ describe("runtime health audit operator evidence", () => {
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
     });
     const repeatedActions = reviewAndApplyRuntimeHealthAudit(projectDir, repeatedAudit);
-    expect(repeatedActions.createdTaskIds).toEqual([]);
+    expect(repeatedActions.taskMutations).toEqual([]);
     expect(repeatedActions.issueTransitions).toEqual([
       expect.objectContaining({ kind: "repeated", requiresDecision: false }),
     ]);
@@ -135,7 +135,7 @@ describe("runtime health audit operator evidence", () => {
     ]);
 
     const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
-    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.taskMutations).toEqual([]);
     expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
   });
 });

@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getProjectSecretStore } from "#core/config/secrets.js";
@@ -15,20 +21,28 @@ describe("module setup actions", () => {
   beforeEach(() => harness.setup());
   afterEach(() => harness.cleanup());
 
-  it("starts and completes sensitive OAuth setup without returning secret values", async () => {
+  it("returns an executable OAuth URL once while keeping status and durable state safe", async () => {
     const sut = harness.service([oauthRequirement()]);
 
     const started = await sut.start("demo", "oauth");
     expect(started.ok).toBe(true);
     if (!started.ok) throw new Error(started.message);
-    expect(started.action.url).toBe(
-      "https://auth.example.test/start?state=%5Bredacted%5D&next=%2Fsetup",
-    );
+    const executableUrl = new URL(started.action.url);
+    expect(executableUrl.searchParams.get("state")).toBe("secret-state");
+    expect(executableUrl.searchParams.get("next")).toBe("/setup");
     expect(started.status.state).toBe("pending");
     expect(JSON.stringify(started.status)).not.toContain("secret-state");
-    expect(
+    const storedActions = JSON.parse(
       readFileSync(join(harness.projectDir, ".kota", "setup-actions.json"), "utf8"),
-    ).not.toContain("secret-state");
+    ) as { actions: Array<Record<string, unknown>> };
+    expect(
+      statSync(join(harness.projectDir, ".kota", "setup-actions.json")).mode & 0o777,
+    ).toBe(0o600);
+    expect(storedActions.actions[0]).not.toHaveProperty("url");
+    expect(JSON.stringify(storedActions)).not.toContain("secret-state");
+
+    const listed = await sut.list();
+    expect(JSON.stringify(listed)).not.toContain("secret-state");
 
     const completed = await sut.complete(started.action.actionId, {
       secretValues: { DEMO_REFRESH_TOKEN: "refresh-token-secret-123" },
@@ -46,6 +60,57 @@ describe("module setup actions", () => {
         },
       ]);
     }
+  });
+
+  it("removes executable URLs from previous-format durable action records on read", async () => {
+    const path = join(harness.projectDir, ".kota", "setup-actions.json");
+    mkdirSync(join(harness.projectDir, ".kota"), { recursive: true });
+    writeFileSync(path, JSON.stringify({
+      actions: [{
+        actionId: "demo.oauth.previous-format",
+        moduleName: "demo",
+        requirementId: "oauth",
+        url: "https://example.com/callback/opaque-secret-token",
+        label: "Open setup",
+        status: "pending",
+        createdAt: "2026-02-03T00:00:00.000Z",
+        expiresAt: "2026-02-03T00:30:00.000Z",
+      }],
+    }));
+
+    await harness.service([oauthRequirement()]).list();
+
+    expect(readFileSync(path, "utf8")).not.toContain("opaque-secret-token");
+    expect(JSON.parse(readFileSync(path, "utf8")).actions[0]).not.toHaveProperty("url");
+  });
+
+  it("rejects unknown fields and values outside declared setup options", async () => {
+    const base = configRequirement();
+    const requirement = {
+      ...base,
+      setup: {
+        mode: "form" as const,
+        fields: [{
+          ...base.setup.fields[0]!,
+          options: [
+            { value: "https://api.example.test", label: "Production" },
+            { value: "https://staging.example.test", label: "Staging" },
+          ],
+        }],
+      },
+    };
+    const sut = harness.service([requirement]);
+
+    await expect(sut.submitForm("demo", "endpoint", {
+      "base-url": "https://undeclared.example.test",
+    })).resolves.toMatchObject({ ok: false, reason: "invalid_request" });
+    await expect(sut.submitForm("demo", "endpoint", {
+      "base-url": "https://api.example.test",
+      extra: "ignored-before",
+    })).resolves.toMatchObject({ ok: false, reason: "invalid_request" });
+    await expect(sut.submitForm("demo", "endpoint", {
+      "base-url": "https://api.example.test",
+    })).resolves.toMatchObject({ ok: true });
   });
 
   it("rejects expired setup action completion before writing submitted values", async () => {

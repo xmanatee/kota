@@ -29,6 +29,7 @@ import {
 	type RepoTasksProjectStores,
 } from "./project-scope.js";
 import { mutateRepoTask } from "./repo-task-mutation-boundary.js";
+import repoTaskMutationWorkflow from "./repo-task-mutation-workflow.js";
 import { getRepoTasksDir } from "./repo-tasks-domain.js";
 import { showTask } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
@@ -74,6 +75,7 @@ const repoTasksModule: KotaModule = {
 	description: "Operator CLI for the KOTA repo task queue",
 	dependencies: ["rendering"],
 	uiSurfaces: [repoTasksUiSurfaceSource],
+	workflows: [repoTaskMutationWorkflow],
 
 	onLoad: (ctx: ModuleRuntimeContext) => {
 		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));

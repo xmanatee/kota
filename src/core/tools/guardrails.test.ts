@@ -7,8 +7,8 @@ import {
   registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import {
-  legacyEffect,
   networkDestructiveEffect,
+  readOnlyLocalEffect,
   riskFromEffect,
 } from "./effect.js";
 import {
@@ -41,7 +41,7 @@ describe("classifyRisk", () => {
       { name: "ext_readonly", description: "read-only ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
       "test-module",
-      { effect: legacyEffect({ risk: "safe", kind: "discovery" }), },
+      { effect: readOnlyLocalEffect() },
     );
     const { risk } = classifyRisk("ext_readonly", {});
     expect(risk).toBe("safe");
@@ -52,7 +52,7 @@ describe("classifyRisk", () => {
       { name: "ext_mutate", description: "mutating ext tool", input_schema: { type: "object", properties: {} } },
       async () => ({ content: "ok" }),
       "test-module",
-      { effect: legacyEffect({ risk: "dangerous", kind: "action" }), },
+      { effect: networkDestructiveEffect() },
     );
     const { risk } = classifyRisk("ext_mutate", {});
     expect(risk).toBe("dangerous");
@@ -67,7 +67,7 @@ describe("classifyRisk", () => {
       },
       async () => ({ content: "ok" }),
       "test-module",
-      { effect: legacyEffect({ risk: "safe", kind: "discovery" }) },
+      { effect: readOnlyLocalEffect() },
     );
     registerModuleCapabilityManifestProjection(
       buildModuleCapabilityManifestProjection(

@@ -81,7 +81,8 @@ describe("task create routes", () => {
     expect(result.status).toBe(201);
     const body = result.body as { id: string; path: string };
     expect(body.id).toBe("task-add-dashboard");
-    expect(readFileSync(body.path, "utf-8")).toContain("## Done When");
+    expect(body.path).toBe("data/tasks/backlog/task-add-dashboard.md");
+    expect(readFileSync(join(projectDir, body.path), "utf-8")).toContain("## Done When");
   });
 
   it("rejects invalid normalized task fields and duplicate ids", async () => {

@@ -7,11 +7,10 @@
  * this output must not be exposed to autonomy agents in any prompt path.
  */
 
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { getRunStateReader } from "#core/workflow/run-state-reader-provider.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   aggregateDailyDigest,
@@ -70,19 +69,14 @@ export function computeDigestSnapshot(opts: {
 
 function readPreviousQueueCounts(
   projectDir: string,
-  stateDir: string,
 ): QueueCounts | null {
-  if (!existsSync(join(stateDir, "kota.sqlite"))) return null;
-  const store = new RunStateDatabase(stateDir);
-  try {
-    const snapshot = store.readProjectStateValue<DigestState>(
-      store.getProjectIdByRootPath(projectDir) ?? deriveDirectoryScopeId(projectDir),
-      DAILY_DIGEST_STATE_KEY,
-    );
-    return snapshot.value?.counts ?? null;
-  } finally {
-    store.close();
-  }
+  const reader = getRunStateReader();
+  if (reader === null) return null;
+  const snapshot = reader.readProjectStateValue<DigestState>(
+    reader.getProjectIdByRootPath(projectDir) ?? deriveDirectoryScopeId(projectDir),
+    DAILY_DIGEST_STATE_KEY,
+  );
+  return snapshot.value?.counts ?? null;
 }
 
 /**
@@ -98,7 +92,7 @@ export function renderOnDemandDigest(opts: {
 }): { data: DailyDigestData; text: string } {
   const snapshot = computeDigestSnapshot({
     ...opts,
-    previousQueueCounts: readPreviousQueueCounts(opts.projectDir, opts.stateDir),
+    previousQueueCounts: readPreviousQueueCounts(opts.projectDir),
   });
   return { data: snapshot.data, text: snapshot.text };
 }

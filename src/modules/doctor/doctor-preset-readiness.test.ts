@@ -59,7 +59,11 @@ function registerUnavailableSelectionHarness(
           detail: "The active AGY catalog does not expose this selection.",
         },
         optionalRuntimes: [],
-        unsupportedOptions: [],
+        unsupportedOptions: [{
+          runOption: "maxTurns",
+          option: "maxTurns",
+          reason: "the native agent loop owns its turn lifecycle",
+        }],
       };
     },
     run: async () => ({
@@ -116,7 +120,7 @@ describe("doctor preset model readiness", () => {
     });
     expect(limitsRow).toMatchObject({
       status: "info",
-      detail: "ownerQuestions, agentMessageStream",
+      detail: "ownerQuestions, agentMessageStream, maxTurns",
     });
   });
 });

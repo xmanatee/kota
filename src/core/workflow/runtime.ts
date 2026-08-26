@@ -41,6 +41,7 @@ import {
   deliverIntegratedWorkflowPublication,
   executeAdmittedWorkflowRun,
 } from "./runtime-dispatch.js";
+import { triggerWorkflowFromStep } from "./runtime-dispatch-trigger.js";
 import {
   getDispatchWindowStatus,
   isBusy,
@@ -269,6 +270,29 @@ export class WorkflowRuntime {
     }
     if (this.isDispatchPaused()) {
       return { ok: false, error: `Scope ${request.projectId} workflow dispatch is paused` };
+    }
+    if (request.parent !== undefined) {
+      try {
+        const child = await triggerWorkflowFromStep(
+          this.ctx,
+          request.parent.runId,
+          request.workflow,
+          request.payload,
+          "completed",
+          request.signal,
+          request.parent.triggerId,
+          request.event,
+        );
+        if (child.status !== "completed") {
+          return { ok: false, error: `Workflow "${request.workflow}" child run failed` };
+        }
+        return { ok: true, runId: child.runId, output: child.childOutput };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     }
     const runId = formatRunId(request.workflow);
     const admitted = this.enqueuePendingRun(request.workflow, {

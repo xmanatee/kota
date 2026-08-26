@@ -60,10 +60,11 @@ describe("autonomy agent policy", () => {
     }
   });
 
-  it("uses portable effort instead of provider-specific thinking controls", () => {
+  it("uses only portable controls for shipped agent steps", () => {
     for (const workflow of PORTABLE_AGENT_OPTION_WORKFLOWS) {
       for (const step of agentSteps(workflow)) {
         expect(step.effort, `${workflow.name}.${step.id}.effort`).toBeDefined();
+        expect(step.maxTurns, `${workflow.name}.${step.id}.maxTurns`).toBeUndefined();
         expect(step.thinkingEnabled, `${workflow.name}.${step.id}.thinkingEnabled`).toBeUndefined();
         expect(step.thinkingBudget, `${workflow.name}.${step.id}.thinkingBudget`).toBeUndefined();
       }

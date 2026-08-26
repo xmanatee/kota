@@ -14,7 +14,7 @@
  */
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
-import { localDestructiveEffect } from "#core/tools/effect.js";
+import { daemonDestructiveEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RetractRequest, RetractTarget } from "./client.js";
 import { renderRetractResultPlain } from "./render.js";
@@ -157,6 +157,6 @@ export function createRetractToolDef(
   return {
     tool: retractTool,
     runner: createRetractToolRunner(resolveProvider),
-    effect: localDestructiveEffect(),
+    effect: daemonDestructiveEffect(),
   };
 }

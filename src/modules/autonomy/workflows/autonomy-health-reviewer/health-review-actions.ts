@@ -7,14 +7,8 @@ import {
   reduceAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { dismissGeneratedWorkQuestion } from "#modules/autonomy/generated-work-owner-question.js";
-import {
-  generatedWorkTaskMutationPaths,
-  normalizeGeneratedWorkProposalKey,
-} from "#modules/autonomy/generated-work-proposal.js";
-import {
-  dropGeneratedWorkTask,
-  findGeneratedWorkTask,
-} from "#modules/autonomy/generated-work-task.js";
+import { normalizeGeneratedWorkProposalKey } from "#modules/autonomy/generated-work-proposal.js";
+import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
 import {
   projectAutonomyHealthEvidenceRefsForReview,
   projectAutonomyHealthSummariesForReview,
@@ -66,7 +60,7 @@ export function planAutonomyHealthReviewFinalization(args: {
   currentProjection: AutonomyIssueProjection;
   scopeDir?: string;
   review: AutonomyHealthReview;
-  repositoryActions: AutonomyHealthReviewActionResult;
+  plannedActions: AutonomyHealthReviewActionResult;
 }): AutonomyHealthReviewActionResult {
   const observations = autonomyIssueObservationsFromReview(args.review);
   const projected = reduceAutonomyIssueProjection(
@@ -74,14 +68,14 @@ export function planAutonomyHealthReviewFinalization(args: {
     observations,
   );
   return {
-    ...args.repositoryActions,
+    ...args.plannedActions,
     dismissedOwnerQuestionIds: [],
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
   };
 }
 
-export function stageAutonomyHealthReviewActions(args: {
+export function planAutonomyHealthReviewActions(args: {
   projectDir: string;
   currentProjection: AutonomyIssueProjection;
   scopeDir?: string;
@@ -92,31 +86,26 @@ export function stageAutonomyHealthReviewActions(args: {
     args.currentProjection,
     observations,
   );
-  const clearedGeneratedWork = observations.flatMap((observation) => {
+  const taskMutations = observations.flatMap((observation) => {
     if (observation.kind !== "cleared") return [];
     const proposalKey = normalizeGeneratedWorkProposalKey(
       `autonomy-issue:${observation.issueKey}`,
     );
     const existingTask = findGeneratedWorkTask(args.projectDir, proposalKey);
-    return dropGeneratedWorkTask(args.projectDir, existingTask);
+    if (
+      !existingTask ||
+      existingTask.task.state === "done" ||
+      existingTask.task.state === "dropped"
+    ) {
+      return [];
+    }
+    return [{ id: existingTask.task.id, state: "dropped" as const }];
   });
-  const droppedTaskIds = [...new Set(
-    clearedGeneratedWork.flatMap((action) =>
-      action.kind === "dropped-task" ? [action.taskId] : []
-    ),
-  )].sort((a, b) => a.localeCompare(b));
-  const taskMutationPaths = [...new Set(
-    generatedWorkTaskMutationPaths(clearedGeneratedWork),
-  )].sort((a, b) => a.localeCompare(b));
   return {
-    createdTaskIds: [],
-    droppedTaskIds,
-    ownerQuestionIds: [],
+    taskMutations,
     dismissedOwnerQuestionIds: [],
-    taskMutationPaths,
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
-    touchedTaskQueue: taskMutationPaths.length > 0,
   };
 }
 
@@ -125,7 +114,7 @@ export function finalizeAutonomyHealthReviewActions(args: {
   scopeDir?: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   review: AutonomyHealthReview;
-  repositoryActions: AutonomyHealthReviewActionResult;
+  plannedActions: AutonomyHealthReviewActionResult;
 }): AutonomyHealthReviewActionResult & {
   projection: AutonomyIssueProjection;
 } {
@@ -181,14 +170,10 @@ export function finalizeAutonomyHealthReviewActions(args: {
   ])].sort((a, b) => a.localeCompare(b));
   return {
     projection: projected.projection,
-    createdTaskIds: [...args.repositoryActions.createdTaskIds],
-    droppedTaskIds: [...args.repositoryActions.droppedTaskIds],
-    ownerQuestionIds: [...args.repositoryActions.ownerQuestionIds],
+    taskMutations: [...args.plannedActions.taskMutations],
     dismissedOwnerQuestionIds,
-    taskMutationPaths: [...args.repositoryActions.taskMutationPaths],
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
-    touchedTaskQueue: args.repositoryActions.touchedTaskQueue,
   };
 }
 

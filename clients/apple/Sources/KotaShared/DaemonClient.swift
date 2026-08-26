@@ -1,6 +1,6 @@
 import Foundation
 
-struct DaemonConnection {
+struct DaemonConnection: Equatable {
     let baseURL: URL
     let token: String
 }
@@ -114,12 +114,8 @@ func decodeDaemonErrorBody(from data: Data) -> DaemonErrorBody? {
     )
 }
 
-/// Daemon control HTTP client. Per-namespace routes (knowledge, recall,
-/// capture, …) live as `extension DaemonClient` in
-/// `Sources/KotaShared/Daemon/<namespace>Routes.swift`. This file owns
-/// the connection, error envelope, request helpers, and the small set
-/// of cross-cutting routes (`/identity`, `/capabilities`,
-/// `/workflow/*`). See `clients/apple/AGENTS.md` for the split shape.
+/// Daemon control HTTP client for native status, notifications, shared UI,
+/// chat, and voice responsibilities. Operator capabilities use ui.surface.v1.
 @MainActor
 public final class DaemonClient {
     public init() {}
@@ -131,14 +127,18 @@ public final class DaemonClient {
     /// query parameter and rejects unknown ids with a typed
     /// `UnknownProjectError` body. Pass `nil` (or omit) to call the
     /// route without scoping; the daemon resolves the registry's default.
-    static func withProject(_ path: String, projectId: String?) -> String {
-        guard let id = projectId, !id.isEmpty,
-              let encoded = id.addingPercentEncoding(
+    static func withQueryParameter(_ path: String, name: String, value: String?) -> String {
+        guard let value, !value.isEmpty,
+              let encoded = value.addingPercentEncoding(
                 withAllowedCharacters: .urlQueryAllowed
               )
         else { return path }
         let separator = path.contains("?") ? "&" : "?"
-        return "\(path)\(separator)projectId=\(encoded)"
+        return "\(path)\(separator)\(name)=\(encoded)"
+    }
+
+    static func withProject(_ path: String, projectId: String?) -> String {
+        withQueryParameter(path, name: "projectId", value: projectId)
     }
 
     static func pathComponent(_ value: String) -> String {
@@ -177,65 +177,8 @@ public final class DaemonClient {
         try await get("/identity")
     }
 
-    /// `GET /projects` — typed cross-project registry projection.
-    /// Identical to `identity.projects`; exposed as its own route so
-    /// clients that only need the registry shape don't have to fetch
-    /// the full identity payload.
-    func fetchProjects() async throws -> ProjectRegistryProjection {
-        try await get("/projects")
-    }
-
-    /// `GET /scopes` — canonical scope registry projection. `GET /projects`
-    /// stays as a directory-scope compatibility adapter for existing project
-    /// selectors.
-    func fetchScopes() async throws -> ScopeRegistryProjection {
-        try await get("/scopes")
-    }
-
-    /// `GET /scopes/:scopeId/policy` — resolved inherited policy for one
-    /// configured scope plus rendered decision examples.
-    func fetchScopePolicy(scopeId: String) async throws -> ScopePolicyRouteResponse {
-        try await get("/scopes/\(Self.pathComponent(scopeId))/policy")
-    }
-
-    /// `GET /capabilities` — typed capability readiness payload. Each
-    /// entry carries a stable id, status, optional reason code, and short
-    /// operator-facing message. Clients should hide or disable controls
-    /// for capabilities whose status is not `ready`.
-    func fetchCapabilities() async throws -> CapabilityReadinessResponse {
-        try await get("/capabilities")
-    }
-
-    /// `GET /workflow/definitions` — typed workflow definition catalog.
-    /// Drives the workflow picker so the UI never asks the operator to
-    /// type a free-text workflow name.
-    func fetchWorkflowDefinitions(projectId: String? = nil) async throws -> WorkflowDefinitionsResponse {
-        try await get(Self.withProject("/workflow/definitions", projectId: projectId))
-    }
-
     func fetchRecentRuns(limit: Int = 10, projectId: String? = nil) async throws -> RunHistoryResponse {
         try await get(Self.withProject("/workflow/runs?limit=\(limit)", projectId: projectId))
-    }
-
-    func fetchRunDetail(runId: String, projectId: String? = nil) async throws -> RunDetail {
-        try await get(Self.withProject("/workflow/runs/\(runId)", projectId: projectId))
-    }
-
-    func pauseWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
-        try await post(Self.withProject("/workflow/pause", projectId: projectId), body: nil)
-    }
-
-    func resumeWorkflow(projectId: String? = nil) async throws -> WorkflowControlResponse {
-        try await post(Self.withProject("/workflow/resume", projectId: projectId), body: nil)
-    }
-
-    /// `POST /workflow/trigger` — enqueue a manual workflow run. The
-    /// daemon expects `{ name, payload? }`; the macOS surface forwards
-    /// the picker's selected definition name and the operator-supplied
-    /// JSON payload (validated up-front in `TriggerRequest.wireBody`).
-    func triggerWorkflow(name: String, payload: Data? = nil, projectId: String? = nil) async throws -> TriggerResponse {
-        let body = try TriggerRequest(name: name, payload: payload).wireBody()
-        return try await post(Self.withProject("/workflow/trigger", projectId: projectId), body: body)
     }
 
     func fetchSlashCommands() async throws -> SlashCommandsResponse {

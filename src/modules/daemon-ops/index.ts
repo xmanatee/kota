@@ -94,6 +94,7 @@ export type {
   ContinuityState,
   UiAction,
   UiActionEffect,
+  UiActionExecutionPayload,
   UiActionExecutionResult,
   UiClientNamespaceExecutor,
   UiConfirmation,

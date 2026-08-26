@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ModuleSetupRequirement } from "./setup-requirements.js";
+import type {
+  ModuleSetupFormField,
+  ModuleSetupRequirement,
+} from "./setup-requirements.js";
 import { validateModuleSetupRequirements } from "./setup-requirements.js";
 import {
   configRequirement,
@@ -65,5 +68,41 @@ describe("module setup requirement validation", () => {
         } as unknown as ModuleSetupRequirement,
       ]),
     ).toThrow(/unknown setup mode/);
+  });
+
+  it("accepts stable option identifiers and rejects secret-shaped option values", () => {
+    const withOption = (value: string) => ({
+      ...configRequirement(),
+      setup: {
+        mode: "form" as const,
+        fields: [{
+          ...configRequirement().setup.fields[0]!,
+          options: [{ value, label: "API key profile" }],
+        }],
+      },
+    });
+
+    expect(() =>
+      validateModuleSetupRequirements("demo", [withOption("oauth-profile")]),
+    ).not.toThrow();
+    expect(() =>
+      validateModuleSetupRequirements("demo", [withOption("sk-live-secret-1234567890")]),
+    ).toThrow(/unsafe option value/);
+  });
+
+  it("restricts options to non-empty string-field declarations", () => {
+    const requirement = configRequirement();
+    const withField = (field: ModuleSetupFormField) => ({
+      ...requirement,
+      setup: { mode: "form" as const, fields: [field] },
+    });
+    const base = requirement.setup.fields[0]!;
+
+    expect(() => validateModuleSetupRequirements("demo", [
+      withField({ ...base, type: "number", options: [{ value: "1", label: "One" }] }) as ModuleSetupRequirement,
+    ])).toThrow(/only declare options for a string field/);
+    expect(() => validateModuleSetupRequirements("demo", [
+      withField({ ...base, options: [] }) as ModuleSetupRequirement,
+    ])).toThrow(/at least one option/);
   });
 });

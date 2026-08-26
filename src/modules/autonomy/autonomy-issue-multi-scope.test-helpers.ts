@@ -13,7 +13,7 @@ import type { AutonomyHealthSignal } from "./health-signal.js";
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 
 const NOW = "2026-08-14T09:00:00.000Z";
@@ -151,7 +151,7 @@ export function applyScopeSignals(
     reason: "multi-scope-runtime-fixture",
   });
   const currentProjection = readAutonomyIssueProjection(projectDir);
-  const repositoryActions = stageAutonomyHealthReviewActions({
+  const plannedActions = planAutonomyHealthReviewActions({
     projectDir,
     currentProjection,
     scopeDir: projectDir,
@@ -164,7 +164,7 @@ export function applyScopeSignals(
       join(projectDir, ".kota", "owner-questions"),
     ),
     review,
-    repositoryActions,
+    plannedActions,
   });
   materializeAutonomyIssueProjection(projectDir, finalized.projection);
 }

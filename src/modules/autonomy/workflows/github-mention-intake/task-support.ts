@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
@@ -52,7 +52,10 @@ export function createMentionTaskInWorker(input: {
     return {
       kind: "existing",
       taskId,
-      path: join(getRepoTaskStateDir(input.projectDir, existing.state), `${taskId}.md`),
+      path: relative(
+        input.projectDir,
+        join(getRepoTaskStateDir(input.projectDir, existing.state), `${taskId}.md`),
+      ),
       title: input.taskTitle,
     };
   }
@@ -68,11 +71,12 @@ export function createMentionTaskInWorker(input: {
       `failed to create GitHub mention task: ${result.reason}${result.message ? `: ${result.message}` : ""}`,
     );
   }
-  const content = readFileSync(result.path, "utf-8");
+  const absolutePath = join(input.projectDir, result.path);
+  const content = readFileSync(absolutePath, "utf-8");
   const { attrs } = parseFlatFrontMatter(content);
   writeRepoTaskFile(
     input.projectDir,
-    result.path,
+    absolutePath,
     serializeFlatFrontMatter(attrs, input.taskBody),
   );
   return {

@@ -1,22 +1,71 @@
 import SwiftUI
 
+struct SharedUiSurfaceEntry: Equatable {
+    let surface: UiSurface
+    let depth: Int
+}
+
 struct SharedUiInventory: Equatable {
+    let entries: [SharedUiSurfaceEntry]
     let surfaces: [UiSurface]
     let intents: [UiIntent]
 
     init(bundle: UiSurfaceBundle) {
-        surfaces = bundle.surfaces.sorted {
+        let ordered = bundle.surfaces.sorted {
             if $0.order != $1.order { return $0.order < $1.order }
             if $0.intent != $1.intent { return $0.intent.rawValue < $1.intent.rawValue }
             return $0.title.localizedStandardCompare($1.title) == .orderedAscending
         }
-        intents = surfaces.reduce(into: []) { result, surface in
+        intents = ordered.reduce(into: []) { result, surface in
             if !result.contains(surface.intent) { result.append(surface.intent) }
         }
+        entries = intents.flatMap { intent in
+            Self.hierarchy(for: ordered.filter { $0.intent == intent })
+        }
+        surfaces = entries.map(\.surface)
     }
 
     func surfaces(for intent: UiIntent) -> [UiSurface] {
-        surfaces.filter { $0.intent == intent }
+        entries(for: intent).map(\.surface)
+    }
+
+    func entries(for intent: UiIntent) -> [SharedUiSurfaceEntry] {
+        entries.filter { $0.surface.intent == intent }
+    }
+
+    var entrySurface: UiSurface? {
+        surfaces.first { $0.attachmentPoint == .root }
+            ?? surfaces.first {
+                if case .intent = $0.attachmentPoint { return true }
+                return false
+            }
+            ?? surfaces.first
+    }
+
+    private static func hierarchy(for surfaces: [UiSurface]) -> [SharedUiSurfaceEntry] {
+        let ids = Set(surfaces.map(\.surfaceId))
+        var children: [String: [UiSurface]] = [:]
+        var roots: [UiSurface] = []
+        for surface in surfaces {
+            if case .surface(let parentId) = surface.attachmentPoint, ids.contains(parentId) {
+                children[parentId, default: []].append(surface)
+            } else {
+                roots.append(surface)
+            }
+        }
+
+        var result: [SharedUiSurfaceEntry] = []
+        var inserted: Set<String> = []
+        func append(_ surface: UiSurface, depth: Int) {
+            guard inserted.insert(surface.surfaceId).inserted else { return }
+            result.append(SharedUiSurfaceEntry(surface: surface, depth: depth))
+            for child in children[surface.surfaceId] ?? [] {
+                append(child, depth: depth + 1)
+            }
+        }
+        for root in roots { append(root, depth: 0) }
+        for surface in surfaces { append(surface, depth: 0) }
+        return result
     }
 }
 

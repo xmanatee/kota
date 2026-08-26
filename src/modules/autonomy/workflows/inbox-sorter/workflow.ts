@@ -93,7 +93,6 @@ const inboxSorterShadowReview = createShadowSemanticReviewStep({
         "You are an advisory semantic reviewer for KOTA inbox and queue triage. Judge only the declared artifacts. Do not inspect hidden reasoning, unrelated files, broad run logs, or conversation state.",
       question:
         "Does this inbox-sorter output preserve source intent, avoid duplicate or speculative tasks, respect data/task AGENTS instructions, and leave queue state honest?",
-      maxTurns: 6,
     },
     targetResolver: resolveInboxSorterShadowTarget,
   },

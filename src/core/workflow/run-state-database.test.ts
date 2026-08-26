@@ -311,39 +311,6 @@ describe("RunStateDatabase", () => {
     expect(store.startRun("run-retry", epoch, "2026-08-25T10:00:08.000Z")).toBe(1);
   });
 
-  test("does not retain a partial acquisition when one requested resource is owned", () => {
-    const store = createStore();
-    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    store.admitRun({
-      id: "run-owner",
-      projectId: "project-a",
-      workflow: "publisher",
-      repository: "none",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: ["projection:b"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-    store.startRun("run-owner", epoch, "2026-08-25T10:00:02.000Z");
-    store.admitRun({
-      id: "run-multi",
-      projectId: "project-a",
-      workflow: "publisher",
-      repository: "none",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: ["projection:a", "projection:b"],
-      admittedAt: "2026-08-25T10:00:03.000Z",
-    });
-
-    expect(store.startRun("run-multi", epoch, "2026-08-25T10:00:04.000Z")).toBeNull();
-    expect(
-      store.withResourceAvailable({
-        projectId: "project-a",
-        resourceKey: "projection:a",
-        operation: () => "available",
-      }),
-    ).toBe("available");
-  });
-
   test("preserves a resource waiter across restart", () => {
     const store = createStore();
     const stateDir = dirname(store.path);
@@ -383,36 +350,6 @@ describe("RunStateDatabase", () => {
       ).toBe(1);
     } finally {
       reopened.close();
-    }
-  });
-
-  test("serializes operator mutation against resource acquisition", () => {
-    const store = createStore();
-    const contender = new RunStateDatabase(dirname(store.path));
-    const { epoch } = contender.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    contender.admitRun({
-      id: "run-a",
-      projectId: "project-a",
-      workflow: "publisher",
-      repository: "none",
-      trigger: { event: "manual", schemaRef: null, payload: {} },
-      resources: ["projection:shared"],
-      admittedAt: "2026-08-25T10:00:01.000Z",
-    });
-
-    try {
-      store.withResourceAvailable({
-        projectId: "project-a",
-        resourceKey: "projection:shared",
-        operation: () => {
-          expect(() =>
-            contender.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z"),
-          ).toThrow(expect.objectContaining({ code: "SQLITE_BUSY" }));
-        },
-      });
-      expect(contender.startRun("run-a", epoch, "2026-08-25T10:00:03.000Z")).toBe(1);
-    } finally {
-      contender.close();
     }
   });
 

@@ -89,7 +89,7 @@ describe("runtime health audit control coverage gaps", () => {
     expectNoObservableGateDiagnostics(audit);
 
     const actions = reviewAndApplyControlCoverage(projectDir, audit);
-    expect(actions.createdTaskIds).toEqual([]);
+    expect(actions.taskMutations).toEqual([]);
     for (const taskId of [
       "task-health-control-coverage-agent-step-stream-unsupported-agent-message-stream",
       "task-health-control-coverage-trajectory-diagnostics-unsupported-trajectory-diagnostics",

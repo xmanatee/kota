@@ -57,35 +57,6 @@ struct PendingRun: Codable, Identifiable {
     var id: String { runId ?? workflowName }
 }
 
-struct WorkflowControlResponse: Codable {
-    let ok: Bool?
-    let paused: Bool?
-    let already: Bool?
-}
-
-// MARK: - Run detail
-
-struct RunStepSummary: Codable {
-    let id: String
-    let type: String
-    let status: String
-    let durationMs: Double
-    let error: String?
-    let costUsd: Double?
-}
-
-struct RunDetail: Codable {
-    let id: String
-    let workflow: String
-    let status: String
-    let startedAt: String
-    let steps: [RunStepSummary]
-
-    var currentStep: RunStepSummary? {
-        steps.first(where: { $0.status == "running" }) ?? steps.last
-    }
-}
-
 // MARK: - Run history
 
 struct RunHistoryResponse: Codable {

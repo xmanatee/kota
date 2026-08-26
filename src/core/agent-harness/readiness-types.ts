@@ -99,6 +99,7 @@ export type AgentHarnessUnsupportedRunOption =
   | "scopePolicy"
   | "harnessOverrides"
   | "enableFileCheckpointing"
+  | "maxTurns"
   | "thinking"
   | "onMessage";
 

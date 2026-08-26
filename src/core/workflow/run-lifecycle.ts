@@ -326,12 +326,7 @@ export class RunLifecycle {
     }
 
     if (journal.phase === "preparing") {
-      const head = this.commitChanges(sandbox.workspaceDir, journal.commitMessage);
-      if (head === sandbox.baseCommit) {
-        journal = this.completeIntegrationJournal(journal, sandbox, head, head, []);
-        this.persist(context, journal);
-        return this.cleanupMerged(context, manager, sandbox);
-      }
+      this.commitChanges(sandbox.workspaceDir, journal.commitMessage);
       journal = { ...journal, phase: "pending" };
       this.persist(context, journal);
     }

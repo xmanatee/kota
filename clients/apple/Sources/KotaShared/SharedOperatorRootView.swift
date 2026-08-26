@@ -68,12 +68,15 @@ public struct SharedOperatorRootView: View {
     private func menuBarContent(_ inventory: SharedUiInventory) -> some View {
         VStack(spacing: 0) {
             SharedOperatorConnectionBar()
+            ProjectSelectorView()
             Divider()
             Picker("Surface", selection: selectedSurfaceBinding(inventory)) {
                 ForEach(inventory.intents, id: \.rawValue) { intent in
                     Section(intent.rawValue) {
-                        ForEach(inventory.surfaces(for: intent), id: \.surfaceId) { surface in
-                            Label(surface.title, systemImage: intent.systemImage).tag(surface.surfaceId)
+                        ForEach(inventory.entries(for: intent), id: \.surface.surfaceId) { entry in
+                            Label(entry.surface.title, systemImage: intent.systemImage)
+                                .padding(.leading, CGFloat(entry.depth * 12))
+                                .tag(entry.surface.surfaceId)
                         }
                     }
                 }
@@ -97,27 +100,30 @@ public struct SharedOperatorRootView: View {
     }
 
     private func tabContent(_ inventory: SharedUiInventory) -> some View {
-        TabView(selection: selectedIntentBinding(inventory)) {
-            ForEach(inventory.intents, id: \.rawValue) { intent in
-                NavigationStack {
-                    SharedIntentSurfaceView(
-                        intent: intent,
-                        surfaces: inventory.surfaces(for: intent),
-                        selectedSurfaceId: $selectedSurfaceId,
-                        onNavigate: selectSurface,
-                        onSessionSelect: { chatSessionId = $0 }
-                    )
-                    .navigationTitle(intent.rawValue)
-                    .toolbar {
-                        ToolbarItem(placement: .automatic) {
-                            Button { Task { await appState.refreshUiSurfaceBundle() } } label: {
-                                Image(systemName: "arrow.clockwise")
+        VStack(spacing: 0) {
+            ProjectSelectorView()
+            TabView(selection: selectedIntentBinding(inventory)) {
+                ForEach(inventory.intents, id: \.rawValue) { intent in
+                    NavigationStack {
+                        SharedIntentSurfaceView(
+                            intent: intent,
+                            entries: inventory.entries(for: intent),
+                            selectedSurfaceId: $selectedSurfaceId,
+                            onNavigate: selectSurface,
+                            onSessionSelect: { chatSessionId = $0 }
+                        )
+                        .navigationTitle(intent.rawValue)
+                        .toolbar {
+                            ToolbarItem(placement: .automatic) {
+                                Button { Task { await appState.refreshUiSurfaceBundle() } } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                }
                             }
                         }
                     }
+                    .tabItem { Label(intent.rawValue, systemImage: intent.systemImage) }
+                    .tag(intent.rawValue)
                 }
-                .tabItem { Label(intent.rawValue, systemImage: intent.systemImage) }
-                .tag(intent.rawValue)
             }
         }
     }
@@ -148,7 +154,7 @@ public struct SharedOperatorRootView: View {
     }
 
     private func selectedSurface(_ inventory: SharedUiInventory) -> UiSurface? {
-        inventory.surfaces.first { $0.surfaceId == selectedSurfaceId } ?? inventory.surfaces.first
+        inventory.surfaces.first { $0.surfaceId == selectedSurfaceId } ?? inventory.entrySurface
     }
 
     private func selectSurface(_ surfaceId: String) {
@@ -166,7 +172,7 @@ public struct SharedOperatorRootView: View {
             return
         }
         let inventory = SharedUiInventory(bundle: bundle)
-        guard let first = inventory.surfaces.first else { return }
+        guard let first = inventory.entrySurface else { return }
         let selected = inventory.surfaces.first { $0.surfaceId == selectedSurfaceId } ?? first
         selectedSurfaceId = selected.surfaceId
         selectedIntentRaw = selected.intent.rawValue
@@ -175,16 +181,21 @@ public struct SharedOperatorRootView: View {
 
 private struct SharedIntentSurfaceView: View {
     let intent: UiIntent
-    let surfaces: [UiSurface]
+    let entries: [SharedUiSurfaceEntry]
     @Binding var selectedSurfaceId: String?
     let onNavigate: (String) -> Void
     let onSessionSelect: (String) -> Void
 
     var body: some View {
+        let surfaces = entries.map(\.surface)
         VStack(spacing: 0) {
             if surfaces.count > 1 {
                 Picker("\(intent.rawValue) surface", selection: selection) {
-                    ForEach(surfaces, id: \.surfaceId) { Text($0.title).tag($0.surfaceId) }
+                    ForEach(entries, id: \.surface.surfaceId) { entry in
+                        Text(entry.surface.title)
+                            .padding(.leading, CGFloat(entry.depth * 12))
+                            .tag(entry.surface.surfaceId)
+                    }
                 }
                 .pickerStyle(.menu)
                 .padding(.horizontal)
@@ -207,11 +218,13 @@ private struct SharedIntentSurfaceView: View {
     }
 
     private var selected: UiSurface? {
-        surfaces.first { $0.surfaceId == selectedSurfaceId } ?? surfaces.first
+        let surfaces = entries.map(\.surface)
+        return surfaces.first { $0.surfaceId == selectedSurfaceId } ?? surfaces.first
     }
 
     private var selection: Binding<String> {
-        Binding(
+        let surfaces = entries.map(\.surface)
+        return Binding(
             get: { selected?.surfaceId ?? surfaces.first?.surfaceId ?? "" },
             set: { selectedSurfaceId = $0 }
         )

@@ -1,8 +1,10 @@
+import { redactSensitiveValues } from "#core/evidence/policy.js";
 import {
   FORM_FIELD_TYPES,
   ID_PATTERN,
   SETUP_KINDS,
   SETUP_MODES,
+  SETUP_OPTION_VALUE_PATTERN,
   SETUP_SCOPES,
   SETUP_SENSITIVITIES,
 } from "./constants.js";
@@ -69,6 +71,10 @@ export function isLiteral<T extends string>(
   allowed: readonly T[],
 ): value is T {
   return allowed.includes(value as T);
+}
+
+export function isSafeModuleSetupOptionValue(value: string): boolean {
+  return SETUP_OPTION_VALUE_PATTERN.test(value) && redactSensitiveValues(value) === value;
 }
 
 function validateExternalUrlShape(
@@ -197,6 +203,35 @@ function validateFormRequirement(
       throw new Error(
         `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" must be a string to accept secret references`,
       );
+    }
+    if (field.options !== undefined && field.type !== "string") {
+      throw new Error(
+        `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" can only declare options for a string field`,
+      );
+    }
+    if (field.options !== undefined && field.options.length === 0) {
+      throw new Error(
+        `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" must declare at least one option`,
+      );
+    }
+    const optionValues = new Set<string>();
+    for (const option of field.options ?? []) {
+      if (!isSafeModuleSetupOptionValue(option.value)) {
+        throw new Error(
+          `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" has an unsafe option value`,
+        );
+      }
+      if (optionValues.has(option.value)) {
+        throw new Error(
+          `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" declares a duplicate option value`,
+        );
+      }
+      optionValues.add(option.value);
+      if (option.label.trim() === "") {
+        throw new Error(
+          `Module "${moduleName}" setup requirement "${req.id}" field "${field.id}" has an empty option label`,
+        );
+      }
     }
     validateConfigPath(moduleName, req.id, field.configPath);
   }

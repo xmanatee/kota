@@ -1,5 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { projectModuleSetupPendingActionForClient } from "./status-utils.js";
 import type { ModuleSetupActionFile, ModuleSetupPendingAction } from "./types.js";
 
 export class ModuleSetupActionStore {
@@ -9,13 +11,28 @@ export class ModuleSetupActionStore {
     const path = this.path();
     if (!existsSync(path)) return { actions: [] };
     const parsed = JSON.parse(readFileSync(path, "utf8")) as ModuleSetupActionFile;
-    return { actions: parsed.actions ?? [] };
+    const rawActions = parsed.actions ?? [];
+    const actions = rawActions.map((action) =>
+      projectModuleSetupPendingActionForClient(action)
+    );
+    if (rawActions.some((action) => Object.hasOwn(action, "url"))) {
+      this.write({ actions });
+    }
+    return { actions };
   }
 
   write(file: ModuleSetupActionFile): void {
     const path = this.path();
-    mkdirSync(join(this.projectDir, ".kota"), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+    writeJsonFileAtomic(
+      path,
+      {
+        actions: file.actions.map((action) =>
+          projectModuleSetupPendingActionForClient(action)
+        ),
+      },
+      undefined,
+      { mode: 0o600 },
+    );
   }
 
   latest(

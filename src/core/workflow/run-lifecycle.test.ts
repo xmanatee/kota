@@ -190,13 +190,30 @@ describe("RunLifecycle", () => {
 
   test("records an empty writer without attributing the existing head commit", async () => {
     const value = fixture("empty-writer", "write");
+    let validations = 0;
+    let invariants = 0;
 
-    const outcome = await lifecycle(value, async () => ({
-      kind: "completed",
-      commitMessage: "nothing to publish",
-    })).execute(value.run, new AbortController().signal);
+    const outcome = await new RunLifecycle({
+      store: value.store,
+      daemonEpoch: value.epoch,
+      executeWorkflow: async () => ({
+        kind: "completed",
+        commitMessage: "nothing to publish",
+      }),
+      continueIntegration: async () => undefined,
+      validate: async () => {
+        validations += 1;
+        return { status: "passed", evidence: ["verified"] };
+      },
+      verifyPostReconcile: () => {
+        invariants += 1;
+        return { satisfied: true };
+      },
+    }).execute(value.run, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
+    expect(validations).toBe(1);
+    expect(invariants).toBe(1);
     const evidence = readWriterIntegrationEvidence(
       join(value.root, ".kota", "runs"),
       value.run.id,

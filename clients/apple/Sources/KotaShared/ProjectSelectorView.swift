@@ -3,10 +3,8 @@ import SwiftUI
 /// Header project selector. Hidden when the daemon hosts exactly one
 /// project so KOTA-on-itself looks identical to the pre-multi-project
 /// experience. Mirrors the web `ProjectSelector` semantics: the selected
-/// id drives `appState.activeProjectId`, which threads through every
-/// project-scoped daemon route in `fetchAll`. Available on both shells:
-/// macOS mounts it inside `MenuBarView`, iOS mounts it inside
-/// `IOSRootView`'s Status tab.
+/// id drives `appState.activeProjectId`, which scopes the shared daemon UI.
+/// `SharedOperatorRootView` mounts the same selector in both Apple shells.
 public struct ProjectSelectorView: View {
     @EnvironmentObject var appState: AppState
 

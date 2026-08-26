@@ -1,22 +1,17 @@
 import XCTest
 @testable import KotaShared
 
-/// Integrated coverage for the menu-bar `AppState` container itself,
-/// not just the pure helpers that hang off it. Three flows are pinned:
+/// Integrated coverage for the shared `AppState` container:
+///   - offline reset clears daemon-owned runtime state;
+///   - notification fan-out emits only newly observed attention;
+///   - project selection preserves a valid scope and resets stale state.
 ///
-///   - capability-driven dashboard gating (`isDashboardAvailable`,
-///     `webUIURL`) — `MenuBarView` hides the "Open Dashboard" action
-///     based on these and they were previously only covered by the
-///     contract decoder, never against the live state container.
-///   - offline reset — `refresh()` with no `projectDir` and no
-///     `remoteURL` must wipe every cached on-demand body so a stale
-///     digest/answer/capture never paints over the disconnected state.
-///   - notification fan-out — the second pass through
+/// The second pass through
 ///     `checkForNotifications` must emit one notification per *new*
 ///     failed run, pending approval, and pending owner question, and
 ///     must not re-emit on a subsequent pass with the same ids.
 ///
-/// Each test constructs `AppState` through the production initializer
+/// Tests construct `AppState` through the production initializer
 /// using a recording `NotificationManaging` stub and
 /// `startPollingOnInit: false`. That seam was added so the state model
 /// could be exercised in `swift test`, which runs outside an `.app`
@@ -81,187 +76,24 @@ final class AppStateTests: XCTestCase {
         )
     }
 
-    // MARK: - Dashboard capability gating
+    // MARK: - Offline reset
 
-    func testIsDashboardAvailableTracksIdentityDashboardArm() {
+    func testRefreshWithNoProjectClearsDaemonState() async {
         let state = makeState(notifications: RecordingNotifications())
-        XCTAssertFalse(
-            state.isDashboardAvailable,
-            "With no identity payload yet, the menu bar must hide the Open Dashboard action."
-        )
-
-        state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
-                ]
-            ),
-            daemonVersion: "0.1.0",
-            pid: 4242,
-            startedAt: "2026-04-29T00:00:00Z",
-            dashboard: .available(path: "/")
-        )
-        XCTAssertTrue(
-            state.isDashboardAvailable,
-            "Once identity reports dashboard.available, the menu bar must show the action."
-        )
-
-        state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
-                ]
-            ),
-            daemonVersion: "0.1.0",
-            pid: 4242,
-            startedAt: "2026-04-29T00:00:00Z",
-            dashboard: .unavailable(reason: "disabled", message: nil)
-        )
-        XCTAssertFalse(
-            state.isDashboardAvailable,
-            "When the daemon stops advertising the dashboard, the menu bar must hide the action again."
-        )
-    }
-
-    // MARK: - Offline reset clears every cached on-demand body
-
-    func testRefreshWithNoProjectClearsEveryCachedBody() async {
-        let state = makeState(notifications: RecordingNotifications())
-
-        // Seed every cached on-demand body. If a future on-demand surface
-        // lands without a paired entry in `clearOnDemandForOffline`, this
-        // test will catch the regression — the offline branch must wipe
-        // the lot so a stale rollup never paints over the disconnected
-        // state.
-        state.activeRuns = [
-            ActiveRun(
-                runId: "run-1",
-                workflow: "builder",
-                startedAt: "2026-04-29T00:00:00Z"
-            )
-        ]
-        state.recentRuns = [
-            RunSummary(
-                id: "run-old",
-                workflow: "builder",
-                status: "success",
-                startedAt: "2026-04-28T00:00:00Z",
-                durationMs: 1000
-            )
-        ]
-        state.identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/x",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
-                ]
-            ),
-            daemonVersion: "0.1.0",
-            pid: 1,
-            startedAt: "2026-04-29T00:00:00Z",
-            dashboard: .available(path: "/")
-        )
-        state.health = .running(1)
-        state.knowledgeError = "stale"
-        state.memoryError = "stale"
-        state.historyError = "stale"
-        state.tasksError = "stale"
-        state.recallError = "stale"
-        state.answerError = "stale"
-        state.captureError = "stale"
-        state.retractError = "stale"
-        state.digestError = "stale"
-        state.attentionError = "stale"
-        state.isLoadingDigest = true
-        state.isLoadingAttention = true
-        state.isLoadingKnowledge = true
-        state.isLoadingMemory = true
-        state.isLoadingHistory = true
-        state.isLoadingTasksSearch = true
-        state.isLoadingRecall = true
-        state.isLoadingAnswer = true
-        state.isLoadingCapture = true
-        state.isLoadingRetract = true
-        state.retractConfirmed = true
-        state.answerLogEntries = [
-            AnswerHistoryEntry(
-                id: "ans-stale",
-                createdAt: "2026-04-29T00:00:00Z",
-                query: "stale",
-                result: .noHits
-            )
-        ]
-        state.answerLogError = "stale"
-        state.isLoadingAnswerLog = true
-        state.answerLogHasMore = true
-        state.answerShowOpenId = "ans-stale"
-        state.answerShowMissing = true
-        state.answerShowError = "stale"
-        state.isLoadingAnswerShow = true
+        state.activeRuns = [ActiveRun(runId: "run-1", workflow: "builder", startedAt: "t")]
+        state.recentRuns = [RunSummary(id: "run-0", workflow: "builder", status: "success", startedAt: "t", durationMs: 1)]
+        state.uiSurfaceError = "stale"
         state.projectDir = nil
         state.remoteURL = ""
 
         await state.refresh()
 
-        if case .offline = state.health {
-            // expected
-        } else {
-            XCTFail("offline branch must set health to .offline")
-        }
         XCTAssertEqual(state.diagnostic, .noProject)
         XCTAssertTrue(state.activeRuns.isEmpty)
         XCTAssertTrue(state.recentRuns.isEmpty)
         XCTAssertNil(state.identity)
-        XCTAssertNil(state.capabilities)
-        XCTAssertTrue(state.workflowDefinitions.isEmpty)
-        XCTAssertNil(state.digest)
-        XCTAssertNil(state.digestError)
-        XCTAssertFalse(state.isLoadingDigest)
-        XCTAssertNil(state.attention)
-        XCTAssertNil(state.attentionError)
-        XCTAssertFalse(state.isLoadingAttention)
-        XCTAssertNil(state.knowledgeResult)
-        XCTAssertNil(state.knowledgeError)
-        XCTAssertFalse(state.isLoadingKnowledge)
-        XCTAssertNil(state.memoryResult)
-        XCTAssertNil(state.memoryError)
-        XCTAssertFalse(state.isLoadingMemory)
-        XCTAssertNil(state.historyResult)
-        XCTAssertNil(state.historyError)
-        XCTAssertFalse(state.isLoadingHistory)
-        XCTAssertNil(state.tasksResult)
-        XCTAssertNil(state.tasksError)
-        XCTAssertFalse(state.isLoadingTasksSearch)
-        XCTAssertNil(state.recallResult)
-        XCTAssertNil(state.recallError)
-        XCTAssertFalse(state.isLoadingRecall)
-        XCTAssertNil(state.answerResult)
-        XCTAssertNil(state.answerError)
-        XCTAssertFalse(state.isLoadingAnswer)
-        XCTAssertNil(state.captureResult)
-        XCTAssertNil(state.captureError)
-        XCTAssertFalse(state.isLoadingCapture)
-        XCTAssertNil(state.retractResult)
-        XCTAssertNil(state.retractError)
-        XCTAssertFalse(state.isLoadingRetract)
-        XCTAssertFalse(state.retractConfirmed)
-        XCTAssertTrue(state.answerLogEntries.isEmpty)
-        XCTAssertNil(state.answerLogError)
-        XCTAssertFalse(state.isLoadingAnswerLog)
-        XCTAssertFalse(state.answerLogHasMore)
-        XCTAssertNil(state.answerShowOpenId)
-        XCTAssertNil(state.answerShowRecord)
-        XCTAssertFalse(state.answerShowMissing)
-        XCTAssertNil(state.answerShowError)
-        XCTAssertFalse(state.isLoadingAnswerShow)
+        XCTAssertNil(state.uiSurfaceBundle)
+        XCTAssertNil(state.uiSurfaceError)
     }
 
     // MARK: - Active project selection

@@ -52,7 +52,6 @@ export type ShadowSemanticReviewerProfile = {
   id: string;
   systemPrompt: string;
   question: string;
-  maxTurns?: number;
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
 };

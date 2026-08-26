@@ -88,6 +88,7 @@ export type RepoTaskCreateOptions = ScopeSelector & {
 };
 
 export type RepoTaskCreateResult =
+  /** Successful paths are stable and repository-relative. */
   | { ok: true; id: string; path: string }
   | {
       ok: false;
@@ -96,6 +97,7 @@ export type RepoTaskCreateResult =
     };
 
 export type RepoTaskCaptureResult =
+  /** Successful paths are stable and repository-relative. */
   | { ok: true; id: string; path: string }
   | {
       ok: false;

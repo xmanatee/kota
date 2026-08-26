@@ -58,6 +58,7 @@ import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
 import repoTasksModule from "#modules/repo-tasks/index.js";
 import { createRepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
+import { createNormalizedTask } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 import {
   createProjectInboxContributor as createProjectRetractInboxContributor,
@@ -126,6 +127,14 @@ describe("project-scoped cross-store daemon routes", () => {
     root = mkdtempSync(join(tmpdir(), "kota-cross-store-projects-"));
     projectA = buildConfiguredProject({ projectDir: makeProjectRoot(root, "a") });
     projectB = buildConfiguredProject({ projectDir: makeProjectRoot(root, "b") });
+    const taskFixture = createNormalizedTask(projectA.projectDir, {
+      title: "client-alpha task",
+      priority: "p2",
+      area: "core",
+      state: "backlog",
+      summary: "Project-scoped task fixture.",
+    });
+    if (!taskFixture.ok) throw new Error("failed to create project task fixture");
 
     const memoryA = new MemoryStore(join(projectA.projectDir, ".kota"));
     const knowledgeA = new KnowledgeStore(projectA.projectDir);
@@ -427,19 +436,12 @@ describe("project-scoped cross-store daemon routes", () => {
     const historySearchB = await clientB.history.search("client-alpha history");
     expect(historySearchB).toEqual({ ok: true, conversations: [] });
 
-    const taskA = await clientA.tasks.create({
-      title: "client-alpha task",
-      priority: "p2",
-      area: "core",
-      state: "backlog",
-    });
-    expect(taskA.ok).toBe(true);
     const taskSearchA = await clientA.tasks.search("client-alpha task", {
       semantic: false,
     });
     expect(taskSearchA).toMatchObject({
       ok: true,
-      tasks: [expect.objectContaining({ id: taskA.ok ? taskA.id : "" })],
+      tasks: [expect.objectContaining({ id: "task-client-alpha-task" })],
     });
     const taskSearchB = await clientB.tasks.search("client-alpha task", {
       semantic: false,

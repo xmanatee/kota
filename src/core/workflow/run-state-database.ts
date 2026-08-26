@@ -11,7 +11,6 @@ import {
   type PendingRunPublication,
   type ProjectStateValue,
   PublicationIntentConflictError,
-  ResourceAlreadyOwnedError,
   type RestartRecoveryAttempt,
   type RunAdmissionDisposition,
   type RunAdmissionIdentity,
@@ -34,7 +33,6 @@ export type {
 export {
   AdmissionKeyConflictError,
   PublicationIntentConflictError,
-  ResourceAlreadyOwnedError,
   StaleDaemonEpochError,
   StateValueConflictError,
 } from "./run-state-types.js";
@@ -77,30 +75,6 @@ export class RunStateDatabase {
 
   close(): void {
     this.database.close();
-  }
-
-  /**
-   * Run a short canonical mutation only while no active run owns the same
-   * logical resource. `IMMEDIATE` takes SQLite's writer reservation before the
-   * ownership check, so a competing run start cannot slip between the
-   * check and the mutation.
-   */
-  withResourceAvailable<T>(input: {
-    projectId: string;
-    resourceKey: string;
-    operation: () => T;
-  }): T {
-    const execute = this.database.transaction(() => {
-      const scopedKey = this.scopeResourceKey(input.projectId, input.resourceKey);
-      const owner = this.database
-        .prepare("SELECT run_id FROM run_resources WHERE resource_key = ?")
-        .get(scopedKey) as { run_id: string } | undefined;
-      if (owner) {
-        throw new ResourceAlreadyOwnedError(input.resourceKey, owner.run_id);
-      }
-      return input.operation();
-    });
-    return execute.immediate();
   }
 
   registerProject(input: {

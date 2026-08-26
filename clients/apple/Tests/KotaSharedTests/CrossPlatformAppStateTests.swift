@@ -115,23 +115,6 @@ final class CrossPlatformAppStateTests: XCTestCase {
         XCTAssertNil(picked, "Inert picker must return nil so callers fall back to manual entry.")
     }
 
-    func testOpenDashboardRoutesThroughPlatformWhenIdentityAdvertisesIt() {
-        clearDefaults()
-        let platform = RecordingPlatform()
-        let state = AppState(
-            client: nil,
-            notifications: RecordingNotifier(),
-            platform: platform,
-            startPollingOnInit: false
-        )
-        // No identity → openDashboard should silently no-op.
-        state.openDashboard()
-        XCTAssertEqual(
-            platform.openURLCalls, [],
-            "openDashboard must skip the platform when isDashboardAvailable is false."
-        )
-    }
-
     func testFooterActionsHonorPlatformQuitFlag() {
         clearDefaults()
         let platform = RecordingPlatform()

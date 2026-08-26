@@ -132,7 +132,8 @@ describe("createNormalizedTask", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.id).toBe("task-my-new-task");
-      const content = readFileSync(result.path, "utf-8");
+      expect(result.path).toBe("data/tasks/backlog/task-my-new-task.md");
+      const content = readFileSync(join(projectDir, result.path), "utf-8");
       expect(content).toContain("id: task-my-new-task");
       expect(content).toContain("priority: p2");
       expect(content).toContain("status: backlog");
@@ -154,8 +155,9 @@ describe("createNormalizedTask", () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.path).toContain('$(touch should-not-run)');
-      expect(readFileSync(result.path, "utf8")).toContain("id: task-literal-path-task");
+      expect(result.path).toBe("data/tasks/backlog/task-literal-path-task.md");
+      expect(readFileSync(join(unsafeProjectDir, result.path), "utf8"))
+        .toContain("id: task-literal-path-task");
     }
   });
 
@@ -203,7 +205,8 @@ describe("captureInboxTask", () => {
     const result = captureInboxTask(projectDir, "Add search filter");
     expect(result.ok).toBe(true);
     if (result.ok) {
-      const content = readFileSync(result.path, "utf-8");
+      expect(result.path).toBe("data/inbox/task-add-search-filter.md");
+      const content = readFileSync(join(projectDir, result.path), "utf-8");
       expect(content).toBe("# Add search filter\n");
     }
   });

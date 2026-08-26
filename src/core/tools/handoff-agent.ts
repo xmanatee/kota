@@ -196,18 +196,20 @@ export async function runHandoffAgent(
       const childTokenBudget = runtime.tokenBudget && budget.maxTotalTokens !== undefined
         ? runtime.tokenBudget.createChild({ maxTotalTokens: budget.maxTotalTokens })
         : runtime.tokenBudget;
-      const result = await withHandoffAgentRuntime(
-        {
-          ...runtime,
-          cwd,
-          autonomyMode: effectiveAutonomyMode,
-          scopeId: scope.scopeId,
-          projectId: scope.projectId ?? scope.scopeId,
-          ...(scopePolicy !== undefined ? { scopePolicy } : {}),
-        },
-        () => runAgentHarness(
-          harness,
+      let result: Awaited<ReturnType<typeof runAgentHarness>>;
+      try {
+        result = await withHandoffAgentRuntime(
           {
+            ...runtime,
+            cwd,
+            autonomyMode: effectiveAutonomyMode,
+            scopeId: scope.scopeId,
+            projectId: scope.projectId ?? scope.scopeId,
+            ...(scopePolicy !== undefined ? { scopePolicy } : {}),
+          },
+          () => runAgentHarness(
+            harness,
+            {
             prompt: buildAgentHandoffPrompt(request),
             model: agent.model,
             ...(runtime.modelProvider !== undefined ? { modelProvider: runtime.modelProvider } : {}),
@@ -249,10 +251,13 @@ export async function runHandoffAgent(
             abortController: createChildAbortController(context),
             ...(childTokenBudget !== undefined ? { tokenBudget: childTokenBudget } : {}),
             ...(context?.workflow !== undefined ? { workflowContext: context.workflow } : {}),
-          },
-          createHarnessWriter(runtime.transport),
-        ),
-      );
+            },
+            createHarnessWriter(runtime.transport),
+          ),
+        );
+      } catch (error) {
+        return errorResult(error instanceof Error ? error.message : String(error));
+      }
       const postSnapshot = writeScopeSnapshot(cwd, writeScope);
       if (postSnapshot !== undefined && isErrorResult(postSnapshot)) {
         return postSnapshot;

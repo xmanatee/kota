@@ -190,8 +190,8 @@ describe("github-mention-intake workflow", () => {
     expect(tools.calls).toEqual([]);
 
     const created = result.steps["create-task"].output as { path: string; taskId: string };
-    expect(existsSync(created.path)).toBe(true);
-    const taskContent = readFileSync(created.path, "utf-8");
+    expect(existsSync(join(projectDir, created.path))).toBe(true);
+    const taskContent = readFileSync(join(projectDir, created.path), "utf-8");
     expect(taskContent).toContain("status: ready");
     expect(taskContent).toContain("Repository: owner/repo");
     expect(taskContent).toContain("Issue number: #17");
@@ -462,7 +462,7 @@ describe("github-mention-intake workflow", () => {
 
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     const created = result.steps["create-task"].output as { path: string };
-    const taskContent = readFileSync(created.path, "utf-8");
+    const taskContent = readFileSync(join(projectDir, created.path), "utf-8");
     const marker = '<untrusted-content source="github.issue-comment.body">';
     const start = taskContent.indexOf(marker);
     const end = taskContent.indexOf("</untrusted-content>", start);

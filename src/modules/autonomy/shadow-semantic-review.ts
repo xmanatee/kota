@@ -45,8 +45,6 @@ import type {
 } from "./shadow-semantic-review-types.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
-const DEFAULT_SHADOW_REVIEW_MAX_TURNS = 8;
-
 export type ShadowSemanticReviewStepResult = {
   artifactPath: string;
   status: ShadowSemanticReviewStatus;
@@ -116,7 +114,6 @@ export function resolveShadowSemanticReviewRunContract(
     harness: runtime.harness,
     model: declaration.reviewer.model ?? runtime.tiers.capable,
     effort: declaration.reviewer.effort ?? runtime.effort,
-    maxTurns: declaration.reviewer.maxTurns ?? DEFAULT_SHADOW_REVIEW_MAX_TURNS,
     autonomyMode: "autonomous",
     ownerQuestionAccess: "disabled",
     ...(harness?.toolControl === "kota"

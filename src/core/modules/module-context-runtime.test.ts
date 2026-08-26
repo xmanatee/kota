@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEventBus } from "#core/events/event-bus.js";
 import { defineDaemonWideModuleEvent } from "#core/events/module-event.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { executeTool } from "#core/tools/index.js";
 import { resetModuleContextTestState } from "./module-context.test-helpers.js";
 import { ModuleLoader } from "./module-loader.js";
@@ -104,7 +104,7 @@ describe("ModuleContext.events", () => {
           ctx.events.emitExternal("tool.ran", { tool: "event_emitter_tool" });
           return { content: "emitted" };
         },
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 
@@ -217,7 +217,7 @@ describe("ModuleContext.createSession", () => {
           session.close();
           return { content: result };
         },
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 

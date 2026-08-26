@@ -1,13 +1,12 @@
-import { realpathSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { join, relative, resolve, sep } from "node:path";
 import type { ProjectId } from "#core/daemon/scope-registry.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import { getCurrentToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import {
-  LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE,
-  type LogicalResourceAuthority,
-} from "#core/workflow/logical-resource-authority.js";
-import { RunSandboxManager } from "#core/workflow/run-sandbox.js";
-import type { WorkflowRuntimeResources } from "#core/workflow/run-types.js";
+  type RunRepositoryAccess,
+  requireRunWriterWorkspace,
+} from "#core/workflow/run-context.js";
+import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateResult,
@@ -39,15 +38,11 @@ import { isRepoTaskId } from "./task-id.js";
 export type RepoTaskCanonicalMutationTarget = Readonly<{
 	authority: "canonical";
   projectId: ProjectId;
-  projectDir: string;
 }>;
 
 export type RepoTaskRuntimeSandboxTarget = Readonly<{
 	authority: "runtime-owned-sandbox";
-	runId: string;
-	projectDir: string;
-	scopeDir: string;
-	runtimeResources: WorkflowRuntimeResources;
+	repositoryAccess: RunRepositoryAccess;
 }>;
 
 export type RepoTaskMutationTarget =
@@ -270,7 +265,7 @@ function executeRepoTaskMutation(
         path,
         `# ${request.title}\n${request.summary ? `\n${request.summary}\n` : ""}`,
       );
-      return { ok: true, id: request.id, path };
+      return { ok: true, id: request.id, path: relative(projectDir, path) };
     }
     case "create":
       return createNormalizedTask(projectDir, request.options);
@@ -282,7 +277,7 @@ function executeRepoTaskMutation(
         return { ok: false, reason: "already_exists" };
       }
       writeRepoInboxFile(projectDir, path, request.content);
-      return { ok: true, id: request.id, path };
+      return { ok: true, id: request.id, path: relative(projectDir, path) };
     }
     case "move":
       return moveResult(projectDir, request.id, request.state);
@@ -295,109 +290,7 @@ function executeRepoTaskMutation(
   }
 }
 
-function requireExistingRealPath(path: string, label: string): string {
-	try {
-		return realpathSync(path);
-	} catch (error) {
-		throw new Error(
-			`Repo-task runtime-owned sandbox proof failed: ${label} is unavailable`,
-			{ cause: error },
-		);
-	}
-}
-
-function requireRuntimeOwnedSandbox(
-	target: RepoTaskRuntimeSandboxTarget,
-): string {
-	const projectDir = requireExistingRealPath(target.projectDir, "workspace");
-	const scopeDir = requireExistingRealPath(target.scopeDir, "canonical scope root");
-	const env = target.runtimeResources.env;
-	const workspaceFromRuntime = requireExistingRealPath(
-		env.KOTA_WORKSPACE_DIR ?? "",
-		"KOTA_WORKSPACE_DIR",
-	);
-	const agentDir = requireExistingRealPath(
-		env.KOTA_RUN_DIR ?? "",
-		"KOTA_RUN_DIR",
-	);
-	const tempDir = requireExistingRealPath(
-		env.KOTA_RUN_TEMP_DIR ?? "",
-		"KOTA_RUN_TEMP_DIR",
-	);
-	const artifactDir = requireExistingRealPath(
-		env.KOTA_RUN_ARTIFACT_DIR ?? "",
-		"KOTA_RUN_ARTIFACT_DIR",
-	);
-	const declaredAgentDir = requireExistingRealPath(
-		target.runtimeResources.agentRunDir ?? "",
-		"runtimeResources.agentRunDir",
-	);
-	const declaredTempDir = requireExistingRealPath(
-		target.runtimeResources.tempRoot ?? "",
-		"runtimeResources.tempRoot",
-	);
-	const declaredArtifactDir = requireExistingRealPath(
-		target.runtimeResources.artifactRoot ?? "",
-		"runtimeResources.artifactRoot",
-	);
-	let ownedWorkspace: string;
-	let ownedRoot: string;
-	let ownedTemp: string;
-	let ownedArtifacts: string;
-	try {
-		const reconciliation = new RunSandboxManager(scopeDir).reconcile(
-			target.runId,
-			"write",
-		);
-		if (reconciliation.status !== "active") {
-			throw new Error(`runtime allocation is ${reconciliation.status}`);
-		}
-		ownedWorkspace = requireExistingRealPath(
-			reconciliation.sandbox.workspaceDir,
-			"owned workspace",
-		);
-		ownedRoot = requireExistingRealPath(
-			reconciliation.sandbox.rootDir,
-			"owned run root",
-		);
-		ownedTemp = requireExistingRealPath(
-			reconciliation.sandbox.tempDir,
-			"owned temp root",
-		);
-		ownedArtifacts = requireExistingRealPath(
-			reconciliation.sandbox.artifactDir,
-			"owned artifact root",
-		);
-	} catch (error) {
-		throw new Error(
-			`Repo-task runtime-owned sandbox proof failed: runtime allocation "${target.runId}" is not an active writer sandbox for the canonical scope`,
-			{ cause: error },
-		);
-	}
-	const expectedProfilePrefix = `${target.runId}:`;
-	const attempt = target.runtimeResources.profileId.slice(
-		expectedProfilePrefix.length,
-	);
-	const valid =
-		target.runtimeResources.profileId.startsWith(expectedProfilePrefix) &&
-		/^[1-9]\d*$/.test(attempt) &&
-		projectDir === workspaceFromRuntime &&
-		projectDir === ownedWorkspace &&
-		dirname(agentDir) === ownedRoot &&
-		agentDir === declaredAgentDir &&
-		tempDir === declaredTempDir &&
-		tempDir === ownedTemp &&
-		artifactDir === declaredArtifactDir &&
-		artifactDir === ownedArtifacts;
-	if (!valid) {
-		throw new Error(
-			"Repo-task runtime-owned sandbox proof failed: workspace and run resources do not describe one runtime allocation",
-		);
-	}
-	return projectDir;
-}
-
-function repoTaskMutationResources(
+export function repoTaskMutationResources(
   projectDir: string,
   request: RepoTaskMutationRequest,
 ): readonly string[] {
@@ -444,40 +337,48 @@ function preflightRepoTaskMutation(
   return null;
 }
 
-function withRepoTaskResources<T>(
-  authority: LogicalResourceAuthority,
-  projectId: ProjectId,
-  resources: readonly string[],
-  operation: () => T,
-  index = 0,
-): T {
-  const resourceKey = resources[index];
-  if (resourceKey === undefined) return operation();
-  return authority.withResourceAvailable({
-    projectId,
-    resourceKey,
-    operation: () => withRepoTaskResources(
-      authority,
-      projectId,
-      resources,
-      operation,
-      index + 1,
-    ),
-  });
-}
-
-function executeCanonicalRepoTaskMutation(
+async function executeCanonicalRepoTaskMutation(
   target: RepoTaskCanonicalMutationTarget,
   request: RepoTaskMutationRequest,
+): Promise<RepoTaskMutationValue> {
+  const dispatcher = getWorkflowDispatcher();
+  if (dispatcher === null) {
+    throw new Error("Repo-task mutation requires the active workflow runtime");
+  }
+  const execution = getCurrentToolCallExecutionOptions();
+  const parentRunId = execution?.workflowContext?.runId;
+  const result = await dispatcher.execute({
+    workflow: "repo-task-mutation",
+    projectId: target.projectId,
+    event: "repo-task.mutation.requested",
+    payload: { request },
+    ...(parentRunId !== undefined
+      ? {
+          parent: {
+            runId: parentRunId,
+            triggerId: `repo-task:${createHash("sha256")
+              .update(JSON.stringify(request))
+              .digest("hex")}`,
+          },
+        }
+      : {}),
+    ...(execution?.signal !== undefined ? { signal: execution.signal } : {}),
+  });
+  if (!result.ok) throw new Error(result.error);
+  if (!isObject(result.output) || typeof result.output.ok !== "boolean") {
+    throw new Error("Repo-task mutation workflow returned an invalid result");
+  }
+  return result.output as RepoTaskMutationValue;
+}
+
+export function executeRepoTaskMutationInRun(
+  access: RunRepositoryAccess | undefined,
+  request: RepoTaskMutationRequest,
 ): RepoTaskMutationValue {
-  const operation = () => executeRepoTaskMutation(target.projectDir, request);
-  const authority = getProviderRegistry()?.get(
-    LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE,
+  return executeRepoTaskMutation(
+    requireRunWriterWorkspace(access),
+    decodeRepoTaskMutationRequest(request),
   );
-  if (authority === null || authority === undefined) return operation();
-  const resources = [...new Set(repoTaskMutationResources(target.projectDir, request))]
-    .sort();
-  return withRepoTaskResources(authority, target.projectId, resources, operation);
 }
 
 export function mutateRepoTask(
@@ -520,10 +421,7 @@ export async function mutateRepoTask(
 	const preflight = preflightRepoTaskMutation(normalizedRequest);
 	if (preflight !== null) return preflight;
 	if (target.authority === "runtime-owned-sandbox") {
-		return executeRepoTaskMutation(
-			requireRuntimeOwnedSandbox(target),
-			normalizedRequest,
-		);
+		return executeRepoTaskMutationInRun(target.repositoryAccess, normalizedRequest);
 	}
-	return executeCanonicalRepoTaskMutation(target, normalizedRequest);
+	return await executeCanonicalRepoTaskMutation(target, normalizedRequest);
 }

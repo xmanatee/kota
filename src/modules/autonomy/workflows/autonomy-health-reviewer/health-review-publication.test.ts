@@ -16,7 +16,7 @@ import {
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
 import { planAutonomyHealthReviewPublication, publishAutonomyHealthReview } from "./health-review-publication.js";
@@ -73,7 +73,7 @@ describe("autonomy health review publication", () => {
       scopeDir,
       ownerQuestionQueue,
       review: openedReview,
-      repositoryActions: stageAutonomyHealthReviewActions({
+      plannedActions: planAutonomyHealthReviewActions({
         projectDir: sandboxDir,
         currentProjection,
         scopeDir,
@@ -131,7 +131,7 @@ describe("autonomy health review publication", () => {
       sourceEventName: "autonomy.runtime-health.audit",
       reason: "fixture publication",
     });
-    const repositoryActions = stageAutonomyHealthReviewActions({
+    const plannedActions = planAutonomyHealthReviewActions({
       projectDir: sandboxDir,
       currentProjection,
       scopeDir,
@@ -141,12 +141,17 @@ describe("autonomy health review publication", () => {
     writeAutonomyHealthReviewArtifact(runDir, {
       generatedAt: review.generatedAt,
       review,
-      actions: repositoryActions,
+      actions: plannedActions,
     });
 
-    expect(repositoryActions.droppedTaskIds).toEqual([task.taskId]);
+    expect(plannedActions.taskMutations).toEqual([
+      { id: task.taskId, state: "dropped" },
+    ]);
     expect(existsSync(
       join(sandboxDir, "data", "tasks", "dropped", `${task.taskId}.md`),
+    )).toBe(false);
+    expect(existsSync(
+      join(sandboxDir, "data", "tasks", "ready", `${task.taskId}.md`),
     )).toBe(true);
     expect(existsSync(join(scopeDir, "data", "tasks"))).toBe(false);
     expect(currentProjection.issues[0]?.status).toBe(
@@ -154,8 +159,8 @@ describe("autonomy health review publication", () => {
     );
     expect(ownerQuestionQueue.get(question.id)?.status).toBe("pending");
 
-    // The writer has only staged repository actions at this point. No
-    // canonical projection or owner-question state has changed.
+    // The reviewer has only planned follow-up actions at this point. No
+    // canonical projection, task, or owner-question state has changed.
     expect(ownerQuestionQueue.get(question.id)?.status).toBe("pending");
 
     const plan = planAutonomyHealthReviewPublication({

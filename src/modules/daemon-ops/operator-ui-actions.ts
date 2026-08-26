@@ -8,8 +8,14 @@ import type {
   UiSurfaceBundle,
 } from "./operator-ui-types.js";
 
+export type UiActionExecutionPayload = {
+  kind: "external-url";
+  url: string;
+  label: string;
+};
+
 export type UiActionExecutionResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; payload?: UiActionExecutionPayload }
   | { ok: false; reason: string; message: string };
 
 export type UiRouteExecutor = (

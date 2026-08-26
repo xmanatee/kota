@@ -10,9 +10,9 @@ import XCTest
 /// without spinning up an HTTP server or instantiating `AppState`.
 ///
 /// `AppState` is intentionally not constructed here for the same reason
-/// `AnswerViewTests` documents: its `init` reaches into
-/// `UNUserNotificationCenter.current()`, which crashes outside a `.app`
-/// bundle. The diagnostic derivation is pure, so we exercise it directly.
+    /// the production initializer reaches into `UNUserNotificationCenter.current()`,
+    /// which crashes outside a `.app` bundle. The diagnostic derivation is pure,
+    /// so we exercise it directly.
 final class DaemonConnectionDiagnosticTests: XCTestCase {
 
     // MARK: - Local-mode classification

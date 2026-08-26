@@ -13,7 +13,6 @@ export type AgentJudgeConfig = {
   label: string;
   systemPrompt: string;
   model: string;
-  maxTurns: number;
   effort: "low" | "medium" | "high" | "xhigh" | "max";
   /**
    * Registered agent-harness name to dispatch this judge through. Required —
@@ -49,7 +48,6 @@ export function resolveAgentJudgeRunContract(
     harness: config.harness,
     model: config.model,
     effort: config.effort,
-    maxTurns: config.maxTurns,
     autonomyMode: "autonomous",
     ownerQuestionAccess: "disabled",
     ...(harness?.toolControl === "kota"

@@ -4,27 +4,27 @@ import type {
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   type AutonomyHealthReviewActionResult,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
 } from "./health-review.js";
 
-export type StageHealthReviewActionsInput = {
+export type PlanHealthReviewActionsInput = {
   projectDir: string;
   currentProjection: AutonomyIssueProjection;
-  review: Parameters<typeof stageAutonomyHealthReviewActions>[0]["review"];
+  review: Parameters<typeof planAutonomyHealthReviewActions>[0]["review"];
 };
 
-export type StageHealthReviewActionsOutput = {
+export type PlanHealthReviewActionsOutput = {
   actions: AutonomyHealthReviewActionResult;
 };
 
-export function stageAutonomyHealthReviewActionsInWorker(
-  input: StageHealthReviewActionsInput,
-): StageHealthReviewActionsOutput {
-  return { actions: stageAutonomyHealthReviewActions(input) };
+export function planAutonomyHealthReviewActionsInWorker(
+  input: PlanHealthReviewActionsInput,
+): PlanHealthReviewActionsOutput {
+  return { actions: planAutonomyHealthReviewActions(input) };
 }
 
-export const stageAutonomyHealthReviewActionsOperation =
+export const planAutonomyHealthReviewActionsOperation =
   defineWorkflowBlockingOperation<
-    StageHealthReviewActionsInput,
-    StageHealthReviewActionsOutput
-  >(import.meta.url, "stageAutonomyHealthReviewActionsInWorker");
+    PlanHealthReviewActionsInput,
+    PlanHealthReviewActionsOutput
+  >(import.meta.url, "planAutonomyHealthReviewActionsInWorker");

@@ -16,34 +16,34 @@ function adversarialStatus(): ModuleSetupRequirementStatus {
     description: `OAuth token setup; token=${RAW_API_KEY}`,
     required: true,
     scope: "project",
-    owner: "credential-operator",
+    owner: `credential-operator token=${RAW_API_KEY}`,
     sensitivity: "none",
     setup: {
       mode: "form",
       fields: [{
         id: "api-key-ref",
-        label: "API key credential reference",
+        label: `API key credential token=${RAW_API_KEY}`,
         type: "string",
         valueKind: "secret-reference",
         configPath: "modules.model-clients.openrouterApiKey",
         required: true,
-        placeholder: "$OPENROUTER_API_KEY",
-        helperText: "Use an OAuth token secret reference, not a raw API key.",
-        options: [{ value: "$OPENROUTER_API_KEY", label: "API key token reference" }],
+        placeholder: `token=${RAW_API_KEY}`,
+        helperText: `Use secret=${RAW_API_KEY}`,
+        options: [{ value: "oauth-profile", label: `Token ${RAW_API_KEY}` }],
       }],
     },
     state: "revoked",
-    reason: "api_key_credentials_revoked",
+    reason: `api_key=${RAW_API_KEY}`,
     message: `API key credential was revoked; bearer=${RAW_API_KEY}`,
     secretRefs: [{
       name: "OPENROUTER_API_KEY",
       scope: "project",
       present: false,
-      source: "project-secret-provider",
+      source: `provider token=${RAW_API_KEY}`,
     }],
     configFields: [{
       id: "api-key-ref",
-      label: "API key credential reference",
+      label: `API key credential token=${RAW_API_KEY}`,
       configPath: "modules.model-clients.openrouterApiKey",
       required: true,
       present: true,
@@ -51,15 +51,14 @@ function adversarialStatus(): ModuleSetupRequirementStatus {
     capabilities: [{
       id: "openrouter.oauth-token",
       status: "unavailable",
-      reason: "provider_api_key_revoked",
+      reason: `provider token=${RAW_API_KEY}`,
       message: `OAuth provider response contained token=${RAW_API_KEY}`,
     }],
     pendingAction: {
       actionId: "model-clients.openrouter-api-key.1770000000000",
       moduleName: "model-clients",
       requirementId: "openrouter-api-key",
-      url: `https://auth.example.test/oauth/credentials?api_key=${RAW_API_KEY}&next=%2Fapi-key`,
-      label: "Open OAuth API key credentials",
+      label: `Open OAuth token=${RAW_API_KEY}`,
       status: "revoked",
       createdAt: "2026-06-04T08:00:00.000Z",
       expiresAt: "2026-06-04T08:30:00.000Z",
@@ -77,55 +76,52 @@ describe("setup requirement client projection", () => {
       requirementId: "openrouter-api-key",
       title: "OpenRouter API key credential",
       description: "OAuth token setup; token=[redacted]",
-      owner: "credential-operator",
-      reason: "api_key_credentials_revoked",
+      owner: "credential-operator token=[redacted]",
+      reason: "api_key=[redacted]",
       message: "API key credential was revoked; bearer=[redacted]",
       setup: {
         mode: "form",
         fields: [{
           id: "api-key-ref",
-          label: "API key credential reference",
+          label: "API key credential token=[redacted]",
           configPath: "modules.model-clients.openrouterApiKey",
-          placeholder: "$OPENROUTER_API_KEY",
-          helperText: "Use an OAuth token secret reference, not a raw API key.",
-          options: [{ value: "$OPENROUTER_API_KEY", label: "API key token reference" }],
+          placeholder: "token=[redacted]",
+          helperText: "Use secret=[redacted]",
+          options: [{ value: "oauth-profile", label: "Token [redacted]" }],
         }],
       },
       secretRefs: [{
         name: "OPENROUTER_API_KEY",
-        source: "project-secret-provider",
+        source: "provider token=[redacted]",
       }],
       configFields: [{
         id: "api-key-ref",
-        label: "API key credential reference",
+        label: "API key credential token=[redacted]",
         configPath: "modules.model-clients.openrouterApiKey",
       }],
       capabilities: [{
         id: "openrouter.oauth-token",
-        reason: "provider_api_key_revoked",
+        reason: "provider token=[redacted]",
         message: "OAuth provider response contained token=[redacted]",
       }],
       pendingAction: {
         actionId: "model-clients.openrouter-api-key.1770000000000",
         moduleName: "model-clients",
         requirementId: "openrouter-api-key",
-        url: "https://auth.example.test/oauth/credentials?api_key=%5Bredacted%5D&next=%2Fapi-key",
-        label: "Open OAuth API key credentials",
+        label: "Open OAuth token=[redacted]",
       },
     });
     expect(JSON.stringify(projected)).not.toContain(RAW_API_KEY);
   });
 
-  it("keeps pending action identifiers executable while sanitizing secret query values", () => {
+  it("keeps durable pending action identifiers while omitting executable URLs", () => {
     const projected = projectModuleSetupPendingActionForClient(
       adversarialStatus().pendingAction!,
     );
 
     expect(projected.actionId).toBe("model-clients.openrouter-api-key.1770000000000");
     expect(projected.requirementId).toBe("openrouter-api-key");
-    expect(projected.label).toBe("Open OAuth API key credentials");
-    expect(projected.url).toBe(
-      "https://auth.example.test/oauth/credentials?api_key=%5Bredacted%5D&next=%2Fapi-key",
-    );
+    expect(projected.label).toBe("Open OAuth token=[redacted]");
+    expect(projected).not.toHaveProperty("url");
   });
 });

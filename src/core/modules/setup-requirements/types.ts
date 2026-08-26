@@ -146,13 +146,18 @@ export type ModuleSetupPendingAction = {
   actionId: string;
   moduleName: string;
   requirementId: string;
-  url: string;
   label: string;
   status: "pending" | "completed" | "revoked";
   createdAt: string;
   expiresAt: string;
   completedAt?: string;
 };
+
+/** Returned only by an authorized start call; its URL is executable and not durable. */
+export type ModuleSetupExecutablePendingAction = Omit<
+  ModuleSetupPendingAction,
+  "status" | "completedAt"
+> & { url: string; status: "pending" };
 
 export type ModuleSetupRequirementStatus = {
   moduleName: string;
@@ -193,7 +198,7 @@ export type ModuleSetupMutationResult =
 export type ModuleSetupStartResult =
   | {
       ok: true;
-      action: ModuleSetupPendingAction;
+      action: ModuleSetupExecutablePendingAction;
       status: ModuleSetupRequirementStatus;
     }
   | ModuleSetupFailureResult;

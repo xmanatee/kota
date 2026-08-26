@@ -123,7 +123,15 @@ export async function executeLocalSetupRoute(
   if (operation.method === "POST" && route.action === "start") {
     const result = await client.setup.start(route.moduleName, route.requirementId);
     return result.ok
-      ? { ok: true, message: "Setup action started." }
+      ? {
+          ok: true,
+          message: "Setup action started.",
+          payload: {
+            kind: "external-url",
+            url: result.action.url,
+            label: result.action.label,
+          },
+        }
       : { ok: false, reason: result.reason, message: result.message };
   }
   if (operation.method === "POST" && route.action === "refresh") {

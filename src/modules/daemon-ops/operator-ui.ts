@@ -1,4 +1,5 @@
 export type {
+  UiActionExecutionPayload,
   UiActionExecutionResult,
   UiClientNamespaceExecutor,
   UiRouteExecutor,

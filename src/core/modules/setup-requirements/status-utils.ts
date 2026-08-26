@@ -9,6 +9,7 @@ import {
 import type {
   ModuleSetupCapabilityStatus,
   ModuleSetupConfigFieldStatus,
+  ModuleSetupExecutablePendingAction,
   ModuleSetupFormField,
   ModuleSetupPendingAction,
   ModuleSetupRequirement,
@@ -27,23 +28,29 @@ export function projectModuleSetupStatusForClient(
     moduleName: status.moduleName,
     requirementId: status.requirementId,
     kind: status.kind,
-    title: status.title,
+    title: projectSetupText(status.title, target),
     ...(status.description !== undefined && {
       description: projectSetupText(status.description, target),
     }),
     required: status.required,
     scope: status.scope,
-    ...(status.owner !== undefined && { owner: status.owner }),
+    ...(status.owner !== undefined && {
+      owner: projectSetupText(status.owner, target),
+    }),
     sensitivity: status.sensitivity,
     setup: projectSetupMode(status.setup, target),
     state: status.state,
-    reason: status.reason,
+    reason: projectSetupText(status.reason, target),
     message: projectSetupText(status.message, target),
     ...(status.secretRefs !== undefined && {
-      secretRefs: status.secretRefs.map(projectSecretStatus),
+      secretRefs: status.secretRefs.map((secret) =>
+        projectSecretStatus(secret, target)
+      ),
     }),
     ...(status.configFields !== undefined && {
-      configFields: status.configFields.map(projectConfigField),
+      configFields: status.configFields.map((field) =>
+        projectConfigField(field, target)
+      ),
     }),
     ...(status.capabilities !== undefined && {
       capabilities: status.capabilities.map((capability) =>
@@ -64,12 +71,22 @@ export function projectModuleSetupPendingActionForClient(
     actionId: action.actionId,
     moduleName: action.moduleName,
     requirementId: action.requirementId,
-    url: projectEvidenceUrl(action.url, target),
-    label: action.label,
+    label: projectSetupText(action.label, target),
     status: action.status,
     createdAt: action.createdAt,
     expiresAt: action.expiresAt,
     ...(action.completedAt !== undefined && { completedAt: action.completedAt }),
+  };
+}
+
+export function projectModuleSetupActionForAuthorizedStart(
+  action: ModuleSetupExecutablePendingAction,
+): ModuleSetupExecutablePendingAction {
+  const projected = projectModuleSetupPendingActionForClient(action);
+  return {
+    ...projected,
+    url: action.url,
+    status: "pending",
   };
 }
 
@@ -82,52 +99,63 @@ function projectSetupMode(
     return {
       mode: "url",
       url: projectEvidenceUrl(setup.url, target),
-      label: setup.label,
+      label: projectSetupText(setup.label, target),
       ...(setup.pendingTtlMs !== undefined && { pendingTtlMs: setup.pendingTtlMs }),
     };
   }
   return {
     mode: "form",
-    fields: setup.fields.map(projectFormField),
+    fields: setup.fields.map((field) => projectFormField(field, target)),
   };
 }
 
-function projectFormField(field: ModuleSetupFormField): ModuleSetupFormField {
+function projectFormField(
+  field: ModuleSetupFormField,
+  target: EvidenceProjectionTarget,
+): ModuleSetupFormField {
   return {
     id: field.id,
-    label: field.label,
+    label: projectSetupText(field.label, target),
     type: field.type,
     ...(field.valueKind !== undefined && { valueKind: field.valueKind }),
     configPath: field.configPath,
     required: field.required,
     ...(field.placeholder !== undefined && {
-      placeholder: field.placeholder,
+      placeholder: projectSetupText(field.placeholder, target),
     }),
     ...(field.helperText !== undefined && {
-      helperText: field.helperText,
+      helperText: projectSetupText(field.helperText, target),
     }),
     ...(field.options !== undefined && {
       options: field.options.map((option) => ({
         value: option.value,
-        label: option.label,
+        label: projectSetupText(option.label, target),
       })),
     }),
   };
 }
 
-function projectSecretStatus(status: ModuleSetupSecretStatus): ModuleSetupSecretStatus {
+function projectSecretStatus(
+  status: ModuleSetupSecretStatus,
+  target: EvidenceProjectionTarget,
+): ModuleSetupSecretStatus {
   return {
     name: status.name,
     scope: status.scope,
     present: status.present,
-    ...(status.source !== undefined && { source: status.source }),
+    ...(status.source !== undefined && {
+      source: projectSetupText(status.source, target),
+    }),
   };
 }
 
-function projectConfigField(field: ModuleSetupConfigFieldStatus): ModuleSetupConfigFieldStatus {
+function projectConfigField(
+  field: ModuleSetupConfigFieldStatus,
+  target: EvidenceProjectionTarget,
+): ModuleSetupConfigFieldStatus {
   return {
     id: field.id,
-    label: field.label,
+    label: projectSetupText(field.label, target),
     configPath: field.configPath,
     required: field.required,
     present: field.present,
@@ -141,7 +169,9 @@ function projectCapabilityStatus(
   return {
     id: capability.id,
     status: capability.status,
-    ...(capability.reason !== undefined && { reason: capability.reason }),
+    ...(capability.reason !== undefined && {
+      reason: projectSetupText(capability.reason, target),
+    }),
     ...(capability.message !== undefined && {
       message: projectSetupText(capability.message, target),
     }),

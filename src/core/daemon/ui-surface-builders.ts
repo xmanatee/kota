@@ -42,6 +42,25 @@ export function resultSpec(message: string): UiActionResultSpec {
   };
 }
 
+export function externalUrlResultSpec(message: string): UiActionResultSpec {
+  return {
+    ...resultSpec(message),
+    success: {
+      message,
+      schema: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["external-url"] },
+          url: { type: "string", format: "url" },
+          label: { type: "string" },
+        },
+        required: ["kind", "url", "label"],
+        additionalProperties: false,
+      },
+    },
+  };
+}
+
 export function action(args: ActionArgs): UiAction {
   const effect = args.effect ?? "read";
   return {

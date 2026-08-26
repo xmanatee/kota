@@ -52,26 +52,18 @@ message if invoked on the wrong platform.
 
 ## Daemon Contract Layout
 
-Daemon contract Codable mirrors and per-route wire-shaping live under
-`Sources/KotaShared/Daemon/`, split per capability namespace
-(`<Namespace>Models.swift` for types/parsers/render helpers and
-`<Namespace>Routes.swift` for the `extension DaemonClient` that adds
-its routes). The namespace set is: Approvals, OwnerQuestions, Tasks,
-Sessions, Digest, Attention, Knowledge, Memory, History, RepoTasks,
-Recall, Answer, Capture, Retract, Voice, Chat, Core.
+`DaemonClient.swift` owns connection state, the error envelope, and shared
+request helpers. `Sources/KotaShared/Daemon/` contains only wire contracts for
+native responsibilities: health and notification polling, shared UI/SSE,
+chat/voice, slash commands, and session termination. Operator capabilities
+such as setup, workflows, knowledge, memory, and task control are rendered and
+executed exclusively through `ui.surface.v1`; do not add direct Apple routes
+for them.
 
-- `DaemonClient.swift` keeps the connection state, error envelope,
-  request helpers (`get`/`post`/`patch`/`delete`/`throwIfHTTPError`/
-  `decode`), and the small set of cross-cutting routes (`/identity`,
-  `/capabilities`, `/workflow/*`, `/commands`).
-- Per-namespace `*Routes.swift` files extend `DaemonClient` with the
-  routes for that namespace and reuse the internal helpers.
-- Per-namespace `*Models.swift` files own the Codable types, render
-  helpers, and per-arm enums for that namespace.
 - `ContractTypes.swift` keeps authored cross-client decoders such as identity,
-  capabilities, and workflow definitions. `ui.surface.v1` lives under
-  `Generated/` and is regenerated from the daemon TypeScript contract with
-  `pnpm build:ui-bindings`; never mirror that protocol by hand.
+  scope registry, and diagnostics. `ui.surface.v1` lives under `Generated/`
+  and is regenerated from the daemon TypeScript contract with `pnpm
+  build:ui-bindings`; never mirror that protocol by hand.
 
 ## Build & Test
 

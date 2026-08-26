@@ -118,6 +118,43 @@ describe("fromSimple", () => {
     const result = await def.runner({});
     expect(result.content).toBe("42");
   });
+
+  it.each([
+    {
+      risk: "safe" as const,
+      kind: "discovery" as const,
+      expected: { kind: "read", scope: "local-fs", idempotent: true, openWorld: false },
+    },
+    {
+      risk: "safe" as const,
+      kind: "action" as const,
+      expected: { kind: "write", scope: "daemon-state", idempotent: false, openWorld: false },
+    },
+    {
+      risk: "moderate" as const,
+      kind: "action" as const,
+      expected: { kind: "write", scope: "local-fs", idempotent: false, openWorld: false },
+    },
+    {
+      risk: "dangerous" as const,
+      kind: "action" as const,
+      expected: {
+        kind: "destructive",
+        scope: "external-network",
+        idempotent: false,
+        openWorld: true,
+      },
+    },
+  ])("maps external $risk/$kind metadata at the adapter boundary", ({ risk, kind, expected }) => {
+    const definition = fromSimple({
+      name: `effect-${risk}-${kind}`,
+      description: "",
+      risk,
+      kind,
+      run: async () => "ok",
+    });
+    expect(definition.effect).toEqual(expected);
+  });
 });
 
 describe("fromOpenAI", () => {

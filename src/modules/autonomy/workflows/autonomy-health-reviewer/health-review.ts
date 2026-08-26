@@ -20,8 +20,8 @@ import type {
 export {
   autonomyIssueObservationsFromReview,
   finalizeAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
   planAutonomyHealthReviewFinalization,
-  stageAutonomyHealthReviewActions,
 } from "./health-review-actions.js";
 export {
   AUTONOMY_HEALTH_REVIEW_ARTIFACT,

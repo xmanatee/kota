@@ -10,8 +10,8 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  buildHarnessCapabilityArtifact,
   buildHarnessCapabilitySnapshot,
-  summarizeHarnessCapability,
 } from "#core/agent-harness/index.js";
 import { buildHarnessArtifact, writeHarnessArtifact } from "./runner-artifact-assembly.js";
 import { DEFAULT_EFFORT } from "./runner-constants.js";
@@ -138,7 +138,7 @@ export async function runScenarioAcrossHarnesses(params: {
           verificationPassed: a.verification.passed,
           changedFiles: a.changedFiles,
           isError: a.isError,
-          capability: summarizeHarnessCapability(a.capability),
+          capability: buildHarnessCapabilityArtifact(a.capability),
           trajectory: a.trajectory,
           trajectoryDiagnostics: a.trajectoryDiagnostics,
           ...(a.contextRetrievalDiagnostics !== undefined

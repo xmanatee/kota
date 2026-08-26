@@ -8,6 +8,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
   getRepoTaskQueueSnapshot,
   listFullRepoTasks,
@@ -134,7 +135,14 @@ describe("production dead-letter routing replay", () => {
         });
       });
 
-      const rawDefinitions = await autonomyWorkflowInputs();
+      const rawDefinitions = [
+        ...await autonomyWorkflowInputs(),
+        {
+          ...repoTaskMutationWorkflow,
+          definitionPath: "src/modules/repo-tasks/repo-task-mutation-workflow.ts",
+          moduleRoot: projectDir,
+        },
+      ];
       const runtimeFixture = createTestWorkflowRuntime({
         config: {
           defaultAgentHarness: "claude-agent-sdk",
@@ -154,7 +162,8 @@ describe("production dead-letter routing replay", () => {
               workflow.name === "autonomy-health-review-publication" ||
               workflow.name === "autonomy-issue-projection-materialization" ||
               workflow.name === "improver" ||
-              workflow.name === "improver-disposition-publication",
+              workflow.name === "improver-disposition-publication" ||
+              workflow.name === "repo-task-mutation",
           )
           .map((workflow) => ({
             ...workflow,
@@ -249,6 +258,13 @@ describe("production dead-letter routing replay", () => {
         await waitForLifecycle(
           () => attention.some((text) => text.includes("action resolved")),
           "resolution attention",
+        );
+        await waitForLifecycle(
+          () =>
+            listFullRepoTasks(projectDir).some(
+              (task) => task.id === readyTasks[0]!.id && task.state === "dropped",
+            ),
+          "the shared task mutation writer",
         );
 
         const resolvedIssue = capturedIssue()!;

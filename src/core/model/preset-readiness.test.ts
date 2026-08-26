@@ -222,6 +222,8 @@ describe("preset harness readiness", () => {
       },
       capturedAt: "2026-05-14T00:00:00.000Z",
     });
+    expect(readiness.adapter.localRuntime.status).toBe("ready");
+    expect(readiness.capabilities).not.toHaveProperty("localReadiness");
   });
 
   it("uses a harness-managed auth probe for Codex instead of accepting empty authEnv", () => {

@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 
 function createRunPublicationsTable(database: Database.Database): void {
   database.exec(`
-    CREATE TABLE run_publications (
+    CREATE TABLE IF NOT EXISTS run_publications (
       publication_id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
       project_id TEXT NOT NULL REFERENCES projects(id),
@@ -136,18 +136,6 @@ export function initializeRunStateSchema(database: Database.Database): void {
       result_json TEXT
     );
 
-    CREATE TABLE IF NOT EXISTS run_publications (
-      publication_id TEXT PRIMARY KEY,
-      run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-      project_id TEXT NOT NULL REFERENCES projects(id),
-      event_name TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      publication_sequence INTEGER NOT NULL,
-      created_at TEXT NOT NULL,
-      delivered_at TEXT,
-      UNIQUE (run_id, publication_sequence)
-    );
-
     CREATE TABLE IF NOT EXISTS run_emit_intents (
       run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
       step_id TEXT NOT NULL,
@@ -202,6 +190,7 @@ export function initializeRunStateSchema(database: Database.Database): void {
       WHERE lifetime = 'run';
     `);
   }
+  createRunPublicationsTable(database);
   migrateRunPublications(database);
   database.exec(`
     CREATE INDEX IF NOT EXISTS run_publications_pending_idx

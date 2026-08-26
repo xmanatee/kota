@@ -100,16 +100,6 @@ export type TerminalRunState = Extract<
   "succeeded" | "failed" | "cancelled"
 >;
 
-export class ResourceAlreadyOwnedError extends Error {
-  constructor(
-    readonly resourceKey: string,
-    readonly ownerRunId: string,
-  ) {
-    super(`Resource "${resourceKey}" is already owned by run "${ownerRunId}"`);
-    this.name = "ResourceAlreadyOwnedError";
-  }
-}
-
 export class AdmissionKeyConflictError extends Error {
   constructor(
     readonly scopeId: string,

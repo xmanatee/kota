@@ -67,7 +67,6 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_DEFAULTS.tier,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: REVIEW_AGENT_TIMEOUT_MS,
-      maxTurns: 8,
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
       validate: validateProgressReviewAgentStepOutput,

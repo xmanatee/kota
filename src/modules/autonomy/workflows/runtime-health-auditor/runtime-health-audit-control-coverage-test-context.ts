@@ -11,8 +11,8 @@ import {
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
-} from "./health-review.js";
+  planAutonomyHealthReviewActions,
+} from "../autonomy-health-reviewer/health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 export const CONTROL_COVERAGE_NOW = "2026-06-19T12:00:00.000Z";
@@ -25,7 +25,6 @@ export function makeControlCoverageProjectDir(): string {
   mkdirSync(projectDir, { recursive: true });
   execFileSync("git", ["init", "-q", "-b", "main"], {
     cwd: projectDir,
-    stdio: "ignore",
   });
   return projectDir;
 }
@@ -53,7 +52,7 @@ export function reviewAndApplyControlCoverage(
     reason: "test",
   });
   const currentProjection = readAutonomyIssueProjection(projectDir);
-  const repositoryActions = stageAutonomyHealthReviewActions({
+  const plannedActions = planAutonomyHealthReviewActions({
     projectDir,
     currentProjection,
     scopeDir: projectDir,
@@ -66,7 +65,7 @@ export function reviewAndApplyControlCoverage(
       join(projectDir, ".kota", "owner-questions"),
     ),
     review,
-    repositoryActions,
+    plannedActions,
   });
   materializeAutonomyIssueProjection(projectDir, finalized.projection);
   return finalized;

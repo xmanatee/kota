@@ -28,23 +28,22 @@ describe("repo-tasks localClient", () => {
 		resetProviderRegistry();
 	});
 
-	it("uses the default disk store in commands-only mode before onLoad registers providers", async () => {
+	it("fails closed for mutations before the workflow runtime is available", async () => {
 		const contributed = repoTasksModule.localClient!({
 			cwd: projectDir,
 		} as ModuleContext);
 
-		const created = await contributed.tasks!.create({
-			title: "Commands-only fallback task",
-			priority: "p2",
-			area: "core",
-			state: "backlog",
-		});
-		expect(created.ok).toBe(true);
+		await expect(
+			contributed.tasks!.create({
+				title: "Command-created task",
+				priority: "p2",
+				area: "core",
+				state: "backlog",
+			}),
+		).rejects.toThrow("Repo-task mutation requires the active workflow runtime");
 
 		const listed = await contributed.tasks!.list(["backlog"]);
-		expect(listed.tasks.map((task) => task.id)).toContain(
-			"task-commands-only-fallback-task",
-		);
+		expect(listed.tasks).toEqual([]);
 	});
 
 	it("returns a client error for traversal-shaped move ids", async () => {

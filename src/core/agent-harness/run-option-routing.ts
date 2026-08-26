@@ -70,6 +70,7 @@ function isRunOptionRequested(
   }
   if (option === "harnessOverrides") return options.harnessOverrides !== undefined;
   if (option === "enableFileCheckpointing") return options.enableFileCheckpointing === true;
+  if (option === "maxTurns") return options.maxTurns !== undefined;
   if (option === "thinking") {
     return options.thinkingEnabled === true || options.thinkingBudget !== undefined;
   }

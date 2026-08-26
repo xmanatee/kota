@@ -198,9 +198,9 @@ export function createProjectTasksContributor(): CaptureContributor {
   return {
     target: "tasks",
     async capture(input: CaptureContributorInput) {
-		const { projectId, projectDir } = requireProject(input.project);
+		const { projectId } = requireProject(input.project);
 		return createTasksRecord(
-			{ authority: "canonical", projectId, projectDir },
+			{ authority: "canonical", projectId },
 			input,
 		);
     },
@@ -222,9 +222,9 @@ export function createProjectInboxContributor(): CaptureContributor {
   return {
     target: "inbox",
     async capture(input: CaptureContributorInput) {
-		const { projectId, projectDir } = requireProject(input.project);
+		const { projectId } = requireProject(input.project);
 		return createInboxRecord(
-			{ authority: "canonical", projectId, projectDir },
+			{ authority: "canonical", projectId },
 			input,
 		);
     },

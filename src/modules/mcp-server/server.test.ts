@@ -9,10 +9,10 @@ import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js
 import { ModuleLoader, type ModuleSummary } from "#core/modules/module-loader.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import {
-	legacyEffect,
 	networkDestructiveEffect,
 	networkReadEffect,
 	networkWriteEffect,
+	readOnlyLocalEffect,
 } from "#core/tools/effect.js";
 import { getToolMcpAnnotations } from "#core/tools/guardrails-classify.js";
 import { clearCustomTools, registerTool } from "#core/tools/index.js";
@@ -648,7 +648,7 @@ describe("McpServer", () => {
 						content: "stable",
 						structuredContent: { ok: true },
 					}),
-					effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					effect: readOnlyLocalEffect(),
 				}],
 				log: () => {},
 			});
@@ -1185,7 +1185,7 @@ describe("McpServer", () => {
 						content: "stable initialized",
 						structuredContent: { ok: true },
 					}),
-					effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+					effect: readOnlyLocalEffect(),
 				}],
 				log: () => {},
 			});
@@ -1300,7 +1300,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "ok" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1485,7 +1485,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hello from module" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1525,7 +1525,7 @@ describe("McpServer", () => {
 							output_schema: outputSchema,
 						},
 						runner: async () => ({ content: "structured", structuredContent: { ok: true, count: 1 } }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1558,7 +1558,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "hi" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 					{
 						tool: {
@@ -1567,7 +1567,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "secret" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1724,7 +1724,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "done" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1767,7 +1767,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "logged" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1820,7 +1820,7 @@ describe("McpServer", () => {
 							content: "Authorization: Bearer secret-token at /Users/xmanatee/Desktop/mono/apps/kota/secret.ts",
 							is_error: true,
 						}),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1894,7 +1894,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "legacy" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1928,7 +1928,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "progress result" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -1988,7 +1988,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "done" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2045,7 +2045,7 @@ describe("McpServer", () => {
 							await toolGate;
 							return { content: "task result" };
 						},
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2161,7 +2161,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "sync result" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2195,7 +2195,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "unused" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2580,7 +2580,7 @@ describe("McpServer", () => {
 							await toolGate;
 							return { content: "late result" };
 						},
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2652,7 +2652,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => { throw new Error("throw task boom"); },
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 					{
 						tool: {
@@ -2661,7 +2661,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "tool reported failure", is_error: true }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 					{
 						tool: {
@@ -2678,7 +2678,7 @@ describe("McpServer", () => {
 							content: "bad schema",
 							structuredContent: { ok: "no" },
 						}),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2780,7 +2780,7 @@ describe("McpServer", () => {
 							await toolGate;
 							return { content: "cancelled progress result" };
 						},
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2825,7 +2825,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "should not run" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2870,7 +2870,7 @@ describe("McpServer", () => {
 							await slowGate;
 							return { content: "slow draft" };
 						},
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 					{
 						tool: {
@@ -2879,7 +2879,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => ({ content: "fast legacy" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -2969,7 +2969,7 @@ describe("McpServer", () => {
 							structuredContent: { ok: true, count: 2 },
 							_meta: { source: "test" },
 						}),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -3037,7 +3037,7 @@ describe("McpServer", () => {
 							content: "bad",
 							structuredContent: { ok: true, count: "two" },
 						}),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -3077,7 +3077,7 @@ describe("McpServer", () => {
 							},
 						},
 						runner: async () => ({ content: "text only" }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -3173,7 +3173,7 @@ describe("McpServer", () => {
 							},
 						},
 						runner: async (args: Record<string, unknown>) => ({ content: `Hello, ${args.name}!` }),
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -3206,7 +3206,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => { throw new Error("boom"); },
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});
@@ -3240,7 +3240,7 @@ describe("McpServer", () => {
 							input_schema: { type: "object" as const, properties: {}, required: [] },
 						},
 						runner: async () => { throw new Error("draft boom"); },
-						effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+						effect: readOnlyLocalEffect(),
 					},
 				],
 			});

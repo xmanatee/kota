@@ -7,6 +7,7 @@ import type { RepoTasksProjectStores } from "./project-scope.js";
 import type { RepoTaskMutationTarget } from "./repo-task-mutation-boundary.js";
 
 export type ResolvedRepoTaskRouteProject = RepoTaskMutationTarget & {
+  projectDir: string;
   store: ReturnType<typeof getRepoTasksProvider> | null;
 };
 

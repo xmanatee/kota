@@ -84,11 +84,11 @@ export type HarnessCapabilitySummary = {
   readonly emitsAgentMessageStream: boolean;
   readonly supportedHookKinds: readonly HarnessHookKind[];
   readonly unsupportedRunOptions: readonly HarnessCapabilityUnsupportedRunOption[];
-  readonly localReadiness?: HarnessCapabilityReadinessSummary;
 };
 
 export type HarnessCapabilityArtifact = {
   readonly harnessName: string;
+  readonly localReadiness?: HarnessCapabilityReadinessSummary;
 } & HarnessCapabilitySummary;
 
 function normalizeUnsupportedOptions(
@@ -277,9 +277,6 @@ export function summarizeHarnessCapability(
     emitsAgentMessageStream: snapshot.emitsAgentMessageStream,
     supportedHookKinds: snapshot.supportedHookKinds,
     unsupportedRunOptions: snapshot.unsupportedRunOptions,
-    ...(snapshot.localReadiness !== undefined
-      ? { localReadiness: summarizeReadiness(snapshot.localReadiness) }
-      : {}),
   };
 }
 
@@ -289,5 +286,8 @@ export function buildHarnessCapabilityArtifact(
   return {
     harnessName: snapshot.harnessName,
     ...summarizeHarnessCapability(snapshot),
+    ...(snapshot.localReadiness !== undefined
+      ? { localReadiness: summarizeReadiness(snapshot.localReadiness) }
+      : {}),
   };
 }

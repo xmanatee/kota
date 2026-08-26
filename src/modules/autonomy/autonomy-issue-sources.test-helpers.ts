@@ -22,7 +22,7 @@ import {
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
+  planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 
 export const ISSUE_SOURCE_SCOPE_ID = "scope-fixture";
@@ -81,7 +81,7 @@ export function applyHealthReviewSignals(args: {
     reason: args.reason,
   });
   const currentProjection = readAutonomyIssueProjection(args.projectDir);
-  const repositoryActions = stageAutonomyHealthReviewActions({
+  const plannedActions = planAutonomyHealthReviewActions({
     projectDir: args.projectDir,
     currentProjection,
     scopeDir: args.projectDir,
@@ -94,7 +94,7 @@ export function applyHealthReviewSignals(args: {
       join(args.projectDir, ".kota", "owner-questions"),
     ),
     review,
-    repositoryActions,
+    plannedActions,
   });
   materializeAutonomyIssueProjection(args.projectDir, finalized.projection);
   return finalized;

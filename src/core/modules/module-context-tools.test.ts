@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getProjectSecretStore } from "#core/config/secrets.js";
-import { legacyEffect } from "#core/tools/effect.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { executeTool } from "#core/tools/index.js";
 import {
   createRuntimeModuleLoader,
@@ -34,7 +34,7 @@ describe("tools as factory function", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: `from factory in ${ctx.cwd}` }),
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     };
 
@@ -70,7 +70,7 @@ describe("tools as factory function", () => {
             const value = ctx.getSecret("KOTA_MODULE_CONTEXT_FACTORY_TOKEN");
             return { content: value ? "found" : "not found" };
           },
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         }],
       };
 
@@ -99,7 +99,7 @@ describe("tools as factory function", () => {
           ctx.log.info("tool executed");
           return { content: "done" };
         },
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     };
 
@@ -124,7 +124,7 @@ describe("tools as factory function", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: "static" }),
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 
@@ -137,7 +137,7 @@ describe("tools as factory function", () => {
           input_schema: { type: "object", properties: {} },
         },
         runner: async () => ({ content: "dynamic" }),
-        effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+        effect: readOnlyLocalEffect(),
       }],
     });
 
@@ -159,7 +159,7 @@ describe("tools as factory function", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "1" }),
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         },
         {
           tool: {
@@ -168,7 +168,7 @@ describe("tools as factory function", () => {
             input_schema: { type: "object", properties: {} },
           },
           runner: async () => ({ content: "2" }),
-          effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+          effect: readOnlyLocalEffect(),
         },
       ],
     });
@@ -231,7 +231,7 @@ describe("resolveModuleTools", () => {
         input_schema: { type: "object", properties: {} },
       },
       runner: async () => ({ content: "" }),
-      effect: legacyEffect({ risk: "safe", kind: "discovery" }),
+      effect: readOnlyLocalEffect(),
     }];
     expect(resolveModuleTools({ name: "static", tools })).toBe(tools);
   });

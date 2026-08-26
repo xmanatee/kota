@@ -17,7 +17,7 @@
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
-import { legacyEffect } from "./effect.js";
+import type { ToolEffect } from "./effect.js";
 import {
   detectExportFormat,
   isOpenAIFormat,
@@ -43,6 +43,36 @@ export { extractJsonSchema, normalizeResult, zodDefToJsonSchema } from "./tool-a
 
 // --- Adapters ---
 
+function externalFormatEffect(input: {
+  risk: "safe" | "moderate" | "dangerous";
+  kind: "discovery" | "action";
+  openWorld?: boolean;
+}): ToolEffect {
+  const openWorld = input.openWorld ?? false;
+  if (input.risk === "dangerous") {
+    return {
+      kind: "destructive",
+      scope: "external-network",
+      idempotent: false,
+      openWorld: true,
+    };
+  }
+  if (input.risk === "safe" && input.kind === "discovery") {
+    return {
+      kind: "read",
+      scope: openWorld ? "external-network" : "local-fs",
+      idempotent: true,
+      openWorld,
+    };
+  }
+  return {
+    kind: "write",
+    scope: openWorld ? "external-network" : input.risk === "safe" ? "daemon-state" : "local-fs",
+    idempotent: false,
+    openWorld,
+  };
+}
+
 /** Convert a simple tool definition to KOTA's ToolDef. */
 export function fromSimple(def: SimpleTool): ToolDef {
   if (!def.name || typeof def.name !== "string") {
@@ -67,7 +97,7 @@ export function fromSimple(def: SimpleTool): ToolDef {
     tool,
     runner,
     group: def.group,
-    effect: legacyEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
+    effect: externalFormatEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
   };
 }
 
@@ -96,7 +126,7 @@ export function fromOpenAI(def: OpenAIFunctionTool): ToolDef {
     tool,
     runner,
     group: def.group,
-    effect: legacyEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
+    effect: externalFormatEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
   };
 }
 
@@ -125,7 +155,7 @@ export function fromVercelAI(def: VercelAITool, name: string): ToolDef {
     tool,
     runner,
     group: def.group,
-    effect: legacyEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
+    effect: externalFormatEffect({ risk: def.risk ?? "moderate", kind: def.kind ?? "action" }),
   };
 }
 

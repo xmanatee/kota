@@ -30,7 +30,8 @@ let package = Package(
     targets: [
         .target(
             name: "KotaShared",
-            path: "Sources/KotaShared"
+            path: "Sources/KotaShared",
+            exclude: ["Generated/AGENTS.md"]
         ),
         .executableTarget(
             name: "KotaMenuBar",
@@ -48,8 +49,6 @@ let package = Package(
             path: "Tests/KotaSharedTests",
             resources: [
                 .copy("contract-fixture.json"),
-                .copy("recall-render-fixture.json"),
-                .copy("RecallEmptyStateSnapshot.txt"),
             ]
         ),
         .testTarget(

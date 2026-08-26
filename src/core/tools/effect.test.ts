@@ -4,7 +4,6 @@ import type { ToolDef } from "#core/modules/module-types.js";
 import {
   credentialInjectionEffect,
   daemonWriteEffect,
-  legacyEffect,
   localWriteEffect,
   mcpAnnotationsFromEffect,
   networkDestructiveEffect,
@@ -95,32 +94,6 @@ describe("mcpAnnotationsFromEffect", () => {
       idempotentHint: false,
       openWorldHint: false,
     });
-  });
-});
-
-describe("legacyEffect", () => {
-  it("maps safe + discovery to a read effect", () => {
-    const eff = legacyEffect({ risk: "safe", kind: "discovery" });
-    expect(eff.kind).toBe("read");
-    expect(eff.openWorld).toBe(false);
-  });
-
-  it("maps safe + discovery + openWorld:true to a network read", () => {
-    const eff = legacyEffect({ risk: "safe", kind: "discovery", openWorld: true });
-    expect(eff.kind).toBe("read");
-    expect(eff.scope).toBe("external-network");
-    expect(eff.openWorld).toBe(true);
-  });
-
-  it("maps moderate to a write effect", () => {
-    const eff = legacyEffect({ risk: "moderate", kind: "action" });
-    expect(eff.kind).toBe("write");
-  });
-
-  it("maps dangerous to a destructive effect with openWorld", () => {
-    const eff = legacyEffect({ risk: "dangerous", kind: "action" });
-    expect(eff.kind).toBe("destructive");
-    expect(eff.openWorld).toBe(true);
   });
 });
 

@@ -11,8 +11,8 @@ import {
 import {
   buildAutonomyHealthReviewFromSignals,
   finalizeAutonomyHealthReviewActions,
-  stageAutonomyHealthReviewActions,
-} from "./health-review.js";
+  planAutonomyHealthReviewActions,
+} from "../autonomy-health-reviewer/health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 export const RUNTIME_HEALTH_AUDIT_NOW = "2026-06-19T12:00:00.000Z";
@@ -50,7 +50,7 @@ export function reviewAndApplyRuntimeHealthAudit(
     reason: "test",
   });
   const currentProjection = readAutonomyIssueProjection(projectDir);
-  const repositoryActions = stageAutonomyHealthReviewActions({
+  const plannedActions = planAutonomyHealthReviewActions({
     projectDir,
     currentProjection,
     scopeDir: projectDir,
@@ -63,7 +63,7 @@ export function reviewAndApplyRuntimeHealthAudit(
       join(projectDir, ".kota", "owner-questions"),
     ),
     review,
-    repositoryActions,
+    plannedActions,
   });
   materializeAutonomyIssueProjection(projectDir, finalized.projection);
   return finalized;

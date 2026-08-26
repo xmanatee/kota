@@ -145,6 +145,7 @@ describe("codexAgentHarness", () => {
         "disallowedTools",
         "canUseTool",
         'autonomyMode="passive"',
+        "maxTurns",
       ]),
     );
     expect(unsupported).not.toContain("onMessage");
@@ -367,6 +368,9 @@ describe("codexAgentHarness", () => {
     });
     expect(readiness?.localAuth?.detail).toContain("[redacted-email]");
     expect(readiness?.localAuth?.detail).not.toContain("operator@example.com");
+    expect(readiness?.unsupportedOptions).toContainEqual(
+      expect.objectContaining({ runOption: "maxTurns" }),
+    );
   });
 
   it("reports stale Codex auth as adapter readiness status metadata", () => {
@@ -593,6 +597,15 @@ describe("codexAgentHarness", () => {
         mcpServers: { foo: { type: "stdio", command: "bar" } },
       }),
     ).rejects.toThrow(/does not host KOTA MCP servers/);
+
+    await expect(
+      codexAgentHarness.run({
+        prompt: "x",
+        model: "gpt-5.6-sol",
+        effort: "xhigh",
+        maxTurns: 4,
+      }),
+    ).rejects.toThrow(/cannot enforce KOTA maxTurns/);
     expect(spawnMock).not.toHaveBeenCalled();
   });
 });

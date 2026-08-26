@@ -40,6 +40,16 @@ function setupStatus(): ModuleSetupStatusResponse {
             valueKind: "secret-reference",
             configPath: "modules.google-workspace.clientId",
             required: true,
+          }, {
+            id: "environment",
+            label: "Environment",
+            type: "string",
+            configPath: "modules.google-workspace.environment",
+            required: true,
+            options: [
+              { value: "production", label: "Production" },
+              { value: "staging", label: "Staging" },
+            ],
           }],
         },
         state: "ready",
@@ -67,7 +77,6 @@ function setupStatus(): ModuleSetupStatusResponse {
           actionId: "google-workspace.oauth-credentials.1770000000000",
           moduleName: "google-workspace",
           requirementId: "oauth-credentials",
-          url: "https://console.cloud.google.com/apis/credentials",
           label: "Open Google Cloud OAuth credentials",
           status: "pending",
           createdAt: "2026-06-04T08:00:00.000Z",
@@ -124,7 +133,6 @@ describe("setup UI surface", () => {
       "form",
       "form",
       "form",
-      "form",
       "action-list",
     ]);
 
@@ -136,10 +144,22 @@ describe("setup UI surface", () => {
       method: "POST",
       path: "/setup/requirements/google-workspace/oauth-config/form",
     });
-    expect(config?.parameters?.fields.map((field) => field.id)).toEqual(["client-id-ref"]);
+    expect(config?.parameters?.fields.map((field) => field.id)).toEqual(["client-id-ref", "environment"]);
     expect(config?.parameters?.schema.properties["client-id-ref"]).toMatchObject({
       type: "string",
       format: "secret-reference",
+    });
+    expect(config?.parameters?.fields[1]).toMatchObject({
+      id: "environment",
+      input: "select",
+      options: [
+        { value: "production", label: "Production" },
+        { value: "staging", label: "Staging" },
+      ],
+    });
+    expect(config?.parameters?.schema.properties.environment).toMatchObject({
+      type: "string",
+      enum: ["production", "staging"],
     });
 
     const secret = surface.actions.find((candidate) =>
@@ -177,6 +197,22 @@ describe("setup UI surface", () => {
     ]);
     expect(complete?.readiness.state).toBe("ready");
     expect(surface.actions.some((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.store-secret"
+    )).toBe(false);
+    expect(surface.nodes.filter((node) =>
+      node.kind === "form" &&
+      node.submit.actionId.startsWith(
+        "setup.google-workspace.oauth-credentials.",
+      )
+    )).toHaveLength(1);
+    const setupTable = surface.nodes.find((node) => node.kind === "table");
+    const pendingRow = setupTable?.kind === "table"
+      ? setupTable.rows.find((row) => row.id === "google-workspace-oauth-credentials")
+      : undefined;
+    expect(pendingRow?.action?.actionId).toBe(
+      "setup.google-workspace.oauth-credentials.complete",
+    );
+    expect(surface.actions.some((candidate) =>
       candidate.actionId === "setup.google-workspace.oauth-credentials.start"
     )).toBe(false);
     const revoke = surface.actions.find((candidate) =>
@@ -203,6 +239,12 @@ describe("setup UI surface", () => {
     expect(expiredSurface.actions.some((candidate) =>
       candidate.actionId === "setup.google-workspace.oauth-credentials.start"
     )).toBe(true);
+    expect(expiredSurface.actions.find((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.start"
+    )?.result.success.schema).toMatchObject({
+      type: "object",
+      required: ["kind", "url", "label"],
+    });
     expect(expiredSurface.actions.some((candidate) =>
       candidate.actionId === "setup.google-workspace.oauth-credentials.complete"
     )).toBe(false);

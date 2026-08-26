@@ -119,14 +119,11 @@ export function getCriticPromptHash(): string {
   return createHash("sha256").update(CRITIC_SYSTEM_PROMPT).digest("hex").slice(0, 12);
 }
 
-const CRITIC_MAX_TURNS = 20;
-
 type CriticBaseConfig = Omit<AgentJudgeConfig, "harness" | "model" | "effort">;
 
 const criticBaseConfig: CriticBaseConfig = {
   label: "Critic agent",
   systemPrompt: CRITIC_SYSTEM_PROMPT,
-  maxTurns: CRITIC_MAX_TURNS,
 };
 
 type CriticCheckOptions = {

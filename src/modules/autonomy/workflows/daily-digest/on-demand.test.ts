@@ -4,12 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
+import type { DurableEffectValue } from "#core/workflow/run-context.js";
+import { RUN_STATE_READER_PROVIDER_TYPE } from "#core/workflow/run-state-reader-provider.js";
 import { digestStateFromCounts, type QueueCounts } from "./aggregate.js";
-import {
-  DAILY_DIGEST_STATE_KEY,
-  renderOnDemandDigest,
-} from "./on-demand.js";
+import { renderOnDemandDigest } from "./on-demand.js";
 
 vi.mock("#core/daemon/owner-question-queue.js", async () => {
   const actual =
@@ -57,50 +56,23 @@ describe("renderOnDemandDigest", () => {
   afterEach(() => {
     unsubscribe?.();
     resetEventBus();
+    resetProviderRegistry();
     rmSync(projectDir, { recursive: true, force: true });
   });
 
   function persistCadenceState(counts: QueueCounts): void {
-    const stateDir = join(projectDir, ".kota");
     const projectId = deriveDirectoryScopeId(projectDir);
-    const store = new RunStateDatabase(stateDir);
-    try {
-      store.registerProject({
-        id: projectId,
-        rootPath: projectDir,
-        createdAt: "2026-04-25T07:59:00.000Z",
-      });
-      const { epoch } = store.beginDaemonSession("2026-04-25T07:59:00.000Z");
-      store.admitRun({
-        id: "daily-digest-state-fixture",
-        projectId,
-        workflow: "daily-digest",
-        repository: "read",
-        trigger: { event: "schedule", schemaRef: null, payload: {} },
-        resources: [],
-        admittedAt: "2026-04-25T07:59:01.000Z",
-      });
-      store.startRun(
-        "daily-digest-state-fixture",
-        epoch,
-        "2026-04-25T07:59:02.000Z",
-      );
-      store.stageProjectStateMutation({
-        runId: "daily-digest-state-fixture",
-        key: DAILY_DIGEST_STATE_KEY,
-        expectedRevision: 0,
-        value: digestStateFromCounts(counts, Date.parse("2026-04-25T08:00:00.000Z")),
-        stagedAt: "2026-04-25T07:59:03.000Z",
-      });
-      store.finishRun(
-        "daily-digest-state-fixture",
-        epoch,
-        "succeeded",
-        "2026-04-25T08:00:00.000Z",
-      );
-    } finally {
-      store.close();
-    }
+    const value = digestStateFromCounts(
+      counts,
+      Date.parse("2026-04-25T08:00:00.000Z"),
+    );
+    initProviderRegistry().register(RUN_STATE_READER_PROVIDER_TYPE, "test", {
+      getProjectIdByRootPath: (rootPath) => rootPath === projectDir ? projectId : null,
+      readProjectStateValue: <T extends DurableEffectValue>() => ({
+        revision: 1,
+        value: value as unknown as T,
+      }),
+    });
   }
 
   it("returns the rendered digest body without creating cadence state", () => {

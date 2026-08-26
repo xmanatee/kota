@@ -25,7 +25,7 @@ struct SharedUiSurfaceView: View {
                 Text(surface.title)
                     .font(.title2.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
-                Text("Rendered natively from \(surface.protocolVersion.rawValue) · \(surface.attachmentPoint.label)")
+                Text("Shared operator surface · \(surface.protocolVersion.rawValue)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -61,15 +61,5 @@ struct SharedUiSurfaceView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("ui-surface-\(surface.surfaceId)")
-    }
-}
-
-private extension UiAttachmentPoint {
-    var label: String {
-        switch self {
-        case .root: return "root"
-        case .intent(let intent): return "\(intent.rawValue)"
-        case .surface(let surfaceId): return "under \(surfaceId)"
-        }
     }
 }

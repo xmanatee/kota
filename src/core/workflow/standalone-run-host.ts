@@ -236,7 +236,15 @@ export class StandaloneRunHost {
         signal.throwIfAborted();
       }
       const run = this.state.getRun(runId);
-      if (!run) throw new Error(`Unknown standalone run "${runId}"`);
+      if (!run) {
+        if (this.projectRuntime.workflowRuntime
+          .getState()
+          .pendingRuns.some((pending) => pending.runId === runId)) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          continue;
+        }
+        throw new Error(`Unknown standalone run "${runId}"`);
+      }
       if (TERMINAL_STATES.has(run.state)) {
         return {
           run,

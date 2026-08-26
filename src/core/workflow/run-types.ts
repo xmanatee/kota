@@ -11,7 +11,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
-import type { TransactionalRunState } from "./run-context.js";
+import type { RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
   WorkflowRuntimeState,
@@ -104,6 +104,8 @@ export type WorkflowStepContext = {
   approvalQueue?: ApprovalQueue;
   /** Isolated repository view owned by this run. */
   projectDir: string;
+  /** Opaque runtime-issued authority for repository mutations. */
+  repositoryAccess?: RunRepositoryAccess;
   /** Canonical configured scope root; use only for runtime state that is not repository data. */
   scopeDir: string;
   agentRuntime: AgentRuntimeSelection;

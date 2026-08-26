@@ -35,6 +35,7 @@ const publishReview = typedCodeStep<AutonomyHealthReviewPublicationResult>({
     expectStructuredOutput<AutonomyHealthReviewPublicationResult>(raw, [
       "published",
       "decisionRequests",
+      "taskMutations",
       "attentionDigest",
     ]),
   run: (ctx) => {
@@ -79,6 +80,24 @@ const workflow: WorkflowDefinitionInput = {
   steps: [
     inspectRequest,
     publishReview,
+    {
+      id: "emit-task-mutations",
+      type: "code",
+      run: (ctx) => {
+        const mutations = publishReview.outputRequired(ctx).taskMutations;
+        for (const [index, mutation] of mutations.entries()) {
+          ctx.emit(
+            "repo-task.mutation.requested",
+            { request: { kind: "move", ...mutation } },
+            {
+              delivery: "on-run-success",
+              stepId: `emit-task-mutation:${mutation.id}:${mutation.state}:${index}`,
+            },
+          );
+        }
+        return { emitted: mutations.length };
+      },
+    },
     {
       id: "emit-decision-requests",
       type: "code",

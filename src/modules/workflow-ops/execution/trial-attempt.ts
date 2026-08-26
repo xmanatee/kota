@@ -65,7 +65,7 @@ function initializeTrialRepository(projectDir: string): void {
   ]);
   writeFileSync(
     join(projectDir, ".git", "info", "exclude"),
-    [".kota/", ".worktrees/runs/", ""].join("\n"),
+    [".kota/", ""].join("\n"),
     "utf8",
   );
 }

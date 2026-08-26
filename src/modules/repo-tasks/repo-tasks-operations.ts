@@ -9,7 +9,7 @@ import {
   existsSync,
   readdirSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
   RepoTaskCaptureResult,
@@ -192,7 +192,7 @@ export function createNormalizedTask(
     filePath,
     serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()),
   );
-  return { ok: true, id, path: filePath };
+  return { ok: true, id, path: relative(projectDir, filePath) };
 }
 
 /**
@@ -231,7 +231,7 @@ export function captureInboxTask(
   }
 
   writeRepoInboxFile(projectDir, filePath, `# ${title}\n`);
-  return { ok: true, id, path: filePath };
+  return { ok: true, id, path: relative(projectDir, filePath) };
 }
 
 export { gcTerminalTasks } from "./repo-task-gc.js";

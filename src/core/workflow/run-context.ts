@@ -99,6 +99,27 @@ export type RunProcessRegistry = Readonly<{
   register(identity: ProcessIdentity): void;
 }>;
 
+const RUN_REPOSITORY_ACCESS = Symbol("run-repository-access");
+
+/** Opaque proof that repository access was issued by the durable run runtime. */
+export type RunRepositoryAccess = Readonly<{
+  [RUN_REPOSITORY_ACCESS]: Readonly<{
+    repository: RunSandbox["repository"];
+    workspaceDir: string;
+  }>;
+}>;
+
+/** Resolve a writer workspace without inspecting or reconciling sandbox state. */
+export function requireRunWriterWorkspace(
+  access: RunRepositoryAccess | undefined,
+): string {
+  const authority = access?.[RUN_REPOSITORY_ACCESS];
+  if (authority?.repository !== "write") {
+    throw new Error("A runtime-owned writer repository is required");
+  }
+  return authority.workspaceDir;
+}
+
 export class AmbiguousExternalEffectError extends Error {
   constructor(
     readonly effectKey: string,
@@ -125,6 +146,7 @@ export type RunContext = Readonly<{
   workflow: string;
   trigger: WorkflowRunTrigger;
   sandbox: Readonly<RunSandbox>;
+  repositoryAccess?: RunRepositoryAccess;
   resources: RunResourceProfile;
   signal: AbortSignal;
   processes: RunProcessRegistry;
@@ -250,6 +272,12 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
   });
 
   const sandbox = deepFreeze({ ...input.sandbox }) as Readonly<RunSandbox>;
+  const repositoryAccess: RunRepositoryAccess = Object.freeze({
+    [RUN_REPOSITORY_ACCESS]: Object.freeze({
+      repository: sandbox.repository,
+      workspaceDir: sandbox.workspaceDir,
+    }),
+  });
   return Object.freeze({
     run: Object.freeze({
       id: input.runId,
@@ -260,6 +288,7 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
     workflow: input.workflow,
     trigger: deepFreeze(structuredClone(input.trigger)),
     sandbox,
+    repositoryAccess,
     resources: input.resources,
     signal: input.signal,
     processes,

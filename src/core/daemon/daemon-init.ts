@@ -5,7 +5,10 @@ import {
   HISTORY_PROJECT_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import { LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE } from "#core/workflow/logical-resource-authority.js";
+import {
+  createRunStateReader,
+  RUN_STATE_READER_PROVIDER_TYPE,
+} from "#core/workflow/run-state-reader-provider.js";
 import {
   WORKFLOW_DEFINITIONS_PROVIDER_TYPE,
   type WorkflowDefinitionsSource,
@@ -200,9 +203,9 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   const registry = getProviderRegistry();
   if (registry) {
     registry.register(
-      LOGICAL_RESOURCE_AUTHORITY_PROVIDER_TYPE,
+      RUN_STATE_READER_PROVIDER_TYPE,
       "daemon",
-      runState,
+      createRunStateReader(runState),
     );
     registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
       getProjectRegistryProjection: () => handle.getProjectRegistryProjection(),

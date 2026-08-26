@@ -13,6 +13,7 @@ export type {
   ModuleSetupCompleteInput,
   ModuleSetupConfigFieldStatus,
   ModuleSetupConfigRequirement,
+  ModuleSetupExecutablePendingAction,
   ModuleSetupExternalUrlRequirement,
   ModuleSetupFailureResult,
   ModuleSetupFormField,

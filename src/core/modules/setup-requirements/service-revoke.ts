@@ -44,7 +44,6 @@ function syntheticRevocation(args: {
     actionId: `${args.found.moduleName}.${args.found.requirement.id}.revoked.${args.actionIdTimeMs}`,
     moduleName: args.found.moduleName,
     requirementId: args.found.requirement.id,
-    url: args.found.requirement.setup.url,
     label: args.found.requirement.setup.label,
     status: "revoked",
     createdAt: args.revokedAt,

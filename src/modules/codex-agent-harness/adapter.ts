@@ -87,6 +87,12 @@ const CODEX_UNSUPPORTED_OPTIONS = [
     reason: "KOTA file checkpointing is not supported by Codex CLI.",
   },
   {
+    runOption: "maxTurns",
+    option: "maxTurns",
+    reason:
+      "The Codex CLI adapter cannot enforce KOTA's turn bound on the native agent loop.",
+  },
+  {
     runOption: "thinking",
     option: "thinkingEnabled/thinkingBudget",
     reason: "Portable effort maps to Codex CLI model_reasoning_effort instead.",
@@ -186,6 +192,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "codex" agent harness does not support KOTA file checkpointing. ' +
         "Drop enableFileCheckpointing.",
+    );
+  }
+  if (options.maxTurns !== undefined) {
+    throw new Error(
+      'The "codex" agent harness cannot enforce KOTA maxTurns on the Codex CLI native agent loop. ' +
+        "Drop maxTurns or run a KOTA-hosted tool-loop harness.",
     );
   }
   if (options.thinkingEnabled === true || options.thinkingBudget !== undefined) {

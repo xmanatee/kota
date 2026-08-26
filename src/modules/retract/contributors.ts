@@ -170,9 +170,9 @@ export function createProjectTasksContributor(): TasksRetractContributor {
   return {
     target: "tasks",
     async retract({ id, project }): Promise<RetractContributorResult> {
-		const { projectId, projectDir } = requireProject(project);
+		const { projectId } = requireProject(project);
 		return retractTasks(
-			{ authority: "canonical", projectId, projectDir },
+			{ authority: "canonical", projectId },
 			id,
 		);
     },
@@ -194,9 +194,9 @@ export function createProjectInboxContributor(): InboxRetractContributor {
   return {
     target: "inbox",
     async retract({ path, project }): Promise<RetractContributorResult> {
-		const { projectId, projectDir } = requireProject(project);
+		const { projectId } = requireProject(project);
 		return retractInbox(
-			{ authority: "canonical", projectId, projectDir },
+			{ authority: "canonical", projectId },
 			path,
 		);
     },

@@ -396,7 +396,6 @@ describe("kota setup list CLI", () => {
         actionId: "demo.oauth.1770000000000",
         moduleName: "demo",
         requirementId: "oauth",
-        url: "https://example.com/setup",
         label: "Open setup",
         status: "pending",
         createdAt: "2026-02-03T00:00:00.000Z",

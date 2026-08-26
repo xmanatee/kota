@@ -10,6 +10,7 @@ import type {
 } from "#core/daemon/ui-surface.js";
 import {
   action,
+  externalUrlResultSpec,
   resultSpec,
   type SurfaceRead,
   uniqueActions,
@@ -21,6 +22,7 @@ import type {
 } from "#modules/setup/client.js";
 
 function setupFieldInput(field: ModuleSetupFormField): UiFieldInput {
+  if (field.options !== undefined) return "select";
   if (field.type === "boolean") return "boolean";
   if (field.type === "number") return "number";
   const id = field.id.toLowerCase();
@@ -56,6 +58,7 @@ function setupFormFieldSchema(field: ModuleSetupFormField): NonNullable<UiFormFi
   const input = setupFieldInput(field);
   return {
     type: "string",
+    ...(field.options !== undefined ? { enum: field.options.map((option) => option.value) } : {}),
     ...(field.valueKind === "secret-reference" ? { format: "secret-reference" as const } : {}),
     ...(input === "path" ? { format: "path" as const } : {}),
     ...(input === "url" ? { format: "url" as const } : {}),
@@ -183,6 +186,10 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
   for (const requirement of setup.value.requirements) {
     if (!supportsSetupUiActions(requirement)) continue;
     const conditions = [setupCondition(requirement)];
+    const pendingAction = requirement.pendingAction;
+    const hasPendingCompletion =
+      requirement.state === "pending" &&
+      pendingAction?.status === "pending";
     const formParameters = setupFormParameters(requirement);
     if (formParameters && hasUniqueParameterFields(formParameters)) {
       actions.push(action({
@@ -200,7 +207,11 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
     }
 
     const secretParameters = setupSecretParameters(requirement);
-    if (secretParameters && hasUniqueParameterFields(secretParameters)) {
+    if (
+      !hasPendingCompletion &&
+      secretParameters &&
+      hasUniqueParameterFields(secretParameters)
+    ) {
       actions.push(action({
         surfaceId: "setup",
         actionId: `setup.${requirement.moduleName}.${requirement.requirementId}.store-secret`,
@@ -217,7 +228,7 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
 
     if (
       requirement.state === "pending" &&
-      requirement.pendingAction?.status === "pending"
+      pendingAction?.status === "pending"
     ) {
       const completionParameters = requirement.secretRefs?.some((ref) => !ref.present)
         ? secretParameters
@@ -228,7 +239,7 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
         scopeId,
         label: `Complete ${requirement.moduleName}/${requirement.requirementId}`,
         effect: "write",
-        operation: setupCompleteRoute(requirement.pendingAction.actionId),
+        operation: setupCompleteRoute(pendingAction.actionId),
         parameters: completionParameters,
         readiness: setupReadiness(requirement),
         conditions,
@@ -245,7 +256,7 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
           operation: setupRoute(requirement, "start"),
           readiness: setupReadiness(requirement),
           conditions,
-          result: resultSpec("Setup action started."),
+          result: externalUrlResultSpec("Setup action started."),
         }),
       );
     }
