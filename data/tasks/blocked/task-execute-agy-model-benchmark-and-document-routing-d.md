@@ -61,3 +61,5 @@ Google provider-egress network, proxy, or candidate image is available. AGY
 and `gemini-3.6-flash-high` availability cannot be verified. The screened
 preflight transcript and fail-closed `needs-more-data` decision are recorded in
 `.kota/runs/2026-08-11T11-04-08-772Z-builder-l9gfun/evidence/artifacts/agy-model-routing/`.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-26T23:42:44.051Z -->
