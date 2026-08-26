@@ -1,14 +1,14 @@
 ---
 id: task-make-capability-mechanisms-single-source-across-ko
 title: Make capability mechanisms single-source across KOTA
-status: backlog
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 anchor: true
 summary: Track the decomposed initiative to give every cross-client and integration capability one canonical declaration and execution path.
 created_at: 2026-07-31T16:01:03.656Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-26T16:28:27.936Z
 ---
 
 ## Problem
@@ -60,7 +60,9 @@ derived implementations, not independent sources of truth.
 - `task-add-one-policy-aware-outbound-http-transport` is done.
 - `task-migrate-integrations-to-the-outbound-http-transpor` is done.
 - `task-make-remote-task-provider-mutations-durable` is done.
-- `task-enforce-single-mechanism-architecture-boundaries` is done.
+- `task-enforce-single-mechanism-architecture-boundaries` is dispositioned once
+  compiler, schema, generator, linter, and runtime owners make its broad source
+  scanner unnecessary.
 - Final evidence maps every audited capability to one authority and shows all
   superseded paths removed.
 
@@ -84,3 +86,12 @@ One canonical capability mechanism per KOTA boundary.
   wire-contract evidence for every supported client.
 - HTTP/task-provider migration inventories and architecture fitness-check
   output showing no alternate implementation paths remain.
+
+## Completion
+
+UI semantics, client wire contracts, HTTP policy, provider mutations, module
+registration, and platform rendering now each have one owner. Generated
+bindings replace authored wire mirrors; platform-native renderers consume the
+same daemon graph; provider writes are awaited and stable; integrations enter
+the outbound port. The proposed all-boundary source scanner was deliberately
+dropped because these compiler/runtime mechanisms now carry the guarantees.

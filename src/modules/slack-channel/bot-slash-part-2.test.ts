@@ -134,7 +134,7 @@ describe("SlackBot", () => {
         "env-a2",
       );
       expect(post1.text).toBe(
-        "No matching sources across the second brain — nothing to synthesize.",
+        "No matching knowledge, memory, or history sources — nothing to synthesize.",
       );
 
       const post2 = await sendSlashAndAwait(

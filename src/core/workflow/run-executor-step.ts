@@ -280,7 +280,7 @@ export async function executeWorkflowStep(
       capturedAgentMessages,
     });
   } finally {
-    unregisterSessionEnvironment(toolSession);
+    await unregisterSessionEnvironment(toolSession);
     activeTimeout?.dispose();
     idleMonitor?.dispose();
     runAbortController.signal.removeEventListener("abort", forwardRunAbort);

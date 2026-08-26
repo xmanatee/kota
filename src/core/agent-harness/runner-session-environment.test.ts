@@ -97,7 +97,7 @@ describe("runAgentHarness session environment", () => {
     expect(sessionEnvironmentForExecution(identity)).toEqual({
       KOTA_HARNESS_SESSION_SECRET: "persistent-value",
     });
-    unregisterSessionEnvironment(identity);
+    await unregisterSessionEnvironment(identity);
     expect(sessionEnvironmentForExecution(identity)).toEqual({});
   });
 

@@ -14,7 +14,7 @@ type SessionEnvironment = {
   activeReferences: number;
   version: number;
   values: Map<string, string>;
-  resources: Set<() => void>;
+  resources: Set<() => void | Promise<void>>;
 };
 
 const ENVIRONMENT_VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -99,9 +99,9 @@ export function registerSessionEnvironment(
  * Erase a session's credential overlay when its final live owner tears down.
  * Repeated registrations are reference-counted for nested harness boundaries.
  */
-export function unregisterSessionEnvironment(
+export async function unregisterSessionEnvironment(
   context: SessionEnvironmentContext,
-): void {
+): Promise<void> {
   const identity = resolveIdentity(context);
   if (identity === null) return;
   const sessions = environmentsByScope.get(identity.scopeId);
@@ -117,7 +117,7 @@ export function unregisterSessionEnvironment(
   const errors: Error[] = [];
   for (const cleanup of resources) {
     try {
-      cleanup();
+      await cleanup();
     } catch (error) {
       errors.push(error instanceof Error ? error : new Error(String(error)));
     }
@@ -176,7 +176,7 @@ export function sessionEnvironmentVersionForExecution(
 /** Bind a long-lived execution resource to the session that created it. */
 export function registerSessionEnvironmentResource(
   context: SessionEnvironmentContext | undefined,
-  cleanup: () => void,
+  cleanup: () => void | Promise<void>,
 ): () => void {
   const identity = resolveIdentity(context);
   if (identity === null) return () => {};

@@ -95,12 +95,13 @@ export class TelegramBot extends TelegramMessageRuntime {
     }
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     this.running = false;
     this.pollController?.abort();
     this.pollController = null;
-    for (const session of this.sessions.values()) session.agent.close();
+    const cleanups = [...this.sessions.values()].map((session) => session.agent.close());
     this.sessions.clear();
+    await Promise.all(cleanups);
   }
 
   get sessionCount(): number {
@@ -117,13 +118,15 @@ export class TelegramBot extends TelegramMessageRuntime {
       .map(([sessionKey]) => `telegram:${sessionKey}`);
   }
 
-  closeScopeSessions(scopeId: string): void {
+  async closeScopeSessions(scopeId: string): Promise<void> {
+    const cleanups: Promise<void>[] = [];
     for (const [key, session] of this.sessions) {
       if (session.identity.meta?.scopeId !== scopeId) continue;
-      session.agent.close();
+      cleanups.push(session.agent.close());
       this.sessions.delete(key);
       this.busyChats.delete(key);
     }
+    await Promise.all(cleanups);
   }
 
   /** Send a message to active chat sessions, optionally scoped to one scope. */

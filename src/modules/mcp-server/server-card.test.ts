@@ -15,7 +15,7 @@ function metadata(overrides: ServerJsonOverrides = {}): McpRegistryMetadata {
 		$schema: "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
 		name: "io.github.xmanatee/kota",
 		title: "KOTA",
-		description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+		description: "KOTA's Model Context Protocol surface for its local-first agent automation runtime.",
 		repository: {
 			source: "github",
 			url: "https://github.com/xmanatee/kota",
@@ -52,7 +52,7 @@ describe("MCP Server Card projection", () => {
 			$schema: MCP_SERVER_CARD_SCHEMA_URL,
 			name: "io.github.xmanatee/kota",
 			title: "KOTA",
-			description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+			description: "KOTA's Model Context Protocol surface for its local-first agent automation runtime.",
 			repository: {
 				source: "github",
 				url: "https://github.com/xmanatee/kota",

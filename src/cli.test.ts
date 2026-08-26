@@ -144,7 +144,7 @@ describe("cli", () => {
   it("--help shows KOTA description", () => {
     const out = run("--help");
     expect(out).toContain("KOTA");
-    expect(out).toContain("Keep Only The Awesome");
+    expect(out).toContain("local-first agent automation runtime");
     expect(out).toContain("bare kota on a TTY launches the shared UI CLI client");
     expect(out).toContain("Use kota run <prompt> for the explicit prompt path");
   });

@@ -18,9 +18,9 @@ export const RECALL_DYNAMIC_STATE_NAME = "recall-conversational-pattern";
 
 export const RECALL_CONVERSATIONAL_BLOCK = `
 <recall-tool>
-The \`recall\` tool searches the second brain (knowledge, memory,
+The \`recall\` tool searches knowledge, memory,
 conversation history, repo tasks, and the assistant's prior cited-answer
-envelopes) for ranked, source-tagged hits. Call it before answering any
+envelopes for ranked, source-tagged hits. Call it before answering any
 fact-shaped question whose answer plausibly lives in KOTA's stores
 instead of free-styling from raw model knowledge. Use the returned hits
 to ground the reply and cite them inline; an \`answer\`-source hit is a

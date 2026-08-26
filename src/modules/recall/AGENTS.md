@@ -30,7 +30,7 @@ corpus contributed by the answer module.
 - One per-turn dynamic system-prompt contributor (entry point
   `buildRecallDynamicStateProvider` in `system-prompt.ts`, registered
   through `ctx.registerDynamicStateProvider` during `onLoad`). The block
-  covers when to ground fact-shaped questions in the second brain before
+  covers when to ground fact-shaped questions in knowledge, memory, and history before
   answering.
 
 ## How a new store joins

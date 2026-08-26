@@ -121,10 +121,10 @@ describe("secrets module get_secret tool gating", () => {
     );
   });
 
-  afterEach(() => {
-    unregisterSessionEnvironment(sessionContext);
-    unregisterSessionEnvironment(otherSessionContext);
-    unregisterSessionEnvironment(otherScopeContext);
+  afterEach(async () => {
+    await unregisterSessionEnvironment(sessionContext);
+    await unregisterSessionEnvironment(otherSessionContext);
+    await unregisterSessionEnvironment(otherScopeContext);
     clearCustomTools();
     resetSecretStores();
     rmSync(scopeRoot, { recursive: true, force: true });

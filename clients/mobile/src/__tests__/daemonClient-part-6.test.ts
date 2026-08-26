@@ -261,7 +261,7 @@ describe('DaemonClient', () => {
     await client().health();
     const [url, init] = lastCall();
     expect(url).toBe(`${baseUrl}/health`);
-    expect(init).toBeUndefined();
+    expect(new Headers(init?.headers).has('Authorization')).toBe(false);
   });
 
   test('sseUrl builds /events with optional since', () => {

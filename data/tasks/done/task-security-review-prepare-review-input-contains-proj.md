@@ -1,13 +1,13 @@
 ---
 id: task-security-review-prepare-review-input-contains-proj
 title: Treat progress-review evidence as untrusted input
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Screen and envelope scope-controlled tasks and external event summaries before exposing them to the autonomous progress reviewer.
 created_at: 2026-08-15T08:13:58.119Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-26T16:27:28.159Z
 ---
 
 ## Problem
@@ -153,3 +153,9 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion
+
+`prepare-review-input` now declares untrusted output. The shared prompt renderer
+owns screening, escaping, and the untrusted-content envelope; the reviewer
+fixture parses that public envelope instead of bypassing it.

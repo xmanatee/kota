@@ -58,9 +58,9 @@ describe("browser lifecycle — session isolation", () => {
     const lifecycle = await loadConfiguredLifecycle(workDir);
     const page = await lifecycle.getPage(context);
 
-    sessionEnvironment.unregisterSessionEnvironment(context);
+    await sessionEnvironment.unregisterSessionEnvironment(context);
 
-    await vi.waitFor(() => expect(page.isClosed()).toBe(true));
+    expect(page.isClosed()).toBe(true);
     expect(lifecycleTestState.closedContexts).toBe(1);
   });
 

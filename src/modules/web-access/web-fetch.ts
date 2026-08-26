@@ -112,7 +112,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       operation: "web-access.web-fetch",
       url,
       headers: {
-        "User-Agent": "KOTA/0.1 (AI coding agent)",
+        "User-Agent": "KOTA/0.1 (agent automation runtime)",
         Accept: "text/html, text/plain, application/json, */*",
       },
       limits: {

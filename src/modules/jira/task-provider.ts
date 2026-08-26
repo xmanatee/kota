@@ -14,6 +14,7 @@
 
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
 import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import { RemoteTaskIdentity } from "#core/modules/remote-task-identity.js";
 import type { OutboundHttpMethod } from "#core/outbound-http/index.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -67,10 +68,10 @@ const JIRA_PRIORITY_MAP: Record<string, TaskPriority | undefined> = {
 
 export class JiraTaskProvider implements TaskProvider, TaskMutationProvider {
   private cache: Task[] = [];
+  private readonly taskIdentity = new RemoteTaskIdentity("Jira");
   private jiraKeys = new Map<number, string>(); // numeric ID → Jira issue key
   private transitionIds = new Map<string, string>(); // transition name → transition ID
   private accountId = "";
-  private counter = 1;
 
   constructor(
     private readonly config: JiraTaskProviderConfig,
@@ -167,7 +168,7 @@ export class JiraTaskProvider implements TaskProvider, TaskMutationProvider {
       throw new Error("Jira task provider: issue creation response omitted the issue key");
     }
 
-    const newId = this.counter++;
+    const newId = this.taskIdentity.localId(created.id ?? created.key);
     this.jiraKeys.set(newId, created.key);
     const newTask: Task = {
       id: newId,
@@ -254,7 +255,7 @@ export class JiraTaskProvider implements TaskProvider, TaskMutationProvider {
   }
 
   private issueToTask(issue: JiraIssue): Task {
-    const numericId = this.counter++;
+    const numericId = this.taskIdentity.localId(issue.id);
     this.jiraKeys.set(numericId, issue.key);
 
     const priorityName = issue.fields.priority?.name;

@@ -1,14 +1,14 @@
 ---
 id: task-make-taskclaim-the-sole-active-work-authority
 title: Make TaskClaim the sole active-work authority
-status: backlog
+status: dropped
 priority: p1
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Remove overlapping persisted doing state and derive active task status from the existing TaskClaim, run, worktree, and recovery projection.
 created_at: 2026-08-24T02:13:42.524Z
-updated_at: 2026-08-24T02:13:42.524Z
+updated_at: 2026-08-26T16:27:47.740Z
 ---
 
 ## Problem
@@ -76,3 +76,12 @@ One authoritative task and automation lifecycle.
   merge, terminal integration, and duplicate-dispatch rejection.
 - Rendered CLI/web/mobile/Apple evidence for the same active task.
 - Structural report proving `doing` state and claim-v1 compatibility are gone.
+
+## Disposition
+
+Dropped because the named `TaskClaim` mechanism no longer exists. Durable run
+metadata plus daemon-owned logical resources replaced it; a builder claims
+`task:<id>` atomically in `RunStateDatabase`, and its immutable trigger binds
+the task path, state, revision, and digest. The repo `doing` state remains an
+ordinary human queue state and is not automation ownership. Recreating
+`TaskClaim` to satisfy this task would add the duplicate authority it opposed.

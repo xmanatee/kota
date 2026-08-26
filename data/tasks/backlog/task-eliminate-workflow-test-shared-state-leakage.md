@@ -61,9 +61,17 @@ composition, made module activation disposable, and made interactive restart
 await host disposal. A production workflow-trial check exposed and corrected
 a split provider authority between its runtime loader and standalone host.
 Concurrent hosts now dispose independently, and the 279-test changed-owner set
-passes in parallel. Stage 10 still owns deletion of shadow test runtimes;
-randomized affected-shard and repeated full-suite observations remain before
-this task can move to done.
+passes in parallel. Stage 10 deleted the shadow workflow and HTTP runtimes.
+Stage 16 additionally made session-environment resource cleanup awaitable and
+propagated disposal through loop, browser, workflow, and channel owners.
+
+The 2026-08-26 consolidated suite still reproduced the defect across daemon
+multi-scope listeners, module/tool registries, Telegram daemon lifecycle,
+workflow repair fixtures, autonomy workflows, and other shared owners. The run
+also stopped producing output without terminating and was interrupted instead
+of retried. This task therefore remains open. The next change must identify the
+remaining ambient owner(s) and make their lifecycle host-scoped; it must not
+add sleeps, retries, serial mode, or another global reset catalog.
 
 ## Initiative
 
@@ -71,8 +79,8 @@ Deterministic, trustworthy workflow runtime verification.
 
 ## Acceptance Evidence
 
-- Full-suite failure transcript plus repeated randomized affected-shard and
-  full-suite passing transcripts.
+- Full-suite failure transcript from 2026-08-26 identifying the remaining
+  cross-owner leakage; passing randomized/full-suite evidence is still owed.
 - Leak-detector artifact naming the original shared owner and proving cleanup.
 - Intentional concurrency regression showing the corrected test still fails
   when same-group serialization is broken.

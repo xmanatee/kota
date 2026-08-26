@@ -176,7 +176,7 @@ export async function cleanUpLifecycleTest(workDir: string): Promise<void> {
   await lifecycle.closeBrowser();
   const sessionEnvironment = await import("#core/tools/session-environment.js");
   for (const context of activeRunnerContexts.splice(0)) {
-    sessionEnvironment.unregisterSessionEnvironment(context);
+    await sessionEnvironment.unregisterSessionEnvironment(context);
   }
   rmSync(workDir, { recursive: true, force: true });
 }

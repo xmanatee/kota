@@ -239,6 +239,6 @@ export async function runAgentHarness(
     return await cancellation.race(execution);
   } finally {
     cancellation.dispose();
-    if (sessionContext !== undefined) unregisterSessionEnvironment(sessionContext);
+    if (sessionContext !== undefined) await unregisterSessionEnvironment(sessionContext);
   }
 }

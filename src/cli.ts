@@ -206,7 +206,7 @@ function modelForHarness(modelSpec: string, harnessName: string): string {
 
 program
   .name("kota")
-  .description("KOTA — Keep Only The Awesome. A general-purpose AI agent.")
+  .description("KOTA — a local-first agent automation runtime and operator control plane.")
   .version("0.1.0")
   .addHelpText(
     "after",

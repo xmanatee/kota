@@ -79,7 +79,7 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
           );
           writeStdout(result.transcript);
         } finally {
-          unregisterSessionEnvironment(runnerContext);
+          await unregisterSessionEnvironment(runnerContext);
           await runtimeLoader.unloadAll();
         }
       },

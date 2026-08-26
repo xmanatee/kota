@@ -52,7 +52,7 @@ describe("SYSTEM_PROMPT", () => {
     }
 
     expect(SYSTEM_PROMPT).toMatch(/^You are KOTA/);
-    expect(SYSTEM_PROMPT).toContain("personal assistant");
+    expect(SYSTEM_PROMPT).toContain("operator-controlled automation runtime");
     expect(SYSTEM_PROMPT).toContain("whatever the user needs");
   });
 

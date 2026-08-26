@@ -1,14 +1,14 @@
 ---
 id: task-render-shared-ui-surfaces-in-apple-clients
 title: Render shared UI surfaces in Apple clients
-status: ready
+status: done
 priority: p1
 area: client
 task_class: Product
 depends_on: [task-make-ui-contributions-the-only-surface-assembly-pa, task-generate-client-bindings-from-the-daemon-ui-contra]
 summary: Make the shared macOS and iOS SwiftUI client render daemon-owned ui.surface.v1 semantics through native components.
 created_at: 2026-07-31T16:00:56.522Z
-updated_at: 2026-08-23T04:27:16.407Z
+updated_at: 2026-08-26T16:27:41.163Z
 ---
 
 ## Problem
@@ -69,3 +69,11 @@ One canonical capability mechanism per KOTA boundary.
   platform-affordance delegation.
 - A parity/search artifact proving the hardcoded Apple semantic catalog is no
   longer authoritative.
+
+## Completion
+
+`KotaShared` loads and refreshes generated `UiSurfaceBundle` values, renders
+every node and action through shared native SwiftUI views, executes actions
+through the daemon client/platform-affordance boundary, and drives both Apple
+shells from the same protocol presentation. The former `OperatorSections`
+catalog is absent.

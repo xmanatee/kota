@@ -87,7 +87,7 @@ export function AnswerScreen() {
       <View style={styles.queryRow}>
         <TextInput
           style={styles.queryInput}
-          placeholder="Ask the second brain…"
+          placeholder="Ask across knowledge, memory, and history…"
           autoCapitalize="none"
           autoCorrect={false}
           value={answerQuery}

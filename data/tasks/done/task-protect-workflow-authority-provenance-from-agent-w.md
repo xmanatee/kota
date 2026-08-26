@@ -1,13 +1,13 @@
 ---
 id: task-protect-workflow-authority-provenance-from-agent-w
 title: Protect workflow authority provenance from agent writes
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Move authoritative workflow claims and evidence outside every agent-writable root and expose one daemon-owned provenance seam.
 created_at: 2026-08-24T02:13:37.492Z
-updated_at: 2026-08-24T02:13:37.492Z
+updated_at: 2026-08-26T16:27:32.524Z
 ---
 
 ## Problem
@@ -69,3 +69,12 @@ Daemon-owned workflow authority and provenance.
   preserved and forged run bundles are rejected.
 - Source/permission report proving no agent definition retains broad
   `.kota/runs/` write access.
+
+## Completion
+
+The former claim/calibration premise was removed during the runtime migration.
+`RunStateDatabase` is now the daemon-owned authority for admission, resources,
+attempts, recovery, publications, and terminal state. Repository agents execute
+inside runtime worktrees; artifact-producing agents receive only their exact
+`agent-output` root, while sibling run files and the canonical SQLite state are
+outside the native sandbox. Calibration adoption no longer exists.

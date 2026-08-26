@@ -128,6 +128,7 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
   type: "code",
   when: stepSucceeded("collect-evidence"),
   exposeOutputToAgent: true,
+  exposedOutputTrust: "untrusted",
   validate: validateProgressReviewAgentEvidencePacket,
   run: (ctx) =>
     compactProgressReviewEvidenceForAgent(readProgressReviewEvidencePacket(ctx)),

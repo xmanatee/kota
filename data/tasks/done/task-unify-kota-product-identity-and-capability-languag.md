@@ -1,14 +1,14 @@
 ---
 id: task-unify-kota-product-identity-and-capability-languag
 title: Unify KOTA product identity and capability language
-status: backlog
+status: done
 priority: p2
 area: product
 task_class: Product
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Present one product identity and describe coding, knowledge, research, communication, and assistant behavior as capability sets.
 created_at: 2026-08-24T02:13:43.791Z
-updated_at: 2026-08-24T02:13:43.791Z
+updated_at: 2026-08-26T16:27:34.666Z
 ---
 
 ## Problem
@@ -65,3 +65,12 @@ One clear KOTA product model and vocabulary.
 - Focused prompt fixture confirming the same identity without duplicating a
   module catalog.
 - Terminology search report with intentional module-local uses explained.
+
+## Completion
+
+Package, CLI, MCP metadata, base prompt, web/mobile entry surfaces, HTTP agent,
+and Telegram greeting now use the local-first runtime/operator-control model.
+Knowledge and answer modules name knowledge, memory, recall, history, and cited
+answers directly. Telegram deployment may still say personal assistant because
+that directory is the concrete channel capability, not a competing product
+identity. No source-token ban was added.

@@ -1,14 +1,14 @@
 ---
 id: task-migrate-integrations-to-the-outbound-http-transpor
 title: Migrate integrations to the outbound HTTP transport
-status: backlog
+status: done
 priority: p2
 area: modules
 task_class: Platform
 depends_on: [task-add-one-policy-aware-outbound-http-transport]
 summary: Replace integration-owned raw fetch paths with the canonical outbound transport and remove superseded wrappers.
 created_at: 2026-07-31T16:01:00.637Z
-updated_at: 2026-07-31T16:01:00.637Z
+updated_at: 2026-08-26T16:27:36.812Z
 ---
 
 ## Problem
@@ -70,3 +70,11 @@ One canonical capability mechanism per KOTA boundary.
   one MCP endpoint, and each client daemon transport.
 - A structural search showing no disallowed production global `fetch`, stale
   transport helper, or fallback request path remains.
+
+## Completion
+
+Core and module integrations now enter the policy-aware outbound HTTP port.
+Vendor adapters retain protocol-shaped functions named `fetch`, while the only
+global network primitive is the outbound dispatcher. Web and mobile each keep
+one client-local daemon transport, which is the explicit boundary allowed by
+this task.

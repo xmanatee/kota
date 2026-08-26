@@ -175,7 +175,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.get(1)?.notes).toBe("Some details here");
+      expect(provider.list()[0]?.notes).toBe("Some details here");
     });
   });
 
@@ -200,7 +200,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.get(1)?.priority).toBe(kotaPriority);
+      expect(provider.list()[0]?.priority).toBe(kotaPriority);
     });
   });
 
@@ -223,9 +223,9 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      await provider.update(1, { status: "done" });
+      await provider.update(provider.list()[0]!.id, { status: "done" });
       expect(provider.active()).toHaveLength(1);
-      expect(provider.active()[0].id).toBe(2);
+      expect(provider.active().map((task) => task.task)).toEqual(["Task B"]);
     });
 
     it("isEmpty() returns true when no issues loaded", async () => {
@@ -255,7 +255,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(1, { status: "in_progress" });
+      const task = await provider.update(provider.list()[0]!.id, { status: "in_progress" });
       expect(task.status).toBe("in_progress");
 
       const mutationCall = fetch.mock.calls.find(
@@ -279,11 +279,12 @@ describe("LinearTaskProvider", () => {
         .mockResolvedValueOnce({ data: { issueUpdate: { success: false } } });
       const provider = makeProvider(fetch);
       await provider.init();
+      const taskId = provider.list()[0]!.id;
 
-      await expect(provider.update(1, { status: "in_progress" })).rejects.toThrow(
+      await expect(provider.update(taskId, { status: "in_progress" })).rejects.toThrow(
         "not acknowledged",
       );
-      expect(provider.get(1)?.status).toBe("pending");
+      expect(provider.get(taskId)?.status).toBe("pending");
     });
   });
 
@@ -301,7 +302,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(1, { status: "done" });
+      const task = await provider.update(provider.list()[0]!.id, { status: "done" });
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
 
@@ -333,7 +334,7 @@ describe("LinearTaskProvider", () => {
       await provider.init();
 
       const task = await provider.add("New task");
-      expect(task.id).toBe(1);
+      expect(task.id).toBeGreaterThan(0);
 
       const createCall = fetch.mock.calls.find(
         (c) =>
@@ -344,7 +345,7 @@ describe("LinearTaskProvider", () => {
       expect(createCall).toBeDefined();
       expect(createCall?.[1]?.labelIds).toEqual(["label-kota-task"]);
 
-      expect(provider.get(1)?.task).toBe("New task");
+      expect(provider.get(task.id)?.task).toBe("New task");
     });
   });
 
@@ -379,7 +380,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      await provider.update(1, { status: "in_progress" });
+      await provider.update(provider.list()[0]!.id, { status: "in_progress" });
 
       const summary = provider.getActiveSummary();
       expect(summary).toContain("1 in progress");

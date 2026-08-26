@@ -250,13 +250,13 @@ export function parseReviewInputFromAgentPrompt(
   options: AgentHarnessRunOptions,
 ): ProgressReviewAgentEvidencePacket {
   const match = options.prompt.match(
-    /<step id="prepare-review-input">\n([\s\S]*?)\n<\/step>/,
+    /<untrusted-content source="workflow\.step-output\.prepare-review-input">[\s\S]*?\n(`{3,})json\n([\s\S]*?)\n\1\n[\s\S]*?<\/untrusted-content>/,
   );
   if (!match) throw new Error("expected prepare-review-input in agent prompt");
   if (options.prompt.includes('<step id="collect-evidence">')) {
     throw new Error("collect-evidence must not be exposed to the agent");
   }
-  return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
+  return JSON.parse(match[2]!) as ProgressReviewAgentEvidencePacket;
 }
 
 export function channelBatchPayload(workspaceRoot: string): WorkflowBatchFlushPayload {

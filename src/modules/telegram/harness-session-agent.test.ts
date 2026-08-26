@@ -78,8 +78,8 @@ describe("TelegramHarnessSessionAgent", () => {
     expect(sessionEnvironmentForExecution(identity)).toEqual({
       KOTA_TELEGRAM_SESSION_TEST: "session-only",
     });
-    agent.close();
-    agent.close();
+    await agent.close();
+    await agent.close();
     expect(sessionEnvironmentForExecution(identity)).toEqual({});
   });
 });

@@ -127,6 +127,16 @@ excerpt:
 
 Agentic security review for autonomous coding infrastructure.
 
+## Current Progress
+
+The terminal project-to-scope migration made `scopeId` authoritative on the
+approval event and `KotaClient.forScope(scopeId)` is available, but the Slack
+channel still lists through the default approvals client and encodes callbacks
+as `verb:id[:digest]`. Rejection still has no digest and neither action checks
+the originating channel/message binding. The original finding therefore
+remains valid and this task remains open; Stage 16 did not relabel it as a
+migration residue or hide it behind a source gate.
+
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.

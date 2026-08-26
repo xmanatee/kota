@@ -1,5 +1,6 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
@@ -33,6 +34,10 @@ export type ToolRunnerContext = {
   scopeRoot?: string;
   /** Execution working directory, which may be an isolated worktree. */
   cwd?: string;
+  /** Exact filesystem roots declared for this agent invocation. */
+  agentWriteScope?: AgentWriteScope;
+  /** Runtime-owned output directory granted in addition to agentWriteScope. */
+  agentOutputDir?: string;
   env?: Record<string, string>;
   /** Machine-owned config document that arbitrary execution must not mutate. */
   authorityConfigPath?: string;

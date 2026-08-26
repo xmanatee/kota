@@ -185,17 +185,19 @@ export class TelegramSessionRuntime {
     const requested = text === "/scope" ? "" : text.slice("/scope ".length);
     const result = await this.options.scopeSelection.switchChat(chatId, requested);
     this.sendText(chatId, result.message);
-    if (result.ok && result.changed && before.ok) this.closeSessionsForChat(chatId);
+    if (result.ok && result.changed && before.ok) await this.closeSessionsForChat(chatId);
   }
 
-  protected closeSessionsForChat(chatId: number): void {
+  protected async closeSessionsForChat(chatId: number): Promise<void> {
+    const cleanups: Promise<void>[] = [];
     const prefix = `${chatId}:`;
     for (const [key, session] of this.sessions) {
       if (!key.startsWith(prefix)) continue;
-      session.agent.close();
+      cleanups.push(Promise.resolve(session.agent.close()));
       this.sessions.delete(key);
       this.busyChats.delete(key);
     }
+    await Promise.all(cleanups);
   }
 
   protected sendText(chatId: number, text: string): void {

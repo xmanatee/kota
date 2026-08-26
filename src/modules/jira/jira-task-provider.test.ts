@@ -30,7 +30,7 @@ function makeIssue(
   descriptionText: string | null = null,
 ) {
   return {
-    id: `jira-${key}`,
+    id: key.split("-").at(-1)!,
     key,
     fields: {
       summary,
@@ -140,7 +140,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.get(1)?.notes).toBe("Some details here");
+      expect(provider.list()[0]?.notes).toBe("Some details here");
     });
 
     it("skips transition pre-cache when no issues returned", async () => {
@@ -172,7 +172,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.get(1)?.priority).toBe(kotaPriority);
+      expect(provider.list()[0]?.priority).toBe(kotaPriority);
     });
   });
 
@@ -188,9 +188,9 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      await provider.update(1, { status: "done" });
+      await provider.update(provider.list()[0]!.id, { status: "done" });
       expect(provider.active()).toHaveLength(1);
-      expect(provider.active()[0].id).toBe(2);
+      expect(provider.active().map((task) => task.task)).toEqual(["Task B"]);
     });
 
     it("isEmpty() returns true when no issues loaded", async () => {
@@ -217,7 +217,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(1, { status: "in_progress" });
+      const task = await provider.update(provider.list()[0]!.id, { status: "in_progress" });
       expect(task.status).toBe("in_progress");
 
       const transitionCall = fetch.mock.calls.find(
@@ -246,11 +246,12 @@ describe("JiraTaskProvider", () => {
         .mockRejectedValueOnce(new Error("Jira transition failed"));
       const provider = makeProvider(fetch);
       await provider.init();
+      const taskId = provider.list()[0]!.id;
 
-      await expect(provider.update(1, { status: "in_progress" })).rejects.toThrow(
+      await expect(provider.update(taskId, { status: "in_progress" })).rejects.toThrow(
         "Jira transition failed",
       );
-      expect(provider.get(1)?.status).toBe("pending");
+      expect(provider.get(taskId)?.status).toBe("pending");
     });
 
     it("skips assignee call when claimOnStart is false", async () => {
@@ -263,7 +264,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch, { claimOnStart: false });
       await provider.init();
 
-      await provider.update(1, { status: "in_progress" });
+      await provider.update(provider.list()[0]!.id, { status: "in_progress" });
 
       const assignCall = fetch.mock.calls.find(
         (c) => typeof c[0] === "string" && c[0].includes("/assignee"),
@@ -283,7 +284,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(1, { status: "done" });
+      const task = await provider.update(provider.list()[0]!.id, { status: "done" });
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
 
@@ -303,13 +304,13 @@ describe("JiraTaskProvider", () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(MYSELF_RESPONSE)
         .mockResolvedValueOnce(EMPTY_ISSUES)
-        .mockResolvedValueOnce({ id: "jira-100", key: "ENG-100" });
+        .mockResolvedValueOnce({ id: "100", key: "ENG-100" });
 
       const provider = makeProvider(fetch);
       await provider.init();
 
       const task = await provider.add("New task");
-      expect(task.id).toBe(1);
+      expect(task.id).toBeGreaterThan(0);
 
       const createCall = fetch.mock.calls.find(
         (c) =>
@@ -319,7 +320,7 @@ describe("JiraTaskProvider", () => {
       );
       expect(createCall).toBeDefined();
 
-      expect(provider.get(1)?.task).toBe("New task");
+      expect(provider.get(task.id)?.task).toBe("New task");
     });
   });
 
@@ -350,7 +351,7 @@ describe("JiraTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      await provider.update(1, { status: "in_progress" });
+      await provider.update(provider.list()[0]!.id, { status: "in_progress" });
 
       const summary = provider.getActiveSummary();
       expect(summary).toContain("1 in progress");

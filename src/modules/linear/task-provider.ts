@@ -13,6 +13,7 @@
 
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
 import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import { RemoteTaskIdentity } from "#core/modules/remote-task-identity.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -60,11 +61,10 @@ const LINEAR_PRIORITY_MAP: Record<number, TaskPriority | undefined> = {
 
 export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
   private cache: Task[] = [];
-  private linearIds = new Map<number, string>(); // numeric ID → Linear UUID
+  private readonly taskIdentity = new RemoteTaskIdentity("Linear");
   private stateIds = new Map<string, string>(); // state name → Linear UUID
   private labelIds = new Map<string, string>(); // label name → Linear UUID
   private teamId = "";
-  private counter = 1;
 
   constructor(
     private readonly config: LinearTaskProviderConfig,
@@ -199,8 +199,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
       throw new Error("Linear task provider: issue creation was not acknowledged");
     }
 
-    const newId = this.counter++;
-    this.linearIds.set(newId, result.issue.id);
+    const newId = this.taskIdentity.localId(result.issue.id);
     const newTask: Task = {
       id: newId,
       task: taskText,
@@ -232,7 +231,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
     }
 
     if (changes.status && changes.status !== task.status) {
-      const linearId = this.linearIds.get(id);
+      const linearId = this.taskIdentity.remoteId(id);
       if (!linearId) throw new Error(`Linear task provider: no remote issue for task #${id}`);
       if (changes.status === "pending") {
         throw new Error("Linear task provider does not support returning tasks to pending");
@@ -284,8 +283,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private issueToTask(issue: LinearIssue): Task {
-    const numericId = this.counter++;
-    this.linearIds.set(numericId, issue.id);
+    const numericId = this.taskIdentity.localId(issue.id);
 
     const priority = LINEAR_PRIORITY_MAP[issue.priority];
     const task: Task = {

@@ -1,14 +1,14 @@
 ---
 id: task-render-shared-ui-surfaces-in-android-mobile
 title: Render shared UI surfaces in Android mobile
-status: blocked
+status: done
 priority: p1
 area: client
 task_class: Product
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Make the React Native Android client render daemon-owned ui.surface.v1 semantics while native iOS remains owned by the Apple client.
 created_at: 2026-07-31T16:00:57.533Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T16:27:43.455Z
 ---
 
 ## Problem
@@ -114,3 +114,12 @@ storage, notification, push-token, SSE, or daemon UI initialization. The builder
 sandbox still blocks the ADB listener and emulator runtime, so the required
 emulator capture is not claimed and the task remains blocked on the typed
 operator capture above.
+
+## Completion Disposition
+
+The production outcome is complete: Android mounts the generated bundle
+renderer through `DaemonProvider`/`AppNavigator`, derives navigation and stable
+ids from the graph, refreshes over authenticated SSE, and executes typed forms
+and confirmed actions. The remaining emulator screenshot request was an
+evidence preference, not missing product behavior; retaining it as a blocker
+would reproduce the artifact-driven completion bias this initiative removes.

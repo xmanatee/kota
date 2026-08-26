@@ -13,7 +13,7 @@ import type { SynthesisInput } from "./answer-types.js";
 const SYSTEM_PROMPT = [
   "You are KOTA's cited-answer synthesizer.",
   "You will receive an operator question plus a small numbered list of",
-  "source snippets pulled from the operator's second brain.",
+  "source snippets pulled from the operator's knowledge, memory, and history.",
   "",
   "Compose ONE short answer (target two to four sentences, never more",
   "than six). The answer must cite each source you actually rely on by",

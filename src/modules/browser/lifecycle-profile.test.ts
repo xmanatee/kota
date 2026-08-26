@@ -2,6 +2,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
+  renameSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -50,7 +52,7 @@ describe("browser lifecycle — authenticated profile", () => {
 
     expect(content).toBe("Authenticated content — welcome, operator.");
     expect(lifecycleTestState.capturedContextOptions[0]?.storageState).toBe(
-      profilePath,
+      realpathSync(profilePath),
     );
     expect(lifecycleTestState.capturedLaunchOptions[0]).toMatchObject({
       headless: true,
@@ -91,7 +93,7 @@ describe("browser lifecycle — authenticated profile", () => {
     await lifecycle.getPage(context);
     await lifecycle.closeBrowserSession(context);
 
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(profilePath);
+    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
     expect(JSON.parse(readFileSync(profilePath, "utf8")).authCookie).toBe(
       "valid-session",
     );
@@ -164,7 +166,10 @@ describe("browser lifecycle — authenticated profile", () => {
       lifecycleTestState.capturedContextOptions.map(
         (entry) => entry.storageState,
       ),
-    ).toEqual([join(scopeARoot, relativePath), join(scopeBRoot, relativePath)]);
+    ).toEqual([
+      realpathSync(join(scopeARoot, relativePath)),
+      realpathSync(join(scopeBRoot, relativePath)),
+    ]);
     expect(await pageA.title()).toBe("Protected");
     expect(await pageB.title()).toBe("Login");
   });
@@ -200,7 +205,7 @@ describe("browser lifecycle — authenticated profile", () => {
       const pageB = await lifecycle.getPage(contextB);
 
       expect(lifecycleTestState.capturedContextOptions).toEqual([
-        { storageState: profilePath },
+        { storageState: realpathSync(profilePath) },
         {},
       ]);
       expect(await pageA.title()).toBe("Protected");
@@ -209,7 +214,7 @@ describe("browser lifecycle — authenticated profile", () => {
       await lifecycle.closeBrowserSession(contextB);
       expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
       await lifecycle.closeBrowserSession(contextA);
-      expect(lifecycleTestState.lastContextStorageWrite).toBe(profilePath);
+      expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
     },
   );
 
@@ -242,7 +247,7 @@ describe("browser lifecycle — authenticated profile", () => {
     const pageB = await lifecycle.getPage(contextB);
 
     expect(lifecycleTestState.capturedContextOptions).toEqual([
-      { storageState: profileA },
+      { storageState: realpathSync(profileA) },
       {},
     ]);
     expect(await pageA.title()).toBe("Protected");
@@ -251,6 +256,60 @@ describe("browser lifecycle — authenticated profile", () => {
     await lifecycle.closeBrowserSession(contextB);
     expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
     await lifecycle.closeBrowserSession(contextA);
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(profileA);
+    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profileA));
+  });
+
+  it("rejects persistence outside an agent's declared write roots", async () => {
+    const scopeRoot = join(workDir, "scope");
+    const workspaceRoot = join(workDir, "worktree");
+    mkdirSync(scopeRoot, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
+    const profilePath = join(scopeRoot, "profile.json");
+    writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }));
+    const context = await activateRunnerContext({
+      ...runnerContext(scopeRoot, "agent-session", "scope-a", workspaceRoot),
+      agentWriteScope: ["."],
+    });
+    const lifecycle = await loadConfiguredLifecycle(scopeRoot, {
+      storageStatePath: profilePath,
+      persist: true,
+    });
+
+    await lifecycle.getPage(context);
+
+    await expect(lifecycle.closeBrowserSession(context)).rejects.toThrow(
+      "outside the agent write scope",
+    );
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
+  });
+
+  it("rejects a profile target redirected after the session opens", async () => {
+    const scopeRoot = join(workDir, "scope");
+    const profileDir = join(scopeRoot, "profiles");
+    const movedProfileDir = join(scopeRoot, "original-profiles");
+    const redirectDir = join(workDir, "redirect");
+    mkdirSync(profileDir, { recursive: true });
+    mkdirSync(redirectDir, { recursive: true });
+    writeFileSync(
+      join(profileDir, "profile.json"),
+      JSON.stringify({ authCookie: "valid-session" }),
+    );
+    writeFileSync(
+      join(redirectDir, "profile.json"),
+      JSON.stringify({ authCookie: "other-session" }),
+    );
+    const context = await activateRunnerContext(runnerContext(scopeRoot));
+    const lifecycle = await loadConfiguredLifecycle(scopeRoot, {
+      storageStatePath: join("profiles", "profile.json"),
+      persist: true,
+    });
+    await lifecycle.getPage(context);
+    renameSync(profileDir, movedProfileDir);
+    symlinkSync(redirectDir, profileDir);
+
+    await expect(lifecycle.closeBrowserSession(context)).rejects.toThrow(
+      "storage target changed",
+    );
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
   });
 });

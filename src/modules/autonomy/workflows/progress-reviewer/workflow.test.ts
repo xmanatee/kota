@@ -307,7 +307,7 @@ function parseReviewInputFromAgentPrompt(
   options: AgentHarnessRunOptions,
 ): ProgressReviewAgentEvidencePacket {
   const match = options.prompt.match(
-    /<step id="prepare-review-input">\n([\s\S]*?)\n<\/step>/,
+    /<untrusted-content source="workflow\.step-output\.prepare-review-input">[\s\S]*?\n(`{3,})json\n([\s\S]*?)\n\1\n[\s\S]*?<\/untrusted-content>/,
   );
   if (!match) {
     throw new Error("expected prepare-review-input to be exposed to the agent");
@@ -315,7 +315,7 @@ function parseReviewInputFromAgentPrompt(
   if (options.prompt.includes('<step id="collect-evidence">')) {
     throw new Error("collect-evidence must not be exposed to the agent");
   }
-  return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
+  return JSON.parse(match[2]!) as ProgressReviewAgentEvidencePacket;
 }
 
 describe("progress-reviewer workflow", () => {
@@ -386,7 +386,10 @@ describe("progress-reviewer workflow", () => {
     ).toEqual(expect.not.objectContaining({ exposeOutputToAgent: true }));
     expect(
       progressReviewerWorkflow.steps.find((step) => step.id === "prepare-review-input"),
-    ).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
+    ).toEqual(expect.objectContaining({
+      exposeOutputToAgent: true,
+      exposedOutputTrust: "untrusted",
+    }));
   });
 
   it("writes an explicit no-op artifact for an autonomous coding scope review", async () => {

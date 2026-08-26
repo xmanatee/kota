@@ -1,14 +1,14 @@
 ---
 id: task-make-remote-task-provider-mutations-durable
 title: Make remote task provider mutations durable
-status: backlog
+status: done
 priority: p1
 area: modules
 task_class: Platform
 depends_on: [task-add-one-policy-aware-outbound-http-transport]
 summary: Replace duplicated fire-and-forget GitHub, Linear, and Jira task mutations with one awaited, observable remote mutation contract.
 created_at: 2026-07-31T16:01:01.621Z
-updated_at: 2026-07-31T16:01:01.621Z
+updated_at: 2026-08-26T16:27:38.955Z
 ---
 
 ## Problem
@@ -73,3 +73,11 @@ One canonical capability mechanism per KOTA boundary.
 - A structural search proving negative temporary ids, best-effort mutation
   comments, empty mutation catches, and duplicate lifecycle implementations
   are gone.
+
+## Completion
+
+The provider protocol now separates synchronous reads from awaited mutation
+capabilities. GitHub, Linear, and Jira update their caches only after the remote
+system acknowledges the write; no negative ids or fire-and-forget mutation
+catches remain. Linear UUIDs and Jira ids project through the shared stable
+remote-identity seam so reload order cannot renumber work.

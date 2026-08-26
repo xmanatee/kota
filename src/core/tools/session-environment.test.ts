@@ -13,10 +13,10 @@ const sessionBScopeA = { sessionId: "session-b", scopeId: "scope-a" };
 const sessionAScopeB = { sessionId: "session-a", scopeId: "scope-b" };
 
 describe("session credential environments", () => {
-  afterEach(() => {
-    unregisterSessionEnvironment(sessionAScopeA);
-    unregisterSessionEnvironment(sessionBScopeA);
-    unregisterSessionEnvironment(sessionAScopeB);
+  afterEach(async () => {
+    await unregisterSessionEnvironment(sessionAScopeA);
+    await unregisterSessionEnvironment(sessionBScopeA);
+    await unregisterSessionEnvironment(sessionAScopeB);
   });
 
   it("isolates credentials by both session and project", () => {
@@ -61,7 +61,7 @@ describe("session credential environments", () => {
     });
   });
 
-  it("erases credentials and rejects stale approvals after teardown", () => {
+  it("erases credentials and rejects stale approvals after teardown", async () => {
     registerSessionEnvironment(sessionAScopeA);
     injectSessionEnvironmentVariable(
       sessionAScopeA,
@@ -69,7 +69,7 @@ describe("session credential environments", () => {
       "temporary-value",
     );
 
-    unregisterSessionEnvironment(sessionAScopeA);
+    await unregisterSessionEnvironment(sessionAScopeA);
 
     expect(sessionEnvironmentForExecution(sessionAScopeA)).toEqual({});
     expect(() =>
@@ -81,13 +81,14 @@ describe("session credential environments", () => {
     ).toThrow("Credential injection requires a live session");
   });
 
-  it("invalidates and cleans up long-lived execution resources", () => {
+  it("invalidates and awaits long-lived execution resources", async () => {
     registerSessionEnvironment(sessionAScopeA);
     const initialVersion = sessionEnvironmentVersionForExecution(
       sessionAScopeA,
     );
     let cleaned = false;
-    registerSessionEnvironmentResource(sessionAScopeA, () => {
+    registerSessionEnvironmentResource(sessionAScopeA, async () => {
+      await Promise.resolve();
       cleaned = true;
     });
 
@@ -100,7 +101,7 @@ describe("session credential environments", () => {
     expect(sessionEnvironmentVersionForExecution(sessionAScopeA)).not.toBe(
       initialVersion,
     );
-    unregisterSessionEnvironment(sessionAScopeA);
+    await unregisterSessionEnvironment(sessionAScopeA);
     expect(cleaned).toBe(true);
   });
 

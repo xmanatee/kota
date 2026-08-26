@@ -32,7 +32,10 @@ Operators configure a persistent login session via `modules.browser`
   only to their configuring scope. Other scopes stay ephemeral and never persist
   there; prefer scope-local paths for per-scope profiles.
 - `persistProfile: true` writes the current context's state back to the same
-  path on idle close. Operators use this to capture a fresh login (run once
+  path on awaited session close. Agent-owned sessions may persist only inside
+  their declared write roots, and the runtime rechecks the canonical target
+  immediately before writing so a symlink swap cannot redirect it. Operators
+  use this to capture a fresh login (run once
   with `persistProfile: true`, log in interactively, then pin the file in
   their secrets surface with `persistProfile: false`).
 - The storageState file is outside repo source — never check it in. KOTA's

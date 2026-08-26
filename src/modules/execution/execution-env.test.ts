@@ -51,14 +51,14 @@ function clearTouchedEnv(): void {
 }
 
 describe("buildExecutionEnv", () => {
-  afterEach(() => {
-    unregisterSessionEnvironment(SESSION_A_PROJECT_A);
-    unregisterSessionEnvironment(SESSION_B_PROJECT_A);
-    unregisterSessionEnvironment(SESSION_A_PROJECT_B);
+  afterEach(async () => {
+    await unregisterSessionEnvironment(SESSION_A_PROJECT_A);
+    await unregisterSessionEnvironment(SESSION_B_PROJECT_A);
+    await unregisterSessionEnvironment(SESSION_A_PROJECT_B);
     restoreEnv();
   });
 
-  it("passes credentials only to executions in the authorized session and project", () => {
+  it("passes credentials only to executions in the authorized session and project", async () => {
     clearTouchedEnv();
     registerSessionEnvironment(SESSION_A_PROJECT_A);
     registerSessionEnvironment(SESSION_B_PROJECT_A);
@@ -80,7 +80,7 @@ describe("buildExecutionEnv", () => {
     ).toBeUndefined();
     expect(process.env.KOTA_SESSION_ENV_ISOLATION_TEST).toBeUndefined();
 
-    unregisterSessionEnvironment(SESSION_A_PROJECT_A);
+    await unregisterSessionEnvironment(SESSION_A_PROJECT_A);
     expect(
       buildExecutionEnv(SESSION_A_PROJECT_A).KOTA_SESSION_ENV_ISOLATION_TEST,
     ).toBeUndefined();

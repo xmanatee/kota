@@ -105,12 +105,12 @@ export class TelegramHarnessSessionAgent {
     }
   }
 
-  close(): void {
+  async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     this.abortController?.abort(new Error("Telegram harness session closed."));
     this.abortController = null;
-    unregisterSessionEnvironment(this.sessionContext);
+    await unregisterSessionEnvironment(this.sessionContext);
   }
 
   getCostSummary(): string {

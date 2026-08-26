@@ -181,7 +181,9 @@ export function makeTelegramInteractiveChannel(
             payload.previousDefaultScopeId === undefined
           ) return;
           bot.setDefaultScopeRuntime(channelCtx.getDefaultScopeRuntime());
-          bot.closeScopeSessions(payload.previousDefaultScopeId);
+          void bot.closeScopeSessions(payload.previousDefaultScopeId).catch((error) => {
+            ctx.log.warn(`Failed to close Telegram sessions: ${(error as Error).message}`);
+          });
         },
       );
 
@@ -206,7 +208,7 @@ export function makeTelegramInteractiveChannel(
           async stop() {
             unsubscribeSchedule();
             unsubscribeScopeLifecycle();
-            bot.stop();
+            await bot.stop();
             if (startPromise) {
               await startPromise;
               startPromise = null;

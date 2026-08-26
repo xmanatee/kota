@@ -8,7 +8,7 @@ export async function runClose(state: AgentLoopState, errored: boolean): Promise
     if (!controller.signal.aborted) controller.abort(new Error("Session closed"));
   }
   state.closed = true;
-  unregisterSessionEnvironment({
+  await unregisterSessionEnvironment({
     sessionId: state.sessionId,
     scopeId: state.scopeId,
   });

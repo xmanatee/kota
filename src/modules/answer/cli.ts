@@ -1,5 +1,5 @@
 /**
- * `kota answer` — cited synthesis over the second brain plus history readback.
+ * `kota answer` — cited synthesis over knowledge, memory, and history.
  *
  * The subcommand consumes `ctx.client.answer.*` so daemon-up and
  * daemon-down callers share the same code path. Output renders through
@@ -52,7 +52,7 @@ const FAILURE_MESSAGE: Record<
   "no_hits" | "semantic_unavailable" | "synthesis_failed",
   string
 > = {
-  no_hits: "No matching sources across the second brain — nothing to synthesize.",
+  no_hits: "No matching knowledge, memory, or history sources — nothing to synthesize.",
   semantic_unavailable: "Cross-store recall has no registered contributors.",
   synthesis_failed:
     "Synthesis failed (model unreachable or unable to cite resolvable sources).",
@@ -71,7 +71,7 @@ export function registerAnswerCommand(
   const answer = program
     .command("answer")
     .description(
-      "Compose, list, and re-read cited answers over the second brain.",
+      "Compose, list, and re-read cited answers over knowledge, memory, and history.",
     );
 
   answer
@@ -137,7 +137,7 @@ export function registerAnswerCommand(
   answer
     .command("ask <query>", { isDefault: true })
     .description(
-      "Compose one short cited answer from the second brain. Citations resolve back to typed RecallHits.",
+      "Compose one short cited answer from knowledge, memory, and history. Citations resolve back to typed RecallHits.",
     )
     .option("-n, --limit <n>", "Max recall hits fed to synthesis (default 8)", "8")
     .option(

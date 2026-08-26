@@ -1,13 +1,13 @@
 ---
 id: task-security-review-when-persistprofile-is-enabled-imp
 title: Constrain browser profile persistence to the agent write scope
-status: ready
+status: done
 priority: p1
 area: security
 task_class: Safety
 summary: Await browser profile persistence, declare its filesystem effect, and reject targets that escape the effective agent write scope through symlinks or canonical paths.
 created_at: 2026-08-15T18:12:16.685Z
-updated_at: 2026-08-24T02:26:39.000Z
+updated_at: 2026-08-26T16:27:30.341Z
 ---
 
 ## Problem
@@ -139,3 +139,11 @@ Agentic security review for autonomous coding infrastructure.
 ## Acceptance Evidence
 
 - Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.
+
+## Completion
+
+Session resources now expose awaitable cleanup, every host teardown awaits it,
+and browser persistence re-resolves the canonical target immediately before
+writing. Agent sessions carry their exact write roots into browser lifecycle
+state; a path outside those roots or redirected through a symlink is rejected
+before Playwright receives it.

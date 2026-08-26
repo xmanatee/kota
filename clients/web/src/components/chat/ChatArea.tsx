@@ -292,7 +292,7 @@ export function ChatArea({
             <div>
               <h2 className="text-2xl font-bold">KOTA</h2>
               <p className="mt-2 text-muted-foreground">
-                General-purpose AI assistant.
+                Local-first agent automation under your control.
                 <br />
                 Ask anything \u2014 research, code, analysis, writing, planning.
               </p>

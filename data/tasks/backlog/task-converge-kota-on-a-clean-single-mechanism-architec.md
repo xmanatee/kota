@@ -6,7 +6,7 @@ priority: p1
 area: architecture
 task_class: Platform
 anchor: true
-summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
+summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, and targeted rewrites needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
 updated_at: 2026-08-26T17:35:00.000Z
 ---
@@ -22,8 +22,9 @@ isolated patch would preserve the seams that created the findings.
 
 Complete the approved initiative as terminal migrations. Every sub-slice moves
 all production callers, clients, schemas, state, tests, fixtures, and docs to
-one owner; removes the superseded path in the same initiative; and adds a
-deterministic boundary check that prevents it from returning.
+one owner and removes the superseded path in the same initiative. Durable
+types, schemas, generators, linters, and runtime owners prevent structural
+regressions; design judgment is not replaced by a broad source scanner.
 
 Tracked implementation tasks:
 
@@ -47,14 +48,12 @@ Tracked implementation tasks:
 18. `task-eliminate-workflow-test-shared-state-leakage`
 19. `task-enforce-single-mechanism-architecture-boundaries`
 
-The setup-metadata and Codex capability-truth prerequisites are complete. The
-builder-recovery security proposal was dropped and is not an implementation
-dependency. Queue paths and task frontmatter remain authoritative: fourteen of
-the tracked tasks were open at the start of implementation; eleven remain open
-after the MCP, manifest, and dead-letter ownership rewrites. Task-system
-separation, scope migration, contract generation, and the three Stage 13
-rewrites are done; the two findings against the retired proof executor are
-dropped with dispositions.
+The setup-metadata and Codex capability-truth prerequisites are complete. Queue
+paths and task frontmatter remain authoritative. Of the nineteen tracked
+slices, thirteen are done and four were dropped with explicit dispositions.
+Two remain open: Slack approval callbacks are not yet scope/message/digest
+bound, and the broad suite still exposes cross-test runtime leakage. All other
+owner migrations in this program are complete.
 
 ## Stage Progress
 
@@ -477,6 +476,31 @@ TypeScript projects, repository lint, task validation, diff validation, and 66
 focused outcome, disposition, monitor, report, and blocking-worker behaviors
 passed.
 
+## Stage 16 Validation Result
+
+Migration residue was reduced further. Browser-profile persistence now binds
+the originally admitted canonical path to the agent's declared write roots,
+rechecks it before persistence, and awaits all resource cleanup. Progress
+review input is explicitly untrusted. Remote Linear and Jira string IDs now
+map through one deterministic identity owner instead of process-order
+counters. Product metadata, prompts, CLI, clients, and channel entry copy now
+describe KOTA consistently as a local-first agent automation runtime and
+operator control plane. Obsolete capability, mutation, transport, UI,
+provenance, TaskClaim, and source-scanner tasks were completed or dropped from
+current code evidence.
+
+The stage exit is not yet true. Consolidated validation passed production and
+test type-checks, lint, task validation, build, generated binding freshness,
+the 75-test web suite, and the mobile type-check. The mobile suite passed 377
+tests and found one exact-`fetch`-options assertion; that assertion now checks
+the public no-authorization behavior instead. The server suite then reproduced
+broad shared-state leakage across daemon scope, module/tool registries,
+Telegram lifecycle, workflow repair fixtures, and autonomy workflows and did
+not terminate after completing its inventory. It was stopped rather than
+greenwashed with retries. The Slack approval finding also remains valid in the
+current implementation. Accordingly Stage 16, this anchor, and the two owning
+tasks remain open; no broad rerun was made.
+
 ## Finding Ownership
 
 | Finding | Stage | Canonical owner | Mechanism retired |
@@ -534,16 +558,18 @@ passed.
 
 - Every tracked implementation task is done with its acceptance evidence.
 - The terminal project-to-scope migration, canonical onboarding/setup work,
-  truthful Codex capability reporting, and TaskClaim state convergence are
-  done.
+  and truthful Codex capability reporting are done; the obsolete TaskClaim
+  proposal has an explicit dropped disposition because daemon run-state
+  resources own admission and execution authority.
 - All thin-client bindings are generated from one contract and the core client
   module-import exception is gone.
 - Product identity is consistent across metadata, prompts, CLI, and clients.
 - MCP orchestration, module manifests, task validation, dead-letter handling,
   and client state have focused owners without parallel implementations.
 - Workflow test isolation is stable under full-suite and randomized execution.
-- The single-mechanism architecture gate passes without compatibility or
-  exception allowlists.
+- Structural single-mechanism guarantees are owned by types, schemas,
+  generation, lint, and runtime admission without a generic source scanner or
+  exception allowlist.
 
 ## Source / Intent
 

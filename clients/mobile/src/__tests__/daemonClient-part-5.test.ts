@@ -61,7 +61,7 @@ describe('DaemonClient', () => {
         result: {
           ok: true,
           answer:
-            'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across the second brain.',
+            'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across knowledge and memory.',
           citations: [
             { source: 'knowledge', id: 'k-1' },
             { source: 'memory', id: 'm-1' },

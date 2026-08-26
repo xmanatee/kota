@@ -164,7 +164,7 @@ describe("Streamable HTTP MCP transport", () => {
 			$schema: "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
 			name: "io.github.xmanatee/kota",
 			title: "KOTA",
-			description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+			description: "KOTA's Model Context Protocol surface for its local-first agent automation runtime.",
 			repository: {
 				source: "github",
 				url: "https://github.com/xmanatee/kota",

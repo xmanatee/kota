@@ -1588,7 +1588,7 @@ describe("startTelegramStatusPoll", () => {
 
   it("replies with a fixed body for each /answer failure reason so the operator can disambiguate", async () => {
     expect(renderAnswerReplyPlain({ ok: false, reason: "no_hits" })).toBe(
-      "No matching sources across the second brain — nothing to synthesize.",
+      "No matching knowledge, memory, or history sources — nothing to synthesize.",
     );
     expect(
       renderAnswerReplyPlain({ ok: false, reason: "semantic_unavailable" }),

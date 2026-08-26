@@ -80,7 +80,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       }
       this.sendText(
         chatId,
-        `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
+        `Hi ${firstName ?? "there"}! I'm KOTA. Send me any message.\n\n` +
           `/clear — New conversation\n/status — Session info`,
       );
       return;
@@ -97,7 +97,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       }
       const session = this.sessions.get(resolved.target.sessionKey);
       if (session) {
-        session.agent.close();
+        await session.agent.close();
         this.sessions.delete(resolved.target.sessionKey);
       }
       this.sendText(chatId, "Conversation cleared.");
