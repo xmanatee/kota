@@ -6,7 +6,7 @@ import Foundation
 // `stt-failed`, `tts-failed`) so the UI renders the same vocabulary
 // the CLI and web client use.
 
-struct VoiceFailure {
+struct VoiceTransportFailure {
     let status: Int
     let error: String
     let code: String?
@@ -15,10 +15,10 @@ struct VoiceFailure {
 
 enum VoiceTranscribeResult {
     case success(text: String, language: String?)
-    case failure(VoiceFailure)
+    case failure(VoiceTransportFailure)
 }
 
 enum VoiceSynthesizeResult {
     case success(audio: Data, mimeType: String, format: String)
-    case failure(VoiceFailure)
+    case failure(VoiceTransportFailure)
 }

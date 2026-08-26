@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import fixture from "../../../conformance/contract-fixture.json";
+import fixture from "../../../conformance/ui-behavior-vectors.generated.json";
 import { parseUiSurfaceBundle } from "../../../conformance/ui-surface.generated";
 import { useDaemonEvents } from "./use-daemon-events";
 
@@ -57,7 +57,7 @@ describe("useDaemonEvents shared UI refresh", () => {
       </QueryClientProvider>
     );
 
-    const fixtureBundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+    const fixtureBundle = parseUiSurfaceBundle(fixture.operatorBundle);
     const bundle = {
       ...fixtureBundle,
       surfaces: fixtureBundle.surfaces.map((surface, index) =>

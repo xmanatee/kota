@@ -16,8 +16,9 @@
  * a test needs real behavior for a namespace, contribute a handler that
  * exercises it instead of relying on the stub.
  */
+
+import type { DaemonClientHandlers } from "#root/client/kota-client.generated.js";
 import { buildTaskAndWorkflowTestStubs } from "./daemon-client-task-workflow-test-stubs.js";
-import type { DaemonClientHandlers } from "./kota-client.js";
 
 const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
   ReturnType<DaemonClientHandlers["evalHarness"]["calibration"]>

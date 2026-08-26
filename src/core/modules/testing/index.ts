@@ -31,8 +31,8 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { ProviderToken } from "#core/modules/provider-token.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
-import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import type { LocalClientHandlers } from "#root/client/kota-client.generated.js";
 
 /**
  * Build a minimal event proxy for ad-hoc test ModuleContext stubs.

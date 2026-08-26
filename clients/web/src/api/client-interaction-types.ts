@@ -2,14 +2,14 @@ import type {
   CaptureTarget,
   RecallSource,
   RetractTarget,
-} from "../../../conformance/decoders";
+} from "../../../conformance/daemon-contract.generated";
 
 /** Cross-client response contracts decoded at the HTTP boundary. */
 export {
   ContractDecodeError,
   parseScopeRegistryProjection,
   parseUnknownScopeError,
-} from "../../../conformance/decoders";
+} from "../../../conformance/daemon-contract.generated";
 
 export type {
   AnswerCitation,
@@ -44,7 +44,7 @@ export type {
   RetractResult,
   RetractTarget,
   TasksSearchResponse,
-} from "../../../conformance/decoders";
+} from "../../../conformance/daemon-contract.generated";
 
 export type AnswerFilter = {
   topK?: number;

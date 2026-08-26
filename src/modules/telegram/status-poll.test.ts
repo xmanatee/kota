@@ -2,7 +2,6 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type {
   AnswerClient,
   AnswerHistoryEntry,
@@ -19,6 +18,7 @@ import type {
   RetractClient,
   RetractResult,
 } from "#modules/retract/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import {
   acquireTelegramPollingOwner,

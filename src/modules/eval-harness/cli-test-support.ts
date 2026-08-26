@@ -1,12 +1,12 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type {
   AgyModelEvaluationOptions,
   AgyModelEvaluationResult,

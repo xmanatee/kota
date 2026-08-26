@@ -1,4 +1,4 @@
-import { type KotaClient, KotaClientScopeError } from "./kota-client.js";
+import { type KotaClient, KotaClientScopeError } from "#root/client/kota-client.generated.js";
 import type { ScopeSelector } from "./scope-selector.js";
 
 type SetupClient = KotaClient["setup"];

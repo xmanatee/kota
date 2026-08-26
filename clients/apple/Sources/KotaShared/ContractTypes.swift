@@ -1,666 +1,15 @@
 import Foundation
 
-// MARK: - Thin-client contract decoders
-//
-// Codable mirrors of the daemon's typed thin-client contract. Every shape
-// here matches a TypeScript source of truth one-to-one so the macOS menu
-// bar speaks the same protocol as `kota-client.ts`, the web dashboard, and
-// the CLI. The shared JSON fixture under
-// `clients/conformance/contract-fixture.json` is exercised against these
-// decoders in `ContractFixtureTests`, so any payload drift fails this
-// suite alongside the TypeScript and web suites — see
-// `clients/AGENTS.md` for the migration matrix.
+// Workflow definitions are not part of the thin-client route set yet. Shared
+// daemon wire types live in Generated/DaemonContract.generated.swift.
 
-// MARK: Capability readiness
-
-/// Mirror of the daemon's `CapabilityStatus` union
-/// (`src/core/daemon/capability-readiness.ts`). Strict decode so an
-/// unknown status fails loudly instead of silently falling through.
-enum CapabilityStatus: String, Codable, Equatable {
-    case ready
-    case unavailable
-    case initFailed = "init_failed"
-}
-
-/// Mirror of the daemon's `CapabilityReadiness` shape. `meta` is decoded
-/// permissively as primitive-only key/value pairs because its TypeScript
-/// type is `Record<string, string | number | boolean>`.
-struct CapabilityReadiness: Codable, Equatable {
-    let id: String
-    let moduleName: String
-    let status: CapabilityStatus
-    let reason: String?
-    let message: String?
-    let meta: [String: CapabilityMetaValue]?
-
-    private enum CodingKeys: String, CodingKey {
-        case id, moduleName, status, reason, message, meta
-    }
-}
-
-/// Primitive-only value inside `CapabilityReadiness.meta`. Decoded via a
-/// single-value container so each entry preserves its native JSON type
-/// without flattening to a string.
-enum CapabilityMetaValue: Codable, Equatable {
-    case string(String)
-    case number(Double)
-    case bool(Bool)
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-            return
-        }
-        if let value = try? container.decode(Double.self) {
-            self = .number(value)
-            return
-        }
-        if let value = try? container.decode(String.self) {
-            self = .string(value)
-            return
-        }
-        throw DecodingError.dataCorruptedError(
-            in: container,
-            debugDescription: "Unknown capability meta value type"
-        )
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case .string(let v): try container.encode(v)
-        case .number(let v): try container.encode(v)
-        case .bool(let v): try container.encode(v)
-        }
-    }
-
-    var stringValue: String? {
-        switch self {
-        case .string(let v): return v
-        case .number(let v):
-            if v.rounded() == v { return String(Int64(v)) }
-            return String(v)
-        case .bool(let v): return v ? "true" : "false"
-        }
-    }
-
-    var intValue: Int? {
-        if case .number(let v) = self, v.rounded() == v { return Int(v) }
-        return nil
-    }
-}
-
-/// Mirror of the daemon's `CapabilityReadinessSummary` shape.
-struct CapabilityReadinessSummary: Codable, Equatable {
-    let ready: Int
-    let unavailable: Int
-    let initFailed: Int
-
-    private enum CodingKeys: String, CodingKey {
-        case ready
-        case unavailable
-        case initFailed = "init_failed"
-    }
-}
-
-/// Mirror of the daemon's `GET /capabilities` response shape.
-struct CapabilityReadinessResponse: Codable, Equatable {
-    let capabilities: [CapabilityReadiness]
-    let summary: CapabilityReadinessSummary
-}
-
-// MARK: Module setup requirements
-
-enum SetupRequirementKind: String, Codable, Equatable {
-    case config
-    case secret
-    case oauth
-    case browserProfile = "browser-profile"
-    case externalUrl = "external-url"
-    case capability
-}
-
-enum SetupSensitivity: String, Codable, Equatable {
-    case none
-    case secret
-    case oauth
-    case browserProfile = "browser-profile"
-}
-
-enum SetupRequirementState: String, Codable, Equatable {
-    case ready
-    case missing
-    case pending
-    case expired
-    case revoked
-    case unknown
-    case unavailable
-}
-
-enum SetupScope: String, Codable, Equatable {
-    case scope
-    case globalScope = "global"
-}
-
-enum SetupFieldType: String, Codable, Equatable {
-    case string
-    case number
-    case boolean
-}
-
-enum SetupFieldValueKind: String, Codable, Equatable {
-    case secretReference = "secret-reference"
-}
-
-enum SetupActionStatus: String, Codable, Equatable {
-    case pending
-    case completed
-    case revoked
-}
-
-struct SetupFormField: Codable, Equatable {
-    let id: String
-    let label: String
-    let type: SetupFieldType
-    let valueKind: SetupFieldValueKind?
-    let configPath: String
-    let required: Bool
-    let placeholder: String?
-    let helperText: String?
-}
-
-enum SetupMode: Codable, Equatable {
-    case form(fields: [SetupFormField])
-    case url(url: String, label: String, pendingTtlMs: Int?)
-    case none
-
-    private enum CodingKeys: String, CodingKey {
-        case mode, fields, url, label, pendingTtlMs
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let mode = try container.decode(String.self, forKey: .mode)
-        switch mode {
-        case "form":
-            self = .form(fields: try container.decode([SetupFormField].self, forKey: .fields))
-        case "url":
-            self = .url(
-                url: try container.decode(String.self, forKey: .url),
-                label: try container.decode(String.self, forKey: .label),
-                pendingTtlMs: try container.decodeIfPresent(Int.self, forKey: .pendingTtlMs)
-            )
-        case "none":
-            self = .none
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .mode,
-                in: container,
-                debugDescription: "Unknown setup mode \(mode)"
-            )
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .form(let fields):
-            try container.encode("form", forKey: .mode)
-            try container.encode(fields, forKey: .fields)
-        case .url(let url, let label, let pendingTtlMs):
-            try container.encode("url", forKey: .mode)
-            try container.encode(url, forKey: .url)
-            try container.encode(label, forKey: .label)
-            try container.encodeIfPresent(pendingTtlMs, forKey: .pendingTtlMs)
-        case .none:
-            try container.encode("none", forKey: .mode)
-        }
-    }
-}
-
-struct SetupSecretRefStatus: Codable, Equatable {
-    let name: String
-    let scope: SetupScope
-    let present: Bool
-    let source: String?
-}
-
-struct SetupConfigFieldStatus: Codable, Equatable {
-    let id: String
-    let label: String
-    let configPath: String
-    let required: Bool
-    let present: Bool
-}
-
-struct SetupCapabilityStatus: Codable, Equatable {
-    let id: String
-    let status: CapabilityStatus
-    let reason: String?
-    let message: String?
-}
-
-struct SetupPendingAction: Codable, Equatable {
-    let actionId: String
-    let moduleName: String
-    let requirementId: String
-    let url: String
-    let label: String
-    let status: SetupActionStatus
-    let createdAt: String
-    let expiresAt: String
-    let completedAt: String?
-}
-
-struct SetupRequirementStatus: Codable, Equatable {
-    let moduleName: String
-    let requirementId: String
-    let kind: SetupRequirementKind
-    let title: String
-    let description: String?
-    let required: Bool
-    let scope: SetupScope
-    let owner: String?
-    let sensitivity: SetupSensitivity
-    let setup: SetupMode
-    let state: SetupRequirementState
-    let reason: String
-    let message: String
-    let secretRefs: [SetupSecretRefStatus]?
-    let configFields: [SetupConfigFieldStatus]?
-    let capabilities: [SetupCapabilityStatus]?
-    let pendingAction: SetupPendingAction?
-}
-
-struct SetupStatusSummary: Codable, Equatable {
-    let ready: Int
-    let missing: Int
-    let pending: Int
-    let expired: Int
-    let revoked: Int
-    let unknown: Int
-    let unavailable: Int
-}
-
-struct SetupStatusResponse: Codable, Equatable {
-    let requirements: [SetupRequirementStatus]
-    let summary: SetupStatusSummary
-}
-
-// MARK: Stable capability ids
-
-/// Stable id for the embedded dashboard capability. Mirrors
-/// `DASHBOARD_CAPABILITY_ID` in `src/core/daemon/client-identity.ts`.
-let DASHBOARD_CAPABILITY_ID = "dashboard"
-
-/// Stable id the daemon registers when one or more workflow definitions
-/// are enabled. Mirrors `WORKFLOW_TRIGGER_CAPABILITY_ID`.
-let WORKFLOW_TRIGGER_CAPABILITY_ID = "workflow.trigger"
-
-// MARK: Identity payload
-
-/// Mirror of the daemon's `ClientDashboardAvailability` discriminated
-/// union. The `available: true` arm carries the path the daemon serves
-/// the dashboard at; the `available: false` arm carries the typed reason
-/// the caller can map to UI without parsing a free-form message.
-enum ClientDashboardAvailability: Codable, Equatable {
-    case available(path: String)
-    case unavailable(reason: String, message: String?)
-
-    private enum CodingKeys: String, CodingKey {
-        case available, path, reason, message
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let available = try container.decode(Bool.self, forKey: .available)
-        if available {
-            let path = try container.decode(String.self, forKey: .path)
-            self = .available(path: path)
-            return
-        }
-        let reason = try container.decode(String.self, forKey: .reason)
-        let message = try container.decodeIfPresent(String.self, forKey: .message)
-        self = .unavailable(reason: reason, message: message)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .available(let path):
-            try container.encode(true, forKey: .available)
-            try container.encode(path, forKey: .path)
-        case .unavailable(let reason, let message):
-            try container.encode(false, forKey: .available)
-            try container.encode(reason, forKey: .reason)
-            try container.encodeIfPresent(message, forKey: .message)
-        }
-    }
-
+extension ClientDashboardAvailability {
     var isAvailable: Bool {
         if case .available = self { return true }
         return false
     }
-
-    var path: String? {
-        if case .available(let p) = self { return p }
-        return nil
-    }
-
-    var reason: String? {
-        if case .unavailable(let r, _) = self { return r }
-        return nil
-    }
-
-    var message: String? {
-        if case .unavailable(_, let m) = self { return m }
-        return nil
-    }
 }
 
-/// Mirror of the daemon's `ClientIdentity` payload from `GET /identity`.
-struct ClientIdentity: Codable, Equatable {
-    let scopeName: String
-    let scopeRoot: String
-    let scopeRegistry: ScopeRegistryProjection
-    let daemonVersion: String
-    let pid: Int
-    let startedAt: String
-    let dashboard: ClientDashboardAvailability
-}
-
-/// Mirror of the daemon's canonical `ScopeRegistryProjection` shape.
-/// The root and default ids must both name entries in `scopes`; directory
-/// backed scopes carry `directoryRoot`, while the global root does not.
-struct ConfiguredScopeEntry: Codable, Equatable {
-    let scopeId: String
-    let displayName: String
-    let parentScopeId: String?
-    let directoryRoot: String?
-}
-
-struct ScopeRegistryProjection: Codable, Equatable {
-    let rootScopeId: String
-    let defaultScopeId: String
-    let scopes: [ConfiguredScopeEntry]
-
-    init(rootScopeId: String, defaultScopeId: String, scopes: [ConfiguredScopeEntry]) {
-        self.rootScopeId = rootScopeId
-        self.defaultScopeId = defaultScopeId
-        self.scopes = scopes
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let rootScopeId = try container.decode(String.self, forKey: .rootScopeId)
-        let defaultScopeId = try container.decode(String.self, forKey: .defaultScopeId)
-        let scopes = try container.decode([ConfiguredScopeEntry].self, forKey: .scopes)
-        if scopes.isEmpty {
-            throw DecodingError.dataCorruptedError(
-                forKey: .scopes,
-                in: container,
-                debugDescription: "scopes must declare at least one entry"
-            )
-        }
-        if !scopes.contains(where: { $0.scopeId == rootScopeId }) {
-            throw DecodingError.dataCorruptedError(
-                forKey: .rootScopeId,
-                in: container,
-                debugDescription: "rootScopeId \(rootScopeId) does not match any registered scope"
-            )
-        }
-        if !scopes.contains(where: { $0.scopeId == defaultScopeId }) {
-            throw DecodingError.dataCorruptedError(
-                forKey: .defaultScopeId,
-                in: container,
-                debugDescription: "defaultScopeId \(defaultScopeId) does not match any registered scope"
-            )
-        }
-        self.rootScopeId = rootScopeId
-        self.defaultScopeId = defaultScopeId
-        self.scopes = scopes
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(rootScopeId, forKey: .rootScopeId)
-        try container.encode(defaultScopeId, forKey: .defaultScopeId)
-        try container.encode(scopes, forKey: .scopes)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case rootScopeId, defaultScopeId, scopes
-    }
-}
-
-// MARK: - Scope policy
-
-enum ScopePolicyArea: String, Codable, Equatable {
-    case autonomy
-    case writes
-    case channels
-    case setup
-    case ownerConfirmation
-    case retention
-    case modules
-    case externalEffects
-}
-
-enum ScopePolicyExplanationAction: String, Codable, Equatable {
-    case set
-    case override
-    case inherit
-}
-
-enum ScopePolicyAutonomyMode: String, Codable, Equatable {
-    case passive
-    case supervised
-    case autonomous
-}
-
-enum ScopePolicyWriteMode: String, Codable, Equatable {
-    case none
-    case scopeDirectory = "scope-directory"
-    case paths
-    case unrestricted
-}
-
-enum ScopePolicyChannelMode: String, Codable, Equatable {
-    case blocked
-    case allowList = "allow-list"
-    case allowAll = "allow-all"
-}
-
-enum ScopePolicyActionPolicy: String, Codable, Equatable {
-    case allow
-    case confirm
-    case deny
-}
-
-enum ScopePolicyRetentionMode: String, Codable, Equatable {
-    case retain
-    case expireAfterDays = "expire-after-days"
-}
-
-enum ScopePolicyRedactionProfile: String, Codable, Equatable {
-    case full
-    case sensitiveFields = "sensitive-fields"
-    case none
-}
-
-enum ScopePolicySetupVisibility: String, Codable, Equatable {
-    case hidden
-    case metadata
-    case full
-}
-
-enum ScopePolicyModuleAvailability: String, Codable, Equatable {
-    case enabled
-    case setupRequired = "setup-required"
-    case disabled
-}
-
-enum ScopePolicyDecisionKind: String, Codable, Equatable {
-    case channelRoute = "channel-route"
-    case toolEffect = "tool-effect"
-}
-
-enum ScopePolicyDecisionOutcome: String, Codable, Equatable {
-    case allow
-    case confirm
-    case deny
-    case ignore
-}
-
-struct ScopePolicySource: Codable, Equatable {
-    let scopeId: String
-    let reason: String
-}
-
-struct ScopeAutonomyPolicyProjection: Codable, Equatable {
-    let defaultMode: ScopePolicyAutonomyMode
-    let maxMode: ScopePolicyAutonomyMode
-    let source: ScopePolicySource
-}
-
-struct ScopeWritePolicyProjection: Codable, Equatable {
-    let mode: ScopePolicyWriteMode
-    let paths: [String]?
-    let source: ScopePolicySource
-}
-
-struct ScopeChannelPolicyProjection: Codable, Equatable {
-    let mode: ScopePolicyChannelMode
-    let allowedChannels: [String]
-    let blockedSources: [String]
-    let ignoredSources: [String]
-    let source: ScopePolicySource
-}
-
-struct ScopeOwnerConfirmationPolicyProjection: Codable, Equatable {
-    let localWrite: ScopePolicyActionPolicy
-    let externalWrite: ScopePolicyActionPolicy
-    let destructive: ScopePolicyActionPolicy
-    let source: ScopePolicySource
-}
-
-struct ScopeRetentionPolicyProjection: Codable, Equatable {
-    let mode: ScopePolicyRetentionMode
-    let maxAgeDays: Int?
-    let redaction: ScopePolicyRedactionProfile
-    let source: ScopePolicySource
-}
-
-struct ScopeModulePolicyOverrideProjection: Codable, Equatable {
-    let moduleName: String
-    let availability: ScopePolicyModuleAvailability
-}
-
-struct ScopeModulePolicyProjection: Codable, Equatable {
-    let defaultAvailability: ScopePolicyModuleAvailability
-    let overrides: [ScopeModulePolicyOverrideProjection]
-    let source: ScopePolicySource
-}
-
-struct ScopeExternalEffectPolicyProjection: Codable, Equatable {
-    let networkRead: ScopePolicyActionPolicy
-    let networkWrite: ScopePolicyActionPolicy
-    let networkDestructive: ScopePolicyActionPolicy
-    let source: ScopePolicySource
-}
-
-struct ScopePolicyExplanationProjection: Codable, Equatable {
-    let area: ScopePolicyArea
-    let scopeId: String
-    let action: ScopePolicyExplanationAction
-    let message: String
-}
-
-struct ScopePolicyProjection: Codable, Equatable {
-    let scopeId: String
-    let lineage: [String]
-    let directoryRoot: String?
-    let autonomy: ScopeAutonomyPolicyProjection
-    let writes: ScopeWritePolicyProjection
-    let channels: ScopeChannelPolicyProjection
-    let setup: ScopeSetupPolicyProjection
-    let ownerConfirmation: ScopeOwnerConfirmationPolicyProjection
-    let retention: ScopeRetentionPolicyProjection
-    let modules: ScopeModulePolicyProjection
-    let externalEffects: ScopeExternalEffectPolicyProjection
-    let explanations: [ScopePolicyExplanationProjection]
-}
-
-struct ScopeSetupPolicyProjection: Codable, Equatable {
-    let visibility: ScopePolicySetupVisibility
-    let source: ScopePolicySource
-}
-
-struct ScopePolicyDecisionProjection: Codable, Equatable {
-    let kind: ScopePolicyDecisionKind
-    let target: String
-    let outcome: ScopePolicyDecisionOutcome
-    let source: ScopePolicySource
-    let reason: String
-    let rendered: String
-}
-
-struct ScopePolicyRouteResponse: Codable, Equatable {
-    let revision: Int
-    let policy: ScopePolicyProjection
-    let decisionExamples: [ScopePolicyDecisionProjection]
-}
-
-/// Mirror of the daemon's typed `unknown_scope` rejection that
-/// scope-aware routes emit when `?scopeId=` is set to an
-/// unconfigured id. Strict decode: any other `reason` value fails.
-struct UnknownScopeError: Codable, Equatable {
-    let error: String
-    let reason: String
-    let scopeId: String
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let error = try container.decode(String.self, forKey: .error)
-        let reason = try container.decode(String.self, forKey: .reason)
-        let scopeId = try container.decode(String.self, forKey: .scopeId)
-        if reason != "unknown_scope" {
-            throw DecodingError.dataCorruptedError(
-                forKey: .reason,
-                in: container,
-                debugDescription: "unknown reason: \(reason)"
-            )
-        }
-        if error != "Unknown scope" {
-            throw DecodingError.dataCorruptedError(
-                forKey: .error,
-                in: container,
-                debugDescription: "unknown error label: \(error)"
-            )
-        }
-        self.error = error
-        self.reason = reason
-        self.scopeId = scopeId
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(error, forKey: .error)
-        try container.encode(reason, forKey: .reason)
-        try container.encode(scopeId, forKey: .scopeId)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case error, reason, scopeId
-    }
-}
-
-// MARK: Workflow definitions
-
-/// Mirror of the daemon's `WorkflowDefinitionTriggerSummary` discriminated
-/// union. Each arm carries exactly the fields its surface needs — strict
-/// decode rejects unknown trigger types.
 enum WorkflowDefinitionTriggerSummary: Codable, Equatable {
     case event(event: String)
     case cron(schedule: String)
@@ -674,28 +23,21 @@ enum WorkflowDefinitionTriggerSummary: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
-        switch type {
-        case "event":
-            let event = try container.decode(String.self, forKey: .event)
-            self = .event(event: event)
-        case "cron":
-            let schedule = try container.decode(String.self, forKey: .schedule)
-            self = .cron(schedule: schedule)
-        case "interval":
-            let intervalMs = try container.decode(Int.self, forKey: .intervalMs)
-            self = .interval(intervalMs: intervalMs)
-        case "webhook":
-            self = .webhook
+        switch try container.decode(String.self, forKey: .type) {
+        case "event": self = .event(event: try container.decode(String.self, forKey: .event))
+        case "cron": self = .cron(schedule: try container.decode(String.self, forKey: .schedule))
+        case "interval": self = .interval(intervalMs: try container.decode(Int.self, forKey: .intervalMs))
+        case "webhook": self = .webhook
         case "watch":
-            let patterns = try container.decode([String].self, forKey: .patterns)
-            let debounceMs = try container.decode(Int.self, forKey: .debounceMs)
-            self = .watch(patterns: patterns, debounceMs: debounceMs)
-        default:
+            self = .watch(
+                patterns: try container.decode([String].self, forKey: .patterns),
+                debounceMs: try container.decode(Int.self, forKey: .debounceMs)
+            )
+        case let value:
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
                 in: container,
-                debugDescription: "Unknown workflow trigger type: \(type)"
+                debugDescription: "Unknown workflow trigger type: \(value)"
             )
         }
     }
@@ -721,26 +63,19 @@ enum WorkflowDefinitionTriggerSummary: Codable, Equatable {
         }
     }
 
-    /// Short label suitable for a workflow picker. Tries to convey the
-    /// trigger flavor without leaking implementation detail.
     var label: String {
         switch self {
         case .event(let event): return "event:\(event)"
         case .cron(let schedule): return "cron:\(schedule)"
-        case .interval(let ms):
-            let seconds = ms / 1000
-            return seconds > 0 ? "interval:\(seconds)s" : "interval:\(ms)ms"
+        case .interval(let milliseconds):
+            let seconds = milliseconds / 1000
+            return seconds > 0 ? "interval:\(seconds)s" : "interval:\(milliseconds)ms"
         case .webhook: return "webhook"
-        case .watch(let patterns, _):
-            return "watch:\(patterns.first ?? "")"
+        case .watch(let patterns, _): return "watch:\(patterns.first ?? "")"
         }
     }
 }
 
-/// Mirror of the daemon's `WorkflowDefinitionSummary` shape returned by
-/// `GET /workflow/definitions`. `inputSchema` is decoded as raw JSON
-/// data because the daemon emits an arbitrary JSON Schema; clients that
-/// need to render input fields decode the schema themselves.
 struct WorkflowDefinitionSummary: Codable, Equatable, Identifiable {
     let name: String
     let enabled: Bool
@@ -748,33 +83,23 @@ struct WorkflowDefinitionSummary: Codable, Equatable, Identifiable {
     let stepCount: Int
     let triggers: [WorkflowDefinitionTriggerSummary]
     let inputSchema: WorkflowInputSchema?
-
     var id: String { name }
 }
 
-/// Opaque container around the JSON Schema the daemon emits for a
-/// workflow's `inputSchema`. Decoding succeeds for any well-formed JSON
-/// object so the macOS surface can detect "this workflow takes input"
-/// without owning a JSON Schema engine.
 struct WorkflowInputSchema: Codable, Equatable {
     let raw: Data
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        let value = try container.decode(JSONValue.self)
-        self.raw = try JSONEncoder().encode(value)
+        raw = try JSONEncoder().encode(container.decode(JSONValue.self))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        let value = try JSONDecoder().decode(JSONValue.self, from: raw)
-        try container.encode(value)
+        try container.encode(JSONDecoder().decode(JSONValue.self, from: raw))
     }
 }
 
-/// Permissive JSON value used only to round-trip arbitrary JSON Schema
-/// blobs through `WorkflowInputSchema`. Not exposed elsewhere — every
-/// other contract type is strict.
 enum JSONValue: Codable, Equatable {
     case string(String)
     case number(Double)
@@ -786,31 +111,27 @@ enum JSONValue: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() { self = .null; return }
-        if let v = try? container.decode(Bool.self) { self = .bool(v); return }
-        if let v = try? container.decode(Double.self) { self = .number(v); return }
-        if let v = try? container.decode(String.self) { self = .string(v); return }
-        if let v = try? container.decode([JSONValue].self) { self = .array(v); return }
-        if let v = try? container.decode([String: JSONValue].self) { self = .object(v); return }
-        throw DecodingError.dataCorruptedError(
-            in: container,
-            debugDescription: "Unsupported JSON value"
-        )
+        if let value = try? container.decode(Bool.self) { self = .bool(value); return }
+        if let value = try? container.decode(Double.self) { self = .number(value); return }
+        if let value = try? container.decode(String.self) { self = .string(value); return }
+        if let value = try? container.decode([JSONValue].self) { self = .array(value); return }
+        if let value = try? container.decode([String: JSONValue].self) { self = .object(value); return }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case .string(let v): try container.encode(v)
-        case .number(let v): try container.encode(v)
-        case .bool(let v): try container.encode(v)
+        case .string(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
         case .null: try container.encodeNil()
-        case .array(let v): try container.encode(v)
-        case .object(let v): try container.encode(v)
+        case .array(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
         }
     }
 }
 
-/// Mirror of the daemon's `GET /workflow/definitions` envelope.
 struct WorkflowDefinitionsResponse: Codable, Equatable {
     let definitions: [WorkflowDefinitionSummary]
 }

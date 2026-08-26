@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T09:44:42.000Z
+updated_at: 2026-08-26T10:35:47.000Z
 ---
 
 ## Problem
@@ -49,9 +49,10 @@ Tracked implementation tasks:
 
 The setup-metadata and Codex capability-truth prerequisites are complete. The
 builder-recovery security proposal was dropped and is not an implementation
-dependency. Queue paths and task frontmatter remain authoritative: fifteen of
-the tracked tasks remain open, the task-system separation is done, and the two
-findings against the retired proof executor are dropped with dispositions.
+dependency. Queue paths and task frontmatter remain authoritative: fourteen of
+the tracked tasks remain open; task-system separation, scope migration, and
+contract generation are done; and the two findings against the retired proof
+executor are dropped with dispositions.
 
 ## Stage Progress
 
@@ -62,7 +63,7 @@ findings against the retired proof executor are dropped with dispositions.
 - [x] Stage 4 — reduce the task system to objective integrity.
 - [x] Stage 5 — separate shipping, validation, and confidence cadences.
 - [x] Stage 6 — complete the terminal project-to-scope migration.
-- [ ] Stage 7 — establish one authored daemon/client contract graph.
+- [x] Stage 7 — establish one authored daemon/client contract graph.
 - [ ] Stage 8 — narrow client ports and client-side owners.
 - [ ] Stage 9 — make runtime lifecycle host-owned.
 - [ ] Stage 10 — replace shadow runtimes with production drivers.
@@ -247,6 +248,28 @@ and diff validation passed. The behavioral cadences passed 11,229 owner tests,
 883 integration tests, and 364 evaluation tests. Web passed 153 tests and its
 production build, mobile passed 456 tests and typecheck, and Apple built and
 passed 309 tests.
+
+## Stage 7 Result
+
+One TypeScript-authored daemon graph now owns the protocol version, route and
+event metadata, capabilities, aliases, and shared request/response shapes.
+Deterministic generation emits JSON Schema, strict TypeScript runtime decoders,
+Swift wire models, capability manifests, and the `KotaClient` namespace host.
+Web, mobile, Apple, daemon, and local clients consume those generated
+artifacts, while platform rendering and product state stay handwritten.
+
+The handwritten decoder catalog, byte-copied mobile decoders, three giant
+contract fixtures, manually mirrored Swift wire types, core aggregate client,
+and its neutral-core module import exception were removed. Small generated
+semantic UI vectors replace the structural golden fixture. The stage deleted
+over forty thousand maintained lines.
+
+Generator freshness, lint, both TypeScript typechecks, and production build
+passed. Focused server/client generation checks passed 20 assertions, web 29,
+mobile 76, and the full Apple suite 239. A representative source-field mutation
+changed every language output, and inspection found no remaining authored
+decoder mirror, copied giant fixture, old core aggregate, or neutral-core
+module-client import.
 
 ## Finding Ownership
 

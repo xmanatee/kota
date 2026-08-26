@@ -3,11 +3,13 @@
 // `/workflow/runs`, `/workflow/pause`, `/workflow/resume`).
 
 import {
+  parseClientIdentity,
   parseScopeRegistryProjection,
   parseScopePolicyRouteResponse,
+  type ClientIdentity,
   type ScopeRegistryProjection,
   type ScopePolicyRouteResponse,
-} from './conformance/decoders';
+} from './daemon-contract.generated';
 import { daemonRequest, withScope, type DaemonHttp } from './http';
 
 export interface HealthResponse {
@@ -84,22 +86,7 @@ export interface RunDetail extends RunSummary {
   warnings?: Array<{ type: string; message: string }>;
 }
 
-/**
- * Permissive identity envelope used by the mobile client's scope
- * selector. The strict cross-client conformance decoders (in
- * `./conformance/decoders.ts`) already validate the scope projection
- * field-by-field; we only re-parse `scopeRegistry` here so the picker's
- * input is typed and rejects an empty / inconsistent registry the same
- * way the cross-client gate does.
- */
-export interface ClientIdentity {
-  scopeName: string;
-  scopeRoot: string;
-  scopeRegistry: ScopeRegistryProjection;
-  daemonVersion: string;
-  pid: number;
-  startedAt: string;
-}
+export type { ClientIdentity } from './daemon-contract.generated';
 
 // `/health` is intentionally public (no bearer token) — it's the daemon
 // reachability probe.
@@ -108,16 +95,7 @@ export function getHealth(http: DaemonHttp): Promise<HealthResponse> {
 }
 
 export async function getIdentity(http: DaemonHttp): Promise<ClientIdentity> {
-  const raw = await daemonRequest<Record<string, unknown>>(http, '/identity');
-  const scopeRegistry = parseScopeRegistryProjection(raw.scopeRegistry);
-  return {
-    scopeName: String(raw.scopeName ?? ''),
-    scopeRoot: String(raw.scopeRoot ?? ''),
-    scopeRegistry,
-    daemonVersion: String(raw.daemonVersion ?? ''),
-    pid: typeof raw.pid === 'number' ? raw.pid : 0,
-    startedAt: String(raw.startedAt ?? ''),
-  };
+  return parseClientIdentity(await daemonRequest<unknown>(http, '/identity'));
 }
 
 export async function getScopes(

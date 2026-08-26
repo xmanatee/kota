@@ -2,14 +2,14 @@ import { TestScopeProvider } from "@/lib/scope-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
-import fixture from "../../../../conformance/contract-fixture.json";
+import fixture from "../../../../conformance/ui-behavior-vectors.generated.json";
 import {
   type UiSurface,
   parseUiSurfaceBundle,
 } from "../../../../conformance/ui-surface.generated";
 import { SharedUiSurface } from "./SharedUiSurface";
 
-export const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+export const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 const foundOperatorSurface = bundle.surfaces.find(
   (surface) => surface.surfaceId === "operator-control",
 );

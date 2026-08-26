@@ -1,9 +1,9 @@
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { AuditEntry } from "#core/tools/audit-store.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { registerAuditCommands } from "./cli.js";
 import type { AuditClient, AuditListEntry } from "./client.js";
 

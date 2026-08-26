@@ -47,7 +47,7 @@ let package = Package(
             dependencies: ["KotaShared"],
             path: "Tests/KotaSharedTests",
             resources: [
-                .copy("contract-fixture.json"),
+                .copy("ui-behavior-vectors.generated.json"),
                 .copy("recall-render-fixture.json"),
                 .copy("RecallEmptyStateSnapshot.txt"),
             ]

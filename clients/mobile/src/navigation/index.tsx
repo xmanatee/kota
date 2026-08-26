@@ -12,7 +12,7 @@ import { useDaemon } from '../context/DaemonContext';
 import type {
   UiIntent,
   UiSurfaceBundle,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import {

@@ -17,8 +17,6 @@ import {
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { KotaClient, LocalClientHandlers } from "#core/server/kota-client.js";
-import { KotaClientScopeError } from "#core/server/kota-client.js";
 import { buildLocalKotaClient } from "#core/server/local-kota-client.js";
 import {
   answerHistoryRootForScope,
@@ -68,6 +66,8 @@ import {
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractRouteHandler } from "#modules/retract/routes.js";
 import { createRetractScopeContextResolver } from "#modules/retract/scope-context.js";
+import type { KotaClient, LocalClientHandlers } from "#root/client/kota-client.generated.js";
+import { KotaClientScopeError } from "#root/client/kota-client.generated.js";
 
 type JsonResult = { status: number; body: unknown };
 

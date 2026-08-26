@@ -8,11 +8,11 @@ import {
   render,
   waitFor,
 } from '@testing-library/react-native';
-import fixture from './__fixtures__/contract-fixture.json';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import {
   parseUiSurfaceBundle,
   type UiNode,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { writeBuilderEvidence } from './builderEvidence';
 import { SharedUiNode } from '../shared-ui/SharedUiNode';
 import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
@@ -26,7 +26,7 @@ jest.mock('../context/DaemonContext', () => ({
   useDaemon: () => ({ executeUiAction: mockExecuteUiAction }),
 }));
 
-const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 const surface = bundle.surfaces.find(
   (candidate) => candidate.surfaceId === 'operator-control',
 )!;
@@ -50,7 +50,7 @@ describe('Android shared UI surface renderer', () => {
       protocolVersion: bundle.protocolVersion,
       platform: 'android-react-native',
       sourceBundle:
-        'clients/conformance/contract-fixture.json#uiSurfaces.statusInbox',
+        'scripts/ui-behavior-vectors.mjs#operatorBundle',
       surfaceId: surface.surfaceId,
       nodeKinds: [...nodeKinds].sort(),
       tree: view.toJSON(),

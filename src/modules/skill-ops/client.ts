@@ -4,7 +4,7 @@
  * The skill-ops module owns the `skills` KotaClient namespace end-to-end:
  * the per-skill summary shape, the list/import result envelopes, the
  * import options, and the `SkillsClient` interface itself. The aggregate
- * `KotaClient` interface in `src/core/server/kota-client.ts` composes this
+ * The generated `KotaClient` aggregate composes this
  * contract by importing `SkillsClient` from this module instead of
  * declaring the shapes inline.
  *

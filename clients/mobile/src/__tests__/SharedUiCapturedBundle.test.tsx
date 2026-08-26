@@ -2,12 +2,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import fixture from './__fixtures__/contract-fixture.json';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import {
   parseUiSurfaceBundle,
   type UiNode,
   type UiSurface,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
 import { orderedIntents, resolveDeepLink, surfaceActionIds } from '../shared-ui/graph';
 import { matchUiEvent } from '../shared-ui/live-events';
@@ -19,7 +19,7 @@ jest.mock('../context/DaemonContext', () => ({
 }));
 
 const evidenceBundlePath = process.env.KOTA_UI_SURFACE_EVIDENCE_BUNDLE;
-const contractBundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const contractBundle = parseUiSurfaceBundle(fixture.operatorBundle);
 
 describe('Android captured shared UI bundle', () => {
   beforeEach(() => mockExecuteUiAction.mockClear());
@@ -75,7 +75,7 @@ describe('Android captured shared UI bundle', () => {
         protocolVersion: captured.protocolVersion,
         sourceBundle: sourceBundlePath(),
         renderer: {
-          binding: 'daemon/conformance/ui-surface.generated.ts',
+          binding: 'daemon/ui-surface.generated.ts',
           exhaustiveContractNodeKinds: nodeKinds(contractBundle.surfaces),
           capturedNodeKinds: nodeKinds(captured.surfaces),
         },

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   buildApprovalCallbackData,
   handleApprovalCallback,

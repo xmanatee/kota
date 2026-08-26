@@ -1,6 +1,6 @@
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 export type TelegramChatScopeBinding = {
   chatId: number;

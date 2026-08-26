@@ -8,10 +8,8 @@
  * through the workflow-dispatcher provider seam
  * (`src/core/workflow/workflow-dispatcher-provider.ts`), so no per-module
  * handler needs to live in core. A regression that smuggles a core-resident
- * handler back into this directory turns this test red. The repo-wide
- * `#modules/*` import guard
- * (`src/core/agent-harness/no-module-imports-in-core.test.ts`) covers the
- * inverse direction; this guard covers the file-name pattern.
+ * handler back into this directory turns this test red. This guard covers the
+ * retired file-name pattern.
  */
 
 import { readdirSync } from "node:fs";

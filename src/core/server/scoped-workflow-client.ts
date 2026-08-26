@@ -1,4 +1,4 @@
-import type { KotaClient } from "./kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { ScopeSelector } from "./scope-selector.js";
 
 type WorkflowClient = KotaClient["workflow"];

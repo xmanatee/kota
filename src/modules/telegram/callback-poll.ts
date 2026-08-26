@@ -13,7 +13,7 @@
 
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   handleApprovalCallback,
   type PendingApprovalMessage,

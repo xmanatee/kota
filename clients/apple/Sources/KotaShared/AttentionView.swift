@@ -22,7 +22,7 @@ struct AttentionView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let attention = appState.attention {
-                        AttentionStateBadge(itemCount: attention.data.items.count)
+                        AttentionStateBadge(itemCount: attention.items.count)
                     }
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -43,7 +43,7 @@ struct AttentionView: View {
 
     private var headerIconColor: Color {
         guard let attention = appState.attention else { return .secondary }
-        return attention.data.items.isEmpty ? .secondary : .orange
+        return attention.items.isEmpty ? .secondary : .orange
     }
 
     private func toggleExpansion() {

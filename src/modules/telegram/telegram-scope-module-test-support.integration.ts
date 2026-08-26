@@ -12,7 +12,7 @@ import {
   initProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import {
   SCOPE_A,

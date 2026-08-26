@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   buildOperatorInboxSnapshot,
 } from "./operator-inbox.js";

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { TelegramScopeSelection } from "./scope-selection.js";
 
 const scopes = [

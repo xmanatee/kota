@@ -1,12 +1,12 @@
-import fixture from './__fixtures__/contract-fixture.json';
-import { parseUiSurfaceBundle } from '../daemon/conformance/ui-surface.generated';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
+import { parseUiSurfaceBundle } from '../daemon/ui-surface.generated';
 import {
   initialFieldValues,
   readActionParameters,
 } from '../shared-ui/action-parameters';
 import { surfaceActionIds } from '../shared-ui/graph';
 
-const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 const surface = bundle.surfaces.find(
   (candidate) => candidate.surfaceId === 'operator-control',
 )!;

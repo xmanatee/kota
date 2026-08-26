@@ -18,9 +18,9 @@ import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
 

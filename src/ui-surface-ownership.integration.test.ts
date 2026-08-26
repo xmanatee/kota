@@ -14,7 +14,6 @@ import {
   type UiSurfaceSource,
 } from "#core/modules/module-ui-surfaces.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import answerModule from "#modules/answer/index.js";
 import approvalQueueModule from "#modules/approval-queue/index.js";
 import autonomyModule from "#modules/autonomy/index.js";
@@ -33,6 +32,7 @@ import repoTasksModule from "#modules/repo-tasks/index.js";
 import retractModule from "#modules/retract/index.js";
 import setupModule from "#modules/setup/index.js";
 import workflowOpsModule from "#modules/workflow-ops/index.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 const OWNERS = [
   [daemonOpsModule, ["status", "scopes", "inbox", "continuity"]],

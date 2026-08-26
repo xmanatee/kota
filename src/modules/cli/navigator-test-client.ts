@@ -1,9 +1,9 @@
 import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
 import type { InteractiveSession, WorkflowDefinitionSummary } from "#core/daemon/daemon-control.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { ModuleListEntry } from "#modules/module-manager/client.js";
 import type { WorkflowEnableResult } from "#modules/workflow-ops/client.js";
 import type { WorkflowSimulationResult } from "#modules/workflow-ops/simulation/types.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 const EMPTY_EVAL_CALIBRATION_RESULT: Awaited<
   ReturnType<KotaClient["evalHarness"]["calibration"]>

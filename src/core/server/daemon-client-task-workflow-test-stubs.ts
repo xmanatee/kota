@@ -1,4 +1,4 @@
-import type { DaemonClientHandlers } from "./kota-client.js";
+import type { DaemonClientHandlers } from "#root/client/kota-client.generated.js";
 
 export function buildTaskAndWorkflowTestStubs(): Pick<
   DaemonClientHandlers,

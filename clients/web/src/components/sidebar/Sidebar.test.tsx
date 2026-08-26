@@ -1,11 +1,11 @@
 import { TestScopeProvider } from "@/lib/scope-context";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import fixture from "../../../../conformance/contract-fixture.json";
+import fixture from "../../../../conformance/ui-behavior-vectors.generated.json";
 import { parseUiSurfaceBundle } from "../../../../conformance/ui-surface.generated";
 import { Sidebar } from "./Sidebar";
 
-const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 const noop = () => {};
 
 function renderSidebar(

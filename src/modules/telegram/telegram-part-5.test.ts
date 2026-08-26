@@ -9,7 +9,7 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, TelegramApiError } from "./client.js";
 import telegramModule from "./index.js";
 

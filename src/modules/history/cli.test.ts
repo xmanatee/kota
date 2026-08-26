@@ -24,12 +24,12 @@ import {
 	resetActiveKotaClient,
 	setActiveKotaClient,
 } from "#core/server/client-holder.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import {
 	setTerminalTransport,
 	TerminalTransport,
 } from "#modules/rendering/transport.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
 	resolveExplicitConversationResume,
 	resolveRunContinue,

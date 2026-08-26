@@ -40,7 +40,7 @@
   ],
   "scripts": {
     "dev": "node --conditions=source --import tsx src/cli.ts",
-    "build": "pnpm check:ui-bindings && rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "pnpm check:client-bindings && rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "pnpm typecheck:production && pnpm typecheck:tests",
     "typecheck:production": "tsc --noEmit -p tsconfig.build.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
@@ -57,6 +57,8 @@
     "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
     "build:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs",
     "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
+    "build:client-bindings": "pnpm build:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs",
+    "check:client-bindings": "pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check",
     "hygiene": "node --conditions=source --import tsx src/check-hygiene.ts",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
     "kota": "node --conditions=source --import tsx src/cli.ts"

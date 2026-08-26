@@ -1,14 +1,14 @@
 ---
 id: task-generate-all-thin-client-daemon-contract-bindings
 title: Generate all thin-client daemon contract bindings
-status: backlog
+status: done
 priority: p1
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Extend the canonical contract generator across daemon endpoints and remove hand-maintained TypeScript and Swift decoder mirrors.
 created_at: 2026-07-31T16:00:58.607Z
-updated_at: 2026-08-24T03:03:20.000Z
+updated_at: 2026-08-26T10:36:15.917Z
 ---
 
 ## Problem
@@ -74,3 +74,29 @@ One canonical capability mechanism per KOTA boundary.
   schema change that fails stale-output validation in all clients.
 - A structural search proving authored decoder mirrors and manually copied
   conformance implementation files no longer exist.
+
+## Result
+
+The daemon wire contract now has one TypeScript-authored graph covering the
+protocol version, routes, response families, events, capabilities, aliases,
+and the generated `KotaClient` namespace host. Deterministic generation emits
+JSON Schema, strict TypeScript runtime decoders for conformance and mobile,
+Swift wire models, capability metadata, client assembly, and freshness
+manifests. Web, mobile, Apple, local, and daemon clients consume those outputs;
+native rendering and semantic request helpers remain platform-owned.
+
+The handwritten decoder catalog, mobile byte copies, three 9.5k-line contract
+fixtures, hand-authored Swift wire mirrors, core aggregate client, its module
+import exception, and fixture-parity tests were removed. Small generated UI
+behavior vectors now cover renderer semantics that schema cannot express.
+The stage removed over forty thousand maintained lines while retaining strict
+negative decoding for unknown discriminators and response families.
+
+Freshness checks, lint, production and test typechecks, and the production
+build passed. Twenty focused generator, decoder, and client-owner checks
+passed; web passed 29 focused checks, mobile passed 76, and Apple passed all
+239 tests. A temporary-source generation check changes a representative
+optional error field and observes changed schema, conformance TypeScript,
+mobile TypeScript, and Swift output hashes, while a structural inspection found
+no remaining authored decoder mirror, copied giant fixture, old core aggregate,
+or neutral-core module-client import.

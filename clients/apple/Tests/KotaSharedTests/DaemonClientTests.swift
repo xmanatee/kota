@@ -475,11 +475,9 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
             let body = #"""
             {
-              "data": {
-                "items": [
-                  {"label": "Empty ready queue", "detail": "Builder has nothing to pull."}
-                ]
-              },
+              "items": [
+                {"label": "Empty ready queue", "detail": "Builder has nothing to pull."}
+              ],
               "text": "Attention digest (1 item):\n• *Empty ready queue*: Builder has nothing to pull."
             }
             """#.data(using: .utf8)!
@@ -493,9 +491,9 @@ final class DaemonClientTests: XCTestCase {
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
         let resp = try await client.fetchAttention()
-        XCTAssertEqual(resp.data.items.count, 1)
-        XCTAssertEqual(resp.data.items[0].label, "Empty ready queue")
-        XCTAssertEqual(resp.data.items[0].detail, "Builder has nothing to pull.")
+        XCTAssertEqual(resp.items.count, 1)
+        XCTAssertEqual(resp.items[0].label, "Empty ready queue")
+        XCTAssertEqual(resp.items[0].detail, "Builder has nothing to pull.")
         XCTAssertTrue(resp.text.contains("Attention digest (1 item):"))
     }
 
@@ -506,7 +504,7 @@ final class DaemonClientTests: XCTestCase {
         MockURLProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/api/attention")
             let body = #"""
-            {"data": {"items": []}, "text": "No attention items right now."}
+            {"items": [], "text": "No attention items right now."}
             """#.data(using: .utf8)!
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
@@ -518,7 +516,7 @@ final class DaemonClientTests: XCTestCase {
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
         let resp = try await client.fetchAttention()
-        XCTAssertTrue(resp.data.items.isEmpty)
+        XCTAssertTrue(resp.items.isEmpty)
         XCTAssertEqual(resp.text, "No attention items right now.")
     }
 
@@ -561,8 +559,8 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(items.first(where: { $0.name == "limit" })?.value, "10")
             let body = #"""
             {"ok": true, "entries": [
-              {"id": "k-1", "type": "note", "status": "active", "title": "Knowledge surface fan-out"},
-              {"id": "k-2", "type": "decision", "status": "archived", "title": "Operator-pull parity"}
+              {"id": "k-1", "title": "Knowledge surface fan-out", "type": "note", "tags": [], "status": "active", "created": "2026-04-26", "updated": "2026-04-26", "content": "", "meta": {}},
+              {"id": "k-2", "title": "Operator-pull parity", "type": "decision", "tags": [], "status": "archived", "created": "2026-04-26", "updated": "2026-04-26", "content": "", "meta": {}}
             ]}
             """#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -846,7 +844,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(conversations[0].model, "claude-opus-4-7")
             XCTAssertEqual(conversations[0].messageCount, 12)
             XCTAssertEqual(conversations[0].cwd, "/repo")
-            XCTAssertEqual(conversations[0].source, "user")
+            XCTAssertEqual(conversations[0].source, .user)
             XCTAssertEqual(conversations[1].id, "c-2")
             XCTAssertEqual(conversations[1].messageCount, 4)
             XCTAssertNil(conversations[1].source)
@@ -988,14 +986,14 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(tasks.count, 2)
             XCTAssertEqual(tasks[0].id, "task-foo")
             XCTAssertEqual(tasks[0].title, "Tasks surface fan-out")
-            XCTAssertEqual(tasks[0].state, "ready")
+            XCTAssertEqual(tasks[0].state, .ready)
             XCTAssertEqual(tasks[0].priority, "p2")
             XCTAssertEqual(tasks[0].area, "client")
             XCTAssertEqual(tasks[0].summary, "Wire the macOS DaemonClient")
             XCTAssertEqual(tasks[0].updatedAt, "2026-04-26T12:34:56Z")
             XCTAssertEqual(tasks[0].score, 0.91, accuracy: 1e-6)
             XCTAssertEqual(tasks[1].id, "task-bar")
-            XCTAssertEqual(tasks[1].state, "doing")
+            XCTAssertEqual(tasks[1].state, .doing)
             XCTAssertEqual(tasks[1].priority, "p1")
         case .semanticUnavailable:
             XCTFail("expected success branch")
@@ -1154,7 +1152,7 @@ final class DaemonClientTests: XCTestCase {
         switch result {
         case .success(let hits):
             XCTAssertEqual(hits.count, 4)
-            guard case let .knowledge(score, id, title, preview, updated) = hits[0] else {
+            guard case let .knowledge(score, id, title, preview, updated, _, _) = hits[0] else {
                 XCTFail("expected knowledge arm at [0], got \(hits[0])"); return
             }
             XCTAssertEqual(score, 0.91, accuracy: 1e-6)
@@ -1162,7 +1160,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(title, "Knowledge surface fan-out")
             XCTAssertEqual(preview, "Cross-store recall seam preview")
             XCTAssertEqual(updated, "2026-04-26T12:34:56Z")
-            guard case let .memory(_, mid, mpreview, mcreated) = hits[1] else {
+            guard case let .memory(_, mid, mpreview, mcreated, _, _, _) = hits[1] else {
                 XCTFail("expected memory arm at [1], got \(hits[1])"); return
             }
             XCTAssertEqual(mid, "m-1")
@@ -1339,12 +1337,12 @@ final class DaemonClientTests: XCTestCase {
                 "Recall is the cross-store seam [knowledge:k-1] used by every surface [memory:m-1]."
             )
             XCTAssertEqual(citations.count, 2)
-            XCTAssertEqual(citations[0].source, "knowledge")
+            XCTAssertEqual(citations[0].source, .knowledge)
             XCTAssertEqual(citations[0].id, "k-1")
-            XCTAssertEqual(citations[1].source, "memory")
+            XCTAssertEqual(citations[1].source, .memory)
             XCTAssertEqual(citations[1].id, "m-1")
             XCTAssertEqual(hits.count, 2)
-            guard case let .knowledge(score, id, title, preview, updated) = hits[0] else {
+            guard case let .knowledge(score, id, title, preview, updated, _, _) = hits[0] else {
                 XCTFail("expected knowledge arm at [0], got \(hits[0])"); return
             }
             XCTAssertEqual(score, 0.91, accuracy: 1e-6)
@@ -1352,13 +1350,13 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(title, "Cross-store recall seam")
             XCTAssertEqual(preview, "Cross-store recall seam preview")
             XCTAssertEqual(updated, "2026-04-26T12:34:56Z")
-            guard case let .memory(_, mid, mpreview, mcreated) = hits[1] else {
+            guard case let .memory(_, mid, mpreview, mcreated, _, _, _) = hits[1] else {
                 XCTFail("expected memory arm at [1], got \(hits[1])"); return
             }
             XCTAssertEqual(mid, "m-1")
             XCTAssertEqual(mpreview, "Operator-pull parity")
             XCTAssertEqual(mcreated, "2026-04-25T08:00:00Z")
-        case .noHits, .semanticUnavailable, .synthesisFailed:
+        case .failure:
             XCTFail("expected success branch")
         }
     }
@@ -1390,12 +1388,7 @@ final class DaemonClientTests: XCTestCase {
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
         let result = try await client.answer(query: "no-match", topK: nil, minScore: nil, sources: nil)
-        switch result {
-        case .noHits:
-            break
-        case .success, .semanticUnavailable, .synthesisFailed:
-            XCTFail("expected noHits branch")
-        }
+        XCTAssertEqual(result, .failure(reason: .noHits))
     }
 
     func testAnswerDecodesSemanticUnavailable() async throws {
@@ -1415,12 +1408,7 @@ final class DaemonClientTests: XCTestCase {
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
         let result = try await client.answer(query: "anything", topK: nil, minScore: nil, sources: nil)
-        switch result {
-        case .semanticUnavailable:
-            break
-        case .success, .noHits, .synthesisFailed:
-            XCTFail("expected semanticUnavailable branch")
-        }
+        XCTAssertEqual(result, .failure(reason: .semanticUnavailable))
     }
 
     func testAnswerDecodesSynthesisFailed() async throws {
@@ -1440,12 +1428,7 @@ final class DaemonClientTests: XCTestCase {
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
         let result = try await client.answer(query: "anything", topK: nil, minScore: nil, sources: nil)
-        switch result {
-        case .synthesisFailed:
-            break
-        case .success, .noHits, .semanticUnavailable:
-            XCTFail("expected synthesisFailed branch")
-        }
+        XCTAssertEqual(result, .failure(reason: .synthesisFailed))
     }
 
     func testAnswerSurfacesHttpErrorOneToOne() async throws {
@@ -1512,7 +1495,7 @@ final class DaemonClientTests: XCTestCase {
         } else {
             XCTFail("expected success arm at index 0")
         }
-        if case .noHits = result.entries[1].result {
+        if case .failure(reason: .noHits) = result.entries[1].result {
             // expected
         } else {
             XCTFail("expected no_hits arm at index 1")
@@ -1988,13 +1971,12 @@ final class DaemonClientTests: XCTestCase {
         guard case let .success(tasksRecord) = tasksResult else {
             XCTFail("expected success arm, got \(tasksResult)"); return
         }
-        guard case let .tasks(tid, tprev, tpath, tstate) = tasksRecord else {
+        guard case let .tasks(tid, tprev, tpath) = tasksRecord else {
             XCTFail("expected tasks record, got \(tasksRecord)"); return
         }
         XCTAssertEqual(tid, "task-buy-milk")
         XCTAssertEqual(tprev, "data/tasks/ready/task-buy-milk.md")
         XCTAssertEqual(tpath, "data/tasks/dropped/task-buy-milk.md")
-        XCTAssertEqual(tstate, "dropped")
         XCTAssertEqual(
             renderRetractResultPlain(tasksResult),
             "Retracted: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md -> data/tasks/dropped/task-buy-milk.md (dropped)"
@@ -2317,7 +2299,7 @@ final class DaemonClientTests: XCTestCase {
             }
             """#.data(using: .utf8)!
             let record = try JSONDecoder().decode(ConversationRecord.self, from: payload)
-            XCTAssertEqual(record.source, value)
+            XCTAssertEqual(record.source, ConversationRecordSource(rawValue: value))
         }
     }
 

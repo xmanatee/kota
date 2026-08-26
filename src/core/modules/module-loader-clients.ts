@@ -2,7 +2,7 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   DaemonClientHandlers,
   LocalClientHandlers,
-} from "#core/server/kota-client.js";
+} from "#root/client/kota-client.generated.js";
 import type { KotaModule, ModuleRuntimeContext } from "./module-types.js";
 
 export type LocalClientNamespace = Extract<keyof LocalClientHandlers, string>;

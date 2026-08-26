@@ -1,5 +1,5 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import { appendScopeSelector, encodeQueryParams } from "#core/server/scope-selector.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { UiActionExecutionResult, UiJsonValue } from "./operator-ui.js";
 import type { UiActionOperation } from "./operator-ui-types.js";
 

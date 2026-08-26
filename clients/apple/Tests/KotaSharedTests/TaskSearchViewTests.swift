@@ -64,7 +64,7 @@ final class TaskSearchViewTests: XCTestCase {
         }
         XCTAssertEqual(tasks.count, 2)
         XCTAssertEqual(tasks[0].id, "task-foo")
-        XCTAssertEqual(tasks[0].state, "ready")
+        XCTAssertEqual(tasks[0].state, .ready)
         XCTAssertEqual(tasks[0].priority, "p2")
         XCTAssertEqual(tasks[0].title, "Tasks surface fan-out")
         XCTAssertEqual(tasks[0].score, 0.91, accuracy: 1e-6)
@@ -81,7 +81,7 @@ final class TaskSearchViewTests: XCTestCase {
             RepoTaskSearchHit(
                 id: "task-foo",
                 title: "Tasks surface fan-out",
-                state: "ready",
+                state: .ready,
                 priority: "p2",
                 area: "client",
                 summary: "summary",
@@ -91,7 +91,7 @@ final class TaskSearchViewTests: XCTestCase {
             RepoTaskSearchHit(
                 id: "task-mobile",
                 title: "Operator-pull parity",
-                state: "backlog",
+                state: .backlog,
                 priority: "p1",
                 area: "client",
                 summary: "summary",
@@ -113,7 +113,7 @@ final class TaskSearchViewTests: XCTestCase {
             RepoTaskSearchHit(
                 id: "a",
                 title: "Short",
-                state: "rdy",
+                state: .ready,
                 priority: "p0",
                 area: "client",
                 summary: "summary",
@@ -121,7 +121,7 @@ final class TaskSearchViewTests: XCTestCase {
                 score: 1.0
             )
         ]
-        XCTAssertEqual(renderRepoTaskSearchPlain(hits), "a   rdy    p0    Short")
+        XCTAssertEqual(renderRepoTaskSearchPlain(hits), "a   ready  p0    Short")
     }
 
     // MARK: - Empty branch

@@ -46,8 +46,8 @@ final class HistoryViewTests: XCTestCase {
         }
         XCTAssertEqual(conversations.count, 2)
         XCTAssertEqual(conversations[0].id, "hist-1")
-        XCTAssertEqual(conversations[0].source, "user")
-        XCTAssertEqual(conversations[1].source, "action")
+        XCTAssertEqual(conversations[0].source, .user)
+        XCTAssertEqual(conversations[1].source, .action)
     }
 
     func testRenderHistorySearchPlainMatchesSharedLineShape() {
@@ -139,7 +139,7 @@ final class HistoryViewTests: XCTestCase {
             model: "test-model",
             messageCount: 3,
             cwd: "/tmp/scope",
-            source: "user"
+            source: .user
         ),
         ConversationRecord(
             id: "hist-22",
@@ -149,7 +149,7 @@ final class HistoryViewTests: XCTestCase {
             model: "test-model",
             messageCount: 11,
             cwd: "/tmp/scope",
-            source: "action"
+            source: .action
         ),
     ]
 

@@ -41,7 +41,7 @@ export function AttentionScreen() {
     );
   }
 
-  const itemCount = attention?.data.items.length ?? null;
+  const itemCount = attention?.items.length ?? null;
 
   return (
     <ScrollView

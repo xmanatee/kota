@@ -15,8 +15,7 @@ resolve it through `getRenderingProvider()` in
 `#core/modules/provider-types.js`. Deployments that omit this module
 degrade to `NullTransport` for the agent stream; interactive REPL and
 prompt tools refuse to start without a renderer. The repo-wide import
-guard `src/core/agent-harness/no-module-imports-in-core.test.ts`
-enforces the boundary for every `#modules/*` subpath.
+direction remains core protocol → module implementation; do not reverse it.
 
 ## Vocabulary
 

@@ -51,7 +51,7 @@ export type ScopeRegistryProjection = {
   scopes: ScopeRegistryEntry[];
 };
 
-export type { ScopePolicyRouteResponse } from "../../../conformance/decoders";
+export type { ScopePolicyRouteResponse } from "../../../conformance/daemon-contract.generated";
 export * from "./client-interaction-types";
 export * from "./workflow-types";
 import type { WorkflowLiveStatus } from "./workflow-types";

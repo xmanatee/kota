@@ -16,7 +16,7 @@
  * or by importing these types from `#modules/answer/client.js`.
  *
  * `RecallFilter`, `RecallHit`, and `RecallSource` are imported from
- * `#core/server/kota-client.js` because the recall namespace is not yet
+ * `#root/client/kota-client.generated.js` because the recall namespace is not yet
  * migrated. Once the recall migration lands, these imports follow the
  * "each migration moves only its own namespace types" rule and shift on
  * their own.

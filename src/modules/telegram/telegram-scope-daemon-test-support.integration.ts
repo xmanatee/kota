@@ -7,8 +7,8 @@ import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { createScopedKotaClient } from "#core/server/scoped-kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 export const SCOPE_A: DirectoryScope = {
   scopeId: "scope-a",

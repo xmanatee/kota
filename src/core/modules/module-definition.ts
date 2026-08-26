@@ -4,7 +4,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { ModuleEventDef } from "#core/events/module-event.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
+import type { DaemonClientHandlers, LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import type {
   ModuleContext,
   ModuleContribution,

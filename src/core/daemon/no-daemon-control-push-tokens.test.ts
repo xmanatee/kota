@@ -8,9 +8,7 @@
  * `KotaModule.controlRoutes` and `onLoad` (see
  * `src/modules/push-notification/`). A regression that smuggles a core-
  * resident handler or store back into this directory turns this test red.
- * The repo-wide `#modules/*` import guard
- * (`src/core/agent-harness/no-module-imports-in-core.test.ts`) covers the
- * inverse direction; this guard covers the file-name pattern.
+ * This guard covers the retired file-name pattern.
  */
 
 import { readdirSync } from "node:fs";

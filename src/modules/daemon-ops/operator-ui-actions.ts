@@ -1,5 +1,5 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 import type {
   UiAction,

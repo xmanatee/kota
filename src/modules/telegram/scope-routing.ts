@@ -1,7 +1,7 @@
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { directoryScopesFromProjection } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { type TelegramChatScopeBinding, TelegramScopeSelection } from "./scope-selection.js";
 
 export type TelegramScopeRouting = {

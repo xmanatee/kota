@@ -10,9 +10,9 @@ import {
   resetDynamicStateProviders,
 } from "#core/loop/dynamic-state.js";
 import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
-import type { LocalClientHandlers } from "#core/server/kota-client.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
+import type { LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import { clearModuleEventSubscriptions } from "./module-event-lifecycle.js";
 import type { LoaderState } from "./module-loader-state.js";
 import {

@@ -4,7 +4,7 @@
  * The web `api.capture` / `api.recall` / `api.answer` / `api.retract` /
  * `api.knowledge.search` / `api.memory.search` / `api.history.search` /
  * `api.tasks.search` / `api.answerLog` / `api.answerShow` / `api.getAttention`
- * / `api.getDigest` paths run the shared `clients/conformance/decoders.ts`
+ * / `api.getDigest` paths run the generated daemon contract decoders
  * decoders at the boundary. A daemon response that drifts (unknown
  * discriminator value, missing required field) must throw a
  * `ContractDecodeError` so React Query surfaces the failure through its

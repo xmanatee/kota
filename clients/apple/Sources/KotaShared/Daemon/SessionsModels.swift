@@ -5,11 +5,7 @@ import Foundation
 
 // MARK: - Autonomy mode
 
-enum AutonomyMode: String, Codable, CaseIterable, Identifiable {
-    case passive
-    case supervised
-    case autonomous
-
+extension AutonomyMode: Identifiable {
     var id: String { rawValue }
     var label: String { rawValue.capitalized }
 }

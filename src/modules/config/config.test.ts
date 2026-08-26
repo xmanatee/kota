@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { ConfigClient } from "./client.js";
 import {
   configSchemaContent,

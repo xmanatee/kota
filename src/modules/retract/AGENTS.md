@@ -33,7 +33,7 @@ A new contributor:
 
 1. Adds a literal to the `RetractTarget` union and an arm to the
    `RetractRecord` discriminated union plus the matching arm to
-   `RetractRequest` in `src/core/server/kota-client.ts`.
+   `RetractRequest` in this module's `client.ts`.
 2. Adds an adapter in `contributors.ts` that wraps its removal helper
    into a `RetractContributor`.
 3. Registers the new contributor in this module's `onLoad`.
@@ -80,5 +80,5 @@ the provider API, and core never hard-codes the target set.
   the single way new stores join.
 
 Cross-surface retract consumers share `createRetractRouteHandler`,
-`renderRetractResultPlain`, and the conformance fixture. Keep the exact surface
-and fixture-arm lists in code and tests.
+`renderRetractResultPlain`, and generated daemon bindings. Tests cover each
+surface's observable behavior without duplicating the wire catalog.

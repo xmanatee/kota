@@ -10,7 +10,7 @@ import type {
   UiAction,
   UiFormField,
   UiJsonValue,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import {
   initialFieldValues,
   readActionParameters,

@@ -6,9 +6,7 @@
  * control route via `KotaModule.controlRoutes` (see
  * `src/modules/webhook/trigger-route.ts`). A regression that smuggles a
  * core-resident handler back into this directory turns this test red.
- * The repo-wide `#modules/*` import guard
- * (`src/core/agent-harness/no-module-imports-in-core.test.ts`) covers the
- * inverse direction; this guard covers the file-name pattern.
+ * This guard covers the retired file-name pattern.
  */
 
 import { readdirSync } from "node:fs";

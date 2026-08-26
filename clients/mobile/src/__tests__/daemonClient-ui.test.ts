@@ -1,6 +1,6 @@
-import fixture from './__fixtures__/contract-fixture.json';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import { DaemonClient } from '../daemonClient';
-import { parseUiSurfaceBundle } from '../daemon/conformance/ui-surface.generated';
+import { parseUiSurfaceBundle } from '../daemon/ui-surface.generated';
 import { parseUiDaemonRouteDocument } from '../daemon/ui';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
@@ -13,7 +13,7 @@ function jsonResponse(body: unknown): Response {
 }
 
 describe('DaemonClient shared UI', () => {
-  const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+  const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
   let fetchSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -23,7 +23,7 @@ describe('DaemonClient shared UI', () => {
   afterEach(() => fetchSpy.mockRestore());
 
   test('loads and strictly decodes the generated bundle for the active scope', async () => {
-    fetchSpy.mockResolvedValueOnce(jsonResponse(fixture.uiSurfaces.statusInbox));
+    fetchSpy.mockResolvedValueOnce(jsonResponse(fixture.operatorBundle));
     const client = new DaemonClient('http://127.0.0.1:8765', 'token');
     const result = await client.getUiSurfaces('scope one');
     expect(result.protocolVersion).toBe('ui.surface.v1');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { KotaClient } from "./kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { ScopeSelectorConflictError } from "./scope-selector.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 

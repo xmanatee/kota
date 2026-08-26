@@ -75,11 +75,11 @@ export class DaemonClient {
     return core.getIdentity(this.http);
   }
 
-  getScopes(): Promise<import('./daemon/conformance/decoders').ScopeRegistryProjection> {
+  getScopes(): Promise<import('./daemon/daemon-contract.generated').ScopeRegistryProjection> {
     return core.getScopes(this.http);
   }
 
-  getScopePolicy(scopeId: string): Promise<import('./daemon/conformance/decoders').ScopePolicyRouteResponse> {
+  getScopePolicy(scopeId: string): Promise<import('./daemon/daemon-contract.generated').ScopePolicyRouteResponse> {
     return core.getScopePolicy(this.http, scopeId);
   }
 

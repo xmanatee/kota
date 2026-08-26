@@ -99,10 +99,9 @@ final class SharedUiRendererTests: XCTestCase {
     }
 
     private static func bundleData() throws -> Data {
-        guard let url = Bundle.module.url(forResource: "contract-fixture", withExtension: "json"),
+        guard let url = Bundle.module.url(forResource: "ui-behavior-vectors.generated", withExtension: "json"),
               let tree = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any],
-              let surfaces = tree["uiSurfaces"] as? [String: Any],
-              let bundle = surfaces["statusInbox"]
+              let bundle = tree["operatorBundle"]
         else { throw NSError(domain: "fixture", code: 1) }
         return try JSONSerialization.data(withJSONObject: bundle, options: [.sortedKeys])
     }

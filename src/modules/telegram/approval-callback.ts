@@ -1,10 +1,10 @@
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type {
 	ApprovalApproveResult,
 	ApprovalRejectResult,
 } from "#modules/approval-queue/client.js";
 import { buildLocalApprovalsClient } from "#modules/approval-queue/local-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
 	callTelegramApi,
 	type TelegramApiBody,

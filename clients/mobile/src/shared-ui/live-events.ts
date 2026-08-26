@@ -2,7 +2,7 @@ import type {
   UiLogEntry,
   UiNode,
   UiSurfaceBundle,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import type { SseEvent } from '../daemon/sse';
 
 export type UiEventMatch = {

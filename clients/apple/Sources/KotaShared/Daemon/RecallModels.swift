@@ -1,16 +1,5 @@
 import Foundation
 
-// Cross-store recall types. Mirrors the daemon's `RecallSource` /
-// `RecallHit` / `RecallSearchResponse` exported from
-// `src/core/server/kota-client.ts`. The wire shape is a discriminated
-// union over `source`; the per-source payload carries the operator-
-// facing metadata each surface renders.
-
-/// Request body shape shared by `POST /recall` and `POST /answer`. The
-/// daemon defines `AnswerFilter = RecallFilter` so the wire shape is
-/// identical: `{ "query": <string>, "filter": { "topK"?, "minScore"?,
-/// "sources"? } }`. Optional filter fields encode only when set so
-/// each seam applies its own typed defaults.
 struct RecallRequestFilter: Encodable {
     let topK: Int?
     let minScore: Double?
@@ -22,130 +11,7 @@ struct RecallRequestBody: Encodable {
     let filter: RecallRequestFilter
 }
 
-/// Mirror of the daemon's `RecallAnswerHit.result` discriminated union:
-/// either `{ ok: true }` (the prior cited answer succeeded) or
-/// `{ ok: false, reason: ... }` over the same closed reason set as
-/// `AnswerResult`. Strict decode so payload drift fails loudly instead of
-/// silently degrading the rendered surface.
-enum RecallAnswerHitResult: Decodable, Equatable {
-    case success
-    case failure(reason: String)
-
-    private enum CodingKeys: String, CodingKey {
-        case ok, reason
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let ok = try container.decode(Bool.self, forKey: .ok)
-        if ok {
-            self = .success
-            return
-        }
-        let reason = try container.decode(String.self, forKey: .reason)
-        switch reason {
-        case "no_hits", "semantic_unavailable", "synthesis_failed":
-            self = .failure(reason: reason)
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .reason,
-                in: container,
-                debugDescription: "Unknown recall answer-hit result reason: \(reason)"
-            )
-        }
-    }
-}
-
-/// Mirror of one ranked, source-tagged hit returned by the daemon's
-/// cross-store recall seam. Decoded as a Swift enum with associated
-/// values so each arm carries exactly the fields its surface needs —
-/// no nullable shape, no flattened struct that drifts from the
-/// daemon's contract.
-enum RecallHit: Decodable, Equatable {
-    case knowledge(score: Double, id: String, title: String, preview: String, updated: String)
-    case memory(score: Double, id: String, preview: String, created: String)
-    case history(score: Double, id: String, title: String, cwd: String, updatedAt: String)
-    case tasks(score: Double, id: String, title: String, state: String, priority: String, updatedAt: String)
-    case answer(
-        score: Double,
-        id: String,
-        query: String,
-        preview: String,
-        citationCount: Int,
-        createdAt: String,
-        result: RecallAnswerHitResult
-    )
-
-    private enum CodingKeys: String, CodingKey {
-        case source, score, id, title, preview, updated, created, cwd, updatedAt, state, priority,
-             query, citationCount, createdAt, result, provenance, freshness
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let source = try container.decode(String.self, forKey: .source)
-        let score = try container.decode(Double.self, forKey: .score)
-        let id = try container.decode(String.self, forKey: .id)
-        switch source {
-        case "knowledge":
-            let title = try container.decode(String.self, forKey: .title)
-            let preview = try container.decode(String.self, forKey: .preview)
-            let updated = try container.decode(String.self, forKey: .updated)
-            let provenance = try container.decodeIfPresent(WorkMemoryProvenance.self, forKey: .provenance)
-            let freshness = try container.decodeIfPresent(WorkMemoryFreshness.self, forKey: .freshness)
-            self = .knowledge(
-                score: score,
-                id: id,
-                title: appendWorkMemoryMetadata(title, provenance: provenance, freshness: freshness),
-                preview: preview,
-                updated: updated
-            )
-        case "memory":
-            let preview = try container.decode(String.self, forKey: .preview)
-            let created = try container.decode(String.self, forKey: .created)
-            let provenance = try container.decodeIfPresent(WorkMemoryProvenance.self, forKey: .provenance)
-            let freshness = try container.decodeIfPresent(WorkMemoryFreshness.self, forKey: .freshness)
-            self = .memory(
-                score: score,
-                id: id,
-                preview: appendWorkMemoryMetadata(preview, provenance: provenance, freshness: freshness),
-                created: created
-            )
-        case "history":
-            let title = try container.decode(String.self, forKey: .title)
-            let cwd = try container.decode(String.self, forKey: .cwd)
-            let updatedAt = try container.decode(String.self, forKey: .updatedAt)
-            self = .history(score: score, id: id, title: title, cwd: cwd, updatedAt: updatedAt)
-        case "tasks":
-            let title = try container.decode(String.self, forKey: .title)
-            let state = try container.decode(String.self, forKey: .state)
-            let priority = try container.decode(String.self, forKey: .priority)
-            let updatedAt = try container.decode(String.self, forKey: .updatedAt)
-            self = .tasks(score: score, id: id, title: title, state: state, priority: priority, updatedAt: updatedAt)
-        case "answer":
-            let query = try container.decode(String.self, forKey: .query)
-            let preview = try container.decode(String.self, forKey: .preview)
-            let citationCount = try container.decode(Int.self, forKey: .citationCount)
-            let createdAt = try container.decode(String.self, forKey: .createdAt)
-            let result = try container.decode(RecallAnswerHitResult.self, forKey: .result)
-            self = .answer(
-                score: score,
-                id: id,
-                query: query,
-                preview: preview,
-                citationCount: citationCount,
-                createdAt: createdAt,
-                result: result
-            )
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .source,
-                in: container,
-                debugDescription: "Unknown recall hit source: \(source)"
-            )
-        }
-    }
-
+extension RecallHit {
     var source: String {
         switch self {
         case .knowledge: return "knowledge"
@@ -158,8 +24,8 @@ enum RecallHit: Decodable, Equatable {
 
     var id: String {
         switch self {
-        case .knowledge(_, let id, _, _, _): return id
-        case .memory(_, let id, _, _): return id
+        case .knowledge(_, let id, _, _, _, _, _): return id
+        case .memory(_, let id, _, _, _, _, _): return id
         case .history(_, let id, _, _, _): return id
         case .tasks(_, let id, _, _, _, _): return id
         case .answer(_, let id, _, _, _, _, _): return id
@@ -168,8 +34,8 @@ enum RecallHit: Decodable, Equatable {
 
     var score: Double {
         switch self {
-        case .knowledge(let score, _, _, _, _): return score
-        case .memory(let score, _, _, _): return score
+        case .knowledge(let score, _, _, _, _, _, _): return score
+        case .memory(let score, _, _, _, _, _, _): return score
         case .history(let score, _, _, _, _): return score
         case .tasks(let score, _, _, _, _, _): return score
         case .answer(let score, _, _, _, _, _, _): return score
@@ -178,65 +44,29 @@ enum RecallHit: Decodable, Equatable {
 
     var describe: String {
         switch self {
-        case .knowledge(_, _, let title, _, _): return title
-        case .memory(_, _, let preview, _): return preview
+        case .knowledge(_, _, let title, _, _, let provenance, let freshness):
+            return appendWorkMemoryMetadata(title, provenance: provenance, freshness: freshness)
+        case .memory(_, _, let preview, _, _, let provenance, let freshness):
+            return appendWorkMemoryMetadata(preview, provenance: provenance, freshness: freshness)
         case .history(_, _, let title, _, _): return title
         case .tasks(_, _, let title, let state, let priority, _): return "[\(state)/\(priority)] \(title)"
-        case .answer(_, _, let query, _, let citationCount, _, let result):
+        case .answer(_, _, let query, _, let count, _, let result):
             switch result {
-            case .success: return "[ok(\(citationCount))] \(query)"
-            case .failure(let reason): return "[\(reason)] \(query)"
+            case .success: return "[ok(\(Int(count)))] \(query)"
+            case .failure(let reason): return "[\(reason.rawValue)] \(query)"
             }
         }
     }
 }
 
-/// Renders cross-store recall hits using the line shape pinned by the
-/// shared recall render fixture. An empty result returns the empty
-/// string.
 func renderRecallHitsPlain(_ hits: [RecallHit]) -> String {
-    if hits.isEmpty { return "" }
+    guard !hits.isEmpty else { return "" }
     let sourceWidth = max(hits.map { $0.source.count }.max() ?? 0, 6)
     let idWidth = max(hits.map { $0.id.count }.max() ?? 0, 2)
-    let scoreWidth = 5
     return hits.map { hit in
         let source = hit.source.padding(toLength: sourceWidth, withPad: " ", startingAt: 0)
-        let scoreStr = String(format: "%.3f", hit.score)
-        let score = String(repeating: " ", count: max(0, scoreWidth - scoreStr.count)) + scoreStr
+        let score = String(format: "%5.3f", hit.score)
         let id = hit.id.padding(toLength: idWidth, withPad: " ", startingAt: 0)
         return "\(source)  \(score)  \(id)  \(hit.describe)"
     }.joined(separator: "\n")
-}
-
-/// Discriminated mirror of the daemon's `POST /recall` response.
-/// Strict decode so payload drift fails loudly instead of silently
-/// degrading the rendered surface.
-enum RecallSearchResponse: Decodable, Equatable {
-    case success(hits: [RecallHit])
-    case semanticUnavailable
-
-    private enum CodingKeys: String, CodingKey {
-        case ok, hits, reason
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let ok = try container.decode(Bool.self, forKey: .ok)
-        if ok {
-            let hits = try container.decode([RecallHit].self, forKey: .hits)
-            self = .success(hits: hits)
-            return
-        }
-        let reason = try container.decode(String.self, forKey: .reason)
-        switch reason {
-        case "semantic_unavailable":
-            self = .semanticUnavailable
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .reason,
-                in: container,
-                debugDescription: "Unknown recall reason: \(reason)"
-            )
-        }
-    }
 }

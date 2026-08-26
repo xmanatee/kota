@@ -3,7 +3,7 @@ import { Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type {
   UiAction,
   UiFormField,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { actionStyles as styles } from './action-styles';
 import { assertNever } from './graph';
 

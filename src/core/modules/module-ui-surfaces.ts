@@ -1,11 +1,11 @@
 import { buildUiSurfaceBundle, type UiSurface, type UiSurfaceBundle } from "#core/daemon/ui-surface.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import {
   type NormalizedScopeSelector,
   normalizeScopeSelector,
   type ScopeSelector,
   selectedScopeSelectorId,
 } from "#core/server/scope-selector.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 const UI_SURFACE_SOURCE_ID_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
 

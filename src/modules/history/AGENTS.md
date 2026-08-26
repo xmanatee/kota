@@ -29,4 +29,5 @@ This directory owns conversation history — the persistent record of past sessi
   store at runtime (currently `history-semantic`) must list `history` in their
   KotaModule `dependencies` so the loader orders onLoad correctly.
 - CLI-launched sessions use configured autonomy explicitly. Missing session-autonomy config is a boundary error, not a hidden fallback.
-- Core must not import from `#modules/history/*`. The repo-wide import guard at `src/core/agent-harness/no-module-imports-in-core.test.ts` enforces the seam for every `#modules/*` subpath.
+- Core must not import from `#modules/history/*`; depend on the neutral provider
+  protocol and let this module register its implementation.

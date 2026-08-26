@@ -196,7 +196,7 @@ final class AppStateTests: XCTestCase {
                 id: "ans-stale",
                 createdAt: "2026-04-29T00:00:00Z",
                 query: "stale",
-                result: .noHits
+                result: .failure(reason: .noHits)
             )
         ]
         state.answerLogError = "stale"

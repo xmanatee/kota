@@ -92,14 +92,13 @@ final class RetractViewTests: XCTestCase {
         """#.data(using: .utf8)!
         let result = try decoder.decode(RetractResult.self, from: json)
         guard case let .success(record) = result,
-              case let .tasks(id, previousPath, path, toState) = record
+              case let .tasks(id, previousPath, path) = record
         else {
             XCTFail("expected tasks success, got \(result)"); return
         }
         XCTAssertEqual(id, "task-rollout")
         XCTAssertEqual(previousPath, "data/tasks/ready/task-rollout.md")
         XCTAssertEqual(path, "data/tasks/dropped/task-rollout.md")
-        XCTAssertEqual(toState, "dropped")
         XCTAssertEqual(
             renderRetractResultPlain(result),
             "Retracted: tasks  task-rollout  data/tasks/ready/task-rollout.md -> data/tasks/dropped/task-rollout.md (dropped)"
@@ -206,8 +205,7 @@ final class RetractViewTests: XCTestCase {
                 .success(record: .tasks(
                     recordId: "task-x",
                     previousPath: "data/tasks/ready/task-x.md",
-                    path: "data/tasks/dropped/task-x.md",
-                    toState: "dropped"
+                    path: "data/tasks/dropped/task-x.md"
                 ))
             ),
             "Retracted: tasks  task-x  data/tasks/ready/task-x.md -> data/tasks/dropped/task-x.md (dropped)"

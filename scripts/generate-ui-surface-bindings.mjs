@@ -8,6 +8,7 @@ import {
 } from "./ui-surface-schema.mjs";
 import { generateSwiftBinding } from "./ui-surface-swift.mjs";
 import { generateTypeScriptBinding } from "./ui-surface-typescript.mjs";
+import { buildUiBehaviorVectors } from "./ui-behavior-vectors.mjs";
 
 const DEFAULT_ROOT = resolve(import.meta.dirname, "..");
 const MANIFEST_PATH = "clients/conformance/ui-surface-bindings.manifest.json";
@@ -41,11 +42,15 @@ function expectedArtifacts(root) {
   const schema = buildUiSurfaceSchema(root);
   const typeScript = generateTypeScriptBinding(root, schema);
   const swift = generateSwiftBinding(schema);
+  const behaviorVectors = `${JSON.stringify(buildUiBehaviorVectors(), null, 2)}\n`;
   const artifacts = new Map([
     ["schema/ui-surface.schema.json", `${JSON.stringify(schema, null, 2)}\n`],
     ["clients/conformance/ui-surface.generated.ts", typeScript],
-    ["clients/mobile/src/daemon/conformance/ui-surface.generated.ts", typeScript],
+    ["clients/mobile/src/daemon/ui-surface.generated.ts", typeScript],
     ["clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift", swift],
+    ["clients/conformance/ui-behavior-vectors.generated.json", behaviorVectors],
+    ["clients/mobile/src/__tests__/__fixtures__/ui-behavior-vectors.generated.json", behaviorVectors],
+    ["clients/apple/Tests/KotaSharedTests/ui-behavior-vectors.generated.json", behaviorVectors],
   ]);
   const source = readFileSync(resolve(root, UI_SURFACE_SOURCE), "utf8");
   const manifest = {
@@ -55,6 +60,10 @@ function expectedArtifacts(root) {
       path: UI_SURFACE_SOURCE,
       rootType: UI_SURFACE_ROOT_TYPE,
       sha256: sha256(source),
+    },
+    semanticInput: {
+      path: "scripts/ui-behavior-vectors.mjs",
+      sha256: sha256(readFileSync(resolve(root, "scripts/ui-behavior-vectors.mjs"), "utf8")),
     },
     outputs: [...artifacts.entries()].map(([path, content]) => ({
       path,

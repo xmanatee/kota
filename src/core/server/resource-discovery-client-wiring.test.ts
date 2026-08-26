@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DaemonControlClient } from "./daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
-import type { DaemonTransport } from "./daemon-transport.js";
 import {
   type DaemonClientHandlers,
   KOTA_CLIENT_NAMESPACES,
   type KotaClient,
   type LocalClientHandlers,
-} from "./kota-client.js";
+} from "#root/client/kota-client.generated.js";
+import { DaemonControlClient } from "./daemon-client.js";
+import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
+import type { DaemonTransport } from "./daemon-transport.js";
 import { buildLocalKotaClient } from "./local-kota-client.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 

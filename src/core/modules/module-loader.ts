@@ -5,8 +5,8 @@ import type { KotaConfig } from "#core/config/config.js";
 import type { UiSurfaceBundle } from "#core/daemon/ui-surface.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import type { DaemonClientHandlers, LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import {
   assertModuleEventBusAuthority,
   bindModuleEventBus,

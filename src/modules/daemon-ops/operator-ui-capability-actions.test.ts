@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 
 function projectionClient(): KotaClient {

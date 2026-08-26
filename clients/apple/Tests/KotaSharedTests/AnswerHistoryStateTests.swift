@@ -189,7 +189,7 @@ final class AnswerHistoryStateTests: XCTestCase {
                 id: "ans-prior-last",
                 createdAt: "t-0",
                 query: "last prior",
-                result: .noHits
+                result: .failure(reason: .noHits)
             ),
         ]
 

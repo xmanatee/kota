@@ -1,13 +1,14 @@
 import type { DaemonControlAddress, DaemonLiveStatus, DaemonSseStreamEvent } from "#core/daemon/daemon-control.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
-import * as methods from "./daemon-control-methods.js";
-import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
-import type { KotaClient } from "./kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   type DaemonClientHandlers,
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
-} from "./kota-client.js";
+  KotaClientNamespaceHost,
+} from "#root/client/kota-client.generated.js";
+import * as methods from "./daemon-control-methods.js";
+import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
 import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 
@@ -82,80 +83,14 @@ export function assembleDaemonClientHandlers(
 // `daemon-control-methods.ts`.
 // ---------------------------------------------------------------------------
 
-export class DaemonControlClient implements KotaClient {
-  readonly workflow: KotaClient["workflow"];
-  readonly approvals: KotaClient["approvals"];
-  readonly secrets: KotaClient["secrets"];
-  readonly tasks: KotaClient["tasks"];
-  readonly memory: KotaClient["memory"];
-  readonly ownerDecisions: KotaClient["ownerDecisions"];
-  readonly ownerQuestions: KotaClient["ownerQuestions"];
-  readonly history: KotaClient["history"];
-  readonly inboundSignals: KotaClient["inboundSignals"];
-  readonly knowledge: KotaClient["knowledge"];
-  readonly sessions: KotaClient["sessions"];
-  readonly modules: KotaClient["modules"];
-  readonly agents: KotaClient["agents"];
-  readonly skills: KotaClient["skills"];
-  readonly harnessParity: KotaClient["harnessParity"];
-  readonly webhook: KotaClient["webhook"];
-  readonly voice: KotaClient["voice"];
-  readonly web: KotaClient["web"];
-  readonly mcpServer: KotaClient["mcpServer"];
-  readonly audit: KotaClient["audit"];
-  readonly config: KotaClient["config"];
-  readonly modulesAdmin: KotaClient["modulesAdmin"];
-  readonly daemonOps: KotaClient["daemonOps"];
-  readonly scopes: KotaClient["scopes"];
-  readonly ui: KotaClient["ui"];
-  readonly doctor: KotaClient["doctor"];
-  readonly evalHarness: KotaClient["evalHarness"];
-  readonly recall: KotaClient["recall"];
-  readonly resourceDiscovery: KotaClient["resourceDiscovery"];
-  readonly answer: KotaClient["answer"];
-  readonly capture: KotaClient["capture"];
-  readonly retract: KotaClient["retract"];
-  readonly setup: KotaClient["setup"];
-
+export class DaemonControlClient extends KotaClientNamespaceHost {
   private readonly transport: DaemonTransport;
   private readonly baseUrl: string;
 
   private constructor(transport: DaemonTransport, handlers: DaemonClientHandlers) {
+    super(handlers);
     this.transport = transport;
     this.baseUrl = transport.baseUrl;
-    this.workflow = handlers.workflow;
-    this.approvals = handlers.approvals;
-    this.secrets = handlers.secrets;
-    this.tasks = handlers.tasks;
-    this.memory = handlers.memory;
-    this.ownerDecisions = handlers.ownerDecisions;
-    this.ownerQuestions = handlers.ownerQuestions;
-    this.history = handlers.history;
-    this.inboundSignals = handlers.inboundSignals;
-    this.knowledge = handlers.knowledge;
-    this.sessions = handlers.sessions;
-    this.modules = handlers.modules;
-    this.agents = handlers.agents;
-    this.skills = handlers.skills;
-    this.harnessParity = handlers.harnessParity;
-    this.webhook = handlers.webhook;
-    this.voice = handlers.voice;
-    this.web = handlers.web;
-    this.mcpServer = handlers.mcpServer;
-    this.audit = handlers.audit;
-    this.config = handlers.config;
-    this.modulesAdmin = handlers.modulesAdmin;
-    this.daemonOps = handlers.daemonOps;
-    this.scopes = handlers.scopes;
-    this.ui = handlers.ui;
-    this.doctor = handlers.doctor;
-    this.evalHarness = handlers.evalHarness;
-    this.recall = handlers.recall;
-    this.resourceDiscovery = handlers.resourceDiscovery;
-    this.answer = handlers.answer;
-    this.capture = handlers.capture;
-    this.retract = handlers.retract;
-    this.setup = handlers.setup;
   }
 
   forScope(scopeId: string): KotaClient {

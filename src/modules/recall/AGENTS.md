@@ -38,8 +38,8 @@ corpus contributed by the answer module.
 A new contributor — owned by whichever module owns the underlying store —
 follows the same registration seam every other contributor uses:
 
-1. Extends the recall source and hit unions in
-   `src/core/server/kota-client.ts`.
+1. Extends the recall source and hit unions in this module's `client.ts`;
+   generated client bindings pick up the new arm from the canonical wire root.
 2. Adds a matching arm to `RawRecallEntry` in `recall-types.ts`.
 3. Builds a `RecallContributor` adapter wherever the store is owned.
 4. From the owning module's `onLoad`, looks up the live `RecallProvider`

@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  KOTA_CLIENT_NAMESPACES,
+} from "#root/client/kota-client.generated.js";
+import {
   assembleDaemonClientHandlers,
   buildCoreStubDaemonClientHandlers,
 } from "./daemon-client.js";
 import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
 import type { DaemonTransport } from "./daemon-transport.js";
-import {
-  KOTA_CLIENT_NAMESPACES,
-} from "./kota-client.js";
 
 function makeFakeTransport(): DaemonTransport {
   return {

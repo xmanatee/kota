@@ -4,7 +4,20 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KnowledgeScreen } from '../screens/KnowledgeScreen';
 import { renderKnowledgeSearchPlain } from '../knowledgeRender';
-import type { KnowledgeSearchResponse } from '../types';
+import type { KnowledgeEntry, KnowledgeSearchResponse } from '../types';
+
+function knowledgeEntry(
+  values: Pick<KnowledgeEntry, 'id' | 'type' | 'status' | 'title'>,
+): KnowledgeEntry {
+  return {
+    content: '',
+    created: '2026-04-26T00:00:00.000Z',
+    meta: {},
+    tags: [],
+    updated: '2026-04-26T00:00:00.000Z',
+    ...values,
+  };
+}
 
 const mockUseDaemon = jest.fn();
 
@@ -121,14 +134,14 @@ describe('KnowledgeScreen', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
-        { id: 'k-2', type: 'doc', status: 'archived', title: 'Old plan' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
+        knowledgeEntry({ id: 'k-2', type: 'doc', status: 'archived', title: 'Old plan' }),
       ],
     };
     mockDaemon({ knowledgeQuery: 'autonomy', knowledgeResult: result });
     const { getByText, queryByText } = render(<KnowledgeScreen />);
     expect(getByText('2 entries')).toBeTruthy();
-    const expected = renderKnowledgeSearchPlain(result.entries);
+    const expected = renderKnowledgeSearchPlain(result.ok ? result.entries : []);
     expect(getByText(expected)).toBeTruthy();
     expect(expected).toBe(
       'k-1  note  active    Autonomy loop\nk-2  doc   archived  Old plan',
@@ -140,7 +153,7 @@ describe('KnowledgeScreen', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     mockDaemon({ knowledgeQuery: 'autonomy', knowledgeResult: result });
@@ -212,18 +225,18 @@ describe('KnowledgeScreen', () => {
     const populated: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        {
+        knowledgeEntry({
           id: 'kn-1',
           type: 'note',
           status: 'active',
           title: 'Knowledge fan-out',
-        },
-        {
+        }),
+        knowledgeEntry({
           id: 'kn-2',
           type: 'reference',
           status: 'draft',
           title: 'Daemon control protocol',
-        },
+        }),
       ],
     };
     const empty: KnowledgeSearchResponse = { ok: true, entries: [] };

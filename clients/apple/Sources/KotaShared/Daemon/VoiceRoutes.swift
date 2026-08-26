@@ -69,7 +69,7 @@ extension DaemonClient {
         }
         let audioBase64 = parsed["audioBase64"] as? String ?? ""
         guard let audio = Data(base64Encoded: audioBase64) else {
-            return .failure(VoiceFailure(
+            return .failure(VoiceTransportFailure(
                 status: status,
                 error: "Daemon returned malformed audioBase64",
                 code: "tts-malformed-response",
@@ -81,11 +81,11 @@ extension DaemonClient {
         return .success(audio: audio, mimeType: mimeType, format: format)
     }
 
-    private func failureFromPayload(status: Int, payload: [String: Any]) -> VoiceFailure {
+    private func failureFromPayload(status: Int, payload: [String: Any]) -> VoiceTransportFailure {
         let error = (payload["error"] as? String) ?? "HTTP \(status)"
         let code = payload["code"] as? String
         let supported = (payload["supported"] as? [String])
             ?? (payload["supported"] as? [Any])?.compactMap { $0 as? String }
-        return VoiceFailure(status: status, error: error, code: code, supportedFormats: supported)
+        return VoiceTransportFailure(status: status, error: error, code: code, supportedFormats: supported)
     }
 }

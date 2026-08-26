@@ -19,6 +19,7 @@ function makeIdentity(scopes: { scopeId: string; displayName: string }[]): Clien
     daemonVersion: '0.1.0',
     pid: 1,
     startedAt: 't',
+    dashboard: { available: true, path: '/' },
     scopeRegistry: {
       rootScopeId: 'global',
       defaultScopeId: scopes[0]!.scopeId,

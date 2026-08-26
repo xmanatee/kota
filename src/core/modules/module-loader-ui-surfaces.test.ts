@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { UiSurface } from "#core/daemon/ui-surface.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
 
 function uiProjectionClient(): KotaClient {

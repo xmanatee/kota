@@ -9,7 +9,7 @@ import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
 import {

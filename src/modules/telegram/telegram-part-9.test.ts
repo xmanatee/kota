@@ -5,7 +5,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { buildApprovalCallbackData } from "./approval-callback.js";
 import { callTelegramApi, } from "./client.js";
 import telegramModule from "./index.js";

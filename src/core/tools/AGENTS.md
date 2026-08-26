@@ -132,7 +132,6 @@ result at invocation time (`No code runner registered for language "<lang>".
 …`). Custom tool creation and manifest module loading remain no-ops with
 respect to execution.
 
-No file under `src/core/` may import from `#modules/execution/...` — not
-production code, not tests. The repo-wide guard in
-`src/core/agent-harness/no-module-imports-in-core.test.ts` rejects every
-`#modules/*` subpath under `src/core/` at every commit.
+Core does not depend on executor implementations. Keep imports pointed at the
+neutral `CodeRunner` protocol; architecture review should treat a reverse
+dependency from core into an executor module as a design error.

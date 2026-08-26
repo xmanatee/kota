@@ -14,7 +14,6 @@ import type {
   ConversationRecord,
 } from "#core/modules/provider-types.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
 import type { ColumnsNode } from "#modules/rendering/primitives.js";
 import {
@@ -28,6 +27,7 @@ import {
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
 import { runHarnessRepl } from "#modules/repl/index.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   interactiveMode,
   parseIntOption,

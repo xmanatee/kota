@@ -43,8 +43,8 @@ and are independently registered.
 
 A new contributor:
 
-1. Extends the capture target and record unions in
-   `src/core/server/kota-client.ts`.
+1. Extends the capture target and record unions in this module's `client.ts`;
+   the daemon binding generator discovers them through the canonical wire root.
 2. Adds an adapter in `contributors.ts` that wraps its writer into a
    `CaptureContributor`.
 3. Registers the new contributor in this module's `onLoad`.
@@ -125,6 +125,6 @@ its `register()` API; nothing in core hard-codes the contributor set.
   Slack-channel `/capture` plus the same four explicit-target commands.
   These surfaces share `createCaptureRouteHandler`,
   `renderCaptureResultPlain`, `renderCaptureReplyPlain`, and the
-  conformance fixture instead of maintaining independent wire contracts.
+  generated daemon bindings instead of maintaining independent wire contracts.
 - No second registry, no second public capture path. `register()` is
   the single way new stores join.

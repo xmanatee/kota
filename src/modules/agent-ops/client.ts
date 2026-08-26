@@ -4,7 +4,7 @@
  * The agent-ops module owns the `agents` KotaClient namespace end-to-end:
  * the per-agent summary shape, the list/inspect result envelopes, and the
  * `AgentsClient` interface itself. The aggregate `KotaClient` interface in
- * `src/core/server/kota-client.ts` composes this contract by importing
+ * The generated KotaClient aggregate composes this contract by importing
  * `AgentsClient` from this module instead of declaring the shapes inline.
  *
  * The local-side handler (`localClient(ctx)` in `index.ts`) and the

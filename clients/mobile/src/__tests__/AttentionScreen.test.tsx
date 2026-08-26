@@ -84,12 +84,10 @@ describe('AttentionScreen', () => {
 
   test('renders the attention body and item-count badge when items are present', () => {
     const attention: AttentionResponse = {
-      data: {
-        items: [
-          { label: 'Owner question', detail: 'oq-1 pending 3d' },
-          { label: 'Builder warnings', detail: '3/10' },
-        ],
-      },
+      items: [
+        { label: 'Owner question', detail: 'oq-1 pending 3d' },
+        { label: 'Builder warnings', detail: '3/10' },
+      ],
       text: 'Attention required 2026-04-26\n- owner question pending\n- builder warnings repeating',
     };
     mockUseDaemon.mockReturnValue({
@@ -106,7 +104,7 @@ describe('AttentionScreen', () => {
 
   test('renders the empty-state copy and "nothing pending" badge when items are empty', () => {
     const attention: AttentionResponse = {
-      data: { items: [] },
+      items: [],
       text: NO_ATTENTION_ITEMS_TEXT,
     };
     mockUseDaemon.mockReturnValue({
@@ -177,7 +175,7 @@ describe('AttentionScreen', () => {
 
   test('renders the singular badge label when exactly one item is present', () => {
     const attention: AttentionResponse = {
-      data: { items: [{ label: 'Owner question', detail: 'oq-1' }] },
+      items: [{ label: 'Owner question', detail: 'oq-1' }],
       text: 'Attention required 2026-04-26\n- owner question pending',
     };
     mockUseDaemon.mockReturnValue({

@@ -66,7 +66,7 @@ final class AnswerViewTests: XCTestCase {
         }
         XCTAssertTrue(answer.contains("[knowledge:kn-1]"))
         XCTAssertTrue(answer.contains("[memory:mem-1]"))
-        XCTAssertEqual(citations.map { $0.source }, ["knowledge", "memory"])
+        XCTAssertEqual(citations.map { $0.source }, [.knowledge, .memory])
         XCTAssertEqual(citations.map { $0.id }, ["kn-1", "mem-1"])
         XCTAssertEqual(hits.count, 2)
         XCTAssertEqual(hits[0].describe, "Cross-store recall fan-out")
@@ -85,19 +85,24 @@ final class AnswerViewTests: XCTestCase {
                 id: "kn-1",
                 title: "Cross-store recall fan-out",
                 preview: "preview",
-                updated: "2026-04-26T12:34:56Z"
+                updated: "2026-04-26T12:34:56Z",
+                provenance: nil,
+                freshness: nil
             ),
             .memory(
                 score: 0.82,
                 id: "mem-1",
                 preview: "Note about recall design",
-                created: "2026-04-25T08:00:00Z"
+                created: "2026-04-25T08:00:00Z",
+                updated: nil,
+                provenance: nil,
+                freshness: nil
             ),
         ]
         let citations: [AnswerCitation] = [
-            AnswerCitation(source: "knowledge", id: "kn-1"),
-            AnswerCitation(source: "memory", id: "mem-1"),
-            AnswerCitation(source: "tasks", id: "task-missing"),
+            AnswerCitation(source: .knowledge, id: "kn-1"),
+            AnswerCitation(source: .memory, id: "mem-1"),
+            AnswerCitation(source: .tasks, id: "task-missing"),
         ]
         let view = AnswerSuccessView(answer: "x", citations: citations, hits: hits)
         let rows = Mirror(reflecting: view).descendant("citationRows") as? [RecallHit]
@@ -118,7 +123,9 @@ final class AnswerViewTests: XCTestCase {
                 id: "kn-1",
                 title: "Cross-store recall fan-out",
                 preview: "preview",
-                updated: "2026-04-26T12:34:56Z"
+                updated: "2026-04-26T12:34:56Z",
+                provenance: nil,
+                freshness: nil
             ),
             .tasks(
                 score: 0.55,
@@ -130,8 +137,8 @@ final class AnswerViewTests: XCTestCase {
             ),
         ]
         let citations: [AnswerCitation] = [
-            AnswerCitation(source: "knowledge", id: "kn-1"),
-            AnswerCitation(source: "tasks", id: "task-answer"),
+            AnswerCitation(source: .knowledge, id: "kn-1"),
+            AnswerCitation(source: .tasks, id: "task-answer"),
         ]
         let rendered = renderAnswerCitationsPlain(citations, hits: hits)
         let expected = """
@@ -146,19 +153,19 @@ final class AnswerViewTests: XCTestCase {
     func testAnswerResultDecodesNoHitsReason() throws {
         let json = #"{"ok": false, "reason": "no_hits"}"#.data(using: .utf8)!
         let result = try decoder.decode(AnswerResult.self, from: json)
-        XCTAssertEqual(result, .noHits)
+        XCTAssertEqual(result, .failure(reason: .noHits))
     }
 
     func testAnswerResultDecodesSemanticUnavailableReason() throws {
         let json = #"{"ok": false, "reason": "semantic_unavailable"}"#.data(using: .utf8)!
         let result = try decoder.decode(AnswerResult.self, from: json)
-        XCTAssertEqual(result, .semanticUnavailable)
+        XCTAssertEqual(result, .failure(reason: .semanticUnavailable))
     }
 
     func testAnswerResultDecodesSynthesisFailedReason() throws {
         let json = #"{"ok": false, "reason": "synthesis_failed"}"#.data(using: .utf8)!
         let result = try decoder.decode(AnswerResult.self, from: json)
-        XCTAssertEqual(result, .synthesisFailed)
+        XCTAssertEqual(result, .failure(reason: .synthesisFailed))
     }
 
     // MARK: - Empty-query branch

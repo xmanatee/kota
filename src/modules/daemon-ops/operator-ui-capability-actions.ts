@@ -1,4 +1,4 @@
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { UiActionExecutionResult } from "./operator-ui-actions.js";
 import type { ClientNamespaceOperation } from "./operator-ui-capability-action-parameters.js";
 import { executeContentCapabilityUiAction } from "./operator-ui-content-actions.js";

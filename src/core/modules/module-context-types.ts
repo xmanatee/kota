@@ -4,13 +4,13 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { DynamicStateContext } from "#core/loop/dynamic-state.js";
 import type { PreSendHook } from "#core/loop/pre-send-hooks.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { ToolMiddlewareFn } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   RegisteredWorkflowDefinitionInput,
   WorkflowDefinitionInput,
 } from "#core/workflow/types.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { ModuleStorage } from "./module-storage.js";
 import type {
   ControlRouteRegistration,

@@ -73,6 +73,7 @@ describe('reducer', () => {
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
+        dashboard: { available: true, path: '/' },
         scopeRegistry: {
           rootScopeId: 'global',
           defaultScopeId: 'p-default',
@@ -128,6 +129,7 @@ describe('reducer', () => {
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
+        dashboard: { available: true, path: '/' },
         scopeRegistry: {
           rootScopeId: 'global',
           defaultScopeId: 'p-default',

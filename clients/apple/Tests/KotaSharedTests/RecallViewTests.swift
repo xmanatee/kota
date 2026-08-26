@@ -137,7 +137,9 @@ final class RecallViewTests: XCTestCase {
                 id: "kn-1",
                 title: "Cross-store recall fan-out",
                 preview: "preview",
-                updated: "2026-04-26T12:34:56Z"
+                updated: "2026-04-26T12:34:56Z",
+                provenance: nil,
+                freshness: nil
             ),
             .tasks(
                 score: 0.55,

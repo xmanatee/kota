@@ -5,9 +5,7 @@
  * The approval-queue module owns its `/approvals*` routes via
  * `KotaModule.controlRoutes` (see `src/modules/approval-queue/routes.ts`). A
  * regression that smuggles a core-resident handler back into this directory
- * turns this test red. The repo-wide `#modules/*` import guard
- * (`src/core/agent-harness/no-module-imports-in-core.test.ts`) covers the
- * inverse direction; this guard covers the file-name pattern.
+ * turns this test red. This guard covers the retired file-name pattern.
  */
 
 import { readdirSync } from "node:fs";

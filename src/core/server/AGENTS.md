@@ -14,8 +14,10 @@ contract every CLI subcommand uses for daemon-or-local access.
 
 ## KotaClient contract
 
-`KotaClient` (in `kota-client.ts`) is the single typed surface CLI code
-imports for daemon-or-local access. Two implementors realize it:
+`KotaClient` (generated at `src/client/kota-client.generated.ts`) is the single
+typed surface CLI code imports for daemon-or-local access. Its namespace graph
+lives in `scripts/daemon-contract-graph.mjs`; namespace interfaces remain with
+their domain-owning modules. Two implementors realize it:
 
 - `DaemonControlClient` — talks to a running daemon over the HTTP
   control API.
@@ -33,8 +35,9 @@ concepts stay inside their adapters and never enter this contract.
 
 ## Conventions
 
-- The contract lives in `kota-client.ts` and grows by adding a typed
-  namespace plus its declared name in `KOTA_CLIENT_NAMESPACES`.
+- Add a namespace interface in its domain owner and register its name, type,
+  module import, and transport metadata once in the authored contract graph.
+  Regenerate bindings; do not add aggregate fields or assignments by hand.
 - The owning module exposes its local handler through a top-level
   `localClient(ctx)` factory on its `KotaModule` definition, returning
   `{ <namespace>: handler }`. The loader always invokes this factory

@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "protocol": "daemon.contract.v1",
+  "rootType": "DaemonWireContract",
+  "canonicalSources": [
+    {
+      "path": "src/client/wire-contracts.ts",
+      "sha256": "870888b4aa3b4de1c60a63875b8b050080908a7bf11583031594a84dd900421b"
+    },
+    {
+      "path": "scripts/daemon-contract-graph.mjs",
+      "sha256": "18bb57568bdef26a7e650cb91ce7e6e13214bcdf6ff999232f856e8b2ce2cd45"
+    }
+  ],
+  "routes": [
+    {
+      "id": "identity",
+      "method": "GET",
+      "path": "/identity",
+      "type": "ClientIdentity",
+      "parser": "parseClientIdentity"
+    },
+    {
+      "id": "scopeRegistry",
+      "method": "GET",
+      "path": "/scopes",
+      "type": "ScopeRegistryProjection",
+      "parser": "parseScopeRegistryProjection"
+    },
+    {
+      "id": "scopePolicy",
+      "method": "GET",
+      "path": "/scopes/:scopeId/policy",
+      "type": "ScopePolicyRouteResponse",
+      "parser": "parseScopePolicyRouteResponse"
+    },
+    {
+      "id": "unknownScopeError",
+      "method": "ERROR",
+      "path": "unknown_scope",
+      "type": "UnknownScopeError",
+      "parser": "parseUnknownScopeError"
+    },
+    {
+      "id": "capabilities",
+      "method": "GET",
+      "path": "/capabilities",
+      "type": "CapabilityReadinessResponse",
+      "parser": "parseCapabilityReadinessResponse"
+    },
+    {
+      "id": "setupStatus",
+      "method": "GET",
+      "path": "/setup/requirements",
+      "type": "SetupStatusResponse",
+      "parser": "parseSetupStatusResponse"
+    },
+    {
+      "id": "recall",
+      "method": "POST",
+      "path": "/recall",
+      "type": "RecallResult",
+      "parser": "parseRecallResult"
+    },
+    {
+      "id": "answer",
+      "method": "POST",
+      "path": "/answer",
+      "type": "AnswerResult",
+      "parser": "parseAnswerResult"
+    },
+    {
+      "id": "answerHistoryList",
+      "method": "GET",
+      "path": "/answers",
+      "type": "AnswerHistoryListResult",
+      "parser": "parseAnswerHistoryListResult"
+    },
+    {
+      "id": "answerHistoryShow",
+      "method": "GET",
+      "path": "/answers/:id",
+      "type": "AnswerHistoryShowResult",
+      "parser": "parseAnswerHistoryShowResult"
+    },
+    {
+      "id": "capture",
+      "method": "POST",
+      "path": "/capture",
+      "type": "CaptureResult",
+      "parser": "parseCaptureResult"
+    },
+    {
+      "id": "retract",
+      "method": "POST",
+      "path": "/retract",
+      "type": "RetractResult",
+      "parser": "parseRetractResult"
+    },
+    {
+      "id": "knowledgeSearch",
+      "method": "GET",
+      "path": "/knowledge/search",
+      "type": "KnowledgeSearchResponse",
+      "parser": "parseKnowledgeSearchResponse"
+    },
+    {
+      "id": "memorySearch",
+      "method": "GET",
+      "path": "/memory/search",
+      "type": "MemorySearchResponse",
+      "parser": "parseMemorySearchResponse"
+    },
+    {
+      "id": "historySearch",
+      "method": "GET",
+      "path": "/history/search",
+      "type": "HistorySearchResponse",
+      "parser": "parseHistorySearchResponse"
+    },
+    {
+      "id": "tasksSearch",
+      "method": "GET",
+      "path": "/tasks/search",
+      "type": "TasksSearchResponse",
+      "parser": "parseTasksSearchResponse"
+    },
+    {
+      "id": "attention",
+      "method": "GET",
+      "path": "/attention",
+      "type": "AttentionResponse",
+      "parser": "parseAttentionResponse"
+    },
+    {
+      "id": "digest",
+      "method": "GET",
+      "path": "/digest",
+      "type": "DigestResponse",
+      "parser": "parseDigestResponse"
+    },
+    {
+      "id": "voiceTranscribe",
+      "method": "POST",
+      "path": "/voice/transcribe",
+      "type": "VoiceTranscribeResult",
+      "parser": "parseVoiceTranscribeResult"
+    },
+    {
+      "id": "voiceFailure",
+      "method": "POST",
+      "path": "/voice/synthesize",
+      "type": "VoiceFailure",
+      "parser": "parseVoiceFailure"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "schema/daemon-contract.schema.json",
+      "sha256": "be39bd87ca2fb1529a9b48e05ff541d812b9cdea89bd2335719e5e2ca384242c"
+    },
+    {
+      "path": "clients/conformance/daemon-contract.generated.ts",
+      "sha256": "39df427044b560d2f690198e0e839c51150087fe102fa4372d91748af5e76ed6"
+    },
+    {
+      "path": "clients/mobile/src/daemon/daemon-contract.generated.ts",
+      "sha256": "39df427044b560d2f690198e0e839c51150087fe102fa4372d91748af5e76ed6"
+    },
+    {
+      "path": "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
+      "sha256": "4d6bc8ca0ad72385fb351c9b3e67c2a89e6f8666f50487f5520b7fca613cdbe8"
+    },
+    {
+      "path": "src/client/kota-client.generated.ts",
+      "sha256": "c5885c6812c71054cf933eb1ec713be3c0e5601d080692c09e7a7c16e744fb1e"
+    }
+  ]
+}

@@ -2,8 +2,8 @@ import type {
   UiAction,
   UiJsonValue,
   UiSurfaceBundle,
-} from './conformance/ui-surface.generated';
-import { parseUiSurfaceBundle } from './conformance/ui-surface.generated';
+} from './ui-surface.generated';
+import { parseUiSurfaceBundle } from './ui-surface.generated';
 import { daemonRequest, type DaemonHttp, withScope } from './http';
 
 export type {
@@ -12,7 +12,7 @@ export type {
   UiLogEntry,
   UiSurface,
   UiSurfaceBundle,
-} from './conformance/ui-surface.generated';
+} from './ui-surface.generated';
 
 export type UiActionExecutionResult =
   | { ok: true; message: string }

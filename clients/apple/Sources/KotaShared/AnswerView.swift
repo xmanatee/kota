@@ -65,12 +65,15 @@ struct AnswerResultView: View {
         switch result {
         case .success(let answer, let citations, let hits):
             AnswerSuccessView(answer: answer, citations: citations, hits: hits)
-        case .noHits:
-            AnswerNoticeView(message: "No matching sources for this question.")
-        case .semanticUnavailable:
-            AnswerNoticeView(message: "Answer unavailable — no recall contributors registered.")
-        case .synthesisFailed:
-            AnswerNoticeView(message: "Could not compose a cited answer for this question.")
+        case .failure(let reason):
+            switch reason {
+            case .noHits:
+                AnswerNoticeView(message: "No matching sources for this question.")
+            case .semanticUnavailable:
+                AnswerNoticeView(message: "Answer unavailable — no recall contributors registered.")
+            case .synthesisFailed:
+                AnswerNoticeView(message: "Could not compose a cited answer for this question.")
+            }
         }
     }
 }

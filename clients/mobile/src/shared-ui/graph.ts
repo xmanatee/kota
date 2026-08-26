@@ -4,7 +4,7 @@ import type {
   UiNode,
   UiSurface,
   UiSurfaceBundle,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 
 export type UiDeepLinkTarget = {
   surfaceId: string;

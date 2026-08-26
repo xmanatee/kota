@@ -1,8 +1,8 @@
 import { vi } from "vitest";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { MemoryClient } from "#modules/memory/client.js";
 import type { RetractClient } from "#modules/retract/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   SCOPE_A,
   SCOPE_B,

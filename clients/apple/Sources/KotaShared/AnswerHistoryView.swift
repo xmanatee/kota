@@ -189,24 +189,20 @@ struct AnswerHistoryEntryRow: View {
 }
 
 struct AnswerHistoryResultBadge: View {
-    let result: AnswerHistoryEntry.Result
+    let result: AnswerHistoryEntryResult
 
     var body: some View {
         switch result {
         case .success(let count):
-            Text(count == 1 ? "1 cite" : "\(count) cites")
+            Text(count == 1 ? "1 cite" : "\(Int(count)) cites")
                 .font(.caption2)
                 .foregroundStyle(Color.green)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .background(Color.green.opacity(0.15))
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-        case .noHits:
-            quietBadge(label: "no_hits")
-        case .semanticUnavailable:
-            quietBadge(label: "semantic_unavailable")
-        case .synthesisFailed:
-            quietBadge(label: "synthesis_failed")
+        case .failure(let reason):
+            quietBadge(label: reason.rawValue)
         }
     }
 

@@ -1,8 +1,8 @@
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { UiActionExecuteInput } from "./client.js";
 import type {
   UiAction,

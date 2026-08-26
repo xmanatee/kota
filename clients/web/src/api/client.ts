@@ -1,7 +1,7 @@
 import {
   parseScopePolicyRouteResponse,
   parseScopeRegistryProjection,
-} from "../../../conformance/decoders";
+} from "../../../conformance/daemon-contract.generated";
 import { knowledgeApi } from "./client-knowledge";
 import { operatorApi } from "./client-operator";
 import { apiDecoded, apiJson } from "./client-runtime";

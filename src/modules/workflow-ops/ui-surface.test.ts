@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { executeUiAction, renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
 import { MAX_TERMINAL_TEXT_RENDER_CODE_UNITS } from "#modules/rendering/safe-terminal-text.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { WorkflowStatusSnapshot } from "#modules/workflow-ops/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { buildRuntimeUiSurface } from "./ui-surface.js";
 
 const RAW_TERMINAL_CONTROL_PATTERN =

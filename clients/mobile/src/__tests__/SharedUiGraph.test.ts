@@ -1,5 +1,5 @@
-import fixture from './__fixtures__/contract-fixture.json';
-import { parseUiSurfaceBundle } from '../daemon/conformance/ui-surface.generated';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
+import { parseUiSurfaceBundle } from '../daemon/ui-surface.generated';
 import {
   orderedIntents,
   resolveDeepLink,
@@ -8,7 +8,7 @@ import {
 } from '../shared-ui/graph';
 import { matchUiEvent, uiLogEntry } from '../shared-ui/live-events';
 
-const bundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 
 describe('Android shared UI graph', () => {
   test('derives every intent tab and surface stack from ordered graph data', () => {

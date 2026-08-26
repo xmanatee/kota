@@ -220,20 +220,18 @@ final class ModelsTests: XCTestCase {
     func testAttentionResponseDecodes() throws {
         let json = """
         {
-          "data": {
-            "items": [
-              {"label": "Empty ready queue", "detail": "Builder has nothing to pull."},
-              {"label": "Stalled work", "detail": "2 tasks stuck in doing"}
-            ]
-          },
+          "items": [
+            {"label": "Empty ready queue", "detail": "Builder has nothing to pull."},
+            {"label": "Stalled work", "detail": "2 tasks stuck in doing"}
+          ],
           "text": "Attention digest (2 items):\\n• *Empty ready queue*: Builder has nothing to pull.\\n• *Stalled work*: 2 tasks stuck in doing"
         }
         """.data(using: .utf8)!
         let resp = try decoder.decode(AttentionResponse.self, from: json)
-        XCTAssertEqual(resp.data.items.count, 2)
-        XCTAssertEqual(resp.data.items[0].label, "Empty ready queue")
-        XCTAssertEqual(resp.data.items[0].detail, "Builder has nothing to pull.")
-        XCTAssertEqual(resp.data.items[1].label, "Stalled work")
+        XCTAssertEqual(resp.items.count, 2)
+        XCTAssertEqual(resp.items[0].label, "Empty ready queue")
+        XCTAssertEqual(resp.items[0].detail, "Builder has nothing to pull.")
+        XCTAssertEqual(resp.items[1].label, "Stalled work")
         XCTAssertTrue(resp.text.contains("Attention digest (2 items):"))
         XCTAssertTrue(resp.text.contains("• *Stalled work*: 2 tasks stuck in doing"))
     }
@@ -241,12 +239,12 @@ final class ModelsTests: XCTestCase {
     func testAttentionResponseDecodesEmptyState() throws {
         let json = """
         {
-          "data": {"items": []},
+          "items": [],
           "text": "No attention items right now."
         }
         """.data(using: .utf8)!
         let resp = try decoder.decode(AttentionResponse.self, from: json)
-        XCTAssertTrue(resp.data.items.isEmpty)
+        XCTAssertTrue(resp.items.isEmpty)
         XCTAssertEqual(resp.text, "No attention items right now.")
     }
 
@@ -329,8 +327,8 @@ final class ModelsTests: XCTestCase {
     func testKnowledgeSearchResponseDecodesEntries() throws {
         let json = #"""
         {"ok": true, "entries": [
-          {"id": "k-1", "type": "note", "status": "active", "title": "Knowledge fan-out"},
-          {"id": "k-2", "type": "decision", "status": "archived", "title": "Operator parity"}
+          {"id": "k-1", "title": "Knowledge fan-out", "type": "note", "tags": [], "status": "active", "created": "2026-04-26", "updated": "2026-04-26", "content": "", "meta": {}},
+          {"id": "k-2", "title": "Operator parity", "type": "decision", "tags": [], "status": "archived", "created": "2026-04-26", "updated": "2026-04-26", "content": "", "meta": {}}
         ]}
         """#.data(using: .utf8)!
         let response = try decoder.decode(KnowledgeSearchResponse.self, from: json)
@@ -358,8 +356,8 @@ final class ModelsTests: XCTestCase {
 
     func testRenderKnowledgeSearchPlainMatchesSharedLineShape() {
         let entries = [
-            KnowledgeEntry(id: "k-1", type: "note", status: "active", title: "Knowledge fan-out"),
-            KnowledgeEntry(id: "k-12", type: "decision", status: "archived", title: "Operator parity"),
+            knowledgeEntry(id: "k-1", type: "note", status: "active", title: "Knowledge fan-out"),
+            knowledgeEntry(id: "k-12", type: "decision", status: "archived", title: "Operator parity"),
         ]
         let rendered = renderKnowledgeSearchPlain(entries)
         // Mirrors `renderKnowledgeSearchPlain` from src/modules/knowledge/render.ts:
@@ -373,7 +371,7 @@ final class ModelsTests: XCTestCase {
 
     func testRenderKnowledgeSearchPlainHonorsMinimumWidths() {
         let entries = [
-            KnowledgeEntry(id: "a", type: "x", status: "ok", title: "Short"),
+            knowledgeEntry(id: "a", type: "x", status: "ok", title: "Short"),
         ]
         let rendered = renderKnowledgeSearchPlain(entries)
         // id min width 2, type min width 4, status min width 6 — matches TS.
@@ -382,6 +380,22 @@ final class ModelsTests: XCTestCase {
 
     func testRenderKnowledgeSearchPlainEmptyReturnsEmpty() {
         XCTAssertEqual(renderKnowledgeSearchPlain([]), "")
+    }
+
+    private func knowledgeEntry(id: String, type: String, status: String, title: String) -> KnowledgeEntry {
+        KnowledgeEntry(
+            id: id,
+            title: title,
+            type: type,
+            tags: [],
+            status: status,
+            created: "2026-04-26T00:00:00Z",
+            updated: "2026-04-26T00:00:00Z",
+            content: "",
+            provenance: nil,
+            freshness: nil,
+            meta: [:]
+        )
     }
 
     // MARK: - Helpers

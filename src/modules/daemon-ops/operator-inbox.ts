@@ -1,9 +1,9 @@
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { SemanticRole } from "#modules/rendering/primitives.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { gatherStatus, type StatusSnapshot } from "./status-cli.js";
 
 export type OperatorInboxKind =

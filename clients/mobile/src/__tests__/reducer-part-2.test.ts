@@ -9,6 +9,7 @@ import type {
   DaemonStatus,
   DigestResponse,
   HistorySearchResponse,
+  KnowledgeEntry,
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
@@ -18,6 +19,19 @@ import type {
   TasksResponse,
   TasksSearchResponse,
 } from '../types';
+
+function knowledgeEntry(
+  values: Pick<KnowledgeEntry, 'id' | 'type' | 'status' | 'title'>,
+): KnowledgeEntry {
+  return {
+    content: '',
+    created: '2026-04-26T00:00:00.000Z',
+    meta: {},
+    tags: [],
+    updated: '2026-04-26T00:00:00.000Z',
+    ...values,
+  };
+}
 
 function makeApproval(overrides: Partial<Approval> = {}): Approval {
   return {
@@ -126,9 +140,7 @@ describe('reducer', () => {
 
   test('ATTENTION_RESULT stores payload and clears loading/error', () => {
     const attention: AttentionResponse = {
-      data: {
-        items: [{ label: 'Owner question', detail: 'pending 2 days' }],
-      },
+      items: [{ label: 'Owner question', detail: 'pending 2 days' }],
       text: 'Attention required\n- pending owner question',
     };
     const loading = reducer(initialState, { type: 'ATTENTION_LOADING' });
@@ -140,7 +152,7 @@ describe('reducer', () => {
 
   test('ATTENTION_ERROR clears stale attention payload', () => {
     const attention: AttentionResponse = {
-      data: { items: [] },
+      items: [],
       text: 'No attention items right now.',
     };
     const withAttention = reducer(initialState, {
@@ -158,7 +170,7 @@ describe('reducer', () => {
 
   test('ONLINE false drops cached attention so it cannot persist across an offline transition', () => {
     const attention: AttentionResponse = {
-      data: { items: [{ label: 'Builder warnings', detail: '3/10' }] },
+      items: [{ label: 'Builder warnings', detail: '3/10' }],
       text: 'Attention required\n- builder warnings repeating',
     };
     const withAttention = reducer(initialState, {
@@ -200,7 +212,7 @@ describe('reducer', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const loading = reducer(initialState, {
@@ -231,7 +243,7 @@ describe('reducer', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const withResult = reducer(initialState, {
@@ -248,7 +260,7 @@ describe('reducer', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const withResult = reducer(initialState, {
