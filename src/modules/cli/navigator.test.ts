@@ -13,7 +13,7 @@ import {
   makePrompt,
   navigationSurfaceBundle,
   surfaceBundle,
-} from "./navigator-test-surfaces.js";
+} from "./navigator-test-surfaces.test-support.js";
 
 describe("runtime navigator", () => {
   it("refuses non-TTY launch and prints the equivalent one-shot hint", () => {

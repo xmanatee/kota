@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import {
-  cpSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -21,6 +20,7 @@ import {
   type WorkflowExecutionOutcome,
   type WorkflowExecutor,
 } from "./runner.js";
+import { copyFixtureInitialState } from "./runner-materialize.js";
 
 const FIXTURE_ID = "builder-black-box-behavior-reconstruction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
@@ -143,7 +143,7 @@ describe("builder black-box behavior reconstruction fixture", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     const workingDir = mkdtempSync(join(tmpdir(), "kota-black-box-shortcut-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       const oracleBase64 = readFileSync(
         join(workingDir, "oracle/reference.wasm.base64"),
         "utf8",

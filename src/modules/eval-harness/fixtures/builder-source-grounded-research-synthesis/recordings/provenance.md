@@ -28,9 +28,9 @@ node /Users/xmanatee/Desktop/mono/apps/kota/bin/kota.mjs eval record-agent-step 
 
 The `record-agent-step --step build` invocation reported source commit
 `005ecdaae924`, extracted four repo-tree operations from that commit, and
-included three run-directory artifacts (`commit-message.txt`,
-`success-criteria.txt`, `success-criteria-verified.txt`) from the completed
-source run. The source commit touched only:
+found three run-directory artifacts in the completed source run. The curated
+recording retains only `commit-message.txt`, which is the current
+agent-authored run-directory contract. The source commit touched only:
 
 - `data/tasks/done/task-synthesize-support-triage-ingestion-decision.md`
 - `data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md`

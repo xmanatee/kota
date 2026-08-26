@@ -64,18 +64,16 @@ a reason the predicate/payload changes do not resolve.
   the decision-gate branch that never invokes an agent call.
 - **builder (agent-call path)** — now covered by
   `builder-agent-call-replay`. The replay adapter extended to recognize
-  the phase-2 critic-review judge prompt alongside the workflow-step
+  the critic-review judge prompt alongside the workflow-step
   prompt, so one fixture replays both the `build` agent step and the
   critic judge from one source run (`2026-04-24T15-11-48-347Z-builder-
   gnt9c6`) without paying for any LLM. The fixture materializes the
   full post-agent repo state (task move from `ready/` to `done/`, four
   new files under `src/modules/eval-harness/fixtures/decomposer-short-
   circuits-on-non-timeout/`, one edit to `uncovered/notes.md`, and the
-  three run-directory artifacts `success-criteria.txt`,
-  `success-criteria-verified.txt`, `commit-message.txt`), drives the
-  full builder repair loop to success (including the critic-review
-  repair check via the judge-prompt replay), and completes the commit
-  step plus restart request. The existing live-LLM builder fixtures
+  run-directory `commit-message.txt` artifact), drives the current builder
+  repair loop to success (including critic review via judge-prompt replay),
+  and completes runtime-owned integration. The existing live-LLM builder fixtures
   stay live because each encodes a generator-quality shape replay
   cannot cover: smoke plumbing, partial-wiring "missed one Done When",
   resume-doing-before-pull-ready pickup discipline, and measured

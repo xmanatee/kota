@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadFixture } from "./fixture.js";
+import { copyFixtureInitialState } from "./runner-materialize.js";
 
 const FIXTURE_ID = "builder-feature-slice-development";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
@@ -42,7 +43,7 @@ function materializeFixture(): {
 } {
   const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
   const workingDir = mkdtempSync(join(tmpdir(), "kota-feature-slice-fixture-"));
-  cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+  copyFixtureInitialState(fixture.initialStateDir, workingDir);
   return {
     fixtureDir: fixture.fixtureDir,
     workingDir,

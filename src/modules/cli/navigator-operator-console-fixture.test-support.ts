@@ -4,9 +4,9 @@ import type {
 import {
   consoleAction,
   operatorConsoleRunActions,
-} from "./navigator-operator-console-fixture-actions.js";
-import { inboxAndRunSurfaces } from "./navigator-operator-console-run-fixture.js";
-import { navigationSurface } from "./navigator-test-surfaces.js";
+} from "./navigator-operator-console-fixture-actions.test-support.js";
+import { inboxAndRunSurfaces } from "./navigator-operator-console-run-fixture.test-support.js";
+import { navigationSurface } from "./navigator-test-surfaces.test-support.js";
 
 function statusSurfaces(): UiSurfaceBundle["surfaces"] {
   return [

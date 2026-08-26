@@ -13,7 +13,6 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Builder breakdown");
     expect(text).toContain("Decision attribution");
     expect(text).toContain("Diff-summary consistency");
-    expect(text).toContain("Code-health drift");
     expect(text).toContain("Owner interventions");
     expect(text).toContain("Review scrutiny");
     expect(text).toContain("Review scrutiny escalation");
@@ -37,7 +36,6 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("(no builder commits)");
     expect(text).toContain("(no autonomy runs classified)");
     expect(text).toContain("(no builder runs inspected for diff-summary consistency)");
-    expect(text).toContain("(no builder runs inspected for code-health drift)");
     expect(text).toContain("(no owner-question pressure)");
     expect(text).toContain("(no reviewer artifacts)");
     expect(text).toContain("(no recurring thin-acceptance patterns)");
@@ -125,19 +123,19 @@ describe("renderAutonomyReport", () => {
         linkedCompletedTaskCount: 1,
         byReason: [
           { reason: "ci-build-failure", count: 1 },
-          { reason: "source-size", count: 1 },
+          { reason: "workflow-failure", count: 1 },
           { reason: "operator-report", count: 1 },
         ],
         completedTaskIds: ["task-completed-parent"],
-        activeFollowUpTaskIds: ["task-source-size-follow-up"],
+        activeFollowUpTaskIds: ["task-workflow-failure-follow-up"],
         links: [
           {
             completedTaskId: "task-completed-parent",
             completedTaskTitle: "Completed parent",
-            activeFollowUpTaskId: "task-source-size-follow-up",
-            activeFollowUpTitle: "Split oversized source-size fallout",
+            activeFollowUpTaskId: "task-workflow-failure-follow-up",
+            activeFollowUpTitle: "Repair recurring workflow failure",
             activeFollowUpState: "ready",
-            reasons: ["ci-build-failure", "source-size", "operator-report"],
+            reasons: ["ci-build-failure", "workflow-failure", "operator-report"],
             matchedRefs: [
               "run:2026-04-28T09-00-00-000Z-builder-bbb",
               "git:commit:abc123def456",
@@ -157,9 +155,9 @@ describe("renderAutonomyReport", () => {
       "Quality stratification",
     );
     expect(followUpSection).toContain("task-completed-parent");
-    expect(followUpSection).toContain("task-source-size-follow-up");
+    expect(followUpSection).toContain("task-workflow-failure-follow-up");
     expect(followUpSection).toContain("ci-build-failure");
-    expect(followUpSection).toContain("source-size");
+    expect(followUpSection).toContain("workflow-failure");
     expect(followUpSection).not.toMatch(/\$|cost|throughput/i);
   });
 

@@ -367,9 +367,6 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
                 plain(` warned-runs=${result.codeHealth.runsWithWarnings}`),
                 plain(` warnings=${result.codeHealth.totalWarnings}`),
                 plain(
-                  ` source-size-growth=${result.codeHealth.warningCounts["source-size-growth"]}`,
-                ),
-                plain(
                   ` duplicated-implementation-chunk=${result.codeHealth.warningCounts["duplicated-implementation-chunk"]}`,
                 ),
                 plain(

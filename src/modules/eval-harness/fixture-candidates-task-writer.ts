@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type {
   FixtureCandidateAcceptedAction,
   FixtureCandidateRecord,
@@ -45,56 +46,35 @@ function candidateTaskBody(candidate: FixtureCandidateRecord): string {
   const artifactRefs = candidate.failurePattern.evidencePaths.length > 0
     ? candidate.failurePattern.evidencePaths
     : [`.kota/runs/${candidate.runId}/metadata.json`];
-  return [
-    "",
-    "## Problem",
-    "",
-    `Run ${candidate.runId} exposed ${candidate.failurePattern.kind}: ${candidate.failurePattern.summary}`,
-    "",
-    "## Desired Outcome",
-    "",
-    "Create or update a compact eval-harness fixture that preserves this local failure pattern without copying secrets, hidden reasoning traces, or full raw event streams.",
-    "",
-    "## Constraints",
-    "",
-    "- Use the referenced run artifacts only as provenance and minimal fixture input guidance.",
-    "- Prefer deterministic predicates, artifact schema checks, or trajectory checks before model-graded rubrics.",
-    "- Do not import external benchmarks or store full raw traces.",
-    "",
-    "## Done When",
-    "",
-    "- The eval-harness fixture or focused follow-up test encodes the candidate pattern.",
-    "- Fixture provenance names the source run and uses real-failure provenance when applicable.",
-    "- `pnpm dev eval list` loads the fixture without provenance or schema errors.",
-    "",
-    "## Source / Intent",
-    "",
-    "Auto-created by `kota eval fixture-candidates --create-task` from local autonomy run evidence.",
-    "",
-    `- Source run: ${candidate.runId}`,
-    `- Workflow: ${candidate.workflow}`,
-    `- Source task: ${candidate.taskId ?? "unknown"}`,
-    `- Pattern: ${candidate.failurePattern.title}`,
-    `- Rationale: ${candidate.preservationRationale}`,
-    `- Suggested evaluator: ${candidate.suggestedEvaluator}`,
-    "- Artifact references:",
-    ...artifactRefs.map((path) => `  - ${path}`),
-    "- Minimal fixture inputs:",
-    ...candidate.minimalFixtureInputs.map((input) => `  - ${input}`),
-    "",
-    "## Initiative",
-    "",
-    "Trace-backed eval growth.",
-    "",
-    "## Product / Safety Link",
-    "",
-    "Safety: keeps recurring autonomy failures from being patched without a replayable regression target.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Focused eval-harness fixture or task transcript showing the candidate pattern is represented without sensitive data.",
-    "",
-    `<!-- fixture-candidate-fingerprint: ${candidate.proposalFingerprint} -->`,
-    "",
-  ].join("\n");
+  const body = renderRepoTaskIntent({
+    problem:
+      `Run ${candidate.runId} exposed ${candidate.failurePattern.kind}: ` +
+      candidate.failurePattern.summary,
+    desiredOutcome:
+      "Create or update a compact eval-harness fixture that preserves this local failure pattern without copying secrets, hidden reasoning traces, or full raw event streams.",
+    constraints: [
+      "Use the referenced run artifacts only as provenance and minimal fixture input guidance.",
+      "Prefer deterministic predicates, artifact schema checks, or trajectory checks before model-graded rubrics.",
+      "Do not import external benchmarks or store full raw traces.",
+    ],
+    doneWhen: [
+      "The eval-harness fixture or focused follow-up test encodes the candidate pattern.",
+      "Fixture provenance names the source run and uses real-failure provenance when applicable.",
+      "`pnpm dev eval list` loads the fixture without provenance or schema errors.",
+    ],
+    context: [
+      "Auto-created by `kota eval fixture-candidates --create-task` from local autonomy run evidence.",
+      `Source run: ${candidate.runId}`,
+      `Workflow: ${candidate.workflow}`,
+      `Source task: ${candidate.taskId ?? "unknown"}`,
+      `Pattern: ${candidate.failurePattern.title}`,
+      `Rationale: ${candidate.preservationRationale}`,
+      `Suggested evaluator: ${candidate.suggestedEvaluator}`,
+      ...artifactRefs.map((path) => `Artifact: ${path}`),
+      ...candidate.minimalFixtureInputs.map((input) => `Minimal input: ${input}`),
+    ],
+    acceptanceEvidence:
+      "A focused fixture run or transcript demonstrates the candidate pattern without sensitive data.",
+  });
+  return `${body}\n<!-- fixture-candidate-fingerprint: ${candidate.proposalFingerprint} -->\n`;
 }

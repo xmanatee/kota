@@ -97,7 +97,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
       expect(task).toContain("Validate URL scheme and host before fetch.");
       expect(task).not.toContain("Secret value is printed.");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
@@ -125,7 +125,7 @@ export function describeSecurityReviewTaskTests(): void {
       const parsed = parseFlatFrontMatter(readyTask);
       expect(parsed.attrs.id).toBe(`${baseId}-3`);
       expect(parsed.attrs.status).toBe("ready");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("quotes agent-generated task content before frontmatter or Done When parsing can treat it as structure", () => {
@@ -211,7 +211,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("> - attacker-controlled criterion");
       expect(task).toContain("> - desired-outcome-controlled criterion");
       expect(task).toContain("> - rationale-controlled criterion");
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("states the authorized defensive scope in the agent prompt", () => {

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { assertNoUnsupportedSkillToolPolicyFrontmatter } from "#core/agents/skill-tool-policy.js";
+import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { LoadPhasePolicy } from "./module-loader-load-phases.js";
 import type { LoaderState } from "./module-loader-state.js";
@@ -23,8 +23,6 @@ import {
 } from "./module-types.js";
 import { validateModuleSetupRequirements } from "./setup-requirements.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
-
-const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 async function attachModuleSkills(
   state: LoaderState,
@@ -59,7 +57,7 @@ function resolveModuleSkillPromptPath(policy: LoadPhasePolicy, promptPath: strin
   const projectPath = resolve(policy.cwd, promptPath);
   if (existsSync(projectPath)) return projectPath;
   if (!promptPath.startsWith("src/")) return projectPath;
-  const installPath = resolve(KOTA_INSTALL_ROOT, promptPath);
+  const installPath = resolveKotaRuntimeAsset(promptPath);
   return existsSync(installPath) ? installPath : projectPath;
 }
 

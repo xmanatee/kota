@@ -215,7 +215,7 @@ describe("backlog-promoter workflow", () => {
     expect(blockedRejection?.reason).toMatch(/precondition/);
   });
 
-  it("does not promote a Meta task that is invalid in the actionable queue", async () => {
+  it("promotes dependency-clear tasks by priority regardless of task class", async () => {
     await mockCleanWorktree();
     const projectDir = makeProjectDir();
     writeFileSync(
@@ -248,13 +248,13 @@ describe("backlog-promoter workflow", () => {
     const moves = result.steps["apply-promotion"].output as {
       promotions: Array<{ id: string; toState: string }>;
     };
-    expect(moves.promotions.map((p) => p.id)).toEqual(["task-platform-valid"]);
-    expect(
-      existsSync(join(projectDir, "data", "tasks", "backlog", "task-meta-invalid.md")),
-    ).toBe(true);
+    expect(moves.promotions.map((p) => p.id)).toEqual([
+      "task-meta-invalid",
+      "task-platform-valid",
+    ]);
     expect(
       existsSync(join(projectDir, "data", "tasks", "ready", "task-meta-invalid.md")),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       existsSync(join(projectDir, "data", "tasks", "ready", "task-platform-valid.md")),
     ).toBe(true);

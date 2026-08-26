@@ -12,7 +12,8 @@ export const CHECKS: readonly LoopQualityCheckId[] = [
 ];
 
 export const COMPLETION_CHECK_IDS = [
-  "success-criteria",
+  "completion-evidence",
+  "task-contract",
   "actionable-task",
   "task-resolved",
   "task-queue",
@@ -31,12 +32,11 @@ export const VERIFIER_CHECK_IDS = [
   "task-queue",
   "repo-hygiene",
   "module-boundary",
-  "source-size",
   "doc-bloat",
 ];
 
 export const CONTEXT_CHECK_IDS = [
-  "success-criteria",
+  "task-contract",
   "artifact",
   "summary",
   "scratch",

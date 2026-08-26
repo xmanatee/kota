@@ -1,5 +1,9 @@
 import { writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
+import {
+  resolveKotaBinary,
+  resolveKotaRuntimeAsset,
+} from "#core/util/kota-install-paths.js";
 import {
   defineWorkflowBlockingOperation,
   type WorkflowBlockingOperationContext,
@@ -135,7 +139,9 @@ export async function runEvalHarnessCadenceInWorker(
 ): Promise<EvalHarnessCadenceOperationOutput> {
   context.signal.throwIfAborted();
   context.reportProgress("loading eval-harness cadence fixtures");
-  const fixturesRoot = join(input.projectDir, "src/modules/eval-harness/fixtures");
+  const fixturesRoot = resolveKotaRuntimeAsset(
+    "src/modules/eval-harness/fixtures",
+  );
   const fixtures = loadAllFixtures(fixturesRoot);
   if (fixtures.length === 0) {
     throw new Error(
@@ -145,7 +151,7 @@ export async function runEvalHarnessCadenceInWorker(
   }
 
   const executor = createSubprocessExecutor({
-    kotaBinaryPath: resolve(join(input.projectDir, "bin/kota.mjs")),
+    kotaBinaryPath: resolveKotaBinary(),
     isolationBackend: input.isolationBackend,
     signal: context.signal,
   });

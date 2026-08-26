@@ -6,10 +6,8 @@ import {
   writeReviewScrutinyRecord,
 } from "./review-scrutiny.js";
 import {
-  countFileLineCitations,
-  normalizeFileLineCitations,
-} from "./review-scrutiny-citations.js";
-import { REVIEW_SCRUTINY_ARTIFACT } from "./review-scrutiny-types.js";
+  REVIEW_SCRUTINY_ARTIFACT,
+} from "./review-scrutiny-types.js";
 
 export type CriticVerdict = {
   verdict: "pass" | "fail" | "pass_with_warnings";
@@ -69,37 +67,6 @@ function extractJson(text: string): JsonObject | undefined {
   return undefined;
 }
 
-function hasAcceptedVerdictScrutinySignal(verdict: CriticVerdict): boolean {
-  if (verdict.critical_issues.length > 0 || verdict.warnings.length > 0) return true;
-  return (
-    countFileLineCitations(
-      [verdict.summary, ...verdict.critical_issues, ...verdict.warnings].join("\n"),
-    ) > 0
-  );
-}
-
-function normalizeAcceptedVerdictScrutiny(
-  verdict: CriticVerdict,
-  fallbackFileLineCitations: readonly string[],
-): CriticVerdict {
-  if (verdict.verdict !== "pass" && verdict.verdict !== "pass_with_warnings") {
-    return verdict;
-  }
-  if (hasAcceptedVerdictScrutinySignal(verdict)) return verdict;
-  const citations = normalizeFileLineCitations(fallbackFileLineCitations);
-  const citationText =
-    citations.length > 0 ? ` Reviewed diff refs: ${citations.join(", ")}.` : "";
-  return {
-    ...verdict,
-    verdict: "pass_with_warnings",
-    warnings: [
-      ...verdict.warnings,
-      "Accepted reviewer verdict omitted warnings, critical issues, and file-line citations; review-scrutiny recorded this reviewer-evidence gap." +
-        citationText,
-    ],
-  };
-}
-
 export function parseVerdict(text: string): CriticVerdict {
   const stripped = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "").trim();
   let parsed: JsonObject | undefined;
@@ -136,15 +103,11 @@ export function handleVerdict(
     generatedAt?: string;
     reviewerPromptHash?: string;
     taskId?: string;
-    fallbackFileLineCitations?: readonly string[];
     /** Keep agent-generated reviewer prose discoverable without preloading it into a repair prompt. */
     failureDetailMode?: "inline" | "artifact-reference";
   },
 ): string {
-  const verdict = normalizeAcceptedVerdictScrutiny(
-    rawVerdict,
-    context?.fallbackFileLineCitations ?? [],
-  );
+  const verdict = rawVerdict;
   // Always persist the verdict so live-run calibration tracking can read it
   // back later; operators inspecting a run that passed cleanly no longer need
   // to infer the verdict from the step's repair-iteration output. Repeat

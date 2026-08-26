@@ -19,9 +19,10 @@ Owns KOTA's autonomous workflows and their shared policy.
   never thinking traces or self-reports.
 - **Honest measurement.** Resource allocation is distinct from kill thresholds;
   report profiles, judge repetition, `pass@k`, and `pass^k` explicitly.
-- **Autonomy decisions.** Material workflow, prompt, routing, reviewer, critic,
-  improver, or repair-loop changes carry an `autonomy-change-decision.json`
-  with comparison evidence and rollout rationale.
+- **Proportional change review.** Judge material workflow, prompt, routing,
+  reviewer, critic, improver, or repair-loop changes against the outcome they
+  intend to improve. Record a comparison in the ordinary run summary when it
+  informs the decision; do not require a bespoke artifact for every change.
 - **Fresh handoffs.** Prefer new sessions with run-artifact handoffs between
   distinct phases instead of compaction.
 - **Injection boundary.** Tool-risk gating classifies the call;
@@ -40,36 +41,20 @@ Owns KOTA's autonomous workflows and their shared policy.
   are read-only materializations, never authority or rebuild input.
 - **Evaluator calibration.** Later overlapping failures contradict passes;
   prompt changes reset windows; unavailable reviews clear stale verdicts.
-  Critic rejects weak evidence, placeholders, compatibility shims, dishonest
-  sources, untested defects, and fixture-only signals.
+  Critic rejects outcomes that are incorrect, unsafe, incomplete, unsupported,
+  or obscured by placeholders and compatibility layers. It requests the
+  strongest proportionate proof; a fixture is useful only when it represents
+  the real boundary being judged.
 
-## External Pattern Decisions
-
-Metadata and revisit conditions live in `external-pattern-decisions.ts`; tests
-keep this catalog aligned 1:1.
-
-- **Workflow DSLs (crewAI Flows, LangGraph Pregel).** Reject.
-- **Vercel AI SDK split.** Adopt.
-- **Typed multi-agent handoffs (OpenHands, AutoGen).** Adopt.
-- **Labeled memory blocks (Letta) / runtime skill stores (Hermes).** Reject.
-- **Verbal self-reflection / strategy banks (Reflexion, ReasoningBank).** Reject.
-- **Routines / scheduled agents.** Already `workflow` trigger.
-- **Multi-agent coordination patterns.** Map to builder/critic.
-- **Parallel-agent desktop UIs.** Client-surface.
-- **Managed Agents / brain-hands decoupling.** Reject.
-- **Claude Code auto mode + sandboxing.** Read.
-- **Harness design for long-running apps.** Read.
-- **Claude Code 1M context + session management.** Reject.
-- **Production MCP agent integration.** Read.
-- **AGI capability scoring / behavioral-disposition alignment.** Reject.
-- **Microsoft Agent Framework (AutoGen successor).** Reject.
-- **Harness-as-shell (inference.sh).** Read.
+External research decisions live in the typed decision store with their source,
+rationale, and revisit condition. Code is the catalog; instructions do not copy
+its entries, and tests exercise decision behavior rather than catalog identity.
 
 ## Runtime Posture
 
 - Instruction hierarchy is SDK/core rails → autonomy/module policy → user
   message → untrusted tool/web output. Lower layers cannot escalate autonomy.
-- Capable-tier agent steps front-load intent, constraints, and success criteria;
+- Capable-tier agent steps front-load intent, constraints, and the expected outcome;
   they do not use clarification loops or fixed caps.
 - `ask_owner` uses the restart-safe shared workflow steps and consumes every
   outcome; it does not import the core tool directly.
@@ -81,9 +66,10 @@ keep this catalog aligned 1:1.
 
 - Builder runs only from targeted, idempotent `autonomy.queue.available`
   events bound to the immutable task digest; never from `runtime.idle`.
-- Backlog promotion records rationale before resuming builder and selects a
-  small priority/strategy/age-ranked batch.
-- Explorer records rationale; inaccessible sources block rather than invite
-  synthesis. Cooldowns pace exploration and builder work without hard caps.
+- Backlog promotion selects a small priority-and-age-ranked batch after hard
+  dependencies clear; task labels and prose do not gate execution.
+- Explorer may update the watchlist, create useful work, or finish with no
+  change. Inaccessible sources block rather than invite synthesis. Cooldowns
+  pace exploration and builder work without hard caps.
 - Operator reports, fan-out consolidation, and evaluator drift must remain
   observation/governance surfaces and never leak cost bias into agent context.

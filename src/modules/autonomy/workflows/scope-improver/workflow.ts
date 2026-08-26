@@ -142,7 +142,6 @@ const validateChanges = typedCodeStep<{ ok: true }>({
   run: async (ctx) => {
     await ctx.runBlocking(taskQueueValidationOperation, {
       projectDir: ctx.projectDir,
-      options: { minReady: 0 },
     });
     await ctx.runCommand({
       command: "pnpm",

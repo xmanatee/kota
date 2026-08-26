@@ -39,16 +39,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Add the catalog-backed gift-wrap service and apply its service fee in checkout pricing.\n2. Render gift-wrap receipt output and preserve the gift message.\n3. Expose gift-wrap fulfillment metadata with `svc-gift-wrap`.\n4. Keep discount, shipping, and plain receipt regression behavior passing.\n5. Pass `node scripts/check-feature-slice.mjs` and write structured feature/regression evidence.\n6. Pass `node scripts/check-feature-slice.mjs --self-test-shortcuts`.\n7. Move `task-add-gift-wrap-checkout-slice` from ready to done.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `src/catalog.mjs` defines `gift-wrap` as catalog service `svc-gift-wrap`, and `src/pricing.mjs` applies its 499-cent fee.\n2. `src/receipt-renderer.mjs` renders `Gift wrap: $4.99` and the gift message from observed service lines.\n3. `buildCheckoutSummary` exposes `fulfillment.serviceSkus` from priced service lines, so the verifier observes `svc-gift-wrap`.\n4. The verifier runs regression tests for notebook discount, free shipping, and plain receipt formatting.\n5. `pnpm test` runs `node scripts/check-feature-slice.mjs`, which writes `feature-slice-result.json` with feature behavior, regression behaviors, commands, and involved modules.\n6. The fixture predicates run `node scripts/check-feature-slice.mjs --self-test-shortcuts`, covering fake artifacts, skipped regressions, and single-module shortcuts.\n7. The replay deletes the ready task and writes the done task with `status: done`.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add gift-wrap feature-slice eval fixture result\n\nImplements the gift-wrap checkout slice across catalog, pricing, and receipt behavior, leaves verifier evidence to the scorer, and moves the seeded fixture task to done.\n"
     }

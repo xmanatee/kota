@@ -25,7 +25,9 @@ describe("web client — thin-client contract conformance fixtures", () => {
     if (testCase.expectThrow) {
       it(`rejects ${testCase.name}`, () => {
         const subtree = readFixturePath(fixture, testCase.path);
-        expect(() => testCase.parse(subtree)).toThrow(testCase.expectedErrorPath);
+        expect(() => testCase.parse(subtree)).toThrow(
+          testCase.expectedErrorPath,
+        );
       });
     } else {
       it(`decodes ${testCase.name}`, () => {

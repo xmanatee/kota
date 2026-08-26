@@ -146,17 +146,6 @@ function writeTaskFile(
   writeFileSync(join(dir, `${id}.md`), content);
 }
 
-function writeRawTaskFile(
-  projectDir: string,
-  state: string,
-  id: string,
-  content: string,
-): void {
-  const dir = join(projectDir, "data", "tasks", state);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${id}.md`), content);
-}
-
 async function captureOutput(fn: () => void | Promise<void>): Promise<string> {
   const lines: string[] = [];
   const spy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
@@ -391,93 +380,6 @@ describe("kota task move", () => {
     expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
     const content = readFileSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"), "utf-8");
     expect(content).toMatch(/^status: doing$/m);
-  });
-
-  it("refuses to move a task to done without concrete acceptance evidence", async () => {
-    writeTaskFile(projectDir, "ready", "task-no-evidence", { status: "ready" });
-    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
-
-    const program = makeProgram();
-    await expect(
-      program.parseAsync(["node", "kota", "task", "move", "task-no-evidence", "done"]),
-    ).rejects.toThrow(/concrete ## Acceptance Evidence/);
-
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-no-evidence.md"))).toBe(true);
-    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-no-evidence.md"))).toBe(false);
-  });
-
-  it("refuses to move an operator client Product task to done without rendered evidence", async () => {
-    writeRawTaskFile(
-      projectDir,
-      "ready",
-      "task-full-cli-with-tests-only",
-      `---
-id: task-full-cli-with-tests-only
-title: Replace bare kota with the full daemon-backed CLI client
-status: ready
-priority: p1
-area: client
-summary: Replace the shallow navigator with the real operator CLI.
-created_at: 2026-07-08T00:00:00Z
-updated_at: 2026-07-08T00:00:00Z
-task_class: Product
----
-
-## Problem
-
-The default CLI is still shallow.
-
-## Desired Outcome
-
-Bare \`kota\` opens the full daemon-backed CLI client.
-
-## Constraints
-
-Evidence must be the real operator journey.
-
-## Done When
-
-- Bare \`kota\` launches the full client.
-- The client renders setup, approvals, owner requests, workflows, and live runs.
-
-## Source / Intent
-
-Owner asked for a real default CLI.
-
-## Initiative
-
-CLI as first-class KOTA client.
-
-## Acceptance Evidence
-
-- Unit and integration tests for CLI routing.
-`,
-    );
-    mkdirSync(join(projectDir, "data", "tasks", "done"), { recursive: true });
-
-    const program = makeProgram();
-    await expect(
-      program.parseAsync(["node", "kota", "task", "move", "task-full-cli-with-tests-only", "done"]),
-    ).rejects.toThrow(/rendered\/runtime ## Acceptance Evidence/);
-
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-full-cli-with-tests-only.md"))).toBe(true);
-    expect(existsSync(join(projectDir, "data", "tasks", "done", "task-full-cli-with-tests-only.md"))).toBe(false);
-  });
-
-  it("refuses to move a Meta task into ready without a Product or Safety link", async () => {
-    writeTaskFile(projectDir, "backlog", "task-meta-no-link", {
-      status: "backlog",
-      task_class: "Meta",
-    });
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-
-    const program = makeProgram();
-    await expect(
-      program.parseAsync(["node", "kota", "task", "move", "task-meta-no-link", "ready"]),
-    ).rejects.toThrow(/Product \/ Safety Link/);
-
-    expect(existsSync(join(projectDir, "data", "tasks", "backlog", "task-meta-no-link.md"))).toBe(true);
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-meta-no-link.md"))).toBe(false);
   });
 
   it("prints message when task is already in target state", async () => {

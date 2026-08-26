@@ -21,6 +21,9 @@ their CLI, HTTP, and cadence surfaces.
 
 - Every fixture records either a real failure with its source run id or a
   justified smoke purpose. Anything else fails at load time.
+- Fixture ignore rules are stored as `fixture.gitignore`, the package-safe
+  canonical name; materialization restores them as `.gitignore` before Git is
+  initialized.
 - Predicates score final state, never self-report. Initial
   `preRunExpectations` include at least one expected failure.
 - Git, shell, agent-verifier, and objective-metric execution uses fail-closed

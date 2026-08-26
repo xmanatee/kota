@@ -88,7 +88,7 @@ describe("post-completion corrective follow-up report", () => {
       title: "Record lifecycle diagnostic without linking overlap checks",
       updatedAt: new Date(NOW).toISOString(),
       body:
-        "## Problem\n\nThis source-size diagnostic compares existing surfaces.\n\n" +
+        "## Problem\n\nThis lifecycle diagnostic compares existing surfaces.\n\n" +
         "## Source / Intent\n\nLocal overlap check:\n\n" +
         "- `task-completed-parent` already covers review-scrutiny at completion time.\n\n" +
         "The nonduplicative gap is a new report metric.\n",
@@ -103,13 +103,13 @@ describe("post-completion corrective follow-up report", () => {
         `${parentRunId} and git:commit:abc123def456.\n\n` +
         "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
     });
-    writeTask(projectDir, "ready", "task-source-size-follow-up", {
+    writeTask(projectDir, "ready", "task-workflow-failure-follow-up", {
       priority: "p3",
       area: "autonomy",
-      title: "Split oversized source-size fallout",
+      title: "Repair recurring workflow failure",
       updatedAt: new Date(NOW).toISOString(),
       body:
-        "## Problem\n\nCreated by progress-reviewer after a source-size advisory.\n" +
+        "## Problem\n\nCreated by progress-reviewer after a workflow-failure report.\n" +
         `Evidence ids:\n\n- run:${sourceRunId}\n- git:commit:fedcba987654\n`,
     });
 
@@ -129,7 +129,7 @@ describe("post-completion corrective follow-up report", () => {
     ]);
     expect(followUps.activeFollowUpTaskIds).toEqual([
       "task-progress-regression-follow-up",
-      "task-source-size-follow-up",
+      "task-workflow-failure-follow-up",
     ]);
     expect(followUps.activeFollowUpTaskIds).not.toContain("task-planned-sibling");
     expect(followUps.activeFollowUpTaskIds).not.toContain(
@@ -144,16 +144,16 @@ describe("post-completion corrective follow-up report", () => {
     );
     expect(byReason).toMatchObject({
       regression: 1,
-      "source-size": 1,
+      "workflow-failure": 1,
       "operator-report": 2,
     });
     expect(
       followUps.links.find(
-        (link) => link.activeFollowUpTaskId === "task-source-size-follow-up",
+        (link) => link.activeFollowUpTaskId === "task-workflow-failure-follow-up",
       ),
     ).toMatchObject({
       completedTaskId: "task-source-parent",
-      reasons: ["source-size", "operator-report"],
+      reasons: ["workflow-failure", "operator-report"],
       matchedRefs: [
         "git:commit:fedcba987654",
         `run:${sourceRunId}`,

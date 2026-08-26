@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { runNavigator } from "./navigator.js";
-import { operatorConsoleBundle } from "./navigator-operator-console-fixture.js";
+import { operatorConsoleBundle } from "./navigator-operator-console-fixture.test-support.js";
 import { emptyClient } from "./navigator-test-client.js";
 import {
   makeOutput,
   makePrompt,
-} from "./navigator-test-surfaces.js";
+} from "./navigator-test-surfaces.test-support.js";
 
 describe("runtime navigator shared UI actions", () => {
   it("executes the selected action from the actions pane and refreshes navigator state", async () => {

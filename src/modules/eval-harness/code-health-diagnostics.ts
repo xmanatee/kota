@@ -5,7 +5,6 @@ import { globSync } from "glob";
 import type { FixtureRunOutcome } from "./fixture-run.js";
 
 export const CODE_HEALTH_WARNING_CODES = [
-  "source-size-growth",
   "duplicated-implementation-chunk",
   "complexity-concentration",
 ] as const;
@@ -13,15 +12,11 @@ export const CODE_HEALTH_WARNING_CODES = [
 export type CodeHealthWarningCode = (typeof CODE_HEALTH_WARNING_CODES)[number];
 
 export type CodeHealthWarningCounts = {
-  "source-size-growth": number;
   "duplicated-implementation-chunk": number;
   "complexity-concentration": number;
 };
 
 export type CodeHealthThresholds = {
-  maxBaselineBytesGrowthRatio: number;
-  maxPreviousBytesGrowthRatio: number;
-  minSourceGrowthBytes: number;
   duplicateChunkLines: number;
   duplicateChunkMinOccurrences: number;
   maxLargestFileBytesShare: number;
@@ -80,18 +75,6 @@ export type CodeHealthMeasurement = {
   duplicateChunks: CodeHealthDuplicateChunkMeasurement;
 };
 
-export type CodeHealthGrowthBasis = "baseline" | "previous-round";
-
-export type CodeHealthGrowthComparison = {
-  basis: CodeHealthGrowthBasis;
-  comparisonBytes: number;
-  currentBytes: number;
-  addedBytes: number;
-  growthRatio: number | "infinite";
-  thresholdRatio: number;
-  minAddedBytes: number;
-};
-
 export type CodeHealthComplexitySignal =
   | {
       kind: "largest-file";
@@ -108,10 +91,6 @@ export type CodeHealthComplexitySignal =
     };
 
 export type CodeHealthWarning =
-  | {
-      code: "source-size-growth";
-      comparisons: readonly CodeHealthGrowthComparison[];
-    }
   | {
       code: "duplicated-implementation-chunk";
       duplicatedChunkCount: number;
@@ -179,9 +158,6 @@ export class CodeHealthDiagnosticsValidationError extends Error {
 }
 
 export const DEFAULT_CODE_HEALTH_THRESHOLDS: CodeHealthThresholds = {
-  maxBaselineBytesGrowthRatio: 1.5,
-  maxPreviousBytesGrowthRatio: 1.25,
-  minSourceGrowthBytes: 256,
   duplicateChunkLines: 6,
   duplicateChunkMinOccurrences: 2,
   maxLargestFileBytesShare: 0.65,
@@ -280,22 +256,6 @@ function parsePositiveNumberThreshold(
   return raw;
 }
 
-function parseNonnegativeNumberThreshold(
-  raw: CodeHealthJsonValue | undefined,
-  fixtureDir: string,
-  label: keyof CodeHealthThresholds,
-  fallback: number,
-): number {
-  if (raw === undefined) return fallback;
-  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) {
-    throw malformed(
-      fixtureDir,
-      `thresholds.${label} must be a non-negative number.`,
-    );
-  }
-  return raw;
-}
-
 function parsePositiveIntegerThreshold(
   raw: CodeHealthJsonValue | undefined,
   fixtureDir: string,
@@ -335,33 +295,12 @@ function parseCodeHealthThresholds(
     throw malformed(fixtureDir, "thresholds must be an object when present.");
   }
   assertAllowedKeys(raw, fixtureDir, "thresholds", [
-    "maxBaselineBytesGrowthRatio",
-    "maxPreviousBytesGrowthRatio",
-    "minSourceGrowthBytes",
     "duplicateChunkLines",
     "duplicateChunkMinOccurrences",
     "maxLargestFileBytesShare",
     "maxLargestFunctionLines",
   ]);
   const thresholds: CodeHealthThresholds = {
-    maxBaselineBytesGrowthRatio: parsePositiveNumberThreshold(
-      raw.maxBaselineBytesGrowthRatio,
-      fixtureDir,
-      "maxBaselineBytesGrowthRatio",
-      DEFAULT_CODE_HEALTH_THRESHOLDS.maxBaselineBytesGrowthRatio,
-    ),
-    maxPreviousBytesGrowthRatio: parsePositiveNumberThreshold(
-      raw.maxPreviousBytesGrowthRatio,
-      fixtureDir,
-      "maxPreviousBytesGrowthRatio",
-      DEFAULT_CODE_HEALTH_THRESHOLDS.maxPreviousBytesGrowthRatio,
-    ),
-    minSourceGrowthBytes: parseNonnegativeNumberThreshold(
-      raw.minSourceGrowthBytes,
-      fixtureDir,
-      "minSourceGrowthBytes",
-      DEFAULT_CODE_HEALTH_THRESHOLDS.minSourceGrowthBytes,
-    ),
     duplicateChunkLines: parsePositiveIntegerThreshold(
       raw.duplicateChunkLines,
       fixtureDir,
@@ -390,18 +329,6 @@ function parseCodeHealthThresholds(
       1,
     ),
   };
-  if (thresholds.maxBaselineBytesGrowthRatio <= 1) {
-    throw malformed(
-      fixtureDir,
-      "thresholds.maxBaselineBytesGrowthRatio must be greater than 1.",
-    );
-  }
-  if (thresholds.maxPreviousBytesGrowthRatio <= 1) {
-    throw malformed(
-      fixtureDir,
-      "thresholds.maxPreviousBytesGrowthRatio must be greater than 1.",
-    );
-  }
   return thresholds;
 }
 
@@ -427,25 +354,20 @@ export function parseCodeHealthDiagnosticsConfig(
 
 export function emptyCodeHealthWarningCounts(): CodeHealthWarningCounts {
   return {
-    "source-size-growth": 0,
     "duplicated-implementation-chunk": 0,
     "complexity-concentration": 0,
   };
 }
 
 function totalWarnings(counts: CodeHealthWarningCounts): number {
-  return (
-    counts["source-size-growth"] +
-    counts["duplicated-implementation-chunk"] +
-    counts["complexity-concentration"]
-  );
+  return counts["duplicated-implementation-chunk"] +
+    counts["complexity-concentration"];
 }
 
 function mergeWarningCounts(
   target: CodeHealthWarningCounts,
   source: CodeHealthWarningCounts,
 ): void {
-  target["source-size-growth"] += source["source-size-growth"];
   target["duplicated-implementation-chunk"] +=
     source["duplicated-implementation-chunk"];
   target["complexity-concentration"] += source["complexity-concentration"];
@@ -691,78 +613,6 @@ export function measureCodeHealth(
   };
 }
 
-function growthRatio(currentBytes: number, comparisonBytes: number): number | "infinite" {
-  if (comparisonBytes === 0) {
-    return currentBytes > 0 ? "infinite" : 1;
-  }
-  return currentBytes / comparisonBytes;
-}
-
-function exceedsGrowthThreshold(
-  currentBytes: number,
-  comparisonBytes: number,
-  thresholdRatio: number,
-  minAddedBytes: number,
-): boolean {
-  const addedBytes = currentBytes - comparisonBytes;
-  if (addedBytes < minAddedBytes) return false;
-  const ratio = growthRatio(currentBytes, comparisonBytes);
-  return ratio === "infinite" || ratio > thresholdRatio;
-}
-
-function sourceGrowthWarning(params: {
-  baseline: CodeHealthMeasurement;
-  previous: CodeHealthMeasurement;
-  current: CodeHealthMeasurement;
-  thresholds: CodeHealthThresholds;
-}): CodeHealthWarning | null {
-  const comparisons: CodeHealthGrowthComparison[] = [];
-  if (
-    exceedsGrowthThreshold(
-      params.current.totalBytes,
-      params.baseline.totalBytes,
-      params.thresholds.maxBaselineBytesGrowthRatio,
-      params.thresholds.minSourceGrowthBytes,
-    )
-  ) {
-    comparisons.push({
-      basis: "baseline",
-      comparisonBytes: params.baseline.totalBytes,
-      currentBytes: params.current.totalBytes,
-      addedBytes: params.current.totalBytes - params.baseline.totalBytes,
-      growthRatio: growthRatio(
-        params.current.totalBytes,
-        params.baseline.totalBytes,
-      ),
-      thresholdRatio: params.thresholds.maxBaselineBytesGrowthRatio,
-      minAddedBytes: params.thresholds.minSourceGrowthBytes,
-    });
-  }
-  if (
-    exceedsGrowthThreshold(
-      params.current.totalBytes,
-      params.previous.totalBytes,
-      params.thresholds.maxPreviousBytesGrowthRatio,
-      params.thresholds.minSourceGrowthBytes,
-    )
-  ) {
-    comparisons.push({
-      basis: "previous-round",
-      comparisonBytes: params.previous.totalBytes,
-      currentBytes: params.current.totalBytes,
-      addedBytes: params.current.totalBytes - params.previous.totalBytes,
-      growthRatio: growthRatio(
-        params.current.totalBytes,
-        params.previous.totalBytes,
-      ),
-      thresholdRatio: params.thresholds.maxPreviousBytesGrowthRatio,
-      minAddedBytes: params.thresholds.minSourceGrowthBytes,
-    });
-  }
-  if (comparisons.length === 0) return null;
-  return { code: "source-size-growth", comparisons };
-}
-
 function duplicateChunkWarning(
   current: CodeHealthMeasurement,
 ): CodeHealthWarning | null {
@@ -819,12 +669,6 @@ export function evaluateCodeHealthRound(params: {
 }): CodeHealthRoundDiagnostics {
   const measurement = measureCodeHealth(params.workingDir, params.config);
   const warnings = [
-    sourceGrowthWarning({
-      baseline: params.baseline,
-      previous: params.previous,
-      current: measurement,
-      thresholds: params.config.thresholds,
-    }),
     duplicateChunkWarning(measurement),
     complexityWarning(measurement, params.config.thresholds),
   ].filter((warning): warning is CodeHealthWarning => warning !== null);

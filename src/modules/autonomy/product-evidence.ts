@@ -1,13 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-
-export type ProductOperatorEvidenceCheck = {
-  required: boolean;
-  satisfied: boolean;
-  refs: string[];
-  reason: string | null;
-};
 
 const OPERATOR_EVIDENCE_NAME_RE =
   /\b(?:screenshot|screencast|transcript|rendered|runtime-probe|snapshot|fixture|playwright|trace|demo|operator-journey)\b/i;
@@ -29,19 +21,8 @@ const OPERATOR_EVIDENCE_EXTENSIONS = new Set([
   ".zip",
 ]);
 
-function isProductTask(taskContent: string): boolean {
-  const { attrs } = parseFlatFrontMatter(taskContent);
-  return attrs.task_class === "Product";
-}
-
 export function mentionsOperatorEvidence(value: string): boolean {
   return OPERATOR_EVIDENCE_TEXT_RE.test(value);
-}
-
-export function taskDeclaresOperatorCapturePrecondition(taskContent: string): boolean {
-  return /## Unblock Precondition[\s\S]*\bkind:\s*operator-capture\b/i.test(
-    taskContent,
-  );
 }
 
 export function isOperatorEvidencePath(path: string): boolean {
@@ -109,44 +90,14 @@ export function resolveDurableOperatorEvidenceDir(
   return join(projectRoot, ".kota", "runs", parts[2], "evidence");
 }
 
-export function checkProductOperatorEvidence(args: {
-  taskContent: string;
-  taskState: string;
+export function collectOperatorEvidenceRefs(args: {
   evidenceDirPath: string;
   changedFiles: string;
   hasRuntimeProbeResult: boolean;
-}): ProductOperatorEvidenceCheck {
-  if (!isProductTask(args.taskContent)) {
-    return { required: false, satisfied: true, refs: [], reason: null };
-  }
-
-  if (
-    args.taskState === "blocked" &&
-    taskDeclaresOperatorCapturePrecondition(args.taskContent)
-  ) {
-    return {
-      required: true,
-      satisfied: true,
-      refs: ["operator-capture precondition"],
-      reason: null,
-    };
-  }
-
-  const refs = [
+}): string[] {
+  return [
     ...listRunArtifactEvidenceRefs(args.evidenceDirPath).map((ref) => `run:${ref}`),
     ...changedFileEvidenceRefs(args.changedFiles).map((ref) => `changed:${ref}`),
     ...(args.hasRuntimeProbeResult ? ["run:runtime-probe.json"] : []),
   ];
-
-  if (refs.length > 0) {
-    return { required: true, satisfied: true, refs, reason: null };
-  }
-
-  return {
-    required: true,
-    satisfied: false,
-    refs: [],
-    reason:
-      "task_class=Product requires operator journey evidence (CLI transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent); no such artifact was found in the run directory or changed files. Passing implementation tests is not sufficient.",
-  };
 }

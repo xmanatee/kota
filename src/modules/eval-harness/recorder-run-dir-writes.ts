@@ -6,8 +6,6 @@ import { isJsonObject } from "./fixture-parse-utils.js";
 
 const AGENT_AUTHORED_RUN_DIR_ARTIFACTS = [
   "commit-message.txt",
-  "success-criteria.txt",
-  "success-criteria-verified.txt",
 ] as const;
 
 export type RunDirWriteExtraction = {

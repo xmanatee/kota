@@ -4,10 +4,7 @@ title: Add direct unit tests for knowledge-store-helpers.ts
 status: done
 priority: p2
 area: testing
-summary: >
-  applyFilters in knowledge-store-helpers.ts has complex multi-filter logic
-  (type, tag, status, since with date parsing) with no direct unit tests.
-  parseKnowledgeFile and findFileByIdInDir also have untested edge branches.
+summary: Add focused coverage for knowledge-store helper filtering and parsing behavior.
 created_at: 2026-03-19
 updated_at: 2026-03-19
 ---

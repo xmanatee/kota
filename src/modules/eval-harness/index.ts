@@ -96,7 +96,7 @@ const evalHarnessModule: KotaModule = {
   localClient: (ctx) => {
     const evalHarness: EvalHarnessClient = {
       async list() {
-        return listEvalFixtures(ctx.cwd);
+        return listEvalFixtures();
       },
       async run(options) {
         return runEvalHarness(ctx.cwd, options ?? {}, new EventBus());

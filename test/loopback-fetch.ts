@@ -13,6 +13,7 @@ import type {
 } from "node:http";
 import { syncBuiltinESMExports } from "node:module";
 import { Readable } from "node:stream";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 
 type ListenOptions = {
   port?: number;
@@ -256,7 +257,14 @@ function parseListenArgs(args: ListenArgs): {
   loopback: boolean;
   port?: number;
 } {
-  const callback = args.findLast((arg): arg is () => void => typeof arg === "function");
+  let callback: (() => void) | undefined;
+  for (let index = args.length - 1; index >= 0; index -= 1) {
+    const candidate = args[index];
+    if (typeof candidate === "function") {
+      callback = candidate;
+      break;
+    }
+  }
   const first = args[0];
 
   if (typeof first === "object" && first !== null) {
@@ -287,7 +295,14 @@ function parseHttpRequestArgs(args: Parameters<typeof httpDefault.request>): {
   options: RequestOptions;
   url: URL;
 } {
-  const callback = args.findLast((arg): arg is (res: IncomingMessage) => void => typeof arg === "function");
+  let callback: ((res: IncomingMessage) => void) | undefined;
+  for (let index = args.length - 1; index >= 0; index -= 1) {
+    const candidate = args[index];
+    if (typeof candidate === "function") {
+      callback = candidate;
+      break;
+    }
+  }
   const first = args[0];
   const second = args[1];
   const options = isRequestOptions(second)
@@ -389,7 +404,7 @@ function createLoopbackClientRequest(
     chunks.push(Buffer.from(toBytes(chunk)));
     return true;
   };
-  req.end = (chunk?: string | Uint8Array) => {
+  req.end = ((chunk?: string | Uint8Array) => {
     if (chunk !== undefined) req.write(chunk);
     if (ended) return req;
     ended = true;
@@ -412,7 +427,7 @@ function createLoopbackClientRequest(
         req.emit("error", err);
       });
     return req;
-  };
+  }) as ClientRequest["end"];
   req.destroy = (err?: Error) => {
     controller.abort();
     if (err) req.emit("error", err);
@@ -438,7 +453,7 @@ function createFetchBackedClientRequest(
     chunks.push(Buffer.from(toBytes(chunk)));
     return true;
   };
-  req.end = (chunk?: string | Uint8Array) => {
+  req.end = ((chunk?: string | Uint8Array) => {
     if (chunk !== undefined) req.write(chunk);
     if (ended) return req;
     ended = true;
@@ -466,7 +481,7 @@ function createFetchBackedClientRequest(
         req.emit("error", err);
       });
     return req;
-  };
+  }) as ClientRequest["end"];
   req.destroy = (err?: Error) => {
     controller.abort();
     if (err) req.emit("error", err);
@@ -531,7 +546,7 @@ function incomingMessageFromResponse(
   controller: AbortController,
 ): IncomingMessage {
   const readable = response.body
-    ? Readable.fromWeb(response.body)
+    ? readableFromWeb(response.body)
     : Readable.from([]);
   const incoming = readable as IncomingMessage;
   incoming.statusCode = response.status;
@@ -586,7 +601,9 @@ const FETCH_HEADER_NAMES = [
   "link",
 ];
 
-function incomingHeadersFromFetchHeaders(headers: Response["headers"]): IncomingHttpHeaders {
+type FetchHeaders = Headers | { get(name: string): string | null };
+
+function incomingHeadersFromFetchHeaders(headers: FetchHeaders): IncomingHttpHeaders {
   const out: IncomingHttpHeaders = {};
   if (headers instanceof Headers) {
     headers.forEach((value, key) => {
@@ -616,7 +633,7 @@ function rawHeadersFromIncomingHeaders(headers: IncomingHttpHeaders): string[] {
 
 function lazyReadableFromFetchResponse(response: Response): Readable {
   if (response.body instanceof ReadableStream) {
-    return Readable.fromWeb(response.body);
+    return readableFromWeb(response.body);
   }
 
   let started = false;
@@ -638,6 +655,11 @@ function lazyReadableFromFetchResponse(response: Response): Readable {
       callback(err);
     },
   });
+}
+
+function readableFromWeb(stream: ReadableStream<Uint8Array>): Readable {
+  // Node and DOM declare the same runtime stream with slightly different generic contracts.
+  return Readable.fromWeb(stream as unknown as NodeReadableStream);
 }
 
 async function readFetchResponseBody(response: Response): Promise<Buffer> {
@@ -728,7 +750,7 @@ function createServerResponse(resolve: (response: Response) => void): {
   };
 
   res.setHeader = (name: string, value: number | string | readonly string[]) => {
-    setHeaderValue(headers, headerValues, name, value);
+    setHeaderValue(headers, headerValues, name, value as OutgoingHttpHeader);
     return res;
   };
   res.getHeader = (name: string) => headerValues.get(name.toLowerCase());
@@ -738,7 +760,7 @@ function createServerResponse(resolve: (response: Response) => void): {
     headerValues.delete(name.toLowerCase());
     headers.delete(name);
   };
-  res.writeHead = (
+  res.writeHead = ((
     statusCode: number,
     statusMessageOrHeaders?: string | OutgoingHttpHeaders | readonly [string, string][],
     headersArg?: OutgoingHttpHeaders | readonly [string, string][],
@@ -748,17 +770,17 @@ function createServerResponse(resolve: (response: Response) => void): {
     if (nextHeaders) applyHeaders(headers, headerValues, nextHeaders);
     resolveOnce();
     return res;
-  };
+  }) as ServerResponse["writeHead"];
   res.write = (chunk: string | Uint8Array) => {
     resolveOnce();
     if (!closed) controller.enqueue(toBytes(chunk));
     return true;
   };
-  res.end = (chunk?: string | Uint8Array) => {
+  res.end = ((chunk?: string | Uint8Array) => {
     if (chunk !== undefined) res.write(chunk);
     closeBody();
     return res;
-  };
+  }) as ServerResponse["end"];
 
   Object.defineProperty(res, "headersSent", {
     configurable: true,

@@ -19,10 +19,9 @@
  *     recording also covers judge-prompt routing.
  *   - `explorer-agent-call-replay` covers the explorer's post-agent plumbing
  *     (the staged explorer publication request, the
- *     `apply-watchlist-updates` reader's empty-apply path, the five explorer
- *     repair checks, and the `{{NOW_MINUS_HOURS:N}}` templating hook for the
- *     empty cooldown state) that none of the other shipped replays
- *     exercise.
+ *     `apply-watchlist-updates` reader's empty-apply path, and the task-queue
+ *     and watchlist commit-message repair checks) that none of the other
+ *     shipped replays exercise.
  *   - `inbox-sorter-agent-call-replay` covers the `autonomy.inbox.available`
  *     trigger receipt path, the `inspect-inbox` `needsAttention` gating
  *     shape (a `getRepoTaskQueueSnapshot` + tracked-changes-outside-inbox

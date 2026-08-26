@@ -847,7 +847,7 @@ describe("progress-reviewer workflow", () => {
       readTaskStatus(projectDir, "task-add-channel-progress-review-routing-fixture"),
     ).toBe("ready");
     expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
       "workflow.attention.digest",
     );
@@ -1602,12 +1602,12 @@ describe("progress-reviewer workflow", () => {
             {
               topicKey: "meta-generated-follow-up",
               title: "Meta generated follow-up",
-              summary: "Runtime repair follow-up should enter the Meta balance with a Product/Safety link.",
+              summary: "Runtime repair follow-up should enter the Meta balance.",
               priority: "p3",
               area: "autonomy",
               evidenceIds: ["task:task-meta-generated"],
               acceptanceEvidence:
-                "Generated task frontmatter records task_class: Meta and includes a Product / Safety Link.",
+                "Generated task frontmatter records task_class: Meta.",
             },
           ],
         },
@@ -1635,10 +1635,8 @@ describe("progress-reviewer workflow", () => {
       "Platform",
     );
     expect(createdTasks.get("task-meta-generated-follow-up")?.attrs.task_class).toBe("Meta");
-    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain(
-      "## Product / Safety Link",
-    );
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain("## Context");
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("normalizes untrusted follow-up task fields before writing task files", () => {
@@ -1733,9 +1731,7 @@ describe("progress-reviewer workflow", () => {
       "## Desired Outcome",
       "## Constraints",
       "## Done When",
-      "## Source / Intent",
-      "## Product / Safety Link",
-      "## Initiative",
+      "## Context",
       "## Acceptance Evidence",
       "## Generated Work Provenance",
     ]);
@@ -1744,8 +1740,8 @@ describe("progress-reviewer workflow", () => {
     expect(raw).toContain("    safe review prefix\n    ## Acceptance Evidence");
     expect(raw).toContain("    safe evidence prefix\n    ## Source / Intent");
     expect(raw).not.toMatch(/[\u2028\u2029]/u);
-    expect(raw).toContain("- Review-provided acceptance evidence:");
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(raw).toContain("Regression command passes.");
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("preserves bracket-wrapped follow-up task frontmatter fields as scalars", () => {
@@ -1810,7 +1806,7 @@ describe("progress-reviewer workflow", () => {
     expect(Array.isArray(parsed.attrs.title)).toBe(false);
     expect(Array.isArray(parsed.attrs.area)).toBe(false);
     expect(Array.isArray(parsed.attrs.summary)).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir, { minReady: 0 })).not.toThrow();
+    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
   });
 
   it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
@@ -2515,8 +2511,8 @@ describe("progress-reviewer workflow", () => {
         payload: { scopeId, projectId: scopeId },
       },
       reason:
-        `- [meta-task-missing-product-safety-link] ${projectDir}/data/tasks/ready/${taskId}.md ` +
-        "is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes.",
+        `- [task-validation] ${projectDir}/data/tasks/ready/${taskId}.md ` +
+        "failed validation while the workflow was processing it.",
       errorClass: "validation",
     });
 

@@ -15,7 +15,6 @@ import type {
 	KotaTool,
 } from "#core/agent-harness/message-protocol.js";
 import type { AgentEffort } from "#core/agent-harness/types.js";
-import type { KotaConfig } from "#core/config/config.js";
 
 export type { AgentEffort };
 
@@ -83,8 +82,17 @@ export type ModelProviderSelection = {
 	apiKey?: string;
 };
 
+/** Minimal config surface needed to resolve an optional model provider. */
+export type ModelProviderConfigSource = {
+	modelProvider?: {
+		type?: string;
+		baseUrl?: string;
+		apiKey?: string;
+	};
+};
+
 export function modelProviderSelectionFromConfig(
-	config: Pick<KotaConfig, "modelProvider">,
+	config: ModelProviderConfigSource,
 ): ModelProviderSelection | undefined {
 	if (!config.modelProvider) return undefined;
 	const selection: ModelProviderSelection = {};

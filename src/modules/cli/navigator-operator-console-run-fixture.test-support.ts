@@ -2,8 +2,8 @@ import type {
   UiAction,
   UiSurfaceBundle,
 } from "#modules/daemon-ops/operator-ui.js";
-import { consoleAction } from "./navigator-operator-console-fixture-actions.js";
-import { navigationSurface } from "./navigator-test-surfaces.js";
+import { consoleAction } from "./navigator-operator-console-fixture-actions.test-support.js";
+import { navigationSurface } from "./navigator-test-surfaces.test-support.js";
 
 function runAction(actions: readonly UiAction[], actionId: string): UiAction {
   const found = actions.find((candidate) => candidate.actionId === actionId);

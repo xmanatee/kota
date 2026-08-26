@@ -51,7 +51,7 @@ export function evalHarnessControlRoutes(ctx: ModuleContext): ControlRouteRegist
       capabilityScope: "read",
       handler: (_req: IncomingMessage, res: ServerResponse) => {
         try {
-          jsonResponse(res, 200, listEvalFixtures(ctx.cwd));
+          jsonResponse(res, 200, listEvalFixtures());
         } catch (err) {
           jsonResponse(res, 500, { error: (err as Error).message });
         }

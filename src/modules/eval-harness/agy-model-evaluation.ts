@@ -179,7 +179,7 @@ export async function runAgyModelEvaluationSuite(
 
   let fixtures: LoadedFixture[];
   try {
-    const root = fixturesRootFor(projectDir);
+    const root = fixturesRootFor();
     fixtures = AGY_MODEL_EVALUATION_SCENARIOS.map((scenario) =>
       loadFixture(root, scenario.fixtureId),
     );

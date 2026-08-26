@@ -34,16 +34,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Pass the visible generic protocol test without editing SPEC.md or the verifier.\n2. Implement all spec-dependent Window Envelope Protocol clauses in src/protocol-handler.mjs.\n3. Write spec-compliance-result.json with clause ids, local commands, case counts, changed paths, and SPEC.md provenance.\n4. Preserve shortcut guards by passing node scripts/check-protocol.mjs --self-test-shortcuts.\n5. Move task-implement-window-envelope-protocol from ready to done.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. node test/protocol-generic.test.mjs remains part of pre-run evidence and passes with the final handler.\n2. node scripts/check-protocol.mjs validates WEP-1 through WEP-5 behavior, including exclusive end bounds, canonical ids, duplicate resolution, and extension rejection.\n3. spec-compliance-result.json contains all required compliance fields and specDependentCasesPassed = 4.\n4. node scripts/check-protocol.mjs --self-test-shortcuts rejects hardcoded visible samples, missing clause evidence, and spec/verifier edits.\n5. The seeded task is written to data/tasks/done/ with status: done and removed from data/tasks/ready/.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add spec-conditioned protocol compliance fixture\n\nSeeds a replay-backed builder eval fixture with a local normative protocol spec, verifier calibration, shortcut guards, structured compliance evidence, and objective metric reporting.\n"
     }

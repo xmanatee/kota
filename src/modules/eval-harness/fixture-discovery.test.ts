@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ import {
   writeFixture,
 } from "./fixture-test-support.js";
 import { evaluatePredicateExpectations } from "./predicates.js";
+import { copyFixtureInitialState } from "./runner-materialize.js";
 import { TEST_EXECUTION_PROFILE } from "./runner-test-profiles.js";
 import { writeFakeContainerBackend } from "./subprocess-executor-test-helpers.js";
 
@@ -128,7 +129,7 @@ describe("loadAllFixtures", () => {
     try {
       for (const fixture of fixtures) {
         const workDir = join(scratch, fixture.spec.id);
-        cpSync(fixture.initialStateDir, workDir, { recursive: true });
+        copyFixtureInitialState(fixture.initialStateDir, workDir);
         const expectationSets = isSingleWorkflowFixtureSpec(fixture.spec)
           ? [fixture.spec.preRunExpectations]
           : isSkillAblationFixtureSpec(fixture.spec)

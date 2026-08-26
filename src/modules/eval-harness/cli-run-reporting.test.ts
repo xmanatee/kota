@@ -102,9 +102,8 @@ describe("kota eval run CLI reporting", () => {
           diagnosticRunCount: 2,
           runsWithWarnings: 1,
           fixturesWithWarnings: 1,
-          totalWarnings: 2,
+          totalWarnings: 1,
           warningCounts: {
-            "source-size-growth": 1,
             "duplicated-implementation-chunk": 1,
             "complexity-concentration": 0,
           },
@@ -117,7 +116,6 @@ describe("kota eval run CLI reporting", () => {
     const text = writes.join("\n");
     expect(text).toContain("code health:");
     expect(text).toContain("diagnostic-runs=2");
-    expect(text).toContain("source-size-growth=1");
     expect(text).toContain("duplicated-implementation-chunk=1");
   });
 

@@ -21,7 +21,6 @@ const HARD_CORRECTIVE_REASONS = new Set<PostCompletionCorrectiveReason>([
   "review-scrutiny",
   "trajectory-diagnostic",
   "workflow-failure",
-  "source-size",
   "missing-evidence",
 ]);
 
@@ -91,9 +90,6 @@ export function classifyCorrectiveReasons(
   }
   if (/\bworkflow-failure|workflow failure|consecutive failures\b/.test(text)) {
     reasons.push("workflow-failure");
-  }
-  if (/\bsource-size\b|\bsource file size\b|\boversized\b|\bline-count\b/.test(text)) {
-    reasons.push("source-size");
   }
   if (/\bmissing evidence\b|\bmissing rendered evidence\b|\bweak rendered evidence\b|\bacceptance evidence gap\b|\bplaceholder test\b/.test(text)) {
     reasons.push("missing-evidence");

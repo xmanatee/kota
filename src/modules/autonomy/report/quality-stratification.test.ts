@@ -15,7 +15,6 @@ import {
   slice,
   task,
   WINDOW_START,
-  writeBuilderArtifacts,
 } from "./quality-stratification.test-helpers.js";
 
 let projectDir: string;
@@ -96,42 +95,20 @@ describe("quality stratification", () => {
     expect(slice(report, "review-scrutiny", "workflow", "builder-a")?.rateDelta).toBe(1);
   });
 
-  it("stratifies code-health and follow-up signals while keeping missing metadata explicit", () => {
+  it("stratifies follow-up signals while keeping missing metadata explicit", () => {
     const tasks = [
-      task("task-clean", "done", "autonomy"),
-      task("task-warning", "done", "autonomy"),
       task("task-followed", "done", "security"),
     ];
-    const cleanRun = run(
-      "clean-run",
-      "builder",
-      WINDOW_START + MS_PER_DAY,
-      "harness-a",
-      "task-clean",
-    );
-    const warningRun = run(
-      "warning-run",
-      "builder",
-      WINDOW_START + 2 * MS_PER_DAY,
-      undefined,
-      "task-warning",
-    );
-    writeBuilderArtifacts(runsDir, cleanRun.id, "task-clean", ["src/modules/autonomy/report/a.ts"], "ok");
-    writeBuilderArtifacts(runsDir, warningRun.id, "task-warning", ["src/modules/autonomy/report/b.ts"], "warning");
 
     const report = buildReport(runsDir, {
       tasks,
-      runs: [cleanRun, warningRun],
+      runs: [],
       reviewScrutiny: reviewReport([
         reviewRecord("missing-review", "critic", "builder", true, undefined),
       ]),
       postCompletionFollowUps: postReport("task-followed", "task-repair", ["security"]),
     });
 
-    expect(report.aggregates.find((row) => row.signal === "code-health-drift")?.current).toMatchObject({
-      denominatorCount: 2,
-      numeratorCount: 1,
-    });
     expect(report.aggregates.find((row) => row.signal === "post-completion-follow-up")?.current.numeratorCount).toBe(1);
     expect(report.missingDimensions).toEqual(
       expect.arrayContaining([
@@ -139,7 +116,6 @@ describe("quality stratification", () => {
         expect.objectContaining({ signal: "review-scrutiny", dimension: "taskPriority", count: 1 }),
       ]),
     );
-    expect(slice(report, "code-health-drift", "harness", "harness-a")?.weakEvidence).toBe(true);
   });
 
   it("omits prompts, raw tool payloads, diffs, costs, and credentials from JSON", () => {

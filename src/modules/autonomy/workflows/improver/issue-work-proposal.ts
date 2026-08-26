@@ -4,6 +4,7 @@ import {
   renderGeneratedTaskProse,
 } from "#modules/autonomy/generated-task-text.js";
 import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type { IssueDisposition } from "./issue-disposition.js";
 
 function issueTaskBody(
@@ -13,53 +14,29 @@ function issueTaskBody(
   const evidence = issue.evidenceRefs.map((ref) =>
     `- ${ref.kind}: ${ref.ref}${ref.summary ? ` — ${ref.summary}` : ""}`
   );
-  return [
-    "",
-    "## Problem",
-    "",
-    renderGeneratedTaskProse(disposition.taskSummary),
-    "",
-    "## Desired Outcome",
-    "",
-    `Resolve autonomy issue ${issue.issueKey} at semantic revision ${issue.semanticRevision}.`,
-    "",
-    "## Constraints",
-    "",
-    "- Preserve the stable issue identity and cited provenance.",
-    "- Implement through builder; this proposal is not evidence that the issue is fixed.",
-    "",
-    "## Done When",
-    "",
-    "- The issue's root cause is fixed or disproven with inspectable evidence.",
-    "- A typed clear observation or explicit disposition resolves the durable issue.",
-    "",
-    "## Source / Intent",
-    "",
-    `Issue reviewer disposition: ${renderGeneratedTaskProse(disposition.rationale)}`,
-    "",
-    ...issue.summaries.map((summary) => `- ${summary}`),
-    "",
-    "Evidence:",
-    "",
-    ...evidence,
-    "",
-    ...(disposition.taskClass === "Meta"
-      ? [
-        "## Product / Safety Link",
-        "",
-        "This issue repair protects Product and Safety throughput by removing a durable autonomy failure or review gap before it consumes builder capacity.",
-        "",
-      ]
-      : []),
-    "## Initiative",
-    "",
-    "One autonomy issue, one decision, one implementation path.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    `- ${renderGeneratedTaskProse(disposition.taskAcceptanceEvidence)}`,
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: renderGeneratedTaskProse(disposition.taskSummary),
+    desiredOutcome:
+      `Resolve autonomy issue ${issue.issueKey} at semantic revision ` +
+      `${issue.semanticRevision}.`,
+    constraints: [
+      "Preserve the stable issue identity and cited provenance.",
+      "Implement through builder; this proposal is not evidence that the issue is fixed.",
+    ],
+    doneWhen: [
+      "The issue's root cause is fixed or disproven with inspectable evidence.",
+      "A typed clear observation or explicit disposition resolves the durable issue.",
+    ],
+    context: [
+      `Issue reviewer disposition: ${renderGeneratedTaskProse(disposition.rationale)}`,
+      ...issue.summaries,
+      "Evidence:",
+      ...evidence.map((item) => item.replace(/^- /, "")),
+    ],
+    acceptanceEvidence: renderGeneratedTaskProse(
+      disposition.taskAcceptanceEvidence,
+    ),
+  });
 }
 
 export function proposalFor(

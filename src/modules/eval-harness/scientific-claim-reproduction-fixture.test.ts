@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import {
-  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -23,6 +22,7 @@ import {
   type WorkflowExecutionOutcome,
   type WorkflowExecutor,
 } from "./runner.js";
+import { copyFixtureInitialState } from "./runner-materialize.js";
 import {
   cleanupScientificClaimTestContainer,
   evaluateClaimPredicate,
@@ -139,7 +139,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const linkedTempDir = join(tempRoot, "linked");
     const originalTmpdir = process.env.TMPDIR;
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       writeAndRunAnalyzer(workingDir, passingAnalyzer);
       mkdirSync(realTempDir);
       symlinkSync(realTempDir, linkedTempDir, "dir");
@@ -166,7 +166,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const claimPredicate = fixture.spec.predicates[0];
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-shortcut-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       writeAndRunAnalyzer(workingDir, shortcutAnalyzer);
 
       const result = spawnSync(
@@ -194,7 +194,7 @@ describe("builder scientific claim reproduction fixture", () => {
     expect(claimPredicate.kind).toBe("lx12-scientific-claim-result");
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-boundary-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       writeAndRunAnalyzer(workingDir, passingAnalyzer);
 
       const checker = spawnSync(
@@ -228,7 +228,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const claimPredicate = fixture.spec.predicates[0];
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-permission-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       writeAndRunAnalyzer(workingDir, passingAnalyzer);
       writeFileSync(
         join(workingDir, "scripts/analyze-claim.mjs"),
@@ -251,7 +251,7 @@ describe("builder scientific claim reproduction fixture", () => {
     const claimPredicate = fixture.spec.predicates[0];
     const workingDir = mkdtempSync(join(tmpdir(), "kota-scientific-sparse-result-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       writeAndRunAnalyzer(workingDir, passingAnalyzer);
       writeFileSync(
         join(workingDir, "scripts/analyze-claim.mjs"),

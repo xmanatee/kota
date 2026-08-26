@@ -1,5 +1,6 @@
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { writeRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { writeJsonArtifact } from "./security-review-candidates.js";
@@ -99,10 +100,7 @@ function buildFindingTaskBody(args: {
     "",
     quoteMarkdown(entry.excerpt),
   ]).join("\n\n");
-  return [
-    "",
-    "## Problem",
-    "",
+  const problem = [
     "The security-review workflow confirmed an application-security finding.",
     "",
     `severity: ${finding.severity}`,
@@ -110,24 +108,8 @@ function buildFindingTaskBody(args: {
     "claim:",
     "",
     quoteMarkdown(finding.claim),
-    "",
-    "## Desired Outcome",
-    "",
-    quoteMarkdown(finding.recommendedOutcome),
-    "",
-    "## Constraints",
-    "",
-    "- Preserve the confirmed security claim and cited evidence until the fix lands.",
-    "- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.",
-    "",
-    "## Done When",
-    "",
-    "- The cited vulnerability is fixed or proven impossible with code-level evidence.",
-    "- Focused regression coverage guards the fixed boundary.",
-    "- The task records the final verification command or artifact.",
-    "",
-    "## Source / Intent",
-    "",
+  ].join("\n");
+  const context = [
     `Created by security-review workflow run ${bodyScalar(firstRunId)}.`,
     "",
     "Confirmed by security-review workflow runs:",
@@ -144,16 +126,23 @@ function buildFindingTaskBody(args: {
     "Evidence:",
     "",
     evidence,
-    "",
-    "## Initiative",
-    "",
-    "Agentic security review for autonomous coding infrastructure.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Regression test, runtime probe, or review transcript showing the cited security boundary is fixed.",
-    "",
   ].join("\n");
+  return renderRepoTaskIntent({
+    problem,
+    desiredOutcome: quoteMarkdown(finding.recommendedOutcome),
+    constraints: [
+      "Preserve the confirmed security claim and cited evidence until the fix lands.",
+      "Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.",
+    ],
+    doneWhen: [
+      "The cited vulnerability is fixed or proven impossible with code-level evidence.",
+      "The smallest proof that distinguishes vulnerable and fixed behavior exercises the owning public boundary.",
+      "The task records final verification; add a regression test only when no authoritative mechanism already prevents recurrence.",
+    ],
+    context,
+    acceptanceEvidence:
+      "Use proportionate boundary proof showing that the cited security claim no longer holds.",
+  });
 }
 
 export type SecurityFindingTaskResult = {

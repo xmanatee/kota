@@ -106,11 +106,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           !queue.hasDispatchableWork &&
           queue.dependencyBlockedTasks.length > 0;
         const queueEmpty = !queue.hasDispatchableWork && !queueBlocked;
-        // Builder runs only on actionable (ready+doing) work; backlog-only queues
-        // route through `autonomy.queue.needs-promotion` only when the canonical
-        // task snapshot says at least one backlog task can actually be promoted.
-        // Strategic anchors, blocked tails, and Meta tasks missing a
-        // Product/Safety link are open records, not dispatchable work.
+        // Builders run only on ready/doing work. Backlog-only queues route
+        // through promotion when at least one non-anchor, dependency-clear task
+        // can enter ready under the canonical transition contract.
         const queueNeedsPromotion =
           promotionRationale.selected.length > 0;
         const queueActionable =

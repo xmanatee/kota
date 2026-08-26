@@ -5,12 +5,3 @@ export function workflowWorkspaceDir(
 ): string {
   return ctx.projectDir;
 }
-
-export function builderAgentRunDir(
-  ctx: Pick<
-    WorkflowStepContext,
-    "projectDir" | "runtimeResources" | "workflow"
-  >,
-): string {
-  return ctx.runtimeResources?.agentRunDir ?? ctx.workflow.runDirPath;
-}

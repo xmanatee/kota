@@ -6,11 +6,6 @@ import { describe, expect, it } from "vitest";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
-  declaresRenderedEvidence,
-  hasNamedRenderedEvidence,
-} from "#modules/repo-tasks/task-queue-validation.js";
-import {
-  buildConsolidationTaskBody,
   buildConsolidationTaskFile,
   consolidationTaskIdForCapability,
   detectFanOutBatches,
@@ -258,40 +253,6 @@ describe("consolidation task body", () => {
   function makeBatch(): FanOutBatch {
     return detectFanOutBatches(RETRACT_FAN_OUT_RECORDS, { nowMs: NOW })[0]!;
   }
-
-  it("includes every required consolidation dimension as a numbered Done When item", () => {
-    const body = buildConsolidationTaskBody(makeBatch());
-    const dimensions = [
-      "Information architecture",
-      "Cross-client capability contract",
-      "Duplicated route/error/rendering logic",
-      "Provider readiness and unavailable state",
-      "Live runtime/screenshot/transcript evidence",
-      "Stale legacy affordances",
-      "Docs/AGENTS reality check",
-      "Accepted critic warning review",
-    ];
-    for (const dim of dimensions) {
-      expect(body).toContain(dim);
-    }
-    const numberedMatches = body.match(/^\d+\.\s\*\*/gm) ?? [];
-    expect(numberedMatches.length).toBe(8);
-  });
-
-  it("acceptance evidence names rendered/runtime artifact kinds (so per-surface tests cannot satisfy it)", () => {
-    const body = buildConsolidationTaskBody(makeBatch());
-    const file = `---\nid: x\n---\n${body}`;
-    expect(declaresRenderedEvidence(file)).toBe(true);
-    expect(hasNamedRenderedEvidence(file)).toBe(true);
-  });
-
-  it("removing the rendered-artifact bullets from acceptance evidence flips the gate to fail (critic-fixture)", () => {
-    const body = buildConsolidationTaskBody(makeBatch());
-    const stripped = body.replace(/## Acceptance Evidence[\s\S]*$/, "## Acceptance Evidence\n\n- Per-surface unit tests pass.\n");
-    const file = `---\nid: x\n---\n${stripped}`;
-    expect(declaresRenderedEvidence(file)).toBe(true);
-    expect(hasNamedRenderedEvidence(file)).toBe(false);
-  });
 
   it("buildConsolidationTaskFile produces a parseable normalized task with area=client and priority=p2", () => {
     const file = buildConsolidationTaskFile(

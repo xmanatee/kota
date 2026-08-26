@@ -1,6 +1,3 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   EXTERNAL_PATTERN_DECISIONS,
@@ -8,13 +5,6 @@ import {
   type ExternalPatternVerdict,
 } from "./external-pattern-decisions.js";
 
-const REPO_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  cwd: import.meta.dirname,
-  encoding: "utf-8",
-}).trim();
-
-const AGENTS_MD_PATH = join(REPO_ROOT, "src/modules/autonomy/AGENTS.md");
-const SECTION_HEADER = "## External Pattern Decisions";
 const VERDICTS: readonly ExternalPatternVerdict[] = [
   "adopt",
   "reject",
@@ -23,29 +13,7 @@ const VERDICTS: readonly ExternalPatternVerdict[] = [
 ];
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function extractCatalogPatterns(): string[] {
-  const text = readFileSync(AGENTS_MD_PATH, "utf-8");
-  const start = text.indexOf(`\n${SECTION_HEADER}\n`);
-  if (start < 0) {
-    throw new Error(
-      `${AGENTS_MD_PATH} is missing "${SECTION_HEADER}" section header`,
-    );
-  }
-  const after = text.slice(start + SECTION_HEADER.length + 2);
-  const nextHeaderIdx = after.search(/\n## /);
-  const sectionBody = nextHeaderIdx < 0 ? after : after.slice(0, nextHeaderIdx);
-
-  const labels: string[] = [];
-  const bulletLineRe = /^- \*\*([^*]+?)\.\*\*/;
-  for (const line of sectionBody.split("\n")) {
-    const match = bulletLineRe.exec(line);
-    if (!match) continue;
-    labels.push(match[1].trim());
-  }
-  return labels;
-}
-
-describe("external pattern decisions sidecar", () => {
+describe("external pattern decision catalog", () => {
   it("declares at least one entry", () => {
     expect(EXTERNAL_PATTERN_DECISIONS.length).toBeGreaterThan(0);
   });
@@ -75,12 +43,6 @@ describe("external pattern decisions sidecar", () => {
       expect(Number.isNaN(parsed.getTime()), `${where}.date not parseable`).toBe(false);
       expect(parsed.toISOString().slice(0, 10), `${where}.date roundtrip`).toBe(entry.date);
     }
-  });
-
-  it("matches the AGENTS.md catalog 1:1 by pattern label", () => {
-    const catalog = extractCatalogPatterns();
-    const sidecar = EXTERNAL_PATTERN_DECISIONS.map((d) => d.pattern);
-    expect(catalog).toEqual(sidecar);
   });
 
   it("rejects duplicate pattern labels", () => {

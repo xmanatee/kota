@@ -21,9 +21,10 @@ describe("CLI entry points", () => {
 
     const importTarget = importMatch![1];
     const importResolved = resolve(resolved, "..", importTarget);
-    const srcVariant = importResolved.replace("/dist/", "/src/").replace(/\.js$/, ".ts");
-    const exists = existsSync(importResolved) || existsSync(srcVariant);
-    expect(exists, `import target not found: ${importTarget} (checked ${importResolved} and ${srcVariant})`).toBe(true);
+    expect(
+      existsSync(importResolved),
+      `built import target not found: ${importTarget} (checked ${importResolved})`,
+    ).toBe(true);
   });
 
   it("uses the source entry point for workspace commands", () => {

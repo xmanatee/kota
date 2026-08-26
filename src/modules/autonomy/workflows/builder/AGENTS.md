@@ -22,8 +22,6 @@ Builder is a business workflow, not a private execution runtime.
   isolation, integration, and recovery are tested by the shared runtime that
   owns those behaviors.
 
-## Success Evidence
-
-Agents use `$KOTA_RUN_DIR` for success criteria and commit message, and
-`$KOTA_RUN_ARTIFACT_DIR` for declared artifacts. Keep criteria natural and
-non-duplicative. Runtime owns persistence and publication of run evidence.
+The agent writes its proposed commit message to
+`$KOTA_RUN_DIR/commit-message.txt`. Runtime owns durable run evidence and
+publication; builder does not maintain a parallel evidence manifest.

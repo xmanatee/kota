@@ -2,132 +2,78 @@
 
 End-to-end replay of explorer's `explore` agent step through the eval-harness
 replay adapter, plus the post-agent publication and watchlist-update steps that
-fire after a successful explore.
-The fixture regression-gates the explorer workflow-layer paths — the five
-repair checks (`task-queue-valid`, `architecture-ready-coverage`,
-`strategic-ready-coverage`, `exploration-rationale`, and
-`watchlist-update-commit-message`), the staged explorer-publication request,
-the `watchlist-updates.json` reader, and runtime-owned integration — against
-the same subprocess executor path the daemon runs
-in production, without invoking a real LLM.
+run after a successful exploration. The fixture regression-gates the current
+repair checks (`task-queue-valid` and `watchlist-update-commit-message`), the
+staged explorer-publication request, the `watchlist-updates.json` reader, and
+runtime-owned integration through the same subprocess executor path used in
+production, without invoking a real LLM.
 
-Source run: `2026-04-24T22-26-19-626Z-explorer-tocx88` — the real explorer
-run that committed `a04e3432` ("Seed empty queue with p1 task to gate
-replay fixtures from pnpm test"). That run's `apply-watchlist-updates`
-output was `{ applied: [] }` (no watchlist mutations), so the recorded
-fileOperations are just the one p1 task file and the run-directory
-`commit-message.txt`.
+Source run: `2026-04-24T22-26-19-626Z-explorer-tocx88`, which committed
+`a04e3432` ("Seed empty queue with p1 task to gate replay fixtures from pnpm
+test"). Its `apply-watchlist-updates` output was `{ applied: [] }`, so the
+current recording writes one p1 task and the run-directory
+`commit-message.txt` artifact.
 
 ## Shape
 
 - `initial/` seeds the minimal repo scaffolding explorer needs:
-  - `package.json` whose script entries (`build`, `typecheck`, `lint`,
-    `lint:fix`, `test`) are idempotent `"true"` no-ops and `validate-tasks`
-    forwards to KOTA's own `validate-queue.js` via `$KOTA_DIST_DIR`.
-  - Stub `dist/cli.js` for any `node dist/cli.js …` call the fixture
-    project makes.
-  - A `.gitignore` mirroring the repo-root `.kota/` ignore shape.
-  - `data/watchlist.yaml` with one `seen` entry so `inspect-watchlist`
-    has something parseable to expose — the content is immaterial because
-    the replay adapter ignores agent inputs; this is about proving the
-    parser survives.
-  - No prior explorer cooldown row, so `explorationRefreshDue` fires.
-  - Empty `data/tasks/` tree: no seeded tasks, so
+  - `package.json` supplies deterministic no-op project scripts and forwards
+    `validate-tasks` to KOTA's validator via `$KOTA_DIST_DIR`.
+  - Stub `dist/cli.js` supports fixture-project CLI calls.
+  - A `.gitignore` mirrors the repo-root `.kota/` ignore shape.
+  - `data/watchlist.yaml` contains one parseable `seen` entry so
+    `inspect-watchlist` exercises the reader.
+  - The task tree is empty and no prior explorer cooldown state is seeded, so
     `queueEmpty && explorationRefreshDue` makes `needsAttention: true`.
-    The recorded replay writes the one `data/tasks/ready/task-*.md` the
-    real run landed into the empty queue.
-
-- `recordings/explore.json` carries the explorer agent's real response
-  envelope and the commit-diff `fileOperations` that reproduce the
-  post-agent repo state the source run produced: the one new ready-queue
-  task file (`task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor.md`,
-  `priority: p1`) and the `{{runDir}}`-templated run-directory artifact
-  (`commit-message.txt`). Both entries were written by
-  `pnpm kota eval record-agent-step`; no hand-authored fileOperations.
-
-- `{{runDir}}` inside a recorded path is substituted with the current
-  fixture run directory at replay time so the recording is portable
-  across subprocess runs.
+- `recordings/explore.json` carries the explorer agent's source response
+  envelope and current replay operations: one new ready task
+  (`task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor`, priority `p1`)
+  plus `{{runDir}}/commit-message.txt`.
+- `{{runDir}}` is substituted with the current fixture run directory at replay
+  time so the recording is portable across subprocess runs.
 
 ## Why this shape
 
-Explorer is the fourth load-bearing autonomy workflow to gain replay-backed
-regression coverage. Its workflow layer has the widest post-agent surface
-of any autonomy workflow besides improver: a staged post-integration
-publication request, a JSON-reader
-step that applies operator-authored watchlist mutations
-(`apply-watchlist-updates`), five repair checks, and runtime-owned writer
-integration. Those are all plumbing-shape contracts that replay can catch
-cheaply — generator-quality regressions (the real explore-step judgment)
-still land in production runs and in the complementary live fixture
-(`explorer-strategic-ready-trip`).
+Explorer has a broad post-agent surface: a staged publication request, a
+reader that applies agent-authored watchlist updates, two repair checks, and
+runtime-owned writer integration. The replay covers those plumbing contracts
+without grading the open-ended quality of the source agent's exploration.
 
-The fixture's `initial/` seed has to do one job the builder/decomposer
-fixtures did not: keep `needsAttention: true` on every materialization.
-Explorer's agent gate is:
+The absent task and cooldown state keep the agent gate deterministic:
 
 ```
-needsAttention = !dirty && (queueEmpty || queueThin) && explorationRefreshDue
+needsAttention = !dirty && !locallyBlocked && queueNeedsExploration && explorationRefreshDue
 ```
 
-`queueEmpty` is deterministic (the seed has an empty `data/tasks/` tree).
-`explorationRefreshDue` compares `Date.now() - lastExplorationAt` against
-a 30-minute threshold, so a hard-coded `lastExplorationAt` would silently
-stop firing once the fixture aged past threshold. The runner's
-`applyFixtureTemplates` rewrites `{{NOW_MINUS_HOURS:6}}` on every
-materialization so the seed always looks at least six hours old at replay
-  time — the same replay-scaffold pattern used by the builder fixture for its
-evidence-gate seed.
+By replaying the explore step, the fixture verifies that:
 
-By replaying the explore step, this fixture exercises every workflow-layer
-path the real run hit after trigger receipt:
+- trigger payload and canonical explorer state reach `inspect-queue`, while
+  the seeded watchlist reaches `inspect-watchlist`;
+- the agent write scope consumes the recorded task and commit-message writes;
+- `task-queue-valid` forwards to KOTA's validator against the fixture project,
+  and `watchlist-update-commit-message` validates the current run-directory
+  contract;
+- `record-exploration-publication` stages the state update that becomes durable
+  only after writer integration;
+- `apply-watchlist-updates` handles an absent update report as an empty apply;
+- runtime-owned writer integration publishes the replayed mutation set.
 
-- trigger payload round-trips through the subprocess executor to
-  `inspect-queue` and `inspect-watchlist` (the `_runId` forces a
-  deterministic run directory the predicates read from);
-- the agent step's writeScope (`data/tasks/`, `data/watchlist.yaml`) absorbs
-  the replay's file operations the same way it absorbs a real agent's
-  Write/Edit/Bash calls;
-- every repair check runs (`task-queue-valid` via the stubbed
-  `validate-tasks` script that forwards to KOTA's own validator against
-  the fixture project root; `architecture-ready-coverage` and
-  `strategic-ready-coverage` inspect the same `data/tasks/ready/` tree;
-  `exploration-rationale` and `watchlist-update-commit-message` validate the
-  replay's declared decision and watchlist-update intent);
-- `record-exploration-publication` stages the state update that becomes
-  durable only after writer integration;
-- `apply-watchlist-updates` reads the run directory's
-  `watchlist-updates.json` (absent in this source run — the step records
-  an empty-apply success, which is itself a gated plumbing path);
-- runtime-owned writer integration publishes the replay's exact mutation set.
-
-## Complementary fixtures
-
-`explorer-strategic-ready-trip` stays a live-LLM fixture: its job is to
-regression-gate the `strategic-ready-coverage` repair trip against real
-generator judgment (an agent that might drift into `p3`-only work under a
-thin-queue trigger). The two fixtures cover complementary surfaces:
-the live one pays for a real LLM call to probe generator quality, this one
-pays zero LLM cost to pin workflow-layer plumbing.
-
-With this fixture, all four load-bearing autonomy workflows (decomposer,
-builder, improver, explorer) now have recorded-agent-step replay coverage.
+Only the two current repair checks are represented. Generator judgment remains
+outside this replay fixture's scope.
 
 ## Recorder extraction
 
-The recording is produced by `pnpm kota eval record-agent-step` with no
-hand-authored files. One invocation:
+The recording originates from:
 
-- `pnpm kota eval record-agent-step --run-id
-  2026-04-24T22-26-19-626Z-explorer-tocx88 --step explore --fixture
-  explorer-agent-call-replay` writes `recordings/explore.json`. The
-  recorder resolves the source run's commit SHA from `steps/commit.json`
-  (`a04e3432053a…`) and walks that commit's diff, so every
-  `fileOperations` entry for a repo-tree path comes directly from
-  `git show <sha>:<path>`. Run-directory artifacts (`commit-message.txt`)
-  are not committed, so they come from the Write-event scan of the
-  step's `events.jsonl` and stay templated to `{{runDir}}`.
+```sh
+pnpm kota eval record-agent-step \
+  --run-id 2026-04-24T22-26-19-626Z-explorer-tocx88 \
+  --step explore \
+  --fixture explorer-agent-call-replay
+```
 
-Re-extraction after a better source run exists (e.g. one whose
-`watchlist-updates.json` is non-empty so the `applyWatchlistUpdates`
-apply-path is exercised end-to-end) is a single CLI call.
+The recorder resolves the source commit from `steps/commit.json` and walks its
+diff for repo-tree operations. The curated recording retains
+`commit-message.txt`, the sole current agent-authored run-directory artifact.
+A future source run with a non-empty `watchlist-updates.json` can extend the
+fixture to cover the watchlist apply path.

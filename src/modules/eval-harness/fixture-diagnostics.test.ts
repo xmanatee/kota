@@ -34,9 +34,6 @@ describe("loadFixture diagnostics", () => {
         sourceGlobs: ["src/**/*.ts"],
         excludeGlobs: ["src/generated/**"],
         thresholds: {
-          minSourceGrowthBytes: 1,
-          maxBaselineBytesGrowthRatio: 1.1,
-          maxPreviousBytesGrowthRatio: 1.1,
           duplicateChunkLines: 3,
           duplicateChunkMinOccurrences: 2,
           maxLargestFileBytesShare: 0.8,

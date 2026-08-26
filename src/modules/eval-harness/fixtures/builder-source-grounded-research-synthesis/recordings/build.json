@@ -36,16 +36,6 @@
       "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add source-grounded research synthesis eval fixture\n\nSeeds a replay-backed builder fixture with a local research packet, deterministic synthesis verifier, calibration cases, objective citation-discipline metric, and replayed builder/critic outputs.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Read the local source packet and choose the support triage ingestion path from decisive evidence rather than source-count majority.\n2. Write `research-synthesis-result.json` with selected decision and cited real source ids/paths.\n3. Include rejected-source reasons for stale, speculative, and scoped-conflicting sources.\n4. Include conflict-resolution notes explaining why decisive evidence outranks the conflicting notes.\n5. Make `node scripts/check-research-synthesis.mjs` pass and produce `research-synthesis-verification.json`.\n6. Move `task-synthesize-support-triage-ingestion-decision` from ready to done while keeping verifier/source/fixture files unchanged.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `research-synthesis-result.json` selects `local-first-markdown` from decisive security and pilot evidence rather than source-count majority.\n2. The artifact cites only real local source ids and paths from `research/packet/`, including `security-review-2026-06` and `pilot-results-2026-06`.\n3. The artifact rejects the stale, speculative, and scoped-conflicting Cloud OCR notes with concrete reasons.\n4. The conflict-resolution section explains why decisive security and pilot evidence outrank the conflicting notes.\n5. `node scripts/check-research-synthesis.mjs` passes, writes `research-synthesis-verification.json`, and reports source ids, rejected-source ids, conflict-resolution evidence, and `sourceDisciplineScore: 1`.\n6. The task file is removed from `data/tasks/ready/`, written to `data/tasks/done/`, has `status: done`, and replayed changed paths stay within the accepted artifact/task set.\n"
     }
   ]
 }

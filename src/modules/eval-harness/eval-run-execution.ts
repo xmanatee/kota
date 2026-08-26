@@ -1,10 +1,10 @@
-import { resolve } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import {
   PRESET_ENV_VAR,
   resolveActivePresetFromConfig,
 } from "#core/model/preset.js";
+import { resolveKotaBinary } from "#core/util/kota-install-paths.js";
 import type { EvalRunOptions } from "./client.js";
 import type { ResourceProfile } from "./fixture-run.js";
 import {
@@ -135,7 +135,7 @@ export function createEvalRunExecution(
   const executorEnv = executorExtraEnvForRun(projectDir, isolationBackend, env);
   return {
     executor: createSubprocessExecutor({
-      kotaBinaryPath: resolve(projectDir, "bin/kota.mjs"),
+      kotaBinaryPath: resolveKotaBinary(),
       isolationBackend,
       extraEnv: executorEnv,
       providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(

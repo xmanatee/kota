@@ -34,16 +34,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Implement a faithful executable return-label decision contract in `src/spec-contract.mjs`.\n2. Make `node scripts/check-spec-faithfulness.mjs` pass against official, adversarial, and hidden cases.\n3. Make `node scripts/check-spec-faithfulness.mjs --self-test-shortcuts` prove shortcut candidates fail.\n4. Accept both official valid examples and valid adversarial alternatives, including alternate output shapes.\n5. Write `spec-faithfulness-result.json` with requirement ids, accepted valid cases, rejected adversarial cases, source hashes, objective metrics, and final verdict.\n6. Move `task-author-return-label-spec-contract` from ready to done without editing the source packet or verifier.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `src/spec-contract.mjs` validates malformed inputs, online windows, gold extension, store routing, exclusions, damaged items, proof-of-purchase denials, and equivalent output shapes.\n2. The main verifier passes all official, visible adversarial, and hidden checker cases.\n3. The shortcut self-test reports guards for accept-all, single-reference, omitted-assumption, reject-valid, hidden-case hardcoding, source edits, verifier edits, and prose-only artifacts.\n4. The observed accepted-valid case set includes official valid examples plus valid adversarial alternatives.\n5. `spec-faithfulness-result.json` contains all required structured fields and records `adversarialRejections: 5`.\n6. The task is removed from `data/tasks/ready/`, written to `data/tasks/done/`, and has `status: done`; source-packet and verifier files are untouched.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add formal spec faithfulness eval fixture task\n\nImplements the fixture return-label executable spec contract, records structured faithfulness evidence, proves shortcut guards, and moves the seeded task to done.\n"
     }

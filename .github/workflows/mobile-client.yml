@@ -5,11 +5,26 @@ on:
     branches: [main]
     paths:
       - 'clients/mobile/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/mobile-client.yml'
   pull_request:
     paths:
       - 'clients/mobile/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/mobile-client.yml'
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -23,15 +38,25 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.32.1
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-          cache-dependency-path: clients/mobile/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            clients/mobile/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install generator dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated contract bindings
+        working-directory: .
+        run: pnpm check:ui-bindings
+
+      - name: Install client dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck

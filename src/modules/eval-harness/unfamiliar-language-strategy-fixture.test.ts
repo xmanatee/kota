@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import {
-  cpSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -15,6 +14,7 @@ import {
 } from "./fixture.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
 import { evaluatePredicate } from "./predicates.js";
+import { copyFixtureInitialState } from "./runner-materialize.js";
 import { TEST_EXECUTION_PROFILE } from "./runner-test-profiles.js";
 import { createFakeExecutableVerifierSandbox } from "./subprocess-executor-test-helpers.js";
 
@@ -22,8 +22,6 @@ const FIXTURE_ID = "builder-unfamiliar-language-strategy-construction";
 const FIXTURES_ROOT = join(process.cwd(), "src/modules/eval-harness/fixtures");
 const RUN_ID = "fixture-builder-run";
 const REQUIRED_RUN_ARTIFACTS = [
-  "success-criteria.txt",
-  "success-criteria-verified.txt",
   "commit-message.txt",
 ] as const;
 const TEST_VERIFIER = createFakeExecutableVerifierSandbox();
@@ -51,7 +49,7 @@ describe("unfamiliar-language strategy fixture", () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
     const workingDir = mkdtempSync(join(tmpdir(), "kota-spool-fixture-"));
     try {
-      cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+      copyFixtureInitialState(fixture.initialStateDir, workingDir);
       expectGitOk(workingDir, ["init", "-q"]);
       expectGitOk(workingDir, [
         "config",

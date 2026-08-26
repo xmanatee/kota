@@ -142,23 +142,14 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects runs already covered by existing real-failure fixture provenance", () => {
-    seedRun(projectDir, "run-duplicate", {
+    const sourceRunId = "2026-04-23T00-03-55-062Z-research-retry-u92f1u";
+    seedRun(projectDir, sourceRunId, {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
-    writeJson(
-      join(projectDir, "src/modules/eval-harness/fixtures/covered/fixture.json"),
-      {
-        id: "covered",
-        provenance: {
-          kind: "real-failure",
-          sourceRunId: "run-duplicate",
-        },
-      },
-    );
 
     const result = mineFixtureCandidates(projectDir, {
-      runIds: ["run-duplicate"],
+      runIds: [sourceRunId],
       outputDir: "out",
     });
 
@@ -166,7 +157,9 @@ describe("fixture candidate mining", () => {
     expect(candidate.status).toBe("rejected");
     expect(candidate.disposition).toBe("duplicate");
     expect(candidate.reasonCodes).toContain("duplicate-existing-fixture");
-    expect(candidate.duplicateCoverage.fixtureIds).toEqual(["covered"]);
+    expect(candidate.duplicateCoverage.fixtureIds).toEqual([
+      "research-retry-agent-call-replay",
+    ]);
   });
 
   it("rejects network-bound and auth-walled command evidence", () => {

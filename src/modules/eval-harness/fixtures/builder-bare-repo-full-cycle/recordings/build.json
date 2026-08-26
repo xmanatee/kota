@@ -39,16 +39,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Reconstruct minimal package metadata with a runnable `pnpm test` command.\n2. Add dependency-free Node verification tests covering the documented examples and marker.\n3. Fix `normalizeProjectCode` punctuation and empty-code behavior.\n4. Pass the local behavior checker with required tests enabled.\n5. Move `task-repair-project-code-full-cycle` from ready to done.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `package.json` now has dependency-free build/typecheck/lint repair scripts plus exact `test: node --test test/project-code.test.mjs`.\n2. `test/project-code.test.mjs` uses Node's built-in test runner, includes `KOTA_FULL_CYCLE_VERIFICATION`, and covers `North_Wind / 42`, `Alpha__BETA---99`, and `!!!`.\n3. `src/project-code.mjs` now splits on non-alphanumeric runs, joins segments with one hyphen, and throws the documented empty-code TypeError.\n4. `pnpm test` and `node scripts/check-behavior.mjs --max-failures 0 --require-tests` pass under the fixture predicates.\n5. The task file is written to `data/tasks/done/` with `status: done` and removed from `data/tasks/ready/`.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Repair project-code full-cycle fixture task\n\nReconstructs package metadata, adds Node test coverage for the documented project-code normalization cases, fixes punctuation and empty-code behavior, and moves the seeded task to done.\n"
     }

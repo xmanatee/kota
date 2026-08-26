@@ -12,7 +12,7 @@
  * `requestStrict<T>` and depends on this protocol shape.
  */
 
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,9 +68,6 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "eval-routes-"));
-    mkdirSync(join(projectDir, "src/modules/eval-harness/fixtures"), {
-      recursive: true,
-    });
   });
 
   afterEach(() => {
@@ -92,20 +89,6 @@ describe("evalHarnessRoutes POST /api/eval/run", () => {
       res: ServerResponse,
     ) => Promise<void>;
   }
-
-  it("emits 200 + { ok: false, reason: 'no_fixtures', message } when the fixtures dir is empty", async () => {
-    const handler = findRunHandler();
-    const { res, result } = mockResponse();
-    await handler(mockRequest("{}"), res);
-    expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({
-      ok: false,
-      reason: "no_fixtures",
-    });
-    const body = result.body as { message: string };
-    expect(typeof body.message).toBe("string");
-    expect(body.message.length).toBeGreaterThan(0);
-  });
 
   it("emits 200 + { ok: false, reason: 'fixture_provenance', message } when the requested fixture does not exist", async () => {
     const handler = findRunHandler();

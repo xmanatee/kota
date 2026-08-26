@@ -8,6 +8,8 @@ const CLI_TEST_FILES = [
   "src/cli.test.ts",
   "src/module-cli-commands.integration.test.ts",
 ];
+const EVAL_TEST_FILES = "src/modules/eval-harness/**/*.test.ts";
+const INTEGRATION_TEST_FILES = "src/**/*.integration.test.ts";
 const TEST_EXCLUDES = [
   "**/node_modules/**",
   "**/dist/**",
@@ -18,6 +20,12 @@ const CLI_PROJECT_EXCLUDES = [
   "src/core/**/*.test.ts",
   "src/modules/**/*.test.ts",
   "src/!(cli|module-cli-commands.integration).test.ts",
+];
+const OWNER_PROJECT_EXCLUDES = [
+  ...TEST_EXCLUDES,
+  ...CLI_TEST_FILES,
+  EVAL_TEST_FILES,
+  INTEGRATION_TEST_FILES,
 ];
 
 export default defineConfig({
@@ -30,7 +38,7 @@ export default defineConfig({
     conditions: ["source"],
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: [],
     // Eval-harness fixture `initial/` trees are verbatim snapshots of repo
     // source (pulled via `git show <commit>^:<path>` by the recorder). They
     // are not part of the KOTA codebase; running them as tests picks up
@@ -53,9 +61,30 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "main",
-          exclude: [...TEST_EXCLUDES, ...CLI_TEST_FILES],
+          name: "owner",
+          include: ["src/**/*.test.ts"],
+          exclude: OWNER_PROJECT_EXCLUDES,
           sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: [INTEGRATION_TEST_FILES],
+          exclude: [...TEST_EXCLUDES, EVAL_TEST_FILES, ...CLI_TEST_FILES],
+          maxWorkers: 2,
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "eval",
+          include: [EVAL_TEST_FILES],
+          exclude: TEST_EXCLUDES,
+          maxWorkers: 2,
+          sequence: { groupOrder: 2 },
         },
       },
       {
@@ -67,7 +96,7 @@ export default defineConfig({
           // project rerun unrelated focused tests.
           exclude: CLI_PROJECT_EXCLUDES,
           maxWorkers: 1,
-          sequence: { groupOrder: 1 },
+          sequence: { groupOrder: 3 },
         },
       },
     ],

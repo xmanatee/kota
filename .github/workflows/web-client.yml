@@ -1,0 +1,62 @@
+name: Web client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'clients/web/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
+      - '.github/workflows/web-client.yml'
+  pull_request:
+    paths:
+      - 'clients/web/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
+      - '.github/workflows/web-client.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            clients/web/pnpm-lock.yaml
+
+      - name: Install generator dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated contract bindings
+        working-directory: .
+        run: pnpm check:ui-bindings
+
+      - name: Install client dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate client
+        run: pnpm typecheck && pnpm lint && pnpm test && pnpm build

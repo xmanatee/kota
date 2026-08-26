@@ -1,6 +1,15 @@
 
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
@@ -30,6 +39,26 @@ function runGitSync(cwd: string, args: string[]): void {
       `git ${args.join(" ")} failed in ${cwd}${detail ? `: ${detail}` : ""}`,
     );
   }
+}
+
+function restoreFixtureIgnoreFiles(directory: string): void {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      restoreFixtureIgnoreFiles(path);
+    } else if (entry.isFile() && entry.name === "fixture.gitignore") {
+      renameSync(path, join(directory, ".gitignore"));
+    }
+  }
+}
+
+/** Copy the canonical, package-safe fixture tree into its executable shape. */
+export function copyFixtureInitialState(
+  initialStateDir: string,
+  workingDir: string,
+): void {
+  cpSync(initialStateDir, workingDir, { recursive: true });
+  restoreFixtureIgnoreFiles(workingDir);
 }
 
 /**
@@ -98,7 +127,7 @@ export function materializeFixtureWorkingDirAt(params: {
 } {
   const { fixture, workingDir } = params;
   mkdirSync(workingDir, { recursive: true });
-  cpSync(fixture.initialStateDir, workingDir, { recursive: true });
+  copyFixtureInitialState(fixture.initialStateDir, workingDir);
   // Rewrite `{{NOW_MINUS_HOURS:N}}` / `{{NOW_MINUS_MINUTES:N}}` placeholders so
   // fixtures that depend on a sliding time window (e.g. improver reading a
   // "failed in the last 24h" run under .kota/runs/) stay deterministic

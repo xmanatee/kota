@@ -40,7 +40,6 @@ export type {
   CodeHealthDiagnosticsValidationReason,
   CodeHealthDuplicateChunkMeasurement,
   CodeHealthDuplicateChunkSample,
-  CodeHealthGrowthComparison,
   CodeHealthLargestFileMeasurement,
   CodeHealthLargestFunctionMeasurement,
   CodeHealthMeasurement,

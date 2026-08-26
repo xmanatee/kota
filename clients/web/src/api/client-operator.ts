@@ -1,15 +1,15 @@
+import { apiFetch, apiJson, withProject } from "./client-runtime";
 import type {
+  AuditEntry,
   AutonomyMode,
   DaemonTaskStatusResponse,
   InteractiveSession,
+  MemoryEntry,
+  ModuleInfo,
   PendingApproval,
   PendingOwnerQuestion,
   ScheduleEntry,
-  ModuleInfo,
-  MemoryEntry,
-  AuditEntry,
 } from "./types";
-import { apiFetch, apiJson, withProject } from "./client-runtime";
 
 export const operatorApi = {
   listApprovals: (projectId: string) =>
@@ -22,39 +22,48 @@ export const operatorApi = {
     reviewDigest: string,
     note?: string,
   ) =>
-    apiJson<PendingApproval>(withProject(
-      `/api/approvals/${encodeURIComponent(id)}/approve`,
-      projectId,
-    ), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reviewDigest, note }),
-    }),
+    apiJson<PendingApproval>(
+      withProject(
+        `/api/approvals/${encodeURIComponent(id)}/approve`,
+        projectId,
+      ),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewDigest, note }),
+      },
+    ),
   rejectApproval: (projectId: string, id: string, reason?: string) =>
-    apiJson<PendingApproval>(withProject(
-      `/api/approvals/${encodeURIComponent(id)}/reject`,
-      projectId,
-    ), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
-    }),
+    apiJson<PendingApproval>(
+      withProject(`/api/approvals/${encodeURIComponent(id)}/reject`, projectId),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      },
+    ),
   approveAll: (
     projectId: string,
     reviews: Array<{ id: string; digest: string }>,
     note?: string,
   ) =>
-    apiJson<PendingApproval[]>(withProject("/api/approvals/approve-all", projectId), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reviews, note }),
-    }),
+    apiJson<PendingApproval[]>(
+      withProject("/api/approvals/approve-all", projectId),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, note }),
+      },
+    ),
   rejectAll: (projectId: string, reason?: string) =>
-    apiJson<PendingApproval[]>(withProject("/api/approvals/reject-all", projectId), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
-    }),
+    apiJson<PendingApproval[]>(
+      withProject("/api/approvals/reject-all", projectId),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      },
+    ),
   listOwnerQuestions: () =>
     apiJson<{ questions: PendingOwnerQuestion[] }>("/api/owner-questions"),
   answerOwnerQuestion: (id: string, answer: string) =>
@@ -76,11 +85,12 @@ export const operatorApi = {
       },
     ),
   getTasks: () => apiJson<DaemonTaskStatusResponse>("/api/tasks"),
-  createTask: (title: string, summary: string) => apiJson<{ id: string }>("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, summary }),
-  }),
+  createTask: (title: string, summary: string) =>
+    apiJson<{ id: string }>("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, summary }),
+    }),
   moveTask: (id: string, state: string) =>
     apiJson<{ ok: boolean }>(`/api/tasks/${encodeURIComponent(id)}/state`, {
       method: "PATCH",
@@ -94,14 +104,18 @@ export const operatorApi = {
       body: JSON.stringify({ body }),
     }),
   listSessions: (projectId: string) =>
-    apiJson<{ sessions: InteractiveSession[] }>(withProject("/api/sessions", projectId)),
+    apiJson<{ sessions: InteractiveSession[] }>(
+      withProject("/api/sessions", projectId),
+    ),
   createSession: (projectId: string, autonomyMode?: AutonomyMode) =>
     apiJson<{ session_id: string; autonomy_mode?: AutonomyMode }>(
       withProject("/api/sessions", projectId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(autonomyMode ? { autonomy_mode: autonomyMode } : {}),
+        body: JSON.stringify(
+          autonomyMode ? { autonomy_mode: autonomyMode } : {},
+        ),
       },
     ),
   setSessionAutonomyMode: (id: string, mode: AutonomyMode) =>
@@ -117,11 +131,12 @@ export const operatorApi = {
     }),
   deleteSession: (id: string) =>
     apiFetch(`/api/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  chat: (message: string, sessionId: string) => apiFetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, session_id: sessionId }),
-  }),
+  chat: (message: string, sessionId: string) =>
+    apiFetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, session_id: sessionId }),
+    }),
   getSchedules: () => apiJson<{ schedules: ScheduleEntry[] }>("/api/schedules"),
   getModules: () => apiJson<{ modules: ModuleInfo[] }>("/api/modules"),
   getMemory: () => apiJson<{ entries: MemoryEntry[] }>("/api/memory"),

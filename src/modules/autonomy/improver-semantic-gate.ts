@@ -109,13 +109,11 @@ export function createImproverSemanticCheck(
         diffStat,
         diffContent,
         commitMessage,
-        fallbackFileLineCitations,
       } = inspection;
       const verdictContext = {
         runId: ctx.workflow.runId,
         workflow: ctx.workflow.name,
         reviewerPromptHash: getImproverSemanticGatePromptHash(),
-        fallbackFileLineCitations,
       };
 
       const userMessage = [

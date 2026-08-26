@@ -161,7 +161,7 @@ describe("critic verdict handling", () => {
     });
   });
 
-  it("records no-citation accepted verdicts as citation-backed scrutiny", async () => {
+  it("preserves a clean accepted verdict without manufacturing a warning", async () => {
     const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     writeDoingTask(dir, "task-thin.md", "---\ntitle: Do thin\n---\nDo thin.");
@@ -187,35 +187,32 @@ describe("critic verdict handling", () => {
 
     const check = createCriticCheck({ runDirPath: runDir });
     const result = await (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP);
-    expect(result).toMatch(/pass_with_warnings/);
+    expect(result).toMatch(/verdict — pass/);
 
     const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
     expect(artifact).toMatchObject({
-      verdict: "pass_with_warnings",
+      verdict: "pass",
       critical_issues: [],
+      warnings: [],
       summary: "All required work is complete.",
       reviewerPromptHash: getCriticPromptHash(),
     });
-    expect(artifact.warnings).toEqual([
-      expect.stringMatching(/Reviewed diff refs: [^:]+:\d+\./),
-    ]);
-
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
     expect(scrutiny).toMatchObject({
       surface: "critic",
       workflow: "builder",
       taskId: "task-thin",
       reviewerPromptHash: getCriticPromptHash(),
-      decision: "pass_with_warnings",
-      thinAcceptance: false,
+      decision: "pass",
+      thinAcceptance: true,
       signals: {
-        warningCount: 1,
-        citedFileLineCount: 1,
+        warningCount: 0,
+        citedFileLineCount: 0,
       },
     });
   });
 
-  it("records semantic-gate accepted verdicts with fallback citations", () => {
+  it("does not turn semantic-gate acceptance into a citation warning", () => {
     const dir = makeTmpDir();
     const runDir = makeRunDir(dir);
     const result = handleVerdict(
@@ -231,26 +228,23 @@ describe("critic verdict handling", () => {
         runId: "test-run",
         workflow: "improver",
         reviewerPromptHash: getImproverSemanticGatePromptHash(),
-        fallbackFileLineCitations: ["src/modules/autonomy/improver-semantic-gate.ts:106"],
       },
     );
 
-    expect(result).toMatch(/pass_with_warnings/);
+    expect(result).toMatch(/verdict — pass/);
     const artifact = JSON.parse(readFileSync(join(runDir, "semantic-gate-review.json"), "utf8"));
-    expect(artifact.warnings[0]).toContain(
-      "src/modules/autonomy/improver-semantic-gate.ts:106",
-    );
+    expect(artifact.warnings).toEqual([]);
 
     const scrutiny = JSON.parse(readFileSync(join(runDir, "review-scrutiny.json"), "utf8"));
     expect(scrutiny).toMatchObject({
       surface: "semantic-gate",
       workflow: "improver",
       reviewerPromptHash: getImproverSemanticGatePromptHash(),
-      decision: "pass_with_warnings",
-      thinAcceptance: false,
+      decision: "pass",
+      thinAcceptance: true,
       signals: {
-        warningCount: 1,
-        citedFileLineCount: 1,
+        warningCount: 0,
+        citedFileLineCount: 0,
       },
     });
   });

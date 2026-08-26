@@ -90,7 +90,7 @@ const REPAIR_REQUIRED_COMMANDS = [
 
 describe("AGY scenario contract", () => {
   it("selects one isolated, scope-checked fixture per required scenario", () => {
-    const root = fixturesRootFor(process.cwd());
+    const root = fixturesRootFor();
     expect(AGY_MODEL_EVALUATION_SCENARIOS.map((scenario) => scenario.kind))
       .toEqual(["planning", "scoped-coding", "repair"]);
     for (const scenario of AGY_MODEL_EVALUATION_SCENARIOS) {

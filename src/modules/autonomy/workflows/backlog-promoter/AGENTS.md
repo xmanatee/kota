@@ -6,9 +6,9 @@ Keeps `ready/` as a short, intentional execution queue.
   a dependency-clear, non-anchor backlog task can legally enter `ready`.
 - This code-only workflow declares repository write access and task validation.
   Shared runtime owns its sandbox, capacity, recovery, commit, and publication.
-- Rank candidates deterministically by priority, narrow runtime-posture repair
-  exception, task class, strategic area, age, and id. Filter anchors and invalid
-  lifecycle transitions before ranking.
+- Rank candidates deterministically by authored priority, then age and id.
+  Filter dependencies, anchors, and invalid lifecycle transitions before
+  ranking; task class and prose do not reorder execution.
 - Promote no more than the bounded small batch. Write
   `promotion-rationale.json` with considered, selected, and rejected candidates
   plus a human-readable summary.

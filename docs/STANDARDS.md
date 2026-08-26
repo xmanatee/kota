@@ -70,6 +70,16 @@
   at external I/O boundaries, and only when the normalized result is explicit.
 - Do not add test-only production flags, hooks, or override parameters just to make tests easier.
 - Prefer designs that are naturally testable through clear boundaries and explicit inputs and outputs.
+- Encode contracts at the narrowest authoritative layer. Use types for internal
+  structure, schemas and decoders for untrusted data, package boundaries for
+  visibility, generators for language projections, and runtime policy for
+  admission or resource rules. Tests prove the behavior of those mechanisms;
+  they are not the mechanism that makes an implementation conform.
+- A shared contract suite applies only to implementations that explicitly
+  declare that contract or capability. Give the suite semantic examples that
+  every declared implementation must satisfy, and keep implementation-specific
+  behavior in the owning component. Do not make every implementation inherit a
+  growing universal checklist.
 - Test configuration consumers, not copies of configuration data. Schema and
   validator tests should exercise accepted and rejected shapes; resolution and
   integration tests should exercise precedence, propagation, no-fallback
@@ -83,6 +93,15 @@
   call counts, source text, filenames, or constructor placement. Structural
   source scans are appropriate only for security boundaries that cannot be
   expressed through types, runtime behavior, or package visibility.
+- Treat fixtures as representative inputs, boundary recordings, or authored
+  semantic examples. Do not turn copied catalogs, file trees, private object
+  shapes, or byte-identical source mirrors into product contracts. Generate
+  structural cross-language bindings from one source and author only the
+  semantic examples that generation cannot express.
+- Test doubles may replace slow or external ports such as clocks, networks,
+  credentials, and subprocess launchers. They must not reimplement workflow,
+  module, transport, persistence, or lifecycle semantics. Exercise those
+  semantics through the production host with controlled ports.
 - Keep integration suites intentionally small. A new integration scenario must
   identify the failure mode it uniquely catches; remove the replaced scenario
   or implementation-specific suite in the same change.

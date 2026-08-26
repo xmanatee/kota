@@ -6,13 +6,9 @@
  * with the shared fixtures they need. Every other unit test belongs next to
  * the code it exercises under `src/core/<area>/` or `src/modules/<module>/`.
  *
- * Three places consume this policy: the layout guard test
- * (`src/root-layout.test.ts`), the queue validator's
- * `listRootKernelHelperDebt` (`src/modules/repo-tasks/task-queue-validation.ts`),
- * and the autonomy module-boundary repair check
- * (`src/modules/autonomy/workflows/builder/repair-checks.ts`). They all
- * import from this single set so adding a new authorized root file requires
- * editing exactly one place.
+ * The layout guard test (`src/root-layout.test.ts`) consumes the complete
+ * policy. The autonomy module-boundary repair check shares the production
+ * entrypoint and cross-cutting fixture sets.
  */
 
 export const ROOT_ENTRYPOINT_SOURCES: ReadonlySet<string> = new Set([
@@ -36,7 +32,6 @@ export const ROOT_CROSS_CUTTING_TESTS: ReadonlySet<string> = new Set([
   "e2e.test.ts",
   "integration.test.ts",
   "module-e2e.test.ts",
-  "task-files.test.ts",
 ]);
 
 /**

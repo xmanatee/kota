@@ -13,16 +13,15 @@
  * task. It is intentionally pure code — agents do not decide whether a batch
  * is consolidation-ready, they receive the seeded task and execute it.
  *
- * The seeded task itself is `area: client` so the rendered-evidence
- * validator gate fires: a critic that accepts only per-surface unit tests
- * will fail because the consolidation's `## Acceptance Evidence` requires
- * rendered/runtime artifacts that span the surface family.
+ * The seeded task carries the batch evidence and desired operator outcome;
+ * the builder and critic decide which proof is sufficient for that outcome.
  */
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { classifyTaskShape } from "#modules/autonomy/report/task-classification.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import {
   getRepoTaskStateDir,
   getRepoTasksDir,
@@ -402,113 +401,48 @@ export function buildConsolidationTaskFile(
   return serializeFlatFrontMatter(attrs, buildConsolidationTaskBody(batch));
 }
 
-/**
- * Render the consolidation task body. Required check headings are present in
- * `## Done When` so a reviewer can see at a glance which dimensions must be
- * inspected. `## Acceptance Evidence` names rendered/runtime artifact kinds
- * so the rendered-evidence validator gate (which fires for `area: client`
- * tasks declaring rendered evidence in `## Done When`) cannot be cleared by
- * prose-only test logs.
- */
 export function buildConsolidationTaskBody(batch: FanOutBatch): string {
   const distinctSurfaces = [...new Set(batch.surfaces.map((s) => s.surface))].sort();
-  const surfaceList = distinctSurfaces.map((s) => `- ${s}`).join("\n");
-  const evidenceList = batch.surfaces
-    .map((s) => `- ${s.taskId} (${s.surface}, closed ${s.closedAt}) — ${s.title}`)
-    .join("\n");
+  const context = [
+    `Auto-seeded after \`${batch.capabilityKey}\` landed across ${distinctSurfaces.length} surfaces between ${batch.earliestClosedAt} and ${batch.latestClosedAt}.`,
+    "",
+    "### Fan-out batch",
+    `- Capability: \`${batch.capabilityKey}\``,
+    ...distinctSurfaces.map((surface) => `- Surface: ${surface}`),
+    ...batch.surfaces.map(
+      (surface) =>
+        `- Closed task: ${surface.taskId} (${surface.surface}, ${surface.closedAt}) — ${surface.title}`,
+    ),
+  ].join("\n");
 
-  const lines: string[] = [
-    "",
-    "## Problem",
-    "",
-    `The \`${batch.capabilityKey}\` capability shipped across ${distinctSurfaces.length} client surfaces`,
-    `(${distinctSurfaces.join(", ")}) without a holistic check on whether the surface family stayed coherent.`,
-    "Per-surface tests passed, but coherence questions only make sense across the batch:",
-    "operator workflow fit, cross-client contract consistency, duplicated route/error/rendering",
-    "logic, provider readiness, runtime evidence, and accepted critic trade-offs.",
-    "",
-    "## Multi-client fan-out batch",
-    "",
-    `Capability: \`${batch.capabilityKey}\``,
-    "",
-    "Surfaces shipped:",
-    "",
-    surfaceList,
-    "",
-    "Recently closed fan-out tasks in this batch:",
-    "",
-    evidenceList,
-    "",
-    "## Desired Outcome",
-    "",
-    `The \`${batch.capabilityKey}\` surface family is reviewed end-to-end and either confirmed coherent`,
-    "or has follow-up tasks opened for each gap. Concretely, the review produces:",
-    "",
-    "- a written verdict for each consolidation dimension below;",
-    "- rendered evidence (screenshots, screencasts, transcripts, or runtime probes) showing the",
-    "  surface family from an operator's perspective, not only per-surface unit logs;",
-    "- follow-up task ids for any duplicated rendering, missing contract conformance, stale",
-    "  legacy affordance, or unaddressed accepted critic warning surfaced during review.",
-    "",
-    "## Constraints",
-    "",
-    "- Do not silently \"fix\" a surface during this review. The output is a verdict and",
-    "  follow-up tasks; substantive changes belong in the follow-up tasks themselves.",
-    "- Per-surface unit test logs do not satisfy this review. The acceptance evidence must",
-    "  show the family from an operator's vantage point.",
-    "- Do not add a parallel cross-client docs catalog. Update scoped `AGENTS.md` near the",
-    "  surfaces being reviewed when conventions need adjustment.",
-    "- A consolidation task does not block future fan-out. Open follow-up tasks for gaps",
-    "  rather than freezing the queue.",
-    "",
-    "## Done When",
-    "",
-    `1. **Information architecture.** The \`${batch.capabilityKey}\` capability is discoverable from`,
-    "   each surface's primary navigation/menu without overloading other entries.",
-    "2. **Cross-client capability contract.** All client surfaces speak the same daemon contract",
-    "   (request shape, discriminated result arms, error codes, unavailable-state codes).",
-    "3. **Duplicated route/error/rendering logic.** Any duplicate decoder, error renderer, or",
-    "   provider-readiness probe across clients is named, with a follow-up task to fold it.",
-    "4. **Provider readiness and unavailable state.** Each surface degrades gracefully when the",
-    "   underlying provider is unavailable, surfacing the daemon's typed failure code.",
-    "5. **Live runtime/screenshot/transcript evidence.** A rendered artifact (screenshot,",
-    "   screencast, snapshot fixture, or runtime probe) per surface proves the surface family",
-    "   is coherent end-to-end, not only that per-surface tests pass.",
-    "6. **Stale legacy affordances.** Older surface affordances superseded by this fan-out are",
-    "   either removed or filed as removal tasks.",
-    "7. **Docs/AGENTS reality check.** Scoped `AGENTS.md` files near the reviewed surfaces",
-    "   describe what shipped; stale lines are pruned in the same change.",
-    "8. **Accepted critic warning review.** Any compatibility shim, baseline-only ratchet, or",
-    "   text-only visual proof previously accepted by a critic on these fan-out commits is",
-    "   either retired or has a follow-up task naming the retirement plan.",
-    "",
-    "## Source / Intent",
-    "",
-    `Auto-seeded by the fan-out-consolidator workflow after the \`${batch.capabilityKey}\` capability`,
-    `landed across ${distinctSurfaces.length} client surfaces between ${batch.earliestClosedAt}`,
-    `and ${batch.latestClosedAt}. The 2026-04-28 broad daemon review found that fan-out batches`,
-    "without a holistic consolidation pass left an overloaded operator surface despite green",
-    "per-surface tests. This task is the autonomy queue's recurring corrective pass.",
-    "",
-    "## Initiative",
-    "",
-    "Autonomy quality control: fan-out should end in a coherent product surface, not just a",
-    "checklist of parity commits. Each capability gets one consolidation review per shipped",
-    "fan-out batch, and the review's output is operator-actionable follow-up tasks.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    "- Rendered screenshots or screencasts (one per client surface) committed under a run",
-    "  directory or as snapshot fixtures, demonstrating the consolidated surface family.",
-    "- A transcript or runtime probe artifact showing each surface respects the same daemon",
-    "  contract (matching arms for the same request).",
-    "- A list of follow-up task ids opened for each consolidation finding, or a written note",
-    "  stating no follow-up was needed and why.",
-    "- Updated scoped `AGENTS.md` lines reflecting any convention adjustments arising from",
-    "  the review.",
-    "",
-  ];
-  return lines.join("\n");
+  return renderRepoTaskIntent({
+    problem:
+      `The \`${batch.capabilityKey}\` capability shipped across ${distinctSurfaces.join(", ")} ` +
+      "without a holistic check of operator workflow fit, contract consistency, duplicated client logic, and accepted trade-offs.",
+    desiredOutcome:
+      "Review the surface family end-to-end, record a verdict for each consolidation dimension, and open a focused follow-up task for every concrete gap or explain why none is needed.",
+    constraints: [
+      "Keep this task as a review; substantive fixes belong in focused follow-up tasks.",
+      "Judge the operator journey, not only per-surface unit logs.",
+      "Do not add a parallel cross-client catalog; update scoped guidance when conventions change.",
+      "Do not block future fan-out while review findings are being addressed.",
+    ],
+    doneWhen: [
+      `**Information architecture.** The \`${batch.capabilityKey}\` capability is discoverable and coherent on every listed surface.`,
+      "**Shared contract.** All surfaces use the same typed daemon request, result, error, and unavailable-state contract.",
+      "**Duplication and stale paths.** Duplicate decoders, renderers, readiness probes, and obsolete affordances are removed or have focused follow-up tasks.",
+      "**Unavailable states.** Each surface degrades clearly when its provider is unavailable.",
+      "**Operator proof.** Operator-facing evidence demonstrates the cross-surface journey.",
+      "**Guidance.** Scoped guidance reflects the resulting convention.",
+      "**Review disposition.** Accepted critic warnings are resolved, explicitly retained, or assigned a follow-up task.",
+    ],
+    context,
+    acceptanceEvidence: [
+      "Operator-facing evidence for each surface in the batch.",
+      "A contract-level probe or transcript covering the shared daemon behavior.",
+      "Follow-up task ids for findings, or a concrete no-follow-up disposition.",
+    ],
+  });
 }
 
 export type FanOutConsolidationArtifact = {

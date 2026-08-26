@@ -203,11 +203,6 @@ describe("extractAgentStepRecording", () => {
       message: "builder commit",
     });
     writeFileSync(join(runDir, "commit-message.txt"), "Builder: finish fixture\n");
-    writeFileSync(join(runDir, "success-criteria.txt"), "1. Criterion\n2. Criterion\n");
-    writeFileSync(
-      join(runDir, "success-criteria-verified.txt"),
-      "1. Verified\n2. Verified\n",
-    );
 
     const result = extractAgentStepRecording({
       projectDir,
@@ -226,16 +221,6 @@ describe("extractAgentStepRecording", () => {
       op: "write",
       path: "{{runDir}}/commit-message.txt",
       content: "Builder: finish fixture\n",
-    });
-    expect(result.recording.fileOperations).toContainEqual({
-      op: "write",
-      path: "{{runDir}}/success-criteria.txt",
-      content: "1. Criterion\n2. Criterion\n",
-    });
-    expect(result.recording.fileOperations).toContainEqual({
-      op: "write",
-      path: "{{runDir}}/success-criteria-verified.txt",
-      content: "1. Verified\n2. Verified\n",
     });
   });
 });

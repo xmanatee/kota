@@ -34,7 +34,7 @@ import {
 export function makeFakeCtx(projectDir: string): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
-      return listEvalFixtures(projectDir);
+      return listEvalFixtures();
     },
     async run(options) {
       return runEvalHarness(projectDir, options ?? {});

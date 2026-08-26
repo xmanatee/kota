@@ -253,6 +253,6 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     expect(typeof judgeStreamArgs.system).toBe("string");
     const judgeSystemText = judgeStreamArgs.system as string;
     expect(judgeSystemText).not.toContain('"preset"');
-    expect(judgeSystemText).toContain("calibrated code review critic");
+    expect(judgeSystemText).toContain("independent code review critic");
   });
 });

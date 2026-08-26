@@ -11,10 +11,14 @@
  * `DaemonTransport`.
  */
 
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  resolveKotaBinary,
+  resolveKotaRuntimeAsset,
+} from "#core/util/kota-install-paths.js";
 import { buildHarnessParityCommand } from "./cli.js";
 import type {
   HarnessParityClient,
@@ -33,13 +37,16 @@ import {
 import { harnessParityControlRoutes } from "./routes.js";
 
 function resolveDeps(ctx: ModuleContext): HarnessParityDeps {
-  const moduleDir = resolve(ctx.cwd, "src/modules/harness-parity");
   return {
     projectDir: ctx.cwd,
-    scenariosRoot: join(moduleDir, "scenarios"),
-    evalFixturesRoot: join(ctx.cwd, "src/modules/eval-harness/fixtures"),
+    scenariosRoot: resolveKotaRuntimeAsset(
+      "src/modules/harness-parity/scenarios",
+    ),
+    evalFixturesRoot: resolveKotaRuntimeAsset(
+      "src/modules/eval-harness/fixtures",
+    ),
     defaultOutBaseDir: join(ctx.cwd, ".kota/runs"),
-    kotaBinaryPath: resolve(join(ctx.cwd, "bin/kota.mjs")),
+    kotaBinaryPath: resolveKotaBinary(),
     config: ctx.config,
   };
 }

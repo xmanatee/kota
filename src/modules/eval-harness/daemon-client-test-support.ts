@@ -76,7 +76,6 @@ export const SAMPLE_CODE_HEALTH: CodeHealthAggregate = {
   fixturesWithWarnings: 0,
   totalWarnings: 0,
   warningCounts: {
-    "source-size-growth": 0,
     "duplicated-implementation-chunk": 0,
     "complexity-concentration": 0,
   },

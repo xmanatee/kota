@@ -132,7 +132,7 @@ export function describeSecurityReviewFindingRunTests(
         taskId: createdTaskId,
         workflow: securityReviewWorkflow,
       });
-      expect(() => assertTaskQueueValid(fixture.projectDir, { minReady: 0 })).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
     });
 
     it("writes preflight diagnostics and skips commit when task validation fails", async () => {

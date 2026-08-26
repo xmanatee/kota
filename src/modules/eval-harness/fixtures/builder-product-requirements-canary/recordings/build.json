@@ -29,16 +29,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Implement the reimbursement service so `node scripts/check-requirements.mjs` exits successfully.\n2. Produce `requirements-result.json` with every required canary id, observed evidence, and `canaryScore: 1`.\n3. Apply locale and currency formatting after the rail sustainability credit.\n4. Enforce finance-manager, employee self-approval, and compliance-reviewer authorization behavior.\n5. Preserve original audit history and append a decision event with actor, request id, previous status, and next status.\n6. Reject missing-receipt and non-positive amount validation failures.\n7. Enforce the follow-up policy-exception rule without regressing the original requirements.\n8. Preserve shortcut guards by passing `node scripts/check-requirements.mjs --self-test-shortcuts`.\n9. Move `task-implement-reimbursement-requirements-canary` from ready to done.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `src/reimbursement-service.mjs` now reads the fixture data and the scorer command exercises it successfully through `pnpm test`.\n2. The scorer writes `requirements-result.json`; fixture predicates require each canary id plus `canaryScore: 1`.\n3. The service uses `Intl.NumberFormat` with policy locale/currency and subtracts the rail sustainability credit before formatting totals.\n4. Decision logic distinguishes finance-manager approval, employee self-approval denial, and compliance-reviewer approval for policy exceptions.\n5. Each decision preserves existing history and appends a decision audit entry with actor, request id, previous status, and next status.\n6. Line validation rejects empty receipt ids and non-positive amounts before authorization approval.\n7. Finance-manager output keeps R-1003 in `requires_compliance`, while compliance output approves the same valid exception claim.\n8. `node scripts/check-requirements.mjs --self-test-shortcuts` is a fixture predicate and rejects prose-only, hardcoded, and follow-up-regression artifacts.\n9. The recording removes the ready task and writes it to `data/tasks/done/` with `status: done`.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add product requirements canary fixture\n\nAdds a replay-backed reimbursement fixture whose scorer validates product canaries, shortcut rejection, and an objective canary score.\n"
     }

@@ -153,9 +153,6 @@ describe("runFixture multi-round", () => {
         codeHealthDiagnostics: {
           sourceGlobs: ["src/**/*.ts"],
           thresholds: {
-            minSourceGrowthBytes: 1,
-            maxBaselineBytesGrowthRatio: 1.1,
-            maxPreviousBytesGrowthRatio: 1.1,
             duplicateChunkLines: 3,
             duplicateChunkMinOccurrences: 2,
             maxLargestFileBytesShare: 1,
@@ -242,7 +239,6 @@ describe("runFixture multi-round", () => {
     expect(report.run.outcome).toBe("pass");
     expect(report.run.codeHealthDiagnostics?.rounds).toHaveLength(2);
     expect(report.run.codeHealthDiagnostics?.warningCounts).toMatchObject({
-      "source-size-growth": 1,
       "duplicated-implementation-chunk": 1,
     });
     const raw = JSON.parse(
@@ -252,7 +248,6 @@ describe("runFixture multi-round", () => {
     expect(raw.codeHealthDiagnostics.baseline.fileCount).toBe(1);
     expect(raw.codeHealthDiagnostics.rounds[1].warnings.map((entry: { code: string }) => entry.code)).toEqual(
       expect.arrayContaining([
-        "source-size-growth",
         "duplicated-implementation-chunk",
       ]),
     );

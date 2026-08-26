@@ -29,16 +29,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Align the catalog API route contract with the order worker's `/api/bundles/starter-kit` request.\n2. Pass `node scripts/check-integration.mjs` so the scorer starts both components and writes integration evidence.\n3. Preserve shortcut guards by passing `node scripts/check-integration.mjs --self-test-shortcuts`.\n4. Move `task-wire-catalog-api-to-order-worker` from ready to done.\n5. Keep changes limited to the route contract, generated integration artifact, and task state.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `src/catalog-routes.mjs` now exports `/api/bundles/starter-kit`, matching the worker's expected route.\n2. The fixture's `pnpm test` repair check runs `node scripts/check-integration.mjs`, which starts the API process, invokes the worker, and writes `integration-result.json`.\n3. `node scripts/check-integration.mjs --self-test-shortcuts` is part of the fixture predicates and rejects hardcoded artifacts plus API bypasses.\n4. The task file is written to `data/tasks/done/` with `status: done` and removed from `data/tasks/ready/`.\n5. The fixture `git-changes-within` predicate allows only `src/catalog-routes.mjs`, `integration-result.json`, and the task move.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Wire catalog API route for multi-service fixture\n\nAligns the catalog route with the order worker contract, keeps shortcut guard evidence in the scorer path, and moves the seeded task to done.\n"
     }

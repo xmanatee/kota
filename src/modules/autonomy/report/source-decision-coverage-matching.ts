@@ -43,10 +43,7 @@ export function defaultLocalDecisionMarkers(): SourceDecisionLocalMarker[] {
     summary:
       `${decision.pattern}: ${decision.verdict} against ` +
       `${decision.kotaPrimitives.join(", ")}.`,
-    refs: [
-      "src/modules/autonomy/AGENTS.md#external-pattern-decisions",
-      "src/modules/autonomy/external-pattern-decisions.ts",
-    ],
+    refs: ["src/modules/autonomy/external-pattern-decisions.ts"],
     remainingGap:
       decision.verdict === "read" || decision.verdict === "defer"
         ? decision.revisitWhen

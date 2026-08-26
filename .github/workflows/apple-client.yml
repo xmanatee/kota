@@ -5,11 +5,26 @@ on:
     branches: [main]
     paths:
       - 'clients/apple/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/apple-client.yml'
   pull_request:
     paths:
       - 'clients/apple/**'
+      - 'clients/conformance/**'
+      - 'schema/ui-surface.schema.json'
+      - 'scripts/generate-ui-surface-bindings.mjs'
+      - 'scripts/ui-surface-*.mjs'
+      - 'scripts/ui-surface-typescript-runtime.template'
+      - 'src/core/daemon/ui-surface.ts'
       - '.github/workflows/apple-client.yml'
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -20,6 +35,23 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install generator dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated contract bindings
+        working-directory: .
+        run: pnpm check:ui-bindings
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app

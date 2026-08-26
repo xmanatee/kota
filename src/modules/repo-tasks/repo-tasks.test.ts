@@ -98,31 +98,6 @@ describe("repo task helpers", () => {
     expect(countRepoPromotableBacklogTasks(projectDir)).toBe(1);
   });
 
-  it("does not count Meta backlog tasks as promotable without a Product or Safety link", () => {
-    writeFileSync(
-      join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
-      [
-        "---",
-        "id: task-meta-no-link",
-        "title: Meta without link",
-        "status: backlog",
-        "priority: p1",
-        "area: autonomy",
-        "task_class: Meta",
-        "summary: Meta without link",
-        "updated_at: 2026-05-08T00:00:00.000Z",
-        "---",
-        "",
-        "## Problem",
-        "",
-        "Meta work exists but has no actionable Product/Safety blocker.",
-        "",
-      ].join("\n"),
-    );
-
-    expect(countRepoPromotableBacklogTasks(projectDir)).toBe(0);
-  });
-
   it("summarizes the open task queue by state", () => {
     writeFileSync(join(projectDir, REPO_INBOX_DIR, "task-capture.md"), "task");
     writeFileSync(join(projectDir, REPO_TASKS_DIR, "ready", "task-ready.md"), "task");
@@ -241,24 +216,24 @@ describe("repo task helpers", () => {
     expect(getRepoTaskQueueSnapshot(projectDir).dependencyBlockedTasks).toEqual([]);
   });
 
-  it("distinguishes open pullable records from dispatchable task work", () => {
+  it("excludes strategic anchors from otherwise dispatchable backlog work", () => {
     writeFileSync(
       join(projectDir, REPO_TASKS_DIR, "backlog", "task-meta-no-link.md"),
       [
         "---",
         "id: task-meta-no-link",
-        "title: Meta without link",
+        "title: Meta task",
         "status: backlog",
         "priority: p1",
         "area: autonomy",
         "task_class: Meta",
-        "summary: Meta without link",
+        "summary: Meta task",
         "updated_at: 2026-05-08T00:00:00.000Z",
         "---",
         "",
         "## Problem",
         "",
-        "Meta work exists but has no actionable Product/Safety blocker.",
+        "Meta work is eligible for ordinary priority-based promotion.",
         "",
       ].join("\n"),
     );
@@ -282,11 +257,11 @@ describe("repo task helpers", () => {
     const snapshot = getRepoTaskQueueSnapshot(projectDir);
 
     expect(snapshot.openCount).toBe(2);
-    expect(snapshot.pullableCount).toBe(0);
+    expect(snapshot.pullableCount).toBe(1);
     expect(snapshot.actionableCount).toBe(0);
-    expect(snapshot.promotableBacklogCount).toBe(0);
-    expect(snapshot.dispatchableCount).toBe(0);
-    expect(snapshot.hasDispatchableWork).toBe(false);
+    expect(snapshot.promotableBacklogCount).toBe(1);
+    expect(snapshot.dispatchableCount).toBe(1);
+    expect(snapshot.hasDispatchableWork).toBe(true);
   });
 
   it("detects a one-item promotable backlog tail as dispatchable-thin", () => {

@@ -2,14 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { runNavigator } from "./navigator.js";
-import { operatorConsoleBundle } from "./navigator-operator-console-fixture.js";
-import { consoleAction } from "./navigator-operator-console-fixture-actions.js";
+import { operatorConsoleBundle } from "./navigator-operator-console-fixture.test-support.js";
+import { consoleAction } from "./navigator-operator-console-fixture-actions.test-support.js";
 import { emptyClient } from "./navigator-test-client.js";
 import {
   makeOutput,
   makePrompt,
   navigationSurface,
-} from "./navigator-test-surfaces.js";
+} from "./navigator-test-surfaces.test-support.js";
 
 describe("navigator operator console", () => {
   it("renders the first-screen overview from shared Status, Work, Inbox, Setup, Modules, Agents, and Stores surfaces", async () => {

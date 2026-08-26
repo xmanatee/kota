@@ -20,14 +20,19 @@ Your job is to implement the one normalized task identified by the trigger paylo
 
 ## Finish
 
-- Declare and verify natural, non-duplicative success criteria under
-  `$KOTA_RUN_DIR`, covering the task's full `Done When` contract.
-- Put required screenshots, transcripts, rendered fixtures, and other declared
-  evidence under `$KOTA_RUN_ARTIFACT_DIR` and register it as required by the
-  task instructions.
-- Run the narrowest validation that proves the change. Broaden only when the
-  affected behavior warrants it; the repair loop supplies the final gates and
-  critic.
+- Inspect the final changed surfaces and choose the narrowest proof that can
+  distinguish the intended behavior from a regression. Scoped instructions,
+  package scripts, schemas, generators, and owner-specific checks are available
+  options, not a mandatory command matrix.
+- Run the selected validation yourself. Broaden only when behavioral reach or
+  risk warrants it. A type, generated contract, production probe, durable
+  record, inspection, or behavior test may be sufficient; do not add or run a
+  test that catches no distinct failure.
+- In your normal final response, summarize the outcome, affected owners, each
+  validation or non-test proof used and why it is sufficient, plus any honest
+  limitation. If an operator journey is the strongest proof, capture it under
+  `$KOTA_RUN_ARTIFACT_DIR`; do not manufacture an artifact just to satisfy a
+  label.
 - Leave a concise commit message in `$KOTA_RUN_DIR/commit-message.txt` for the
   runtime-owned commit and integration stage.
 - Stop after the targeted task is honestly terminal. The runtime owns staging,

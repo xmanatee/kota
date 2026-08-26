@@ -19,13 +19,11 @@ import type {
   RepoTaskUpdateBodyResult,
 } from "./client.js";
 import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
+import { renderRepoTaskIntent } from "./repo-task-intent.js";
 import {
   getRepoInboxDir,
   getRepoTasksDir,
   REPO_TASK_STATES,
-  TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-  TASK_INITIATIVE_PLACEHOLDER,
-  TASK_SOURCE_INTENT_PLACEHOLDER,
   writeRepoInboxFile,
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
@@ -114,29 +112,14 @@ export function updateTaskBody(
 }
 
 function buildNormalizedTaskBody(): string {
-  return [
-    "",
-    "## Problem",
-    "",
-    "## Desired Outcome",
-    "",
-    "## Constraints",
-    "",
-    "## Done When",
-    "",
-    "## Source / Intent",
-    "",
-    TASK_SOURCE_INTENT_PLACEHOLDER,
-    "",
-    "## Initiative",
-    "",
-    TASK_INITIATIVE_PLACEHOLDER,
-    "",
-    "## Acceptance Evidence",
-    "",
-    TASK_ACCEPTANCE_EVIDENCE_PLACEHOLDER,
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: "Describe the problem.",
+    desiredOutcome: "Describe the outcome, not the implementation plan.",
+    constraints: "List only load-bearing constraints.",
+    doneWhen: "Describe observable completion conditions.",
+    context: "Preserve the owner request, research source, or runtime evidence.",
+    acceptanceEvidence: "Name proportionate proof when the outcome needs it.",
+  });
 }
 
 /**

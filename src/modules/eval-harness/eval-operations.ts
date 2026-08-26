@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import type {
   EvalListResult,
   EvalRunOptions,
@@ -33,16 +34,16 @@ export { runEvalCalibration } from "./eval-calibration-operation.js";
 
 const DEFAULT_REPEATS = 3;
 
-export function fixturesRootFor(projectDir: string): string {
-  return join(projectDir, "src/modules/eval-harness/fixtures");
+export function fixturesRootFor(): string {
+  return resolveKotaRuntimeAsset("src/modules/eval-harness/fixtures");
 }
 
 export function evalRunsRootFor(projectDir: string): string {
   return join(projectDir, ".kota/eval-runs");
 }
 
-export function listEvalFixtures(projectDir: string): EvalListResult {
-  const fixtures = loadAllFixtures(fixturesRootFor(projectDir));
+export function listEvalFixtures(): EvalListResult {
+  const fixtures = loadAllFixtures(fixturesRootFor());
   return {
     fixtures: fixtures.map((f) => ({
       id: f.spec.id,
@@ -65,7 +66,7 @@ export async function runEvalHarness(
   options: EvalRunOptions = {},
   bus?: EventBus,
 ): Promise<EvalRunResult> {
-  const fixturesRoot = fixturesRootFor(projectDir);
+  const fixturesRoot = fixturesRootFor();
   let fixtures: ReturnType<typeof loadAllFixtures>;
   try {
     fixtures = options.fixtureIds && options.fixtureIds.length > 0

@@ -68,10 +68,6 @@ describe("production replacement completion", () => {
     })).toMatchObject({ ok: true });
     expect(getRepoTaskStateTransitionBlocker({
       id: REPLACEMENT_TASK_ID,
-      title: "Replace runtime ingress",
-      area: "architecture",
-      summary: "Use one owner.",
-      taskClass: "Platform",
       productionReplacement: true,
       body: normalizedReplacementTask("doing", body),
     }, "done", projectDir)).toBeNull();

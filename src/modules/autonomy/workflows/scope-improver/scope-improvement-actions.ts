@@ -17,6 +17,7 @@ import {
   findGeneratedWorkTask,
   writeGeneratedWorkTask,
 } from "#modules/autonomy/generated-work-task.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import {
   SCOPE_IMPROVEMENT_ARTIFACT,
   type ScopeImprovementActionResult,
@@ -35,45 +36,18 @@ function taskBody(args: {
   recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
 }): string {
   const task = args.recommendation.task;
-  return [
-    "",
-    "## Problem",
-    "",
-    task.problem,
-    "",
-    "## Desired Outcome",
-    "",
-    task.desiredOutcome,
-    "",
-    "## Constraints",
-    "",
-    ...task.constraints.map((item) => `- ${item}`),
-    "",
-    "## Done When",
-    "",
-    ...task.doneWhen.map((item) => `- ${item}`),
-    "",
-    "## Source / Intent",
-    "",
-    `Created by scope-improver workflow run ${args.runId}.`,
-    "",
-    "Evidence ids:",
-    "",
-    ...args.recommendation.evidenceIds.map((id) => `- ${id}`),
-    "",
-    "## Product / Safety Link",
-    "",
-    "This Meta proposal keeps continuous scope improvement tied to inspectable Product and Safety outcomes instead of introducing a parallel autonomous edit path.",
-    "",
-    "## Initiative",
-    "",
-    "Scope-aware continuous improvement.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    ...task.acceptanceEvidence.map((item) => `- ${item}`),
-    "",
-  ].join("\n");
+  return renderRepoTaskIntent({
+    problem: task.problem,
+    desiredOutcome: task.desiredOutcome,
+    constraints: task.constraints,
+    doneWhen: task.doneWhen,
+    context: [
+      `Created by scope-improver workflow run ${args.runId}.`,
+      "Evidence ids:",
+      ...args.recommendation.evidenceIds,
+    ],
+    acceptanceEvidence: task.acceptanceEvidence,
+  });
 }
 
 function taskPath(actions: readonly GeneratedWorkProposalAction[]): string | null {

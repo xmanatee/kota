@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,37 +29,6 @@ function makeFakeCtx(projectDir: string): ModuleContext {
   return { cwd: projectDir } as unknown as ModuleContext;
 }
 
-function seedFixture(projectDir: string, id: string, controlDecisions: string[]): void {
-  const dir = join(projectDir, "src/modules/eval-harness/fixtures", id);
-  mkdirSync(join(dir, "initial"), { recursive: true });
-  writeFileSync(
-    join(dir, "fixture.json"),
-    JSON.stringify(
-      {
-        id,
-        description: id,
-        role: "builder",
-        workflowName: "builder",
-        budgetMs: 60_000,
-        predicates: [{ kind: "file-exists", path: "marker.txt" }],
-        preRunExpectations: [
-          {
-            predicate: { kind: "file-exists", path: "marker.txt" },
-            expected: "fail",
-          },
-        ],
-        controlDecisions,
-        provenance: {
-          kind: "smoke-fixture",
-          justification: "control route fixture",
-        },
-      },
-      null,
-      2,
-    ),
-  );
-}
-
 describe("evalHarnessControlRoutes GET /eval/list", () => {
   let projectDir: string;
 
@@ -72,7 +41,6 @@ describe("evalHarnessControlRoutes GET /eval/list", () => {
   });
 
   it("returns fixture control decisions and aggregate coverage summary", () => {
-    seedFixture(projectDir, "act-fixture", ["act"]);
     const routes = evalHarnessControlRoutes(makeFakeCtx(projectDir));
     const route = routes.find(
       (entry) => entry.method === "GET" && entry.path === "/eval/list",
@@ -83,17 +51,19 @@ describe("evalHarnessControlRoutes GET /eval/list", () => {
     route.handler({} as IncomingMessage, res, {});
 
     expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({
-      fixtures: [
-        {
-          id: "act-fixture",
-          controlDecisions: ["act"],
-        },
-      ],
-      controlDecisionCoverage: {
-        counts: { act: 1, ask: 0 },
-        missingDecisions: expect.arrayContaining(["ask"]),
-      },
-    });
+    const body = result.body as {
+      fixtures: Array<{ id: string; controlDecisions: string[] }>;
+      controlDecisionCoverage: { counts: Record<string, number> };
+    };
+    expect(body.fixtures.length).toBeGreaterThan(0);
+    expect(body.fixtures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "builder-agent-call-replay",
+        controlDecisions: expect.any(Array),
+      }),
+    ]));
+    expect(body.controlDecisionCoverage.counts).toEqual(
+      expect.objectContaining({ act: expect.any(Number), ask: expect.any(Number) }),
+    );
   });
 });

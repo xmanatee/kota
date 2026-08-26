@@ -11,22 +11,15 @@ This directory contains the explorer workflow definition and prompt.
   not the implementation plan.
 - Queue counts are lower bounds, not the goal. A healthy queue should not
   collapse into one repeated kind of local work.
-- When explorer changes the queue, satisfy required queue-health findings from
-  the inspect step before finishing instead of relying on the repair loop to
-  re-run the agent.
-- Other task-queue warnings stay advisory.
+- Treat the inspect step's queue counts and availability fields as context for
+  the exploration decision; task validation and writer integration own the
+  hard gates.
 - Record exploration completion in the run artifact. The canonical cooldown is
   advanced only by the staged `explorer-publication` `repository: none`
   follow-up through the runtime state compare-and-set contract; do not add a
   cooldown JSON file.
-- The `External Pattern Decisions` catalog in `src/modules/autonomy/AGENTS.md`
-  is out of scope for explorer. When a watchlist entry yields a clear
-  reject/read/adopt verdict against KOTA's primitives, record it in the
-  watchlist `summary` field for that entry — that is explorer's only
-  verdict-recording surface. The autonomy AGENTS.md catalog is curated by
-  owner distillation or by improver from repeated run evidence; explorer's
-  writeScope intentionally excludes it. Two recent occurrences
-  (`2026-04-24T14-04-37-931Z-explorer-5qwsga`,
-  `2026-04-26T02-06-31-519Z-explorer-0nterp`) burned ~13 min of agent time
-  each because the writeScope guard rejected the AGENTS.md edit and aborted
-  the whole step with no commit.
+- Keep watchlist summaries factual: record the relevant current state observed
+  from a source, not an adopt/reject/defer policy verdict. Durable external
+  pattern verdicts live in the typed
+  `src/modules/autonomy/external-pattern-decisions.ts` catalog, which remains
+  outside explorer's write scope and is curated separately.

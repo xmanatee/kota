@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -96,6 +97,10 @@ describe("runFixture external shims and materialization", () => {
   });
 
   it("copies initial state into the isolated working directory without mutating the fixture", async () => {
+    writeFileSync(
+      join(fixturesRoot, "mini", "initial", "fixture.gitignore"),
+      ".kota/\n",
+    );
     const fixture = loadFixture(fixturesRoot, "mini");
     const executor: WorkflowExecutor = {
       preflight: () => TEST_EXECUTION_PROFILE,
@@ -119,6 +124,10 @@ describe("runFixture external shims and materialization", () => {
       "utf-8",
     );
     expect(originalSeed).toBe("seed");
+    expect(readFileSync(join(report.workingDir, ".gitignore"), "utf-8"))
+      .toBe(".kota/\n");
+    expect(existsSync(join(report.workingDir, "fixture.gitignore"))).toBe(false);
+    expect(existsSync(join(fixture.initialStateDir, "fixture.gitignore"))).toBe(true);
     cleanupFixtureWorkingDir(report.workingDir);
   });
 });

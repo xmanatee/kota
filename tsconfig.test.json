@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "sourceMap": false
+  },
+  "include": [
+    "src/**/*.test.ts",
+    "src/**/*.test-*.ts",
+    "src/**/*-test-*.ts",
+    "src/**/*.integration.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/modules/eval-harness/fixtures/**/initial/**"
+  ]
+}

@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
+import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
 import { REPO_TASK_STATES } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   isJsonObject,
@@ -32,7 +33,9 @@ function parseFixtureProvenance(path: string): { sourceRunId: string | null; id:
 }
 
 export function collectDuplicateCoverage(projectDir: string): DuplicateCoverage {
-  const fixtureRoot = join(projectDir, "src/modules/eval-harness/fixtures");
+  const fixtureRoot = resolveKotaRuntimeAsset(
+    "src/modules/eval-harness/fixtures",
+  );
   const byRun = new Map<string, string[]>();
   if (existsSync(fixtureRoot)) {
     for (const entry of readdirSync(fixtureRoot, { withFileTypes: true })) {

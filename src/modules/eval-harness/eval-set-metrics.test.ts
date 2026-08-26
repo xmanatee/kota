@@ -100,7 +100,7 @@ describe("runEvalSet metrics", () => {
     expect(raw.runs[0].objectiveMetrics[0].value).toBe(12);
   });
 
-  it("aggregates code-health warning counts without changing pass/fail aggregation", async () => {
+  it("does not treat source growth as a code-health warning", async () => {
     const dir = join(fixturesRoot, "code-health");
     mkdirSync(join(dir, "initial", "src"), { recursive: true });
     mkdirSync(join(dir, "initial", "state"), { recursive: true });
@@ -115,9 +115,6 @@ describe("runEvalSet metrics", () => {
         codeHealthDiagnostics: {
           sourceGlobs: ["src/**/*.ts"],
           thresholds: {
-            minSourceGrowthBytes: 1,
-            maxBaselineBytesGrowthRatio: 1.1,
-            maxPreviousBytesGrowthRatio: 1.1,
             duplicateChunkLines: 3,
             duplicateChunkMinOccurrences: 2,
             maxLargestFileBytesShare: 1,
@@ -166,11 +163,10 @@ describe("runEvalSet metrics", () => {
     expect(report.aggregate.passHatK).toBe(1);
     expect(report.codeHealth).toMatchObject({
       diagnosticRunCount: 1,
-      runsWithWarnings: 1,
-      fixturesWithWarnings: 1,
-      totalWarnings: 1,
+      runsWithWarnings: 0,
+      fixturesWithWarnings: 0,
+      totalWarnings: 0,
       warningCounts: {
-        "source-size-growth": 1,
         "duplicated-implementation-chunk": 0,
         "complexity-concentration": 0,
       },
@@ -178,7 +174,10 @@ describe("runEvalSet metrics", () => {
     const raw = JSON.parse(
       readFileSync(join(runsRoot, "eval-set-report.json"), "utf-8"),
     );
-    expect(raw.codeHealth.warningCounts["source-size-growth"]).toBe(1);
-    expect(raw.runs[0].codeHealthDiagnostics.warningCounts["source-size-growth"]).toBe(1);
+    expect(raw.codeHealth.totalWarnings).toBe(0);
+    expect(raw.runs[0].codeHealthDiagnostics.warningCounts).toEqual({
+      "duplicated-implementation-chunk": 0,
+      "complexity-concentration": 0,
+    });
   });
 });

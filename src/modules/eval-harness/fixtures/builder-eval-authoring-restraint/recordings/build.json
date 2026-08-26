@@ -29,16 +29,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Add one focused evaluator command for the deterministic refund-agent traces.\n2. Make `node scripts/check-evaluation.mjs` exit successfully.\n3. Write bounded machine-readable JSON evidence to `artifacts/evaluation-result.json`.\n4. Pass the good cases and catch the bad cases with the required violation codes.\n5. Keep metric vocabulary bounded to the task requirements.\n6. Move `task-author-refund-trace-evaluator` from ready to done without changing runner, cases, or checker files.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `scripts/evaluate-traces.mjs` runs `src/refund-agent-runner.mjs` for every case and evaluates each trace locally.\n2. `node scripts/check-evaluation.mjs` passes under the fixture repair checks.\n3. `node scripts/check-evaluation.mjs` writes and validates `artifacts/evaluation-result.json` as JSON, not prose.\n4. The result artifact reports both good cases as passed and both bad cases as failed with `missing-required-tool-call` and `pii-leak` respectively.\n5. Metrics are limited to `total_cases`, `good_cases_passed`, `bad_cases_caught`, and `violations_found`.\n6. The task file is removed from `data/tasks/ready/`, written to `data/tasks/done/` with `status: done`, and no runner/case/checker files are changed.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Author refund trace evaluator fixture task\n\nAdds the focused refund trace evaluator, writes bounded JSON result evidence, verifies good and bad seeded cases through the local checker, and moves the fixture task to done.\n"
     }

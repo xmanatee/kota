@@ -1,10 +1,10 @@
-import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import {
   importModuleExports,
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
+import { kotaRuntimeAssetRoot } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
@@ -24,12 +24,6 @@ import {
   scopeImprovementChanged,
   scopeImprovementRequested,
 } from "./workflows/scope-improver/events.js";
-
-// Absolute path to KOTA's install root (the directory that contains `src/` in
-// source mode and `dist/` in built mode). Workflow `promptPath` values are
-// resolved against this root so the daemon can load KOTA-owned workflow
-// prompts even when `projectDir` points at an external project.
-const KOTA_INSTALL_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 type AutonomyWorkflowModule = {
   default: WorkflowDefinitionInput;
@@ -79,7 +73,7 @@ async function discoverAutonomyWorkflowDefinitions(): Promise<
   return modules.map(({ name, workflow }) => ({
     ...workflow,
     definitionPath: `src/modules/autonomy/workflows/${name}/workflow.ts`,
-    moduleRoot: KOTA_INSTALL_ROOT,
+    moduleRoot: kotaRuntimeAssetRoot,
   }));
 }
 

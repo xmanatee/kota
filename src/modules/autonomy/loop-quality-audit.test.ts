@@ -134,7 +134,7 @@ describe("loop quality audit", () => {
         when: () => true,
         repairLoop: {
           checks: [
-            codeCheck("success-criteria-declared"),
+            codeCheck("task-resolved"),
             codeCheck("artifact-integrity"),
           ],
         },

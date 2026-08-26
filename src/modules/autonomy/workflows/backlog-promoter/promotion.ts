@@ -1,7 +1,6 @@
 import {
   compareAutonomyTasks,
   describeAutonomyTaskRank,
-  isStrategicAutonomyTask,
 } from "#modules/autonomy/task-ranking.js";
 import {
   getRepoTaskStateTransitionBlocker,
@@ -32,7 +31,6 @@ export type PromotionCandidateSummary = {
   area: string;
   taskClass: RepoTaskClass;
   state: "backlog" | "blocked" | "ready" | "doing";
-  strategic: boolean;
   updatedAt: string;
 };
 
@@ -83,7 +81,6 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
     area: record.area,
     taskClass: record.taskClass,
     state: record.state as PromotionCandidateSummary["state"],
-    strategic: isStrategicAutonomyTask(record),
     updatedAt: record.updatedAt,
   };
 }
@@ -215,7 +212,7 @@ export function buildPromotionRationale(
       `Promoted ${selected.length} of ${frontierImprovements.length} frontier-improving backlog task(s): ${ids}.`,
     );
     summaryLines.push(
-      "Ranked by the shared autonomy queue policy: proven runtime repair first, P1 Product/Safety ahead of Meta, then priority, task class, strategic area, and age.",
+      "Ranked by authored priority, then age and task id; task labels and prose do not gate execution.",
     );
   }
   if (rejectedAnchors.length > 0) {

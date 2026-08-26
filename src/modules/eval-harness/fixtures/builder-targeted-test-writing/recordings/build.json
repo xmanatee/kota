@@ -34,16 +34,6 @@
     },
     {
       "op": "write",
-      "path": "{{runDir}}/success-criteria.txt",
-      "content": "1. Extend the existing pricing test bucket with the three required targeted test names.\n2. Add `test/targeted-tests.json` listing exactly the targeted tests.\n3. Make `node scripts/check-targeted-tests.mjs` pass on the unmutated baseline.\n4. Make the targeted tests catch all deterministic scorer mutations.\n5. Keep product source, scorer, package, runner, and fixture metadata unchanged.\n6. Move `task-cover-cart-pricing-rules` from ready to done.\n"
-    },
-    {
-      "op": "write",
-      "path": "{{runDir}}/success-criteria-verified.txt",
-      "content": "1. `test/pricing.test.mjs` contains the three required focused loyalty and delivery tests in the existing bucket.\n2. `test/targeted-tests.json` lists exactly those three tests in `test/pricing.test.mjs`.\n3. `node scripts/check-targeted-tests.mjs` passes under the fixture scorer.\n4. The scorer records `mutationsCaught: 3` for the targeted tests.\n5. The replay only changes the accepted test, manifest, evidence, and task-state paths.\n6. The task file is removed from `data/tasks/ready/`, written to `data/tasks/done/`, and has `status: done`.\n"
-    },
-    {
-      "op": "write",
       "path": "{{runDir}}/commit-message.txt",
       "content": "Add targeted test-writing eval fixture task\n\nExtends the tiny cart pricing fixture with focused manifest-backed tests, mutation-scored evidence, and a done task state.\n"
     }
