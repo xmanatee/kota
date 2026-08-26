@@ -138,7 +138,7 @@ describe("kota doctor unverifiable harness auth", () => {
       (row) => row.label === "Preset auth: antigravity-cli",
     );
     const unsupportedRow = results.find(
-      (row) => row.label === "Preset unsupported options: antigravity-cli",
+      (row) => row.label === "Preset intentional limits: antigravity-cli",
     );
 
     expect(presetRow?.status).toBe("warn");
@@ -147,6 +147,7 @@ describe("kota doctor unverifiable harness auth", () => {
       "Antigravity CLI auth cannot be verified non-interactively",
     );
     expect(authRow?.status).toBe("warn");
+    expect(unsupportedRow?.status).toBe("info");
     expect(unsupportedRow?.detail).toContain("canUseTool");
   });
 });

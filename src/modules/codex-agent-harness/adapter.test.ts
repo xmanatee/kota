@@ -583,7 +583,7 @@ describe("codexAgentHarness", () => {
         effort: "xhigh",
         autonomyMode: "supervised",
       }),
-    ).rejects.toThrow(/non-interactively/);
+    ).rejects.toThrow(/autonomous mode.*owner-approval steps/);
 
     await expect(
       codexAgentHarness.run({

@@ -789,7 +789,8 @@ describe("kota doctor --preset preflight", () => {
     expect(results.find((r) => r.label === `Preset tiers: ${preset}`)?.detail).toContain("capable=");
     expect(results.find((r) => r.label === `Preset adapter: ${preset}`)?.detail).toContain(`kind=${adapterKind}`);
     expect(results.find((r) => r.label === `Preset runtime: ${preset}`)?.detail).toContain("@1.0.0");
-    expect(results.find((r) => r.label === `Preset unsupported options: ${preset}`)).toBeDefined();
+    expect(results.find((r) => r.label === `Preset supported capabilities: ${preset}`)).toBeDefined();
+    expect(results.find((r) => r.label === `Preset intentional limits: ${preset}`)).toBeDefined();
   });
 
   it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {
@@ -855,7 +856,7 @@ describe("kota doctor --preset preflight", () => {
     const results = await runDoctorChecks(projectDir, { preset: "antigravity-cli", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: antigravity-cli");
     const tiersRow = results.find((r) => r.label === "Preset tiers: antigravity-cli");
-    const unsupportedRow = results.find((r) => r.label === "Preset unsupported options: antigravity-cli");
+    const unsupportedRow = results.find((r) => r.label === "Preset intentional limits: antigravity-cli");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
     expect(presetRow?.detail).toContain("Antigravity CLI Google login active");
@@ -864,6 +865,7 @@ describe("kota doctor --preset preflight", () => {
     expect(tiersRow?.detail).toContain("balanced=");
     expect(tiersRow?.detail).toContain("capable=");
     expect(unsupportedRow?.detail).toContain("canUseTool");
+    expect(unsupportedRow?.status).toBe("info");
   });
 
   it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {

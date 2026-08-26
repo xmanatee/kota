@@ -61,7 +61,10 @@ const CODEX_UNSUPPORTED_OPTIONS = [
   {
     runOption: "autonomyMode.supervised",
     option: 'autonomyMode="supervised"',
-    reason: "The non-interactive CLI path cannot route approvals through KOTA's queue.",
+    reason:
+      "The non-interactive CLI path cannot route approvals through KOTA's queue; " +
+      "use autonomous mode with an enforceable scope policy or compose deterministic " +
+      "owner-approval steps around the native step.",
   },
   {
     runOption: "persistSession",
@@ -156,7 +159,9 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
   if (options.autonomyMode === "supervised") {
     throw new Error(
       'The "codex" agent harness runs non-interactively and cannot route tool calls ' +
-        "through KOTA's operator approval queue. Use autonomous or passive mode.",
+        "through KOTA's operator approval queue. Use autonomous mode with an " +
+        "enforceable scope policy, or compose deterministic owner-approval steps " +
+        "around the native Codex step.",
     );
   }
   if (options.persistSession === true) {

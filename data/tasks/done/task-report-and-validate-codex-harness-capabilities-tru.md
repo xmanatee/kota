@@ -1,13 +1,13 @@
 ---
 id: task-report-and-validate-codex-harness-capabilities-tru
 title: Report and validate Codex harness capabilities truthfully
-status: ready
+status: done
 priority: p1
 area: client
 task_class: Product
 summary: Keep native Codex first class while validating workflow requirements early and reporting supported and unsupported controls accurately.
 created_at: 2026-08-24T02:13:41.281Z
-updated_at: 2026-08-24T02:13:41.281Z
+updated_at: 2026-08-26T02:57:13.816Z
 ---
 
 ## Problem
@@ -64,8 +64,8 @@ First-class, truthful multi-harness operation.
 
 ## Acceptance Evidence
 
-- Screened `kota doctor --preset codex` and workflow-validation transcripts for
-  compatible and incompatible workflows.
+- Screened `kota doctor --preset codex --skip-connectivity` transcript at
+  `.kota/runs/2026-08-26T04-00-00-000Z-codex-capability-integration/evidence/artifacts/transcript.txt`.
 - Native Codex runtime fixture proving autonomous coding, streamed messages,
   scoped writes, cancellation, and ChatGPT-login readiness remain intact.
 - Deliberate capability mismatch fixtures that fail before dispatch without

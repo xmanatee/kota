@@ -3,7 +3,10 @@ import {
   type AgentHarnessReadiness,
   type AgentHarnessReadinessRequest,
   type AgentHarnessRuntimeProbe,
+  buildHarnessCapabilitySnapshot,
+  type HarnessCapabilitySummary,
   resolveAgentHarness,
+  summarizeHarnessCapability,
 } from "#core/agent-harness/index.js";
 import type { ModelTiers } from "./model-router.js";
 import {
@@ -40,6 +43,7 @@ export type PresetHarnessReadiness = {
   readonly defaultModel: string;
   readonly tiers: Required<ModelTiers>;
   readonly adapter: AgentHarnessReadiness;
+  readonly capabilities: HarnessCapabilitySummary | null;
   readonly auth: PresetAuthReadiness;
   readonly capturedAt: string;
 };
@@ -75,21 +79,30 @@ function missingHarnessReadiness(
 function collectAdapterReadiness(
   preset: Preset,
   selection: AgentHarnessReadinessRequest,
-): AgentHarnessReadiness {
+): {
+  readonly adapter: AgentHarnessReadiness;
+  readonly capabilities: HarnessCapabilitySummary | null;
+} {
   try {
     const harness = resolveAgentHarness(preset.harness);
-    if (!harness.readiness) {
-      return missingHarnessReadiness(
-        preset,
-        `registered harness "${preset.harness}" does not declare readiness`,
-      );
-    }
-    return harness.readiness(selection);
+    const snapshot = buildHarnessCapabilitySnapshot(harness, selection);
+    return {
+      adapter:
+        snapshot.localReadiness ??
+        missingHarnessReadiness(
+          preset,
+          `registered harness "${preset.harness}" does not declare readiness`,
+        ),
+      capabilities: summarizeHarnessCapability(snapshot),
+    };
   } catch (err) {
-    return missingHarnessReadiness(
-      preset,
-      err instanceof Error ? err.message : String(err),
-    );
+    return {
+      adapter: missingHarnessReadiness(
+        preset,
+        err instanceof Error ? err.message : String(err),
+      ),
+      capabilities: null,
+    };
   }
 }
 
@@ -194,7 +207,7 @@ export function collectPresetHarnessReadiness(
   preset: Preset,
   options: PresetHarnessReadinessOptions = {},
 ): PresetHarnessReadiness {
-  const adapter = collectAdapterReadiness(
+  const { adapter, capabilities } = collectAdapterReadiness(
     preset,
     options.selection ?? {
       model: preset.defaultModel,
@@ -207,6 +220,7 @@ export function collectPresetHarnessReadiness(
     defaultModel: preset.defaultModel,
     tiers: mergePresetTiers(preset, options.tierOverrides),
     adapter,
+    capabilities,
     auth: collectAuthReadiness(preset, options.env ?? process.env, adapter),
     capturedAt: (options.now ?? (() => new Date()))().toISOString(),
   };

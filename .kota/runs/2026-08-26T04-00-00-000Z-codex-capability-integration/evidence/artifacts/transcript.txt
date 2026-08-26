@@ -1,0 +1,24 @@
+$ pnpm kota doctor --preset codex --skip-connectivity
+KOTA Health Check
+----------------------------------------
+
+St…  Check                      Detail
+wa…  Daemon                     No daemon-control.json found — daemon is not running
+pa…  Config: global (~/.kota/…  Valid JSON object
+wa…  Config: project (.kota/c…  Not present (using defaults)
+pa…  Modules: loaded            92 module(s)
+pa…  Preset: codex              harness-managed auth ready (Codex ChatGPT login active); runtime co…
+pa…  Preset tiers: codex        fast=gpt-5.6-luna, balanced=gpt-5.6-terra, capable=gpt-5.6-sol
+pa…  Preset adapter: codex      kind=native-cli, harness=codex
+pa…  Preset runtime: codex      codex-cli 0.144.1 at /Users/xmanatee/.nvm/versions/node/v22.19.0/bi…
+pa…  Preset auth: codex         harness-managed auth ready (Codex ChatGPT login active)
+pa…  Preset supported capabil…  toolControl=native; multiTurn; agentMessageStream; cancellation=con…
+in…  Preset intentional limit…  ownerQuestions, mcpServers, allowedTools, disallowedTools, canUseTo…
+pa…  Providers: configuration   Using defaults
+wa…  Provider connectivity      Skipped (--skip-connectivity)
+pa…  Workflows: discoverable …  33 valid
+pa…  Disk: .kota/ directory     Present
+pa…  Disk: .kota/ writable
+wa…  Disk: .kota/modules/       Missing — run `kota doctor --fix` to create canonical module state
+
+17 check(s): 12 passed, 1 informational, 4 warned, 0 failed

@@ -215,6 +215,11 @@ describe("preset harness readiness", () => {
           packageName: "@google/genai",
         },
       },
+      capabilities: {
+        toolControl: "kota",
+        supportsMultiTurn: true,
+        supportsOwnerQuestions: true,
+      },
       capturedAt: "2026-05-14T00:00:00.000Z",
     });
   });

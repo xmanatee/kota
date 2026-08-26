@@ -1,7 +1,7 @@
 /**
  * Doctor module — owns the `kota doctor` CLI health check surface.
  *
- * Registers the `kota doctor` command that runs pass/warn/fail checks
+ * Registers the `kota doctor` command that runs pass/info/warn/fail checks
  * against daemon connectivity, config validity, modules, providers,
  * workflow definitions, and disk state. The CLI handler routes through
  * `ctx.client.doctor.{run,fix}()` so daemon-up and daemon-down operators
@@ -57,6 +57,7 @@ export {
 
 function statusRole(status: DoctorCheckResult["status"]): SemanticRole {
   if (status === "pass") return "success";
+  if (status === "info") return "info";
   if (status === "warn") return "warn";
   return "error";
 }
@@ -104,7 +105,7 @@ function buildRepairsNode(repairs: DoctorRepairResult[]): RenderNode {
 
 function buildDoctorCommand(ctx: ModuleContext): Command {
   const cmd = new Command("doctor")
-    .description("Run runtime health checks and print a pass/warn/fail summary")
+    .description("Run runtime health checks and print a pass/info/warn/fail summary")
     .option("--json", "Output results as JSON")
     .option("--fix", "Apply safe automatic repairs for fixable issues")
     .option("--skip-connectivity", "Skip provider API connectivity probes (for offline environments)")
@@ -121,6 +122,7 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
         writeJson(opts.fix ? { ...runResult, repairs } : runResult, { pretty: true });
       } else {
         const failCount = results.filter((r) => r.status === "fail").length;
+        const infoCount = results.filter((r) => r.status === "info").length;
         const warnCount = results.filter((r) => r.status === "warn").length;
         const nodes: RenderNode[] = [
           heading("KOTA Health Check", 1),
@@ -130,8 +132,13 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
           line(
             span(String(results.length), "accent"),
             plain(" check(s): "),
-            span(String(results.length - failCount - warnCount), "success"),
+            span(
+              String(results.length - failCount - infoCount - warnCount),
+              "success",
+            ),
             plain(" passed, "),
+            span(String(infoCount), infoCount > 0 ? "info" : "muted"),
+            plain(" informational, "),
             span(String(warnCount), warnCount > 0 ? "warn" : "muted"),
             plain(" warned, "),
             span(String(failCount), failCount > 0 ? "error" : "muted"),

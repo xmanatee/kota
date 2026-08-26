@@ -6,6 +6,12 @@ export function pass(label: string, detail?: string): DoctorCheckResult {
     : { label, status: "pass", detail };
 }
 
+export function info(label: string, detail?: string): DoctorCheckResult {
+  return detail === undefined
+    ? { label, status: "info" }
+    : { label, status: "info", detail };
+}
+
 export function warn(label: string, detail?: string): DoctorCheckResult {
   return detail === undefined
     ? { label, status: "warn" }

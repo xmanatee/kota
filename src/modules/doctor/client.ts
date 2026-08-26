@@ -13,7 +13,7 @@ import type { PresetHarnessReadiness } from "#core/model/preset-readiness.js";
 /** A single doctor health-check result. */
 export type DoctorCheckResult = {
   label: string;
-  status: "pass" | "warn" | "fail";
+  status: "pass" | "info" | "warn" | "fail";
   detail?: string;
   metadata?: {
     presetReadiness?: PresetHarnessReadiness;
@@ -51,7 +51,7 @@ export type DoctorFixResult = {
 /**
  * Doctor operations.
  *
- * `run` executes the pass/warn/fail health checks (provider connectivity
+ * `run` executes the pass/info/warn/fail health checks (provider connectivity
  * is opt-out via `skipConnectivity`); `fix` applies the safe automatic
  * repairs (stale control file, missing canonical directories, stray
  * runtime directories). Both operations work daemon-up and daemon-down

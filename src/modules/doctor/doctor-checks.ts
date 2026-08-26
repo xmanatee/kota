@@ -3,7 +3,7 @@
  *
  * Both the local-side `doctor` namespace handler and the daemon-control
  * routes share these helpers so daemon-up and daemon-down operators see
- * the same pass/warn/fail decisions for the same project state.
+ * the same pass/info/warn/fail decisions for the same project state.
  */
 import {
   existsSync,

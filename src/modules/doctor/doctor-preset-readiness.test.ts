@@ -95,6 +95,12 @@ describe("doctor preset model readiness", () => {
     const selectionRow = results.find(
       (row) => row.label === `Preset model/effort: ${preset.id}`,
     );
+    const supportedRow = results.find(
+      (row) => row.label === `Preset supported capabilities: ${preset.id}`,
+    );
+    const limitsRow = results.find(
+      (row) => row.label === `Preset intentional limits: ${preset.id}`,
+    );
 
     expect(observed).toEqual([
       { model: configuredModel, effort: preset.defaultEffort },
@@ -104,5 +110,13 @@ describe("doctor preset model readiness", () => {
     expect(selectionRow?.status).toBe("fail");
     expect(selectionRow?.detail).toContain(configuredModel);
     expect(selectionRow?.detail).toContain(preset.defaultEffort);
+    expect(supportedRow).toMatchObject({
+      status: "pass",
+      detail: "toolControl=native; multiTurn",
+    });
+    expect(limitsRow).toMatchObject({
+      status: "info",
+      detail: "ownerQuestions, agentMessageStream",
+    });
   });
 });

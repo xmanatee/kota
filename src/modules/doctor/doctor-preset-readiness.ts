@@ -15,7 +15,42 @@ import {
   type PresetHarnessReadiness,
 } from "#core/model/preset-readiness.js";
 import type { DoctorCheckResult } from "./client.js";
-import { fail, pass } from "./doctor-results.js";
+import { fail, info, pass } from "./doctor-results.js";
+
+function supportedCapabilitiesDetail(
+  readiness: PresetHarnessReadiness,
+): string {
+  const capabilities = readiness.capabilities;
+  if (capabilities === null) return "capability declaration unavailable";
+
+  return [
+    `toolControl=${capabilities.toolControl}`,
+    ...(capabilities.supportsMultiTurn ? ["multiTurn"] : []),
+    ...(capabilities.supportsOwnerQuestions ? ["ownerQuestions"] : []),
+    ...(capabilities.emitsAgentMessageStream ? ["agentMessageStream"] : []),
+    ...(capabilities.nativeAbortQuarantine === null
+      ? []
+      : [`cancellation=${capabilities.nativeAbortQuarantine}`]),
+    ...(capabilities.supportedHookKinds.length === 0
+      ? []
+      : [`hooks=${capabilities.supportedHookKinds.join(",")}`]),
+  ].join("; ");
+}
+
+function intentionalLimitsDetail(
+  readiness: PresetHarnessReadiness,
+): string {
+  const capabilities = readiness.capabilities;
+  if (capabilities === null) return "capability declaration unavailable";
+
+  const limits = [
+    ...(!capabilities.supportsMultiTurn ? ["multiTurn"] : []),
+    ...(!capabilities.supportsOwnerQuestions ? ["ownerQuestions"] : []),
+    ...(!capabilities.emitsAgentMessageStream ? ["agentMessageStream"] : []),
+    ...capabilities.unsupportedRunOptions.map((option) => option.option),
+  ];
+  return limits.length === 0 ? "none" : limits.join(", ");
+}
 
 function runtimeProbeStatus(
   probe: PresetHarnessReadiness["adapter"]["localRuntime"],
@@ -154,12 +189,22 @@ function renderPresetReadinessChecks(
     status: authCheckStatus(readiness),
     detail: readiness.auth.summary,
   });
-  checks.push(pass(
-    `Preset unsupported options: ${readiness.presetId}`,
-    readiness.adapter.unsupportedOptions.length === 0
-      ? "none"
-      : readiness.adapter.unsupportedOptions.map((option) => option.option).join(", "),
-  ));
+  checks.push({
+    label: `Preset supported capabilities: ${readiness.presetId}`,
+    status: readiness.capabilities === null ? "fail" : "pass",
+    detail: supportedCapabilitiesDetail(readiness),
+  });
+  checks.push(
+    readiness.capabilities === null
+      ? fail(
+          `Preset intentional limits: ${readiness.presetId}`,
+          intentionalLimitsDetail(readiness),
+        )
+      : info(
+          `Preset intentional limits: ${readiness.presetId}`,
+          intentionalLimitsDetail(readiness),
+        ),
+  );
   return checks;
 }
 
