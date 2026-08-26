@@ -94,8 +94,10 @@ describe("antigravityCliAgentHarness failures", () => {
       text: "Antigravity CLI run aborted.",
       sessionId: "remote-attempt-1",
       turns: 2,
-      inputTokens: 31,
-      outputTokens: 4,
+      usage: {
+        tokens: { state: "complete", inputTokens: 31, outputTokens: 4 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: true,
       subtype: "aborted",
     });
@@ -117,8 +119,10 @@ describe("antigravityCliAgentHarness failures", () => {
       streamedText: "",
       sessionId: "conversation-empty",
       turns: 1,
-      inputTokens: 8,
-      outputTokens: 0,
+      usage: {
+        tokens: { state: "complete", inputTokens: 8, outputTokens: 0 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
   });
@@ -142,8 +146,10 @@ describe("antigravityCliAgentHarness failures", () => {
       ),
       streamedText: "",
       turns: 1,
-      inputTokens: 20,
-      outputTokens: 2,
+      usage: {
+        tokens: { state: "complete", inputTokens: 20, outputTokens: 2 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: true,
       subtype: "antigravity_cli_permission_error",
     });

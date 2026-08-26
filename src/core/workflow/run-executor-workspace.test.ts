@@ -10,6 +10,7 @@ import type {
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -17,7 +18,6 @@ import type { WorkflowAgentStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRunContext(
   projectDir: string,

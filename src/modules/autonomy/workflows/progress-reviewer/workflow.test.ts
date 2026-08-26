@@ -83,8 +83,8 @@ import {
 
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
-import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
+import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
 
 vi.mock("#core/util/repo-worktree.js", async () => {
   const actual =
@@ -183,10 +183,18 @@ function writeRun(
       {
         id,
         workflow,
+        definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+        trigger: {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {},
+        },
         status,
         startedAt,
         completedAt: startedAt,
         durationMs: 1000,
+        runDir: `.kota/runs/${id}`,
+        steps: [],
       },
       null,
       2,
@@ -2341,10 +2349,18 @@ describe("progress-reviewer workflow", () => {
         {
           id: "../../../outside-run-root",
           workflow: "builder",
+          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+          trigger: {
+            event: "autonomy.queue.available",
+            schemaRef: null,
+            payload: {},
+          },
           status: "success",
           startedAt: "2026-06-04T11:20:00.000Z",
           completedAt: "2026-06-04T11:20:00.000Z",
           durationMs: 1000,
+          runDir: ".kota/runs/builder-success",
+          steps: [],
         },
         null,
         2,
@@ -2356,10 +2372,18 @@ describe("progress-reviewer workflow", () => {
         {
           id: "other-run",
           workflow: "builder",
+          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+          trigger: {
+            event: "autonomy.queue.available",
+            schemaRef: null,
+            payload: {},
+          },
           status: "success",
           startedAt: "2026-06-04T11:30:00.000Z",
           completedAt: "2026-06-04T11:30:00.000Z",
           durationMs: 1000,
+          runDir: ".kota/runs/renamed-run",
+          steps: [],
         },
         null,
         2,

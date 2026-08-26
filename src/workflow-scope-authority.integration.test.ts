@@ -11,9 +11,9 @@ import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { createStepContext } from "#core/workflow/steps/step-context.js";
 import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
 import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TOOL_NAME = "workflow_authority_file_write_fixture";
 const roots: string[] = [];

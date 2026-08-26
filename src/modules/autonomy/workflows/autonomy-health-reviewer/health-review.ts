@@ -18,8 +18,8 @@ import type {
 } from "./health-review-types.js";
 
 export {
-  autonomyIssueObservationsFromReview,
   applyAutonomyHealthReviewActions,
+  autonomyIssueObservationsFromReview,
   planAutonomyHealthReviewActions,
 } from "./health-review-actions.js";
 export {

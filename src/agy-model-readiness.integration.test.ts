@@ -17,12 +17,12 @@ import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
   antigravityCliAgentHarness,
   antigravityCliReadiness,
 } from "#modules/antigravity-cli-agent-harness/index.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const SELECTED_MODEL = "gemini-autonomy-readiness-candidate";
 

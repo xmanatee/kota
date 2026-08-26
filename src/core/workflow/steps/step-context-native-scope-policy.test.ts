@@ -13,12 +13,12 @@ import {
 } from "#core/daemon/scope-policy.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const trigger: WorkflowRunTrigger = {
   event: "manual",

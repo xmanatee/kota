@@ -17,9 +17,9 @@ import {
 } from "#modules/autonomy/health-signal.js";
 import type { AutonomyHealthReview } from "./health-review.js";
 import {
+  applyAutonomyHealthReviewActions,
   buildAutonomyHealthAttentionDigest,
   buildAutonomyHealthReviewFromSignals,
-  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";

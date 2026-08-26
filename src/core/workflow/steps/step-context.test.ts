@@ -10,6 +10,7 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { EMITTED_EVENTS_LOG_FILENAME } from "../run-event-evidence.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
@@ -17,7 +18,6 @@ import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runn
 import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function tempProject(): string {
   const dir = join(

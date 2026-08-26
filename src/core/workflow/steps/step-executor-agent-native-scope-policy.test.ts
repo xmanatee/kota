@@ -11,6 +11,7 @@ import {
 } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import { createTestRunContext } from "../testing/run-context-fixture.js";
@@ -23,7 +24,6 @@ import {
   removeProjectDir,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 describe("native workflow agent scope policy", () => {
   let projectDir: string;

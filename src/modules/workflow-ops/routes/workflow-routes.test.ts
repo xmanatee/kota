@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { WorkflowLiveStatus, WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
@@ -68,6 +69,7 @@ function writeRunMetadata(
         startedAt: new Date(1700000000000).toISOString(),
         completedAt: new Date(1700001000000).toISOString(),
         durationMs: 1000,
+        usage: UNKNOWN_AGENT_USAGE,
       },
     ],
     ...overrides,
@@ -962,6 +964,7 @@ describe("workflow-routes", () => {
             startedAt: new Date(1700000000000).toISOString(),
             completedAt: new Date(1700000001000).toISOString(),
             durationMs: 1000,
+            usage: UNKNOWN_AGENT_USAGE,
             output: { raw: "RAW_TOOL_OUTPUT", ok: true },
           },
         ],
@@ -1301,6 +1304,7 @@ describe("workflow-routes", () => {
             startedAt: new Date(1700000000000).toISOString(),
             completedAt: new Date(1700000001000).toISOString(),
             durationMs: 1000,
+            usage: UNKNOWN_AGENT_USAGE,
           },
         ],
       });

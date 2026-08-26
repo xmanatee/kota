@@ -102,8 +102,10 @@ describe("antigravityCliAgentHarness execution", () => {
       streamedText: "all done",
       sessionId: "conversation-1",
       turns: 1,
-      inputTokens: 12,
-      outputTokens: 3,
+      usage: {
+        tokens: { state: "complete", inputTokens: 12, outputTokens: 3 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
   });

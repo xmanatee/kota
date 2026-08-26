@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveModuleWorkflows } from "#core/modules/module-definition.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { resolveModuleWorkflows } from "#core/modules/module-definition.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import ownerQuestionsModule from "./index.js";
 

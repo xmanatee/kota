@@ -49,7 +49,11 @@ function writeRun(runsDir: string, id: string): string {
       startedAt: "2026-06-24T11:00:00.000Z",
       completedAt: "2026-06-24T11:10:00.000Z",
       status: "success",
-      trigger: { event: "autonomy.queue.available", payload: {} },
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
       runDir: `.kota/runs/${id}`,
       steps: [],
     }),

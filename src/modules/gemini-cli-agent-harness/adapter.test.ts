@@ -223,8 +223,10 @@ describe("geminiCliAgentHarness", () => {
       streamedText: "all done",
       sessionId: "session-1",
       turns: 1,
-      inputTokens: 18,
-      outputTokens: 7,
+      usage: {
+        tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
     expect(messages).toEqual([
@@ -259,8 +261,10 @@ describe("geminiCliAgentHarness", () => {
         subtype: "success",
         isError: false,
         numTurns: 1,
-        inputTokens: 18,
-        outputTokens: 7,
+        usage: {
+          tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+          cost: { state: "unavailable", reason: "provider-does-not-report" },
+        },
         sessionId: "session-1",
       },
     ]);

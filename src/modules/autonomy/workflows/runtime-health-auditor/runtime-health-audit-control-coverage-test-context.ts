@@ -9,8 +9,8 @@ import {
   readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
-  buildAutonomyHealthReviewFromSignals,
   applyAutonomyHealthReviewActions,
+  buildAutonomyHealthReviewFromSignals,
   planAutonomyHealthReviewActions,
 } from "../autonomy-health-reviewer/health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";

@@ -7,6 +7,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { resetModuleEventRegistry } from "#core/events/module-event.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { progressReviewRequested } from "./events.js";
 import type { ProgressReviewActionResult } from "./progress-review.js";
 import {
@@ -20,7 +21,6 @@ import {
   reviewOutput,
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const OBSERVED_UNKNOWN_EVIDENCE_IDS = [
   "dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83",

@@ -43,7 +43,6 @@ function writeRunMetadata(
   id: string,
   workflow: string,
   status: string,
-  totalCostUsd = 0,
   warnings?: Array<{ type: string; message: string }>,
 ): void {
   const dir = join(runsDir, id);
@@ -55,14 +54,17 @@ function writeRunMetadata(
       id,
       workflow,
       definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-      trigger: { event: "runtime.idle", payload: {} },
+      trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
       startedAt: now,
       completedAt: now,
       status,
       durationMs: 1000,
+      usage: {
+        tokens: { state: "unknown" },
+        cost: { state: "unknown" },
+      },
       runDir: `.kota/runs/${id}`,
       steps: [],
-      totalCostUsd,
       ...(warnings ? { warnings } : {}),
     }),
     "utf-8",
@@ -274,7 +276,7 @@ describe("attention digest inspection", () => {
       makeTaskDir(projectDir, "backlog", 1);
       const warnings = [{ type: "maxStepOutputBytes", message: "output truncated" }];
       for (let i = 0; i < 3; i++) {
-        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings", 0, warnings);
+        writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings", warnings);
       }
       runSteps(10);
       expect(emittedEvents).toHaveLength(1);
@@ -285,9 +287,9 @@ describe("attention digest inspection", () => {
     it("does not include type in detail when warnings have mixed types", () => {
       makeTaskDir(projectDir, "ready", 1);
       makeTaskDir(projectDir, "backlog", 1);
-      writeRunMetadata(runsDir, "2026-04-01-warn-0", "builder", "completed-with-warnings", 0, [{ type: "typeA", message: "a" }]);
-      writeRunMetadata(runsDir, "2026-04-01-warn-1", "builder", "completed-with-warnings", 0, [{ type: "typeB", message: "b" }]);
-      writeRunMetadata(runsDir, "2026-04-01-warn-2", "builder", "completed-with-warnings", 0, [{ type: "typeA", message: "a2" }]);
+      writeRunMetadata(runsDir, "2026-04-01-warn-0", "builder", "completed-with-warnings", [{ type: "typeA", message: "a" }]);
+      writeRunMetadata(runsDir, "2026-04-01-warn-1", "builder", "completed-with-warnings", [{ type: "typeB", message: "b" }]);
+      writeRunMetadata(runsDir, "2026-04-01-warn-2", "builder", "completed-with-warnings", [{ type: "typeA", message: "a2" }]);
       runSteps(10);
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;

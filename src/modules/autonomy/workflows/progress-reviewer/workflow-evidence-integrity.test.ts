@@ -13,6 +13,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { resetModuleEventRegistry } from "#core/events/module-event.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { progressReviewRequested } from "./events.js";
 import {
   PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
@@ -30,7 +31,6 @@ import {
   reviewOutput,
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function executeReview(projectDir: string, runId: string) {
   const scopeId = deriveDirectoryScopeId(projectDir);

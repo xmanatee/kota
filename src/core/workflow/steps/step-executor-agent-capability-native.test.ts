@@ -9,6 +9,7 @@ import {
   resetHarnessHooks,
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import { createTestRunContext } from "../testing/run-context-fixture.js";
@@ -22,7 +23,6 @@ import {
   removeProjectDir,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 describe("workflow native-harness capability artifacts", () => {
   let projectDir: string;

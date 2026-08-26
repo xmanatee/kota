@@ -6,8 +6,8 @@ import {
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  type OwnerQuestionMutationRequest,
   decodeOwnerQuestionMutationRequest,
+  type OwnerQuestionMutationRequest,
   ownerQuestionMutationRequested,
 } from "./events.js";
 

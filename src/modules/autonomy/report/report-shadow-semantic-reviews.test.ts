@@ -46,10 +46,13 @@ function writeRunMetadata(projectDir: string, args: {
       {
         id: args.id,
         workflow: args.workflow,
+        definitionPath: `src/modules/autonomy/workflows/${args.workflow}/workflow.ts`,
+        trigger: { event: "schedule", schemaRef: null, payload: {} },
         status: "success",
         startedAt,
         completedAt: args.completedAt ?? startedAt,
         durationMs: 1_000,
+        runDir: `.kota/runs/${args.id}`,
         usage: {
           tokens: { state: "unknown" },
           cost: { state: "complete", usd: 0 },

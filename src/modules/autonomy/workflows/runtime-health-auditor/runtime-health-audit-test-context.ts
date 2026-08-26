@@ -9,8 +9,8 @@ import {
   readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
-  buildAutonomyHealthReviewFromSignals,
   applyAutonomyHealthReviewActions,
+  buildAutonomyHealthReviewFromSignals,
   planAutonomyHealthReviewActions,
 } from "../autonomy-health-reviewer/health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
@@ -170,10 +170,13 @@ export function writeRuntimeHealthRun(
       {
         id: args.id,
         workflow: args.workflow,
+        definitionPath: `src/modules/autonomy/workflows/${args.workflow}/workflow.ts`,
+        trigger: { event: "runtime.recovered", schemaRef: null, payload: {} },
         status: args.status,
         startedAt: args.startedAt,
         completedAt: args.startedAt,
         durationMs: 1000,
+        runDir: `.kota/runs/${args.id}`,
         steps: [],
       },
       null,

@@ -67,7 +67,7 @@ export function writeRun(
     JSON.stringify({
       id,
       definitionPath: `src/modules/autonomy/workflows/${metadata.workflow}/workflow.ts`,
-      trigger: { event: "schedule", payload: {} },
+      trigger: { event: "schedule", schemaRef: null, payload: {} },
       runDir: `.kota/runs/${id}`,
       durationMs: 1000,
       usage: {
@@ -98,6 +98,7 @@ export function writeWriterIntegration(
       ...metadata,
       trigger: {
         event: "autonomy.queue.available",
+        schemaRef: null,
         payload: {
           taskId,
           taskPath: `data/tasks/ready/${taskId}.md`,

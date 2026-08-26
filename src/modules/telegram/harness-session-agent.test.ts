@@ -3,6 +3,7 @@ import type {
   AgentHarness,
   AgentHarnessSessionContext,
 } from "#core/agent-harness/index.js";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { ProxyTransport } from "#core/loop/transport.js";
 import {
   injectSessionEnvironmentVariable,
@@ -50,6 +51,7 @@ describe("TelegramHarnessSessionAgent", () => {
         text: "done",
         streamedText: "done",
         turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
         isError: false,
       };
     });

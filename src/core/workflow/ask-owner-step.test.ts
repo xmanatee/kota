@@ -26,6 +26,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { EventBus, getEventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { type AwaitedOwnerOutcome, askOwnerSteps } from "./ask-owner-step.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import { type AwaitDelivery, readSuspension } from "./awaits-store.js";
@@ -35,7 +36,6 @@ import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 

@@ -7,8 +7,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import type { DurableEffectValue } from "#core/workflow/run-context.js";
+import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
@@ -23,8 +23,8 @@ import {
 import runtimeHealthAuditorWorkflow, {
   runtimeHealthAuditStepOutput,
 } from "../runtime-health-auditor/workflow.js";
-import autonomyHealthReviewerWorkflow from "./workflow.js";
 import { planAutonomyHealthReviewActionsInWorker } from "./action-operations.js";
+import autonomyHealthReviewerWorkflow from "./workflow.js";
 
 function emptyInspected(): RuntimeHealthAudit["inspected"] {
   return {

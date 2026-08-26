@@ -17,6 +17,7 @@ import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
 import { ownerDecisionSteps } from "./owner-decision-step.js";
 import {
@@ -29,7 +30,6 @@ import type { WorkflowApprovalStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
 
@@ -233,7 +233,6 @@ describe("owner decision workflow helpers", () => {
   function runContext(): RunExecutorDeps["runContext"] {
     const runId = `owner-decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
       run: { id: runId, attempt: 1, daemonEpoch: 1 },
       project: { id: "scope-a", root: projectDir },
       workflow: "owner-decision-fixture",

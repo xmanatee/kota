@@ -78,8 +78,10 @@ describe("vercelAgentHarness — happy path", () => {
       streamedText: "all done",
       sessionId: "step-1",
       turns: 1,
-      inputTokens: 18,
-      outputTokens: 7,
+      usage: {
+        tokens: { state: "complete", inputTokens: 18, outputTokens: 7 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
       isError: false,
     });
   });

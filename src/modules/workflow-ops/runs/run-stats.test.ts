@@ -18,7 +18,7 @@ function writeRun(
   status: string,
   startedAt: string,
   durationMs?: number,
-  totalCostUsd?: number,
+  costUsd?: number,
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
@@ -27,7 +27,24 @@ function writeRun(
     : undefined;
   writeFileSync(
     join(dir, "metadata.json"),
-    JSON.stringify({ id, workflow, status, startedAt, completedAt, durationMs, totalCostUsd }),
+    JSON.stringify({
+      id,
+      workflow,
+      definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      startedAt,
+      completedAt,
+      status,
+      durationMs,
+      ...(costUsd !== undefined && {
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "complete", usd: costUsd },
+        },
+      }),
+      runDir: `.kota/runs/${id}`,
+      steps: [],
+    }),
   );
 }
 

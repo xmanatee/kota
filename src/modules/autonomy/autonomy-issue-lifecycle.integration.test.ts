@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import {
   EventedDeadLetterQueueStore,
@@ -90,7 +91,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         text: ["```json", JSON.stringify(disposition), "```"].join("\n"),
         streamedText: "",
         turns: 1,
-        totalCostUsd: 0.01,
+        usage: UNKNOWN_AGENT_USAGE,
         subtype: "success",
         isError: false,
       } as never);
@@ -254,10 +255,31 @@ describe("issue-driven autonomy lifecycle integration", () => {
       writeFileSync(
         join(resolutionRunDir, "metadata.json"),
         JSON.stringify({
+          id: "builder-resolution",
           workflow: "builder",
+          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+          trigger: {
+            event: "autonomy.queue.available",
+            schemaRef: null,
+            payload: { taskId: tasks[0]!.id },
+          },
+          startedAt: "2026-08-14T02:30:00.000Z",
+          completedAt: "2026-08-14T02:31:00.000Z",
           status: "success",
-          taskId: tasks[0]!.id,
-          resolution: "root cause fixed and verified",
+          durationMs: 60_000,
+          runDir: ".kota/runs/builder-resolution",
+          steps: [{
+            id: "record-resolution",
+            type: "code",
+            status: "success",
+            startedAt: "2026-08-14T02:30:00.000Z",
+            completedAt: "2026-08-14T02:31:00.000Z",
+            durationMs: 60_000,
+            output: {
+              taskId: tasks[0]!.id,
+              resolution: "root cause fixed and verified",
+            },
+          }],
         }),
       );
       const clearRuntime = createRuntime([
@@ -313,7 +335,12 @@ describe("issue-driven autonomy lifecycle integration", () => {
         ]);
         expect(
           JSON.parse(readFileSync(join(resolutionRunDir, "metadata.json"), "utf-8")),
-        ).toMatchObject({ status: "success", taskId: tasks[0]!.id });
+        ).toMatchObject({
+          status: "success",
+          steps: [expect.objectContaining({
+            output: expect.objectContaining({ taskId: tasks[0]!.id }),
+          })],
+        });
       } finally {
         await clearRuntime.stop();
         source.runtime.runState.close();

@@ -190,6 +190,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
       trigger: {
         event: "manual",
+        schemaRef: null,
         payload: {
           source: "test",
           accessToken: "raw-token",
@@ -199,7 +200,10 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       startedAt: "2026-04-25T20:00:00.000Z",
       completedAt: "2026-04-25T20:00:01.000Z",
       durationMs: 1000,
-      totalCostUsd: 0.012,
+      usage: {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "complete", usd: 0.012 },
+      },
       status: "failed",
       runDir: ".kota/runs/2026-04-25T20-00-00-000Z-builder-aaa111",
       steps: [
@@ -210,7 +214,10 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
           startedAt: "2026-04-25T20:00:00.000Z",
           completedAt: "2026-04-25T20:00:01.000Z",
           durationMs: 800,
-          costUsd: 0.012,
+          usage: {
+            tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+            cost: { state: "complete", usd: 0.012 },
+          },
           error: "failed with token=step-token",
         },
       ],
@@ -244,7 +251,10 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       type: "agent",
       status: "failed",
       durationMs: 800,
-      costUsd: 0.012,
+      usage: {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "complete", usd: 0.012 },
+      },
       error: "failed with token=[redacted]",
     });
     expect(JSON.stringify(result.run)).not.toContain("raw-token");

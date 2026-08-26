@@ -28,6 +28,7 @@ import {
   executeToolCalls,
   type ToolResultEntry,
 } from "#core/tools/tool-runner.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type {
   WorkflowAgentHarnessRunner,
@@ -38,7 +39,6 @@ import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 import { executeToolStep } from "./step-executor.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const POLICY_WRITE_TOOL = "workflow_scope_policy_write_fixture";
 const POLICY_NETWORK_TOOL = "workflow_scope_policy_network_fixture";

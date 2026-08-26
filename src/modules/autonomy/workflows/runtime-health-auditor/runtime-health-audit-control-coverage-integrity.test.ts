@@ -170,6 +170,12 @@ describe("runtime health audit control coverage integrity", () => {
       JSON.stringify({
         id: "missing-coverage",
         workflow: "builder",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        trigger: {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {},
+        },
         status: "success",
         startedAt: "2026-06-19T10:00:00.000Z",
         completedAt: "2026-06-19T10:01:00.000Z",

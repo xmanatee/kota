@@ -106,11 +106,7 @@ function writeRunningRun(projectDir: string, scopeId: string): void {
   );
 }
 
-function writeRunWithoutTrigger(
-  projectDir: string,
-  id: string,
-  status: "running" | "success",
-): void {
+function writeHistoricalRun(projectDir: string, id: string): void {
   const dir = join(projectDir, ".kota", "runs", id);
   mkdirSync(dir, { recursive: true });
   const startedAt = new Date().toISOString();
@@ -121,9 +117,14 @@ function writeRunWithoutTrigger(
         id,
         workflow: "builder",
         definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        trigger: {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {},
+        },
         startedAt,
-        ...(status === "success" ? { completedAt: startedAt } : {}),
-        status,
+        completedAt: startedAt,
+        status: "success",
         runDir: `.kota/runs/${id}`,
         steps: [],
       },
@@ -222,8 +223,8 @@ describe("kota report CLI supervision load", () => {
     );
   });
 
-  it("keeps historical terminal runs without trigger metadata reportable", async () => {
-    writeRunWithoutTrigger(projectDir, "run-historical-no-trigger", "success");
+  it("keeps canonical historical terminal runs reportable", async () => {
+    writeHistoricalRun(projectDir, "run-historical");
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "report", "--json"]);
@@ -232,20 +233,10 @@ describe("kota report CLI supervision load", () => {
     const parsed = JSON.parse(out.trim());
     expect(parsed.decisionAttribution.records).toContainEqual(
       expect.objectContaining({
-        runId: "run-historical-no-trigger",
+        runId: "run-historical",
         taskId: null,
         taskTitle: null,
       }),
-    );
-  });
-
-  it("rejects an active run whose current metadata omits its trigger", async () => {
-    writeRunWithoutTrigger(projectDir, "run-active-no-trigger", "running");
-
-    await expect(
-      makeProgram().parseAsync(["node", "kota", "report", "--json"]),
-    ).rejects.toThrow(
-      'Malformed current workflow run "run-active-no-trigger": missing trigger',
     );
   });
 

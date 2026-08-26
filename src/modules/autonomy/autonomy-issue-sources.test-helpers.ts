@@ -20,8 +20,8 @@ import {
   autonomyHealthSignal,
 } from "./health-signal.js";
 import {
-  buildAutonomyHealthReviewFromSignals,
   applyAutonomyHealthReviewActions,
+  buildAutonomyHealthReviewFromSignals,
   planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 

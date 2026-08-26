@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
+import type { WorkflowStepResult } from "#core/workflow/run-types.js";
 import { formatCsv, loadRunSummaries, type RunSummary } from "./run-export.js";
 
 let counter = 0;
@@ -21,7 +22,7 @@ function writeRun(
     startedAt: string;
     durationMs?: number;
     usage?: AgentUsage;
-    steps?: unknown[];
+    steps?: WorkflowStepResult[];
     trigger?: { event: string; payload: Record<string, unknown> };
   },
 ): void {
@@ -29,10 +30,26 @@ function writeRun(
   mkdirSync(dir, { recursive: true });
   const record = {
     ...meta,
-    trigger: meta.trigger ?? { event: "manual", payload: {} },
+    definitionPath: `src/modules/test/workflows/${meta.workflow}/workflow.ts`,
+    trigger: {
+      ...(meta.trigger ?? { event: "manual", payload: {} }),
+      schemaRef: null,
+    },
+    runDir: `.kota/runs/${meta.id}`,
     steps: meta.steps ?? [],
   };
   writeFileSync(join(dir, "metadata.json"), JSON.stringify(record));
+}
+
+function successfulCodeStep(id: string): WorkflowStepResult {
+  return {
+    id,
+    type: "code",
+    status: "success",
+    startedAt: "2024-01-01T00:00:00.000Z",
+    completedAt: "2024-01-01T00:00:01.000Z",
+    durationMs: 1_000,
+  };
 }
 
 function completeUsage(costUsd: number): AgentUsage {
@@ -51,7 +68,7 @@ describe("loadRunSummaries", () => {
   it("returns run summaries sorted by id descending", () => {
     const runsDir = makeRunsDir();
     const now = new Date().toISOString();
-    writeRun(runsDir, { id: "2024-01-01-builder-aaa", workflow: "builder", status: "success", startedAt: now, durationMs: 60000, usage: completeUsage(0.1), steps: [{}, {}] });
+    writeRun(runsDir, { id: "2024-01-01-builder-aaa", workflow: "builder", status: "success", startedAt: now, durationMs: 60000, usage: completeUsage(0.1), steps: [successfulCodeStep("a"), successfulCodeStep("b")] });
     writeRun(runsDir, { id: "2024-01-02-explorer-bbb", workflow: "explorer", status: "failed", startedAt: now, durationMs: 30000, usage: completeUsage(0.05) });
     const summaries = loadRunSummaries(runsDir, {});
     expect(summaries).toHaveLength(2);
@@ -69,7 +86,7 @@ describe("loadRunSummaries", () => {
       startedAt,
       durationMs: 5000,
       usage: completeUsage(0.25),
-      steps: [{ id: "a" }, { id: "b" }, { id: "c" }],
+      steps: [successfulCodeStep("a"), successfulCodeStep("b"), successfulCodeStep("c")],
       trigger: { event: "workflow.completed", payload: {} },
     });
     const [s] = loadRunSummaries(runsDir, {});

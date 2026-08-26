@@ -34,14 +34,22 @@ function writeRunMetadata(
 ): void {
   const dir = join(runsDir, id);
   mkdirSync(dir, { recursive: true });
+  const trigger = metadata.trigger as
+    | { event: string; payload: Record<string, unknown> }
+    | undefined;
   writeFileSync(
     join(dir, "metadata.json"),
     JSON.stringify({
       id,
       definitionPath: `src/modules/autonomy/workflows/${metadata.workflow}/workflow.ts`,
-      trigger: { event: "manual", payload: {} },
       runDir: `.kota/runs/${id}`,
+      steps: [],
       ...metadata,
+      trigger: {
+        event: trigger?.event ?? "manual",
+        schemaRef: null,
+        payload: trigger?.payload ?? {},
+      },
     }),
     "utf-8",
   );

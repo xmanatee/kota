@@ -13,8 +13,8 @@ import {
   normalizeHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 import {
-  buildAutonomyHealthReviewFromSignals,
   applyAutonomyHealthReviewActions,
+  buildAutonomyHealthReviewFromSignals,
   planAutonomyHealthReviewActions,
 } from "./health-review.js";
 

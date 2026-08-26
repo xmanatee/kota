@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import type { WorkflowStepErrorKind } from "#core/workflow/run-types.js";
 
 export type StepSeed = {
@@ -27,6 +28,12 @@ export function writeRunWithCoverage(
     JSON.stringify({
       id,
       workflow: "builder",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
       status: "success",
       startedAt,
       completedAt: startedAt,
@@ -102,6 +109,12 @@ export function writeRunWithUnknownCoverage(
   writeFileSync(join(runDir, "metadata.json"), JSON.stringify({
     id,
     workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    trigger: {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {},
+    },
     status: "interrupted",
     startedAt,
     completedAt: startedAt,
@@ -167,6 +180,9 @@ function stepResult(step: StepSeed, startedAt: string) {
     ...(step.status === "skipped"
       ? { skipReason: { kind: "when-predicate" } }
       : {}),
+    ...(step.type === "agent" && step.status !== "skipped"
+      ? { usage: UNKNOWN_AGENT_USAGE }
+      : {}),
     ...(step.error ? { error: step.error } : {}),
     ...(step.errorKind ? { errorKind: step.errorKind } : {}),
   };
@@ -196,6 +212,13 @@ export function writeRunWithAgentRuntimeCoverageGaps(
     JSON.stringify({
       id,
       workflow: "progress-reviewer",
+      definitionPath:
+        "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
+      trigger: {
+        event: "workflow.batch.flushed",
+        schemaRef: null,
+        payload: {},
+      },
       status: "failed",
       startedAt,
       completedAt: startedAt,
@@ -289,6 +312,12 @@ export function writeRunWithUnsupportedAgentStreamCoverageGaps(
     JSON.stringify({
       id,
       workflow: "improver",
+      definitionPath: "src/modules/autonomy/workflows/improver/workflow.ts",
+      trigger: {
+        event: "workflow.completed",
+        schemaRef: null,
+        payload: {},
+      },
       status: "failed",
       startedAt,
       completedAt: startedAt,
@@ -387,6 +416,13 @@ export function writeRunWithApprovalOwnerGateGap(
     JSON.stringify({
       id: args.metadataId ?? id,
       workflow: "github-mention-intake",
+      definitionPath:
+        "src/modules/autonomy/workflows/github-mention-intake/workflow.ts",
+      trigger: {
+        event: "runtime.recovered",
+        schemaRef: null,
+        payload: {},
+      },
       status: "success",
       startedAt,
       completedAt: startedAt,

@@ -14,6 +14,7 @@ import {
   registerTool,
   type ToolResult,
 } from "#core/tools/index.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { runChecksPhased } from "./repair-loop-checks.js";
 import {
   createRunContext,
@@ -34,7 +35,6 @@ import { createStepContext } from "./steps/step-context.js";
 import { executeToolStep } from "./steps/step-executor.js";
 import { unexpectedWorkflowAgentHarnessRun } from "./testing/agent-harness-runner.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 type Fixture = {
   root: string;

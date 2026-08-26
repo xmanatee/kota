@@ -21,7 +21,7 @@ function writeRunMetadata(
     JSON.stringify({
       id,
       definitionPath: `src/modules/autonomy/workflows/${metadata.workflow}/workflow.ts`,
-      trigger: { event: "schedule", payload: {} },
+      trigger: { event: "schedule", schemaRef: null, payload: {} },
       runDir: `.kota/runs/${id}`,
       ...metadata,
     }),
@@ -59,6 +59,7 @@ function builderTrigger(taskId: string, title: string): Record<string, unknown> 
   const taskDigest = "d".repeat(64);
   return {
     event: "autonomy.queue.available",
+    schemaRef: null,
     payload: {
       taskId,
       taskPath: `data/tasks/ready/${taskId}.md`,

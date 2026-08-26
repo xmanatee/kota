@@ -30,6 +30,7 @@ import type {
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
 import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -64,7 +65,6 @@ import {
   referenceTelegramSportsRouteConfig,
   screenLikelyOpportunities,
 } from "./index.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const SCOPE_ID = "scope-redacted";
 

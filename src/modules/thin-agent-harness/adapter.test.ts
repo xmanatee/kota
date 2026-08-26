@@ -81,8 +81,10 @@ describe("thinAgentHarness", () => {
       sessionId: "msg_thin_1",
       turns: 1,
       isError: false,
-      inputTokens: 12,
-      outputTokens: 3,
+      usage: {
+        tokens: { state: "complete", inputTokens: 12, outputTokens: 3 },
+        cost: { state: "unavailable", reason: "provider-does-not-report" },
+      },
     });
   });
 

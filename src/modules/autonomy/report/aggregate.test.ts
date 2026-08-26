@@ -57,11 +57,27 @@ function writeRun(
     JSON.stringify({
       id,
       definitionPath: `src/modules/autonomy/workflows/${metadata.workflow}/workflow.ts`,
-      trigger: { event: "schedule", payload: {} },
+      trigger: { event: "schedule", schemaRef: null, payload: {} },
       runDir: `.kota/runs/${id}`,
       ...metadata,
     }),
   );
+}
+
+function measuredAgentStep(usd: number) {
+  const timestamp = new Date(NOW - MS_PER_DAY).toISOString();
+  return {
+    id: "agent",
+    type: "agent" as const,
+    status: "success" as const,
+    startedAt: timestamp,
+    completedAt: timestamp,
+    durationMs: 1,
+    usage: {
+      tokens: { state: "unknown" as const },
+      cost: { state: "complete" as const, usd },
+    },
+  };
 }
 
 function writeWriterIntegration(
@@ -93,6 +109,7 @@ function builderTrigger(taskId: string, title: string) {
   const taskDigest = "0".repeat(64);
   return {
     event: "autonomy.queue.available",
+    schemaRef: null,
     payload: {
       taskId,
       taskPath: `data/tasks/ready/${taskId}.md`,
@@ -368,7 +385,7 @@ describe("aggregateAutonomyReport", () => {
         tokens: { state: "unknown" },
         cost: { state: "complete", usd: 0.5 },
       },
-      steps: [],
+      steps: [measuredAgentStep(0.5)],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
       "data/tasks/backlog/task-strategic-add.md",
@@ -408,7 +425,7 @@ describe("aggregateAutonomyReport", () => {
         tokens: { state: "unknown" },
         cost: { state: "complete", usd: 0.5 },
       },
-      steps: [],
+      steps: [measuredAgentStep(0.5)],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
       "data/tasks/backlog/task-explorer-fallback.md",
@@ -452,7 +469,7 @@ describe("aggregateAutonomyReport", () => {
         cost: { state: "complete", usd: 0.4 },
       },
       trigger: builderTrigger("task-builder-arch", "Arch task"),
-      steps: [],
+      steps: [measuredAgentStep(0.4)],
     });
     writeWriterIntegration(runsDir, archRunId, "builder");
 
@@ -703,7 +720,7 @@ describe("aggregateAutonomyReport", () => {
         cost: { state: "complete", usd: 0.20 },
       },
       durationMs: 1,
-      steps: [{ type: "agent" }],
+      steps: [measuredAgentStep(0.20)],
     });
     writeRun(runsDir, "2026-04-28T14-00-00-000Z-explorer-ggg", {
       workflow: "explorer",
@@ -714,7 +731,7 @@ describe("aggregateAutonomyReport", () => {
         cost: { state: "complete", usd: 0.10 },
       },
       durationMs: 1,
-      steps: [{ type: "agent" }],
+      steps: [measuredAgentStep(0.10)],
     });
     writeRun(runsDir, "2026-04-28T15-00-00-000Z-builder-hhh", {
       workflow: "builder",
@@ -725,7 +742,7 @@ describe("aggregateAutonomyReport", () => {
         cost: { state: "complete", usd: 0.30 },
       },
       durationMs: 1,
-      steps: [{ type: "agent" }],
+      steps: [measuredAgentStep(0.30)],
     });
     writeRun(runsDir, "2026-04-28T15-30-00-000Z-builder-iii", {
       workflow: "builder",

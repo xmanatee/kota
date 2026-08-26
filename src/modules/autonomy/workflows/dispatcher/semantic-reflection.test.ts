@@ -9,8 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { emptyScopeImprovementState } from "../scope-improver/scope-improvement-state.js";
 import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
 import {

@@ -11,8 +11,8 @@ import {
 import { createTestProjectRuntime } from "./autonomy-runtime.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
 import {
-  buildAutonomyHealthReviewFromSignals,
   applyAutonomyHealthReviewActions,
+  buildAutonomyHealthReviewFromSignals,
   planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 

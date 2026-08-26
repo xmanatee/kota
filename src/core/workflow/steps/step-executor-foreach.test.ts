@@ -8,6 +8,7 @@ import type {
   AgentHarnessResult,
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import type { RunContext } from "../run-context.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
@@ -17,7 +18,6 @@ import { createTestTransactionalRunState } from "../testing/run-context-fixture.
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
   return { event: "runtime.idle", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };

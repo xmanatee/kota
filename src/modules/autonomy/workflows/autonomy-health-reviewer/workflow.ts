@@ -5,6 +5,7 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
@@ -12,7 +13,6 @@ import {
   decodeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { stageAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection-publication.js";
-import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
   ownerQuestionMutationKey,

@@ -53,11 +53,11 @@ function makeRunContext(
 }
 
 
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import {
   registerWorkflowDefinition,
   validateWorkflowDefinitions,
 } from "./validation.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
   return {

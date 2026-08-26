@@ -13,13 +13,13 @@ import {
   resetHarnessHooks,
 } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { executeWorkflowRun } from "../run-executor.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowAgentStep } from "../step-types.js";
 import { createTestRunContext } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import type { WorkflowDefinition } from "../types.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const TRIGGER: WorkflowRunTrigger = {
   event: "runtime.idle",
