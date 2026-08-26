@@ -11,7 +11,7 @@ This directory owns persistent, searchable agent notes that survive across sessi
   boundary; explicit unknown ids return the typed `unknown_project` route
   error.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
-- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the macOS menu bar `MemoryView`, and the mobile `MemoryScreen`.
+- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the Apple clients' shared `SharedUiSurfaceView`, and the mobile `MemoryScreen`.
 - The `stores` shared-UI surface is the memory module's live contribution;
   knowledge and history add their own independently owned surfaces.
 

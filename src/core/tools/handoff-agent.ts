@@ -1,4 +1,5 @@
 import {
+  harnessSupportsRunOption,
   resolveAgentHarness,
   routeKotaToolControlOptions,
   runAgentHarness,
@@ -219,7 +220,9 @@ export async function runHandoffAgent(
             cwd,
             ...(runtime.env !== undefined ? { env: runtime.env } : {}),
             effort: agent.effort,
-            maxTurns: budget.maxTurns,
+            ...(harnessSupportsRunOption(harness, "maxTurns")
+              ? { maxTurns: budget.maxTurns }
+              : {}),
             autonomyMode: effectiveAutonomyMode,
             persistSession: mode === "transfer",
             ...(resumeSessionId !== undefined ? { resumeSessionId } : {}),

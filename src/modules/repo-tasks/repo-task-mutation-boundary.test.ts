@@ -13,11 +13,16 @@ import {
   mutateRepoTask,
   repoTaskMutationResources,
 } from "./repo-task-mutation-boundary.js";
-import { createRepoTaskRuntimeSandbox } from "./repo-task-mutation-test-support.js";
+import {
+  createRepoTaskRuntimeSandbox,
+  disposeRepoTaskRuntimeSandboxes,
+  finishRepoTaskRuntimeSandbox,
+} from "./repo-task-mutation-test-support.js";
 
 const roots: string[] = [];
 
 afterEach(() => {
+  disposeRepoTaskRuntimeSandboxes();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   resetProviderRegistry();
 });
@@ -100,6 +105,19 @@ describe("repo-task mutation", () => {
       { authority: "runtime-owned-sandbox", repositoryAccess: {} as never },
       { kind: "move", id: "task-missing", state: "doing" },
     )).rejects.toThrow(/runtime-owned writer repository/i);
+  });
+
+  it("revokes writer authority when its run attempt finishes", async () => {
+    const scopeDir = join(tmpdir(), `kota-task-revoked-${Date.now()}-${Math.random()}`);
+    roots.push(scopeDir);
+    const target = createRepoTaskRuntimeSandbox(scopeDir, "repo-task-revoked-test");
+    finishRepoTaskRuntimeSandbox(target.projectDir);
+
+    await expect(mutateRepoTask(target, {
+      kind: "move",
+      id: "task-missing",
+      state: "doing",
+    })).rejects.toThrow(/not active/i);
   });
 
   it("uses one logical resource identity for capture and retraction", () => {

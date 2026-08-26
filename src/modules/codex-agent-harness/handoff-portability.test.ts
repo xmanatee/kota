@@ -25,7 +25,7 @@ describe("Codex handoff portability", () => {
     }
   });
 
-  it("rejects a KOTA-owned handoff when Codex cannot enforce its turn bound", async () => {
+  it("runs a KOTA-owned handoff without routing an unsupported turn bound", async () => {
     const projectDir = mkdtempSync(join(tmpdir(), "kota-codex-handoff-"));
     projectDirs.push(projectDir);
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
@@ -83,8 +83,9 @@ describe("Codex handoff portability", () => {
       }),
     );
 
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("cannot honor requested run option(s): maxTurns");
-    expect(receivedOptions).toHaveLength(0);
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("signal handled");
+    expect(receivedOptions).toHaveLength(1);
+    expect(receivedOptions[0]?.maxTurns).toBeUndefined();
   });
 });

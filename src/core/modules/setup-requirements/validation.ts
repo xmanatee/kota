@@ -73,7 +73,7 @@ export function isLiteral<T extends string>(
   return allowed.includes(value as T);
 }
 
-export function isSafeModuleSetupOptionValue(value: string): boolean {
+function isSafeModuleSetupOptionValue(value: string): boolean {
   return SETUP_OPTION_VALUE_PATTERN.test(value) && redactSensitiveValues(value) === value;
 }
 

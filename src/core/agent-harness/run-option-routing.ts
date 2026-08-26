@@ -43,6 +43,15 @@ function requestedUnsupportedOptions(
   );
 }
 
+export function harnessSupportsRunOption(
+  harness: AgentHarness,
+  option: AgentHarnessUnsupportedRunOption,
+): boolean {
+  return !(harness.unsupportedRunOptions ?? []).some(
+    (entry) => entry.runOption === option,
+  );
+}
+
 function isRunOptionRequested(
   option: AgentHarnessUnsupportedRunOption,
   options: AgentHarnessRunOptions,

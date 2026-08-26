@@ -91,6 +91,7 @@ function harnessBudgetSource(
 }
 
 export {
+  harnessSupportsRunOption,
   routeKotaToolControlOptions,
   shouldRouteKotaToolControl,
 } from "./run-option-routing.js";

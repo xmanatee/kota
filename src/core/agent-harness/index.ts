@@ -143,6 +143,7 @@ export {
   resolveAgentHarness,
 } from "./registry.js";
 export {
+  harnessSupportsRunOption,
   routeKotaToolControlOptions,
   runAgentHarness,
   shouldRouteKotaToolControl,

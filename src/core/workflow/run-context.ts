@@ -104,20 +104,19 @@ const RUN_REPOSITORY_ACCESS = Symbol("run-repository-access");
 /** Opaque proof that repository access was issued by the durable run runtime. */
 export type RunRepositoryAccess = Readonly<{
   [RUN_REPOSITORY_ACCESS]: Readonly<{
-    repository: RunSandbox["repository"];
-    workspaceDir: string;
+    requireWriterWorkspace(): string;
   }>;
 }>;
 
-/** Resolve a writer workspace without inspecting or reconciling sandbox state. */
+/** Resolve the writer workspace after revalidating its active run attempt. */
 export function requireRunWriterWorkspace(
   access: RunRepositoryAccess | undefined,
 ): string {
   const authority = access?.[RUN_REPOSITORY_ACCESS];
-  if (authority?.repository !== "write") {
+  if (authority === undefined) {
     throw new Error("A runtime-owned writer repository is required");
   }
-  return authority.workspaceDir;
+  return authority.requireWriterWorkspace();
 }
 
 export class AmbiguousExternalEffectError extends Error {
@@ -274,8 +273,20 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
   const sandbox = deepFreeze({ ...input.sandbox }) as Readonly<RunSandbox>;
   const repositoryAccess: RunRepositoryAccess = Object.freeze({
     [RUN_REPOSITORY_ACCESS]: Object.freeze({
-      repository: sandbox.repository,
-      workspaceDir: sandbox.workspaceDir,
+      requireWriterWorkspace(): string {
+        const activeSandbox = input.store.requireActiveRunSandbox({
+          runId: input.runId,
+          attempt: input.attempt,
+          epoch: input.daemonEpoch,
+        });
+        if (
+          activeSandbox.repository !== "write" ||
+          activeSandbox.workspaceDir !== sandbox.workspaceDir
+        ) {
+          throw new Error("A runtime-owned writer repository is required");
+        }
+        return activeSandbox.workspaceDir;
+      },
     }),
   });
   return Object.freeze({

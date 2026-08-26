@@ -579,6 +579,41 @@ export class RunStateDatabase {
     }
   }
 
+  requireActiveRunSandbox(input: {
+    runId: string;
+    attempt: number;
+    epoch: number;
+  }): RunSandbox {
+    this.assertCurrentEpoch(input.epoch);
+    const row = this.database
+      .prepare(
+        `SELECT r.sandbox_json
+         FROM runs r
+         WHERE r.id = ?
+           AND r.state IN ('running', 'integrating')
+           AND r.daemon_epoch = ?
+           AND EXISTS (
+             SELECT 1 FROM run_attempts a
+             WHERE a.run_id = r.id
+               AND a.attempt = ?
+               AND a.daemon_epoch = ?
+               AND a.state = 'running'
+           )`,
+      )
+      .get(input.runId, input.epoch, input.attempt, input.epoch) as
+        | { sandbox_json: string | null }
+        | undefined;
+    if (row === undefined) {
+      throw new Error(
+        `Run "${input.runId}" attempt ${input.attempt} is not active in daemon epoch ${input.epoch}`,
+      );
+    }
+    if (row.sandbox_json === null) {
+      throw new Error(`Run "${input.runId}" has no active sandbox`);
+    }
+    return JSON.parse(row.sandbox_json) as RunSandbox;
+  }
+
   updateIntegration(
     runId: string,
     epoch: number,
