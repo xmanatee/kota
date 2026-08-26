@@ -155,6 +155,7 @@ describe("operator continuity UI surface", () => {
         }],
       }),
       setup: ok({
+        visibility: "full",
         requirements: [{
           moduleName: "telegram",
           requirementId: "bot-credentials",

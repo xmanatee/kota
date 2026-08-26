@@ -56,13 +56,14 @@ describe("module setup scope policy", () => {
       getVisibility: () => visibility,
     });
 
-    expect(await service.list()).toMatchObject({ requirements: [] });
+    expect(await service.list()).toMatchObject({ visibility: "hidden", requirements: [] });
     expect(await service.submitForm("demo", "endpoint", {
       "base-url": "https://hidden.test",
     })).toMatchObject({ ok: false, reason: "policy_denied" });
 
     visibility = "metadata";
     const metadata = await service.list();
+    expect(metadata.visibility).toBe("metadata");
     expect(metadata.requirements[0]).toMatchObject({
       moduleName: "demo",
       title: "Endpoint",
@@ -75,6 +76,7 @@ describe("module setup scope policy", () => {
     })).toMatchObject({ ok: false, reason: "policy_denied" });
 
     visibility = "full";
+    expect((await service.list()).visibility).toBe("full");
     expect(await service.submitForm("demo", "endpoint", {
       "base-url": "https://full.test",
     })).toMatchObject({ ok: true, status: { state: "ready" } });

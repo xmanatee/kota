@@ -175,6 +175,7 @@ export type ModuleSetupRequirementStatus = {
 };
 
 export type ModuleSetupStatusResponse = {
+  visibility: ScopeSetupVisibility;
   requirements: ModuleSetupRequirementStatus[];
   summary: Record<ModuleSetupStatusState, number>;
 };

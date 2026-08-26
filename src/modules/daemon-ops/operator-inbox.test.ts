@@ -104,6 +104,7 @@ function client(args: {
   questions?: PendingOwnerQuestion[];
   blockedContent?: Record<string, string>;
   setup?: ModuleSetupRequirementStatus[];
+  setupVisibility?: "hidden" | "metadata" | "full";
   runs?: WorkflowRunSummary[];
 } = {}): KotaClient {
   const blockedContent = args.blockedContent ?? {};
@@ -172,6 +173,7 @@ function client(args: {
     setup: {
       async list() {
         return {
+          visibility: args.setupVisibility ?? "full",
           requirements: args.setup ?? [],
           summary: {
             ready: 0,
@@ -257,6 +259,19 @@ describe("operator inbox", () => {
     expect(output).toContain("Blocked task-needs-owner");
     expect(output).toContain("github: GitHub token");
     expect(output).toContain("builder failed");
+  });
+
+  it("surfaces hidden setup visibility without inventing requirement rows", async () => {
+    const snapshot = await buildOperatorInboxSnapshot({
+      client: client({ setupVisibility: "hidden" }),
+      projectDir: "/repo",
+      status: status(),
+    });
+
+    expect(snapshot.counts.setup).toBe(1);
+    expect(formatOperatorInboxOutput(snapshot)).toContain(
+      "Setup requirements hidden by scope policy",
+    );
   });
 
   it("fails when a listed blocked task has no typed unblock precondition", async () => {

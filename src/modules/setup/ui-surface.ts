@@ -12,8 +12,8 @@ import type {
 import {
   setupActionForms,
   setupActions,
-  setupRows,
 } from "./ui-surface-helpers.js";
+import { setupRows } from "./ui-surface-rows.js";
 
 export function buildSetupUiSurface(args: {
   scopeId: string;
@@ -37,11 +37,18 @@ export function buildSetupUiSurface(args: {
       {
         kind: "status-summary",
         entries: args.setup.ok
-          ? Object.entries(args.setup.value.summary).map(([label, value]) => ({
-              label,
-              value: `${value}`,
-              role: value > 0 && label !== "ready" ? "warn" : "muted" as UiRole,
-            }))
+          ? [
+              {
+                label: "visibility",
+                value: args.setup.value.visibility,
+                role: args.setup.value.visibility === "full" ? "muted" : "warn" as UiRole,
+              },
+              ...Object.entries(args.setup.value.summary).map(([label, value]) => ({
+                label,
+                value: `${value}`,
+                role: value > 0 && label !== "ready" ? "warn" : "muted" as UiRole,
+              })),
+            ]
           : [{ label: "Setup", value: args.setup.message, role: "warn" }],
       },
       { kind: "table", title: "Setup and auth requirements", columns: NAME_STATE_DETAIL_COLUMNS, rows: setupRows(args.setup, actions) },

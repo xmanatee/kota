@@ -964,6 +964,7 @@ describe("DaemonControlServer", () => {
         ],
       };
       const listResponse: ModuleSetupStatusResponse = {
+        visibility: "full",
         requirements: [status],
         summary: {
           ready: 0,

@@ -63,6 +63,7 @@ export function continuityInput(
     ownerQuestions: ok({ questions: [] }),
     ownerDecisions: ok({ decisions: [] }),
     setup: ok({
+      visibility: "full",
       requirements: [],
       summary: {
         ready: 0,

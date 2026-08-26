@@ -4,18 +4,16 @@ import type {
   ModuleSetupCompleteInput,
   ModuleSetupFormValues,
   ModuleSetupJsonValue,
-  ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
 import {
-  group,
   line,
   plain,
-  type RenderNode,
   type SemanticRole,
   span,
   stack,
 } from "#modules/rendering/primitives.js";
-import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
+import { printSetupList } from "./cli-list.js";
 import type {
   ModuleSetupMutationResult,
   ModuleSetupStartResult,
@@ -134,54 +132,6 @@ function printResult(
   print(statusLine);
 }
 
-function printList(result: ModuleSetupStatusResponse, json: boolean): void {
-  if (json) {
-    writeJson(result, { pretty: true });
-    return;
-  }
-  if (result.requirements.length === 0) {
-    print(line(plain("No setup requirements declared.")));
-    return;
-  }
-  const nodes: RenderNode[] = [];
-  for (const req of result.requirements) {
-    const details: RenderNode[] = [
-      line(span(req.state, setupStateRole(req.state)), plain("  "), plain(req.title)),
-      line(span(req.message, "muted")),
-    ];
-    if (req.secretRefs) {
-      for (const ref of req.secretRefs) {
-        details.push(line(
-          plain("secret "),
-          span(ref.name, "accent"),
-          plain(": "),
-          span(ref.present ? "present" : "missing", ref.present ? "success" : "warn"),
-        ));
-      }
-    }
-    if (req.configFields) {
-      for (const field of req.configFields) {
-        details.push(line(
-          plain("config "),
-          span(field.configPath, "accent"),
-          plain(": "),
-          span(field.present ? "present" : "missing", field.present ? "success" : "warn"),
-        ));
-      }
-    }
-    if (req.pendingAction) {
-      details.push(line(
-        plain("action "),
-        span(req.pendingAction.actionId, "accent"),
-        plain(": "),
-        span(req.pendingAction.status, setupStateRole(req.pendingAction.status)),
-      ));
-    }
-    nodes.push(group(`${req.moduleName}/${req.requirementId}`, stack(...details)));
-  }
-  print(stack(...nodes));
-}
-
 export function buildSetupCommand(ctx: ModuleContext): Command {
   const cmd = new Command("setup").description("Inspect and satisfy module setup requirements");
 
@@ -190,7 +140,7 @@ export function buildSetupCommand(ctx: ModuleContext): Command {
     .description("List setup requirement status")
     .option("--json", "Output JSON")
     .action(async (opts: { json?: boolean }) => {
-      printList(await ctx.client.setup.list(), opts.json === true);
+      printSetupList(await ctx.client.setup.list(), opts.json === true);
     });
 
   cmd

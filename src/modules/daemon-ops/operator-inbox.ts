@@ -166,6 +166,17 @@ function setupItem(req: ModuleSetupRequirementStatus): OperatorInboxItem {
   };
 }
 
+function hiddenSetupItem(): OperatorInboxItem {
+  return {
+    kind: "setup",
+    id: "visibility/hidden",
+    title: "Setup requirements hidden by scope policy",
+    detail: "hidden — change the scope setup visibility to inspect requirements",
+    action: "kota setup list",
+    role: "muted",
+  };
+}
+
 function failedRunItem(run: WorkflowRunSummary): OperatorInboxItem {
   return {
     kind: "failed-run",
@@ -198,10 +209,12 @@ export async function buildOperatorInboxSnapshot(args: {
   const setup = await client.setup.list();
   const runs = await client.workflow.listRuns({ limit });
 
-  const setupItems = setup.requirements
-    .filter((req) => req.state !== "ready")
-    .slice(0, limit)
-    .map(setupItem);
+  const setupItems = setup.visibility === "hidden"
+    ? [hiddenSetupItem()]
+    : setup.requirements
+      .filter((req) => req.state !== "ready")
+      .slice(0, limit)
+      .map(setupItem);
 
   const failedRuns = runs.runs
     .filter((run) => run.status === "failed" || run.status === "interrupted")

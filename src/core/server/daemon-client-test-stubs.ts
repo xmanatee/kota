@@ -90,6 +90,7 @@ export function buildMigratedNamespaceTestStubs(): Partial<DaemonClientHandlers>
     },
     setup: {
       list: async () => ({
+        visibility: "full",
         requirements: [],
         summary: {
           ready: 0,

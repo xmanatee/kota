@@ -32,6 +32,7 @@ type SetupControlHandleMethods = Pick<
 >;
 
 const EMPTY_SETUP_STATUS: ModuleSetupStatusResponse = {
+  visibility: "full",
   requirements: [],
   summary: {
     ready: 0,

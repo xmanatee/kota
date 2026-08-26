@@ -75,6 +75,8 @@ const URL_SECRET_PARAM_PATTERN =
 const SENSITIVE_TEXT_ASSIGNMENT_PATTERN =
   /\b(authorization|credential|password|secret|token|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie|bearer)(\s*[:=]\s*)([^\s,;&]+)/gi;
 const BEARER_TEXT_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/-]+/gi;
+const SECRET_VALUE_TEXT_PATTERN =
+  /\b(?:sk-[A-Za-z0-9_-]{12,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{20,}|ya29\.[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\b/g;
 const SECRET_LIKE_TEXT_TOKEN_PATTERN =
   /\b[A-Za-z0-9._~+/-]*?(?:secret|password|credential|api[-_]?key|access[-_]?key|refresh[-_]?token|cookie)[A-Za-z0-9._~+/-]*\b/gi;
 const SECRET_LABEL_TEXT_PATTERN =
@@ -88,7 +90,7 @@ const SECRET_REFERENCE_METADATA_KEYS = new Set([
   "secretReference",
   "secretReferences",
 ]);
-const SECRET_REFERENCE_METADATA_VALUE_KEYS = new Set(["name", "scope", "source"]);
+const SECRET_REFERENCE_METADATA_VALUE_KEYS = new Set(["name", "scope", "source", "present"]);
 
 type ProjectionContext = {
   secretReferenceMetadata: boolean;
@@ -218,6 +220,13 @@ function projectEvidenceJsonValueInternal(
   const profile = redactionProfileForTarget(target);
   const currentContext = projectionContextForKey(key, context);
   const keyClass = classifyEvidenceKey(key);
+  if (
+    profile.scrubSecretsAndPii &&
+    currentContext.secretReferenceMetadata &&
+    key.length > 0 &&
+    !SECRET_REFERENCE_METADATA_KEYS.has(key) &&
+    !SECRET_REFERENCE_METADATA_VALUE_KEYS.has(key)
+  ) return EVIDENCE_REDACTED;
   if (profile.scrubSecretsAndPii && keyClass === "secret") return EVIDENCE_REDACTED;
   if (profile.scrubSecretsAndPii && keyClass === "pii") return EVIDENCE_REDACTED;
   if (profile.omitPrivateReasoning && keyClass === "private-reasoning") {
@@ -267,18 +276,31 @@ export function projectEvidenceText(
   return text;
 }
 
+export function projectEvidenceUrl(
+  value: string,
+  target: EvidenceProjectionTarget,
+): string {
+  return redactionProfileForTarget(target).scrubSecretsAndPii
+    ? redactSensitiveUrl(value)
+    : value;
+}
+
 export function redactSensitiveText(text: string): string {
+  return redactSensitiveValues(text).replace(SECRET_LIKE_TEXT_TOKEN_PATTERN, (match) =>
+    SECRET_LABEL_TEXT_PATTERN.test(match) ? match : EVIDENCE_REDACTED
+  );
+}
+
+export function redactSensitiveValues(text: string): string {
   return text
     .replace(URL_TEXT_PATTERN, (match) => redactSensitiveUrl(match))
     .replace(BEARER_TEXT_PATTERN, "Bearer [redacted]")
     .replace(SENSITIVE_TEXT_ASSIGNMENT_PATTERN, (_match, key, separator, value) =>
       `${key}${separator}${isAlreadyRedactedText(value) ? value : EVIDENCE_REDACTED}`
     )
+    .replace(SECRET_VALUE_TEXT_PATTERN, EVIDENCE_REDACTED)
     .replace(EMAIL_TEXT_PATTERN, EVIDENCE_REDACTED)
-    .replace(SSN_TEXT_PATTERN, EVIDENCE_REDACTED)
-    .replace(SECRET_LIKE_TEXT_TOKEN_PATTERN, (match) =>
-      SECRET_LABEL_TEXT_PATTERN.test(match) ? match : EVIDENCE_REDACTED
-    );
+    .replace(SSN_TEXT_PATTERN, EVIDENCE_REDACTED);
 }
 
 function isAlreadyRedactedText(value: string): boolean {
@@ -368,11 +390,31 @@ function redactSensitiveUrl(value: string): string {
     return value;
   }
   let changed = false;
+  if (parsed.username.length > 0) {
+    parsed.username = EVIDENCE_REDACTED;
+    changed = true;
+  }
+  if (parsed.password.length > 0) {
+    parsed.password = EVIDENCE_REDACTED;
+    changed = true;
+  }
   for (const key of [...parsed.searchParams.keys()]) {
     if (URL_SECRET_PARAM_PATTERN.test(key)) {
       parsed.searchParams.set(key, EVIDENCE_REDACTED);
       changed = true;
     }
+  }
+  const fragment = new URLSearchParams(parsed.hash.slice(1));
+  let fragmentChanged = false;
+  for (const key of [...fragment.keys()]) {
+    if (URL_SECRET_PARAM_PATTERN.test(key)) {
+      fragment.set(key, EVIDENCE_REDACTED);
+      fragmentChanged = true;
+    }
+  }
+  if (fragmentChanged) {
+    parsed.hash = fragment.toString();
+    changed = true;
   }
   return changed ? parsed.toString() : value;
 }

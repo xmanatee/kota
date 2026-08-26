@@ -11,6 +11,7 @@ import type {
   ModuleSetupStartResult,
   ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
+import { projectModuleSetupStatusForClient } from "#core/modules/setup-requirements.js";
 import type { SetupClient } from "./client.js";
 import setupModule from "./index.js";
 
@@ -62,6 +63,7 @@ function startFailure(): ModuleSetupStartResult {
 function setupClient(overrides: Partial<SetupClient>): SetupClient {
   const mutation = mutationFor("api");
   const listResult: ModuleSetupStatusResponse = {
+    visibility: "full",
     requirements: [],
     summary: {
       ready: 0,
@@ -332,6 +334,99 @@ describe("setup module manifest projection", () => {
     await expect(client.list()).rejects.toThrow(
       /manifest setup requirement "missing" has no setup declaration/,
     );
+  });
+});
+
+describe("kota setup list CLI", () => {
+  it("renders stable credential metadata from the typed client projection", async () => {
+    const rawStatus: ModuleSetupRequirementStatus = {
+      ...statusFor("openrouter-api-key"),
+      moduleName: "model-clients",
+      title: "OpenRouter API key credential",
+      reason: "api_key_missing",
+      message: `API key credential is missing; token=${SECRET_VALUE}`,
+      state: "missing",
+      secretRefs: [{
+        name: "OPENROUTER_API_KEY",
+        scope: "global",
+        present: false,
+      }],
+    };
+    const projected = projectModuleSetupStatusForClient(rawStatus, "cli-client");
+    const client = setupClient({
+      list: vi.fn(async () => ({
+        visibility: "full" as const,
+        requirements: [projected],
+        summary: {
+          ready: 0,
+          missing: 1,
+          pending: 0,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      })),
+    });
+
+    const { out, err } = await captureOutput(async () => {
+      await makeProgram(client).parseAsync(["node", "kota", "setup", "list"]);
+    });
+
+    expect(out).toContain("model-clients/openrouter-api-key");
+    expect(out).toContain("OpenRouter API key credential");
+    expect(out).toContain("OPENROUTER_API_KEY");
+    expect(out).toContain("token=[redacted]");
+    expect(out).toContain(
+      "kota setup secret model-clients openrouter-api-key --secret-values-stdin",
+    );
+    expect(out).toContain("kota setup start model-clients openrouter-api-key");
+    expect(out).not.toContain(SECRET_VALUE);
+    expect(err).toBe("");
+  });
+
+  it("renders the secret input contract for a pending completion action", async () => {
+    const pending: ModuleSetupRequirementStatus = {
+      ...statusFor("oauth"),
+      state: "pending",
+      reason: "url_setup_pending",
+      message: "Setup URL action is pending",
+      secretRefs: [{ name: "DEMO_TOKEN", scope: "project", present: false }],
+      pendingAction: {
+        actionId: "demo.oauth.1770000000000",
+        moduleName: "demo",
+        requirementId: "oauth",
+        url: "https://example.com/setup",
+        label: "Open setup",
+        status: "pending",
+        createdAt: "2026-02-03T00:00:00.000Z",
+        expiresAt: "2026-02-03T00:30:00.000Z",
+      },
+    };
+    const client = setupClient({
+      list: vi.fn(async () => ({
+        visibility: "full" as const,
+        requirements: [pending],
+        summary: {
+          ready: 0,
+          missing: 0,
+          pending: 1,
+          expired: 0,
+          revoked: 0,
+          unknown: 0,
+          unavailable: 0,
+        },
+      })),
+    });
+
+    const { out } = await captureOutput(async () => {
+      await makeProgram(client).parseAsync(["node", "kota", "setup", "list"]);
+    });
+
+    expect(out).toContain(
+      "kota setup complete demo.oauth.1770000000000 --secret-values-stdin",
+    );
+    expect(out).toContain("stdin JSON keys DEMO_TOKEN");
   });
 });
 

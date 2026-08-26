@@ -243,6 +243,7 @@ export function emptyClient(overrides: Partial<KotaClient> = {}): KotaClient {
     retract: { retract: stub({ ok: false, reason: "no_contributors" }) },
     setup: {
       list: stub({
+        visibility: "full",
         requirements: [],
         summary: { ready: 0, missing: 0, pending: 0, expired: 0, revoked: 0, unknown: 0, unavailable: 0 },
       }),

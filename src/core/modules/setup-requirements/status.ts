@@ -21,26 +21,44 @@ import type {
 export function moduleSetupStatusFor(args: ModuleSetupStatusInput): ModuleSetupRequirementStatus {
   const base = baseStatus(args.entry);
   const capabilities = capabilityStatusesFor(args.entry.requirement, args.capabilities);
+  const status = requirementStatusFor(args, base, capabilities);
   if (args.pendingAction?.status === "pending") {
     const expires = new Date(args.pendingAction.expiresAt).getTime();
     if (expires > args.now.getTime()) {
-      return withComputed(base, "pending", "url_setup_pending", "Setup URL action is pending", {
+      return {
+        ...status,
+        state: "pending",
+        reason: "url_setup_pending",
+        message: "Setup URL action is pending",
         pendingAction: args.pendingAction,
-        capabilities,
-      });
+      };
     }
-    return withComputed(base, "expired", "url_setup_expired", "Setup URL action expired", {
+    return {
+      ...status,
+      state: "expired",
+      reason: "url_setup_expired",
+      message: "Setup URL action expired",
       pendingAction: args.pendingAction,
-      capabilities,
-    });
+    };
   }
   if (args.pendingAction?.status === "revoked") {
-    return withComputed(base, "revoked", "credentials_revoked", "Credentials were revoked", {
+    return {
+      ...status,
+      state: "revoked",
+      reason: "credentials_revoked",
+      message: "Credentials were revoked",
       pendingAction: args.pendingAction,
-      capabilities,
-    });
+    };
   }
 
+  return status;
+}
+
+function requirementStatusFor(
+  args: ModuleSetupStatusInput,
+  base: Omit<ModuleSetupRequirementStatus, "state" | "reason" | "message">,
+  capabilities: ModuleSetupCapabilityStatus[],
+): ModuleSetupRequirementStatus {
   switch (args.entry.requirement.kind) {
     case "config":
       return configStatus(base, args.entry.requirement, args.config, capabilities);

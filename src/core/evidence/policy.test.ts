@@ -6,8 +6,10 @@ import {
   evidenceRetentionDurationMsFor,
   projectEvidenceJsonObject,
   projectEvidenceText,
+  projectEvidenceUrl,
   redactionProfileForTarget,
   redactSensitiveText,
+  redactSensitiveValues,
   resolveEvidenceRetention,
 } from "./policy.js";
 
@@ -189,5 +191,18 @@ describe("evidence policy", () => {
       "requires successful verification steps: verify",
     );
     expect(redactSensitiveText("Enter the API token")).toBe("Enter the API token");
+    expect(redactSensitiveValues("Credentials were revoked")).toBe("Credentials were revoked");
+    expect(redactSensitiveText("provider returned sk-adversarial-value-1234567890")).toBe(
+      "provider returned [redacted]",
+    );
+  });
+
+  it("sanitizes URL credentials across authority, query, and fragment components", () => {
+    expect(projectEvidenceUrl(
+      "https://user:password@example.test/callback?next=/setup#access_token=secret&view=ready",
+      "daemon-api",
+    )).toBe(
+      "https://%5Bredacted%5D:%5Bredacted%5D@example.test/callback?next=/setup#access_token=%5Bredacted%5D&view=ready",
+    );
   });
 });

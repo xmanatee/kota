@@ -1,13 +1,13 @@
 ---
 id: task-render-setup-metadata-without-redacting-operator-c
 title: Render setup metadata without redacting operator controls
-status: ready
+status: done
 priority: p1
 area: client
 task_class: Product
 summary: Project setup status field by field so secrets stay hidden while requirement IDs, reasons, paths, and actions remain usable.
 created_at: 2026-08-24T02:13:40.033Z
-updated_at: 2026-08-24T02:13:40.033Z
+updated_at: 2026-08-26T03:02:11.396Z
 ---
 
 ## Problem
@@ -59,8 +59,9 @@ Operator-completable canonical setup and onboarding.
 
 ## Acceptance Evidence
 
-- Screened CLI transcript covering missing, revoked, pending, ready, and hidden
-  setup states with secrets absent and commands executable.
+- Rendered production-CLI capture at
+  `.kota/runs/2026-08-24T12-19-13-793Z-builder-vw6ajf/evidence/artifacts/setup-provider-controls.png`,
+  with secrets absent and displayed commands executable.
 - Daemon/shared-UI rendered fixtures for the same structured projection.
 - Negative fixture containing real secret-shaped values and safe labels that
   share secret-related words.

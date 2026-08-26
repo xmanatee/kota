@@ -7,14 +7,11 @@ import type {
   UiFieldInput,
   UiFormField,
   UiNode,
-  UiTableRow,
 } from "#core/daemon/ui-surface.js";
 import {
   action,
-  emptyRows,
   resultSpec,
   type SurfaceRead,
-  unavailableRows,
   uniqueActions,
 } from "#core/daemon/ui-surface-builders.js";
 import type {
@@ -163,28 +160,12 @@ function setupRoute(
   return { kind: "daemon-route", method: "POST", path: `${base}/${suffix}` };
 }
 
-export function setupRows(
-  setup: SurfaceRead<ModuleSetupStatusResponse>,
-  actions: readonly UiAction[],
-): UiTableRow[] {
-  if (!setup.ok) return unavailableRows(setup.message);
-  if (setup.value.requirements.length === 0) return emptyRows("Setup requirements");
-  return setup.value.requirements.map((requirement) => ({
-    id: `${requirement.moduleName}-${requirement.requirementId}`,
-    cells: [
-      { columnId: "name", value: `${requirement.moduleName}/${requirement.requirementId}`, role: requirement.state === "ready" ? "success" : "warn" },
-      { columnId: "state", value: requirement.state, role: requirement.state === "ready" ? "success" : "warn" },
-      {
-        columnId: "detail",
-        value: `${requirement.kind}; ${requirement.sensitivity}; ${requirement.setup.mode}; ${requirement.message}`,
-        role: "muted",
-      },
-    ],
-    action: actions.find((candidate) =>
-      candidate.actionId.startsWith(`setup.${requirement.moduleName}.${requirement.requirementId}.`) &&
-      candidate.effect !== "read"
-    ),
-  }));
+function setupCompleteRoute(actionId: string): UiActionOperation {
+  return {
+    kind: "daemon-route",
+    method: "POST",
+    path: `/setup/actions/${encodeURIComponent(actionId)}/complete`,
+  };
 }
 
 export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStatusResponse>): UiAction[] {
@@ -197,6 +178,7 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
     result: resultSpec("Setup requirements loaded."),
   });
   if (!setup.ok) return [refresh];
+  if (setup.value.visibility !== "full") return [refresh];
   const actions: UiAction[] = [refresh];
   for (const requirement of setup.value.requirements) {
     if (!supportsSetupUiActions(requirement)) continue;
@@ -233,7 +215,26 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
       }));
     }
 
-    if (requirement.setup.mode === "url") {
+    if (
+      requirement.state === "pending" &&
+      requirement.pendingAction?.status === "pending"
+    ) {
+      const completionParameters = requirement.secretRefs?.some((ref) => !ref.present)
+        ? secretParameters
+        : undefined;
+      actions.push(action({
+        surfaceId: "setup",
+        actionId: `setup.${requirement.moduleName}.${requirement.requirementId}.complete`,
+        scopeId,
+        label: `Complete ${requirement.moduleName}/${requirement.requirementId}`,
+        effect: "write",
+        operation: setupCompleteRoute(requirement.pendingAction.actionId),
+        parameters: completionParameters,
+        readiness: setupReadiness(requirement),
+        conditions,
+        result: resultSpec("Setup action completed."),
+      }));
+    } else if (requirement.setup.mode === "url") {
       actions.push(
         action({
           surfaceId: "setup",
@@ -285,7 +286,11 @@ export function setupActions(scopeId: string, setup: SurfaceRead<ModuleSetupStat
 export function setupActionForms(actions: readonly UiAction[]): UiNode[] {
   return actions.flatMap((candidate): UiNode[] => {
     if (!candidate.parameters) return [];
-    if (!candidate.actionId.endsWith(".submit-form") && !candidate.actionId.endsWith(".store-secret")) {
+    if (
+      !candidate.actionId.endsWith(".submit-form") &&
+      !candidate.actionId.endsWith(".store-secret") &&
+      !candidate.actionId.endsWith(".complete")
+    ) {
       return [];
     }
     return [{

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { projectModuleSetupStatusForClient } from "#core/modules/setup-requirements.js";
 import { renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { ModuleSetupStatusResponse } from "./client.js";
@@ -6,6 +7,7 @@ import { buildSetupUiSurface } from "./ui-surface.js";
 
 function setupStatus(): ModuleSetupStatusResponse {
   return {
+    visibility: "full",
     requirements: [
       {
         moduleName: "telegram",
@@ -60,7 +62,7 @@ function setupStatus(): ModuleSetupStatusResponse {
         state: "pending",
         reason: "url_setup_pending",
         message: "Setup URL action is pending",
-        secretRefs: [{ name: "GOOGLE_REFRESH_TOKEN", scope: "project", present: true }],
+        secretRefs: [{ name: "GOOGLE_REFRESH_TOKEN", scope: "project", present: false }],
         pendingAction: {
           actionId: "google-workspace.oauth-credentials.1770000000000",
           moduleName: "google-workspace",
@@ -122,6 +124,7 @@ describe("setup UI surface", () => {
       "form",
       "form",
       "form",
+      "form",
       "action-list",
     ]);
 
@@ -156,11 +159,26 @@ describe("setup UI surface", () => {
       requirementId: "bot-credentials",
       state: "missing",
     }]);
-    const start = surface.actions.find((candidate) =>
-      candidate.actionId === "setup.google-workspace.oauth-credentials.start"
+    const complete = surface.actions.find((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.complete"
     );
-    expect(start?.effect).toBe("external");
-    expect(start?.readiness.state).toBe("ready");
+    expect(complete?.effect).toBe("write");
+    expect(complete?.operation).toEqual({
+      kind: "daemon-route",
+      method: "POST",
+      path: "/setup/actions/google-workspace.oauth-credentials.1770000000000/complete",
+    });
+    expect(complete?.parameters?.fields).toEqual([
+      expect.objectContaining({
+        id: "GOOGLE_REFRESH_TOKEN",
+        input: "secret",
+        required: true,
+      }),
+    ]);
+    expect(complete?.readiness.state).toBe("ready");
+    expect(surface.actions.some((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.start"
+    )).toBe(false);
     const revoke = surface.actions.find((candidate) =>
       candidate.actionId === "setup.google-workspace.oauth-credentials.revoke"
     );
@@ -170,12 +188,38 @@ describe("setup UI surface", () => {
     expect(rendered).toContain("Setup and auth requirements");
     expect(rendered).toContain("TELEGRAM_BOT_TOKEN");
     expect(rendered).not.toContain("stdin-secret-token");
+
+    const expiredStatus = setupStatus();
+    const oauth = expiredStatus.requirements.find((requirement) =>
+      requirement.requirementId === "oauth-credentials"
+    )!;
+    oauth.state = "expired";
+    oauth.reason = "url_setup_expired";
+    oauth.message = "Setup URL action expired";
+    const expiredSurface = buildSetupUiSurface({
+      scopeId: "p-kota-fixture-default",
+      setup: { ok: true, value: expiredStatus },
+    });
+    expect(expiredSurface.actions.some((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.start"
+    )).toBe(true);
+    expect(expiredSurface.actions.some((candidate) =>
+      candidate.actionId === "setup.google-workspace.oauth-credentials.complete"
+    )).toBe(false);
   });
 
-  it("keeps redacted rows renderable without invalid action ids", () => {
+  it("builds executable actions from preserved credential identifiers", () => {
     const base = setupStatus();
-    const redacted: ModuleSetupStatusResponse = {
-      requirements: [{ ...base.requirements[0]!, requirementId: "[redacted]" }],
+    const projected: ModuleSetupStatusResponse = {
+      visibility: "full",
+      requirements: [projectModuleSetupStatusForClient({
+        ...base.requirements[0]!,
+        moduleName: "model-clients",
+        requirementId: "openrouter-api-key",
+        title: "OpenRouter API key credential",
+        message: "API key credential is missing; token=sk-adversarial-value-1234567890",
+        secretRefs: [{ name: "OPENROUTER_API_KEY", scope: "global", present: false }],
+      }, "web-client")],
       summary: {
         ready: 0,
         missing: 1,
@@ -188,8 +232,32 @@ describe("setup UI surface", () => {
     };
     const surface = buildSetupUiSurface({
       scopeId: "p-kota-fixture-default",
-      setup: { ok: true, value: redacted },
+      setup: { ok: true, value: projected },
     });
-    expect(surface.actions.some((action) => action.actionId.includes("[redacted]"))).toBe(false);
+    const storeSecret = surface.actions.find((candidate) =>
+      candidate.actionId === "setup.model-clients.openrouter-api-key.store-secret"
+    );
+    expect(storeSecret?.operation).toEqual({
+      kind: "daemon-route",
+      method: "POST",
+      path: "/setup/requirements/model-clients/openrouter-api-key/secret",
+    });
+    expect(storeSecret?.parameters?.fields).toEqual([
+      expect.objectContaining({ id: "OPENROUTER_API_KEY", input: "secret" }),
+    ]);
+    const table = surface.nodes.find((node) => node.kind === "table");
+    expect(table?.kind === "table" ? table.rows[0]?.cells : []).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          columnId: "detail",
+          value: expect.stringContaining("token=[redacted]"),
+        }),
+      ]),
+    );
+
+    const rendered = renderToString(renderUiSurface(surface), { width: 240 });
+    expect(rendered).toContain("model-clients/openrouter-api-key");
+    expect(rendered).not.toContain("sk-adversarial-value-1234567890");
   });
+
 });

@@ -33,6 +33,11 @@ type SetupRequirementRoute = {
   action?: "form" | "secret" | "start" | "refresh";
 };
 
+function parseSetupCompleteRoute(path: string): string | null {
+  const match = /^\/setup\/actions\/([^/]+)\/complete$/.exec(path);
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
 function parseSetupRequirementRoute(path: string): SetupRequirementRoute | null {
   const match = /^\/setup\/requirements\/([^/]+)\/([^/]+)(?:\/(form|secret|start|refresh))?$/.exec(path);
   if (!match) return null;
@@ -83,6 +88,20 @@ export async function executeLocalSetupRoute(
   operation: Extract<UiActionOperation, { kind: "daemon-route" }>,
   parameters: UiJsonValue | undefined,
 ): Promise<UiActionExecutionResult | null> {
+  const completeActionId = parseSetupCompleteRoute(operation.path);
+  if (operation.method === "POST" && completeActionId !== null) {
+    const values = parameters === undefined
+      ? { ok: true as const, value: {} }
+      : setupSecretValuesFromUi(parameters);
+    if (!values.ok) return { ok: false, reason: "invalid-input", message: values.message };
+    return setupMutationResult(
+      await client.setup.complete(
+        completeActionId,
+        Object.keys(values.value).length > 0 ? { secretValues: values.value } : {},
+      ),
+      "Setup action completed.",
+    );
+  }
   const route = parseSetupRequirementRoute(operation.path);
   if (!route) return null;
   if (operation.method === "POST" && route.action === "form") {
@@ -130,6 +149,10 @@ export function setupRouteBody(
   operation: Extract<UiActionOperation, { kind: "daemon-route" }>,
   parameters: UiJsonValue | undefined,
 ): UiJsonValue | undefined {
+  if (operation.method === "POST" && parseSetupCompleteRoute(operation.path) !== null) {
+    const secretValues = uiObjectParameter(parameters);
+    return secretValues === null ? {} : { secretValues };
+  }
   const route = parseSetupRequirementRoute(operation.path);
   if (!route) return parameters;
   if (operation.method === "POST" && route.action === "form") {

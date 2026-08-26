@@ -46,8 +46,9 @@ export class ModuleSetupService {
   }
 
   async list(): Promise<ModuleSetupStatusResponse> {
-    if (this.#getVisibility() === "hidden") {
-      return { requirements: [], summary: summarizeStatuses([]) };
+    const visibility = this.#getVisibility();
+    if (visibility === "hidden") {
+      return { visibility, requirements: [], summary: summarizeStatuses([]) };
     }
     const capabilities = await this.#probeCapabilities();
     const config = this.#loadProjectConfig();
@@ -56,7 +57,7 @@ export class ModuleSetupService {
         this.#statusFor(entry, config, capabilities),
       ),
     );
-    return { requirements: statuses, summary: summarizeStatuses(statuses) };
+    return { visibility, requirements: statuses, summary: summarizeStatuses(statuses) };
   }
 
   async refresh(
